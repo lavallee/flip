@@ -10,13 +10,18 @@ from flip.util import read_jsonl
 
 def write_manifest(d: Path, slug: str, kind: str = "scout", status: str = "active") -> Path:
     d.mkdir(parents=True, exist_ok=True)
-    (d / "notebook.toml").write_text(
-        f'slug = "{slug}"\n'
-        f'title = "Title of {slug}"\n'
-        f'kind = "{kind}"\n'
-        f'status = "{status}"\n'
-        'created = "2026-07-09"\n'
-        'updated = "2026-07-10"\n',
+    (d / "index.md").write_text(
+        "---\n"
+        'okf_version: "0.1"\n'
+        'flip: "0.4"\n'
+        f"slug: {slug}\n"
+        f"title: Title of {slug}\n"
+        f"kind: {kind}\n"
+        f"status: {status}\n"
+        "created: 2026-07-09\n"
+        "updated: 2026-07-10\n"
+        "---\n"
+        f"# Title of {slug}\n",
         encoding="utf-8",
     )
     return d
@@ -95,16 +100,53 @@ def test_build_index_skips_export_bags(monkeypatch, tmp_path):
     assert [r["path"] for r in rows] == [str((root / "nb").resolve())]
 
 
+def test_build_index_skips_okf_exports(monkeypatch, tmp_path):
+    # Since v0.4 an OKF export copies the bundle wholesale, flip frontmatter
+    # included; its .last-export.json marker keeps it out of the registry.
+    set_home(monkeypatch, tmp_path)
+    root = tmp_path / "projects"
+    write_manifest(root / "nb", "the-notebook")
+    bundle = write_manifest(root / "nb-okf", "the-notebook")  # the exported copy
+    (bundle / ".last-export.json").write_text("{}\n", encoding="utf-8")
+
+    rows = build_index([root])
+
+    assert [r["path"] for r in rows] == [str((root / "nb").resolve())]
+
+
+def test_build_index_ignores_non_flip_index_md(monkeypatch, tmp_path):
+    set_home(monkeypatch, tmp_path)
+    root = tmp_path / "projects"
+    nb = write_manifest(root / "nb", "real")
+    # a plain OKF bundle: okf_version but no flip key — not a flip notebook
+    okf = root / "plain-okf"
+    okf.mkdir(parents=True)
+    (okf / "index.md").write_text(
+        '---\nokf_version: "0.1"\nslug: not-flip\n---\n# plain bundle\n', encoding="utf-8"
+    )
+    # a generated sub-index without frontmatter — never a root
+    (nb / "references").mkdir()
+    (nb / "references" / "index.md").write_text("# References\n", encoding="utf-8")
+
+    rows = build_index([root])
+
+    assert [r["slug"] for r in rows] == ["real"]
+
+
 def test_build_index_warns_on_bad_manifest(monkeypatch, tmp_path, capsys):
     set_home(monkeypatch, tmp_path)
     root = tmp_path / "projects"
     write_manifest(root / "good", "good")
     bad = root / "bad"
     bad.mkdir(parents=True)
-    (bad / "notebook.toml").write_text("slug = [unclosed\n", encoding="utf-8")
+    (bad / "index.md").write_text(
+        '---\nflip: "0.4"\nslug: "unclosed\n---\n# broken\n', encoding="utf-8"
+    )
     noslug = root / "noslug"
     noslug.mkdir(parents=True)
-    (noslug / "notebook.toml").write_text('title = "no slug here"\n', encoding="utf-8")
+    (noslug / "index.md").write_text(
+        '---\nflip: "0.4"\ntitle: no slug here\n---\n# no slug\n', encoding="utf-8"
+    )
 
     rows = build_index([root])
 
@@ -129,12 +171,14 @@ def test_build_index_is_full_rewrite(monkeypatch, tmp_path):
     assert [r["slug"] for r in read_jsonl(home / INDEX)] == ["from-b"]
 
 
-def test_build_index_tolerates_unquoted_toml_date(monkeypatch, tmp_path):
+def test_build_index_tolerates_unquoted_yaml_date(monkeypatch, tmp_path):
+    # YAML parses a bare `updated: 2026-07-10` as a date object; the row must
+    # still be a JSON-serializable ISO string.
     set_home(monkeypatch, tmp_path)
     nb = tmp_path / "nb"
     nb.mkdir()
-    (nb / "notebook.toml").write_text(
-        'slug = "datey"\nkind = "scout"\nstatus = "active"\nupdated = 2026-07-10\n',
+    (nb / "index.md").write_text(
+        '---\nflip: "0.4"\nslug: datey\nkind: scout\nstatus: active\nupdated: 2026-07-10\n---\n',
         encoding="utf-8",
     )
     rows = build_index([tmp_path])

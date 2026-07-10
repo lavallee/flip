@@ -1,14 +1,17 @@
-"""Scaffolding for `flip new`: manifest + notebook.md section stubs.
+"""Scaffolding for `flip new`: root index.md manifest + notebook.md stubs.
 
-Creates exactly two files — notebook.toml and notebook.md. Everything else
-(sources/, log/, analysis/, …) appears lazily when first needed (SPEC §3):
-empty structure is worse than absent structure.
+Creates exactly two files — index.md (the OKF bundle root carrying the flip
+manifest frontmatter, SPEC §4) and notebook.md (the prose heart, an OKF
+concept page with `type: Notebook`). Everything else (sources/, log/,
+references/, …) appears lazily when first needed (SPEC §3): empty structure
+is worse than absent structure.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+from . import pages, views
 from .manifest import (
     DEFAULT_POLICY,
     VISIBILITIES,
@@ -17,15 +20,15 @@ from .manifest import (
     save_manifest,
 )
 from .profiles import SECTIONS, Profile, load_profile
-from .util import MANIFEST, today
+from .util import ROOT_FILE, today
 
 NOTEBOOK_MD = "notebook.md"
 
 
-def _render_notebook_md(name: str, profile: Profile) -> str:
-    """Render the notebook.md scaffold: a title line, then one stub per
-    profile section — heading plus the prompt as a blockquote the author
-    replaces (prompts are prompts, not a form; SPEC §7.1)."""
+def _notebook_md_body(name: str, profile: Profile) -> str:
+    """Render the notebook.md body: a title line, then one stub per profile
+    section — heading plus the prompt as a blockquote the author replaces
+    (prompts are prompts, not a form; SPEC §13)."""
     parts = [f"# Reporter's notebook — {name}\n"]
     for section in profile.sections:
         spec = SECTIONS[section]
@@ -40,14 +43,16 @@ def create_notebook(
     title: str = "",
     visibility: str | None = None,
 ) -> Path:
-    """Create a notebook at `dest`: notebook.toml + notebook.md, nothing else.
+    """Create a notebook at `dest`: index.md + notebook.md, nothing else.
 
-    Policy = DEFAULT_POLICY overlaid with the profile's forced_policy, then
-    the explicit `visibility` argument if given. Returns `dest`.
+    Policy starts at the Manifest defaults, overlaid with the profile's
+    forced_policy, then the explicit `visibility` argument if given. All
+    validation runs before mkdir, so a bad call creates nothing. Returns
+    `dest`.
     """
-    if (dest / MANIFEST).exists():
+    if (dest / ROOT_FILE).exists():
         raise SystemExit(
-            f"{dest} already contains {MANIFEST}; work in that notebook or "
+            f"{dest} already contains {ROOT_FILE}; work in that notebook or "
             f"pick a different directory"
         )
     require_valid_slug(slug)  # before mkdir: a bad slug creates nothing
@@ -56,21 +61,20 @@ def create_notebook(
         raise SystemExit(
             f"invalid visibility '{visibility}' (one of: {', '.join(VISIBILITIES)})"
         )
-    policy = {**DEFAULT_POLICY, **profile.forced_policy}
+    m = Manifest(slug=slug, title=title, kind=kind, created=today(), updated=today())
+    for key, value in profile.forced_policy.items():
+        if key in DEFAULT_POLICY:
+            setattr(m, key, value)
     if visibility is not None:
-        policy["visibility"] = visibility
+        m.visibility = visibility
 
     dest.mkdir(parents=True, exist_ok=True)
-    manifest = Manifest(
-        slug=slug,
-        title=title,
-        kind=kind,
-        created=today(),
-        updated=today(),
-        policy=policy,
+    save_manifest(dest, m)
+    name = title or slug
+    pages.write_page(
+        dest / NOTEBOOK_MD,
+        {"type": "Notebook", "description": name},
+        _notebook_md_body(name, profile),
     )
-    save_manifest(dest, manifest)
-    (dest / NOTEBOOK_MD).write_text(
-        _render_notebook_md(title or slug, profile), encoding="utf-8"
-    )
+    views.regenerate(dest)
     return dest

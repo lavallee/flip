@@ -7,17 +7,33 @@ document disagree, fix one of them in the same change.
 
 ## Ground rules
 
-- **Stdlib + click only.** The library core makes no network calls, runs no
-  LLMs, requires no services (SPEC §14). Fetchers are external commands the
-  user configures; flip only ever `subprocess.run`s them.
+- **Stdlib + click + PyYAML only.** The library core makes no network calls,
+  runs no LLMs, requires no services (SPEC §15). Fetchers are external
+  commands the user configures; flip only ever `subprocess.run`s them.
 - **Every disk convention goes through `util.py`** — timestamps (`utc_now`),
   hashing (`sha256_file`), JSONL io (`append_jsonl`/`read_jsonl`/`write_jsonl`),
   actor detection (`detect_actor`), id allocation (`next_id`), root discovery
-  (`require_notebook_root`).
-- **Append-only means append-only.** Log ledgers (`log/*.jsonl`,
-  `sources/_provenance.jsonl`, `derived/_derivations.jsonl`) are written with
-  `append_jsonl` exclusively. Only `sources/ledger.jsonl` and
-  `analysis/claims.jsonl` are current-state (rewritten via `write_jsonl`).
+  (`is_notebook_root`/`find_notebook_root`/`require_notebook_root` — an
+  index.md whose frontmatter declares a `flip:` version). All YAML io goes
+  through `pages.py`.
+- **Entity pages are canonical; ledgers are append-only.** One markdown file
+  per source/claim/decision/question/session; event history (`log/*.jsonl`,
+  `sources/_provenance.jsonl`, `derived/_derivations.jsonl`) is written with
+  `append_jsonl` exclusively and never rewritten. `index.md` bodies and
+  `log.md` are generated projections owned by `views.regenerate`.
+- **Round-trip rule (SPEC §6.6).** Editing an existing page means
+  `pages.read_page`, changing only the keys the function owns, and writing
+  fm+body back — unknown frontmatter keys and the prose body survive.
+- **Mutation tail.** Every mutating library function validates the notebook
+  root FIRST (`require_notebook_root` or `load_manifest`), writes, then runs
+  `manifest.touch_updated(root)` and `views.regenerate(root)` — exactly once
+  per command; the CLI never regenerates on its own.
+- **Ids are never reused.** All allocation goes through
+  `pages.allocate_id(root, prefix)`: it runs `util.next_id` over
+  `pages.all_ids(root)` — current pages (entity dirs + analysis/), every id
+  that ever hit the provenance ledger, and every id in the notebook-local
+  append-only reservation file `.flip/ids` — then records the grant there.
+  Deleting a page never frees its id.
 - **Human-readable errors.** CLI failures raise `SystemExit` with a one-line,
   actionable message. Agents read these too — say what to do, not just what
   broke.
@@ -28,40 +44,64 @@ document disagree, fix one of them in the same change.
 
 | module | owns | public surface |
 |---|---|---|
-| `util.py` | shared primitives | see ground rules |
-| `profiles.py` + `profiles/*.toml` | section menu, profile loading | `SECTIONS`, `SECTION_ORDER`, `load_profile`, `list_profiles`, `Profile` |
-| `manifest.py` | notebook.toml read/write | `Manifest` dataclass, `load_manifest(root)`, `save_manifest(root, m)`, `touch_updated(root)`. Unknown top-level keys/tables are preserved in `Manifest.extras` and re-rendered on save; every rendered value goes through TOML basic-string escaping; slugs are validated (`^[a-z0-9][a-z0-9._-]*$`) at create/save |
-| `scaffold.py` | `flip new` | `create_notebook(dest, slug, kind, title, visibility) -> Path`; renders notebook.toml + notebook.md section stubs from the profile; rejects invalid slugs before creating anything |
-| `sources.py` | `flip add-source` | `add_source(root, target, kind=None, note=None) -> dict`; fetcher routing/exec, `builtin:copy`, hashing, provenance append, ledger entry (grade `?`); kind→prefix per SPEC §3 (`paper`→P, `web`/`article`→A, `file`/`dataset`/`document`→F, `talk`/`transcript`→T, else S — D is reserved for decisions); `flip grade` updates ledger judgments; `list_sources` backs `flip source list` |
-| `ledgers.py` | `flip log/decide/pass/question` | `log_event`, `add_decision`, `add_passed`, `add_question`, `answer_question`, `list_questions`, `open_questions` — append + id allocation (D# over log/decisions.jsonl, Q# over log/questions.jsonl; every row ever written is scanned so ids are never reused). questions.jsonl is append-only: answering appends a status event, last event per id wins. Every mutator validates the notebook root before writing — no stray `log/` dirs outside notebooks |
-| `claims.py` | `flip claim` | `add_claim`, `set_claim_status`, `list_claims`; `STATUSES` enum per SPEC §7.2; `corroboration_count(source_rows, source_ids)` is the one shared bar: deduped source ids whose row is judged (grade A/B/C — `?` never counts) with `independence == "original"`; doctor uses it too |
-| `sessions.py` | `flip session` | `start_session(root, slug, model=None, tools=None) -> Path` (stamped file from template), `end_session(root, path_or_slug, summary)` — path or slug; slug matching parses `<15-char stamp>-<slug>.md` and requires exact slug equality (no suffix collisions); newest exact match wins |
-| `views.py` | `flip show` | `hot_view(root)`, `claims_view(root)`, `stale_view(root)` → rendered text, or a plain dict with `as_data=True` (backs `--json`); reads ledgers only, computes never stores (SPEC §10) |
-| `doctor.py` | `flip doctor` | `run_doctor(root) -> list[Finding]`; profile minimums (missing required paths WARN while manifest status is active/dormant, ERROR once done/published/archived — SPEC §12), orphan sources, unhashed raw files, load-bearing claims below the bar (via `claims.corroboration_count`), stale freshness (date past the profile threshold but still judged "fresh" → WARN `stale-freshness`), manifest sanity; exit 1 on ERROR findings |
-| `registry.py` | `flip index` | `build_index(roots) -> list[dict]` scanning for notebook.toml, writing `~/.flip/index.jsonl` (env `FLIP_HOME` overrides `~/.flip`); prunes any directory containing bagit.txt so export bags (whose data/ holds a notebook copy) are never indexed |
-| `export.py` | `flip export` | `export_bag(root, dest)` (BagIt 1.0: bagit.txt, manifest-sha256.txt, data/; valid symlinks are materialized — content copied under the link's name, so `drafts/current/` ships as a full copy; dangling links skipped with a stderr warning; any mid-export failure removes the partial bag before SystemExit), `export_csl(root) -> list[dict]` (CSL JSON from ledger; ledger kinds "web" and "article" both map to `webpage`), `export_okf(root, dest)` (OKF bundle; see docs/wiki-alignment.md) |
-| `cli.py` | wiring | click group `main`; one subcommand per module surface; `--json` on read commands for agent consumption. Every write echoes something citable — ids where ledgers allocate them (`F1`, `C3`, `D2`, `Q4`), the recorded ts + reason for `flip pass` (passed.jsonl rows carry no id per SPEC §8) |
+| `util.py` | shared primitives | see ground rules; plus `ROOT_FILE` ("index.md"), `age_months`, `stamp_slug`, `today` |
+| `pages.py` | entity-page layer (all YAML io) | `Page` (path/fm/body, `.id`, `.slug`), `parse`, `read_page`, `write_page`, `dump_frontmatter`, `slugify`, `unique_slug`, `iter_pages`, `iter_pages_tolerant`, `find_by_id`, `all_ids`, `allocate_id`/`reserve_id`/`reserved_ids` (`.flip/ids`), `as_list` (None→[], scalar→[x] — every consumer of a list-typed field uses it), `ENTITY_DIRS`, `SCAN_DIRS` (entity dirs + analysis/, where H# ids resolve), `PREFIX_DIR`, `RESERVED` ({index.md, log.md}). Strict producer, tolerant consumer: reading normalizes YAML dates to ISO strings (tz-aware datetimes convert to UTC before the Z label); `parse` strips the one-blank-line separator `write_page` emits, so the pair are inverses and rewrites are byte-stable; writing re-emits every key with insertion order preserved |
+| `profiles.py` + `profiles/*.toml` | section menu, profile loading | `SECTIONS`, `SECTION_ORDER`, `load_profile`, `list_profiles`, `Profile` (requires paths are v0.4: entity dirs like `references`, `claims`, plus files like `log/passed.jsonl`) |
+| `manifest.py` | root index.md frontmatter | `Manifest` dataclass (flat policy fields + `.policy` dict property), `load_manifest(root)`, `save_manifest(root, m, body=None)` (body preserved byte-for-byte unless views passes a new one), `manifest_frontmatter(m)`, `touch_updated(root)`, `require_valid_slug` (`^[a-z0-9][a-z0-9._-]*$`). Unknown frontmatter keys land in `Manifest.extras` and re-emit on save; a known key whose value fails its type check (`tools: "a string"`, `relations: {map}`) rides along in extras verbatim instead of being dropped |
+| `scaffold.py` | `flip new` | `create_notebook(dest, slug, kind, title, visibility) -> Path`; writes exactly index.md (via `save_manifest`) + notebook.md (`type: Notebook` + section stubs); all validation before mkdir |
+| `sources.py` | `flip add-source` / `flip grade` | `add_source(root, target, kind=None, note=None) -> Page`: fetcher routing/exec, `builtin:copy`, per-file provenance events, opens `references/<slug>.md` at grade `?`; kind→prefix per SPEC §9 (`paper`→P, `web`/`article`→A, `file`/`dataset`/`document`→F, `talk`/`transcript`→T, else S — D is reserved for decisions). `grade_source(...) -> Page` edits only the judgment keys; `list_sources(root) -> list[dict]` (fm + slug + root-relative path, id order); `source_pages(root)` read-only for claims/doctor/export |
+| `ledgers.py` | `flip log/decide/pass/question` | Event ledgers: `log_event`, `add_passed` (append-only JSONL under log/). Entity pages: `add_decision` (D#, decisions/), `add_question` (Q#, questions/, `status: open`), `answer_question(root, qid, note=None)` (status→answered + answered/answered_by; note under `## Answer`), `list_questions(root, status=None)`, `open_questions(root)` |
+| `claims.py` | `flip claim` | `add_claim(root, text, sources, load_bearing, notes) -> Page` (C#, claims/, generated `# Citations` block + `supports` bundle paths); `set_claim_status` (verification bar via the profile: `claim_min_independent` / `claim_grade_a_suffices`; recomputes corroboration, refreshes supports + citations); `list_claims`; `STATUSES`; `corroboration_count(source_fms, source_ids)` is the one shared bar: deduped source ids whose page is judged (grade A/B/C — `?` never counts) with `independence == "original"`; doctor uses it too |
+| `sessions.py` | `flip session` | `start_session(root, slug, model=None, tools=None) -> Path` (top-level `sessions/<stamp>-<slug>.md`, `type: Work Session`), `end_session(root, path_or_slug, summary)` — path or exact slug (newest exact match wins); `ended` lands in frontmatter, summary under `## Summary` |
+| `views.py` | `flip show` + generated projections | `hot_view/claims_view/stale_view(root, as_data=False)` computed from pages + ledgers (SPEC §10); `regenerate(root)` rewrites `log.md` (newest-first), each entity dir's `index.md` listing (deleted when the dir empties), and the root index.md *body* through `save_manifest` — deterministic, byte-stable, never touches canonical records |
+| `doctor.py` | `flip doctor` | `run_doctor(root) -> list[Finding]` (`Finding(level, code, message, path)`). ERRORs: bad-manifest/status/visibility, unknown-kind, missing-required (closed statuses), policy-mismatch, missing-notebook, bad-frontmatter, reserved-frontmatter, missing-id, bad-id, wrong-prefix, duplicate-id, orphan-custody, bad-enum, under-verified, bad-jsonl. WARNs: missing-required (active/dormant — SPEC §13), missing-section, missing-type, missing-alias, dangling-citation, corroboration-drift, unaudited-claim, unlogged-capture, orphan-provenance, unregistered-raw, stale-freshness. Exit 1 on ERROR is the CLI's job |
+| `rename.py` | `flip rename` | `rename_entity(root, entity_id, new_slug) -> (old, new, files_changed)`: the only sanctioned rename (SPEC §9) — moves the page (id/aliases unchanged), rewrites resolution-checked markdown links (optional quoted link titles preserved) and `/dir/<slug>` supports paths notebook-wide (sources/ and derived/ never edited), regenerates listings |
+| `registry.py` | `flip index` | `build_index(roots) -> list[dict]` scanning for flip roots (`is_notebook_root`), writing `$FLIP_HOME/index.jsonl`; prunes directories holding a `bagit.txt` or `.last-export.json` (exports are copies, not second notebooks); `read_index()`, `flip_home()` |
+| `export.py` | `flip export bag/csl` | `export_bag(root, dest)` (BagIt 1.0; symlinks materialized, dangling links skipped with a stderr warning, partial bags removed on failure), `export_csl(root) -> list[dict]` (CSL JSON from references/ pages; item id = compact id; type from page `kind` else id prefix; grade `?` contributes no note), `export_okf` forwards to okf.py |
+| `okf.py` | `flip export okf` | `export_okf(root, dest, include_private=False, announce=None)`: a **policy filter**, not a format transform — the notebook already is an OKF bundle. `visibility` gates (public or `--include-private`); full trail (include_private or `source_trail_public`) ships sources/ + log/ + log.md wholesale and adds fixity keys to reference pages (sha256 from the provenance event matching the page's `local`; latest event as fallback); otherwise custody is withheld: sources/, log/, and log.md do not ship (the root listing loses its Update Log entry), reference pages strip custody keys **plus title/description** (capture note, captured basename) down to id-headed judgment stubs, and references/index.md is regenerated from the stubs (id label, "grade X"). Nested exports inside the notebook (dirs holding `bagit.txt`/`.last-export.json`, registry's `COPY_MARKERS`) are pruned from payloads. `.last-export.json` marks the render; `--announce` writes the `<!-- FLIP:START/END -->` block into an AGENTS.md |
+| `migrate.py` | `flip migrate` | `migrate(root) -> dict` counts (incl. `already_migrated`): notebook.toml → index.md frontmatter (unknown keys/policy tunables preserved in extras), JSONL entity ledgers → pages (ids and unconsumed fields preserved, corroboration recomputed), question events folded (unconsumed ask/answer fields land in frontmatter, later events win per key), `log/sessions/*.md` moved to `sessions/`, notebook.md gains `type: Notebook`. Resumable: each ledger is deleted only after its pages are written, notebook.toml last, and rows whose id already has a page are skipped (counted as already migrated), never duplicated |
+| `cli.py` | wiring | click group `main`; one subcommand per module surface; `--json` on read commands. Every write echoes something citable — ids where pages allocate them (`F1`, `C3`, `D2`, `Q4`), paths for sessions/`open`, the recorded ts + reason for `flip pass`. `flip open <id>` resolves ids via `pages.find_by_id`; `flip migrate` finds a v0.3 root by walking up for notebook.toml (a v0.3 notebook has no index.md for `require_notebook_root` to find) |
 
 ## Config resolution
 
 - `FLIP_HOME` (default `~/.flip`) holds `config.toml` and `index.jsonl`.
 - `config.toml` `[fetchers]` maps kind → command template with `{url}`/`{id}`/
-  `{dest}` placeholders (SPEC §14). Unknown kind or missing fetcher →
+  `{dest}` placeholders (SPEC §15). Unknown kind or missing fetcher →
   actionable error naming the config file. `builtin:copy` needs no config.
 - Notebook-local `.flip/profiles/*.toml` overrides shipped profiles.
+- `FLIP_ACTOR` overrides actor detection (then agent-harness env vars, then
+  git user.name, then the OS user).
 
-## Data shapes (authoritative examples in SPEC §5–§8)
+## Data shapes (authoritative examples in SPEC §4–§8)
 
-- provenance event: `ts, source_id, url?, url_used?, local_path, sha256,
-  bytes, http_status?, tool, tool_version?, strategy?, actor, note?`
-- ledger row: `id, kind, title?, authors?, date?, publisher?, url?, local,
-  text?, grade(A|B|C|?), independence(original|republisher|derivative|
-  self-interested), freshness(fresh|dated), status, supports[], notes?`
-- claim: `id, text, status(asserted|verified|needs-2nd|unconfirmed|
-  false-positive|retracted|superseded), load_bearing, sources[],
-  independent_corroboration, first_asserted, actor, notes?`
-- decision: `ts, id, question, decision, why, alternatives_rejected?, actor`
-- passed: `ts, text, url?, reason, actor`
-- question: ask event `ts, id, text, actor, status: "open"`; answer event
-  `ts, id, status: "answered", actor` (append-only; last event per id wins)
-- log event: `ts, text, actor`
+Entity pages (YAML frontmatter; unknown keys always survive rewrites):
+
+- manifest (root index.md): `okf_version, flip, slug, title?, kind, status,
+  created, updated, host?, visibility, renders_public, source_trail_public,
+  citation_rule, links?, relations?, consumers?, tools?` + extras
+- source (`references/<slug>.md`): `type: Source, id(P#|A#|F#|T#|S#),
+  aliases[id], title, description, resource?, date?, authors?, publisher?,
+  local, grade(A|B|C|?), independence(original|republisher|derivative|
+  self-interested), freshness(fresh|dated), status, actor`
+- claim (`claims/<slug>.md`): `type: Claim, id(C#), aliases, description,
+  status(asserted|verified|needs-2nd|unconfirmed|false-positive|retracted|
+  superseded), load_bearing, sources[ids], supports[/references/<slug>],
+  independent_corroboration (recomputed, doctor flags drift), first_asserted,
+  actor, notes?`; body = assertion + `# Citations` edge list
+- decision (`decisions/<slug>.md`): `type: Decision, id(D#), aliases,
+  description, question, alternatives_rejected?, timestamp, actor`
+- question (`questions/<slug>.md`): `type: Question, id(Q#), aliases,
+  description, status(open|answered), timestamp, actor, answered?,
+  answered_by?`; answer notes under `## Answer`
+- session (`sessions/<stamp>-<slug>.md`): `type: Work Session, actor, model?,
+  tools?, started, ended?`
+
+Append-only JSONL events (one object per line, every line has `ts` + `actor`):
+
+- provenance (`sources/_provenance.jsonl`): `ts, source_id, url?, url_used?,
+  local_path, sha256, bytes, http_status?, tool, tool_version?, strategy?,
+  actor, note?`
+- log event (`log/log.jsonl`): `ts, text, actor`
+- passed (`log/passed.jsonl`): `ts, text, url?, reason, actor`
+- derivation (`derived/_derivations.jsonl`): inputs → tool/cmd/params →
+  outputs with hashes (small PROV profile, SPEC §8)

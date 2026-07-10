@@ -1,5 +1,5 @@
 id = "ledger"
 description = "Bibliography / source spine: judged, custodied sources with minimal prose."
 sections = ["tip", "sources"]
-requires = ["sources/ledger.jsonl"]
+requires = ["references"]
 claim_min_independent = 2

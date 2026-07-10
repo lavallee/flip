@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "flip-notebook"
-version = "0.3.0"
+version = "0.4.0"
 description = "Reporter's notebooks: git-friendly research corpora maintained by humans and agents"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -13,9 +13,13 @@ authors = [{ name = "Marc Lavallee" }]
 keywords = [
   "research", "provenance", "journalism", "notebook", "agents", "knowledge",
 ]
-# Core is deliberately tiny: click for the CLI, stdlib for everything else.
-# No network calls, no LLM calls, no services (SPEC §14).
-dependencies = ["click>=8.1"]
+# Core is deliberately small: click for the CLI, PyYAML for reading
+# human/editor-authored frontmatter faithfully; stdlib for everything else.
+# No network calls, no LLM calls, no services (SPEC §15).
+dependencies = [
+    "click>=8.1",
+    "pyyaml>=6.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/lavallee/flip"
@@ -43,7 +47,7 @@ testpaths = ["tests"]
 # the skills are plain markdown under src/flip/skills/ and work standalone.
 [tool.spindle.package]
 name = "flip"
-version = "0.3.0"
+version = "0.4.0"
 skills = [
   "notebook-create",
   "notebook-source",

@@ -1,14 +1,15 @@
-"""Source capture: fetcher routing, custody, provenance, the ledger (SPEC §5).
+"""Source capture: fetcher routing, custody, provenance, entity pages (SPEC §5).
 
 `add_source` is the write path for `flip add-source`: classify the target,
 allocate a kind-prefixed id, capture bytes into sources/raw/ (builtin copy for
 local files, a configured external fetcher for everything else), hash every
-captured file into sources/_provenance.jsonl (append-only), and open a ledger
-row graded "?". `grade_source` is the write path for `flip grade`: update the
-judgment fields on an existing row — sources/ledger.jsonl is current-state,
-git history is the temporal record.
+captured file into sources/_provenance.jsonl (append-only), and open a
+references/<slug>.md entity page graded "?" — the canonical record of the
+source (SPEC §5.3). `grade_source` is the write path for `flip grade`: record
+the judgment keys on an existing page, round-tripping everything else on it
+(frontmatter flip doesn't own and the prose body survive, SPEC §6.6).
 
-Fetcher templates live in $FLIP_HOME/config.toml under [fetchers] (SPEC §14).
+Fetcher templates live in $FLIP_HOME/config.toml under [fetchers] (SPEC §15).
 Placeholders: {url} = the target as given, {id} = the target with a leading
 "doi:" stripped (for `doi-fetch {id}`-style tools), {dest} = the capture
 directory sources/raw/<source id>/.
@@ -23,26 +24,24 @@ import shutil
 import subprocess
 import tomllib
 from pathlib import Path
+from urllib.parse import urlsplit
 
-from . import manifest
+from . import manifest, pages
 from .util import (
     append_jsonl,
     detect_actor,
-    next_id,
-    read_jsonl,
     require_notebook_root,
     sha256_file,
     utc_now,
-    write_jsonl,
 )
 
 GRADES = ("A", "B", "C", "?")
 INDEPENDENCE = ("original", "republisher", "derivative", "self-interested")
 FRESHNESS = ("fresh", "dated")
 
-# SPEC §3 naming rules: P papers · A articles/web · F files/datasets/documents ·
+# SPEC §9 naming rules: P papers · A articles/web · F files/datasets/documents ·
 # T talks/transcripts · S when unkinded/unknown. D is reserved for decisions —
-# source ids never use it, so a bare [F3]/[D2] cite is unambiguous (SPEC §9).
+# source ids never use it, so a bare [F3]/[D2] cite is unambiguous.
 _ID_PREFIXES = {
     "paper": "P",
     "web": "A",
@@ -101,13 +100,6 @@ def _fetcher_template(kind: str) -> str:
             f"no fetcher configured for kind '{kind}' in {config} — add a stanza like:\n{stanza}"
         )
     return template.strip()
-
-
-def _all_source_ids(root: Path) -> list[str]:
-    """Every source id ever seen — ledger rows plus provenance events (ids never reused)."""
-    ids = [r.get("id", "") for r in read_jsonl(root / "sources" / "ledger.jsonl")]
-    ids += [e.get("source_id", "") for e in read_jsonl(root / "sources" / "_provenance.jsonl")]
-    return [i for i in ids if i]
 
 
 def _tool_version(tool: str) -> str | None:
@@ -187,18 +179,46 @@ def _run_fetcher(
     return new, argv[0]
 
 
-def add_source(root: Path, target: str, kind: str | None = None, note: str | None = None) -> dict:
-    """Capture a source into the notebook; returns the new ledger row.
+def _regenerate_views(root: Path) -> None:
+    """Refresh the generated index.md bodies / log.md after a mutation (SPEC §10)."""
+    from . import views
+
+    views.regenerate(root)
+
+
+def _title_for(target: str, strategy: str) -> str:
+    """The human-readable name a capture gets: no fetcher in the current
+    protocol yields a title (they yield files), so the title is the file
+    basename for copies and host+path for URLs; other targets (DOI, arXiv)
+    keep the target string itself."""
+    if strategy == "copy":
+        return Path(target).expanduser().name
+    if target.startswith(("http://", "https://")):
+        parts = urlsplit(target)
+        return f"{parts.netloc}{parts.path}".rstrip("/") or target
+    return target
+
+
+def _id_sort_key(fm: dict) -> tuple:
+    m = re.match(r"^([A-Z]+)(\d+)$", str(fm.get("id", "")))
+    return (0, m.group(1), int(m.group(2))) if m else (1, str(fm.get("id", "")), 0)
+
+
+def add_source(
+    root: Path, target: str, kind: str | None = None, note: str | None = None
+) -> pages.Page:
+    """Capture a source into the notebook; returns its new entity page.
 
     Routes by kind: "file" (or any kind whose configured fetcher is
     "builtin:copy") copies the file verbatim; everything else runs the
     [fetchers] command from $FLIP_HOME/config.toml. Appends one provenance
-    event per captured file, opens a grade-"?" ledger row, touches the
-    manifest.
+    event per captured file, opens references/<slug>.md at grade "?", touches
+    the manifest. Local copies carry their origin file:// URI in provenance
+    only; fetched targets also land on the page as `resource`.
     """
     root = require_notebook_root(root)
     kind = kind or _classify(target)
-    source_id = next_id(_ID_PREFIXES.get(kind, "S"), _all_source_ids(root))
+    source_id = pages.allocate_id(root, _ID_PREFIXES.get(kind, "S"))
 
     template = None if kind == "file" else _fetcher_template(kind)
     if template is None or template == "builtin:copy":
@@ -230,34 +250,52 @@ def add_source(root: Path, target: str, kind: str | None = None, note: str | Non
         append_jsonl(prov_path, event)
 
     largest = max(files, key=lambda p: p.stat().st_size)
-    row: dict = {"id": source_id, "kind": kind}
+    title = _title_for(target, strategy)
+    fm: dict = {
+        "type": "Source",
+        "id": source_id,
+        "aliases": [source_id],
+        "title": title,
+        "description": note or f"{kind} source",
+    }
     if strategy == "config":
-        row["url"] = url  # for copies the origin path lives in provenance, not the ledger
-    row.update(
+        fm["resource"] = url  # for copies the origin URI lives in provenance, not the page
+    fm.update(
         {
             "local": largest.relative_to(root).as_posix(),
             "grade": "?",
             "independence": "original",
             "freshness": "fresh",
             "status": "captured",
-            "supports": [],
+            "actor": actor,
         }
     )
-    if note:
-        row["notes"] = note
 
-    ledger_path = root / "sources" / "ledger.jsonl"
-    rows = read_jsonl(ledger_path)
-    rows.append(row)
-    write_jsonl(ledger_path, rows)
+    ref_dir = root / "references"
+    slug = pages.unique_slug(ref_dir, pages.slugify(title, fallback=source_id.lower()))
+    body = f"# {title}\n" + (f"\n{note}\n" if note else "")
+    path = pages.write_page(ref_dir / f"{slug}.md", fm, body)
     manifest.touch_updated(root)
-    return row
+    _regenerate_views(root)
+    return pages.Page(path=path, fm=fm, body=body)
+
+
+def source_pages(root: Path) -> list[pages.Page]:
+    """Every source entity page under references/, filename order. Read-only
+    helper for downstream consumers (claims, doctor, export); does not
+    validate the notebook root — callers that mutate already have."""
+    return pages.iter_pages(root, "references")
 
 
 def list_sources(root: Path) -> list[dict]:
-    """All source ledger rows, in ledger order. Read-only (backs `flip source list`)."""
+    """All sources as frontmatter dicts (+ slug and root-relative path), in id
+    order. Read-only (backs `flip source list`)."""
     root = require_notebook_root(root)
-    return read_jsonl(root / "sources" / "ledger.jsonl")
+    rows = [
+        {**p.fm, "slug": p.slug, "path": p.path.relative_to(root).as_posix()}
+        for p in source_pages(root)
+    ]
+    return sorted(rows, key=_id_sort_key)
 
 
 def grade_source(
@@ -267,8 +305,13 @@ def grade_source(
     independence: str | None = None,
     freshness: str | None = None,
     notes: str | None = None,
-) -> dict:
-    """Record source-quality judgments on an existing ledger row; returns the row."""
+) -> pages.Page:
+    """Record source-quality judgments on an existing page; returns the page.
+
+    Touches only the keys flip owns here (grade/independence/freshness/notes);
+    everything else on the page — foreign frontmatter, the prose body — round-
+    trips untouched (SPEC §6.6), so an Obsidian-authored page survives.
+    """
     root = require_notebook_root(root)
     for name, value, allowed in (
         ("grade", grade, GRADES),
@@ -277,19 +320,18 @@ def grade_source(
     ):
         if value is not None and value not in allowed:
             raise SystemExit(f"invalid {name} '{value}' (one of: {', '.join(allowed)})")
-    ledger_path = root / "sources" / "ledger.jsonl"
-    rows = read_jsonl(ledger_path)
+    page = next((p for p in source_pages(root) if p.id == source_id), None)
+    if page is None:
+        known = ", ".join(p.id for p in source_pages(root) if p.id) or "none yet"
+        raise SystemExit(
+            f"unknown source id '{source_id}' in references/ (have: {known}) — "
+            "run `flip add-source` first"
+        )
     updates = {"grade": grade, "independence": independence, "freshness": freshness, "notes": notes}
-    for row in rows:
-        if row.get("id") == source_id:
-            for key, value in updates.items():
-                if value is not None:
-                    row[key] = value
-            write_jsonl(ledger_path, rows)
-            manifest.touch_updated(root)
-            return row
-    known = ", ".join(r.get("id", "?") for r in rows) or "none yet"
-    raise SystemExit(
-        f"unknown source id '{source_id}' in sources/ledger.jsonl (have: {known}) — "
-        "run `flip add-source` first"
-    )
+    for key, value in updates.items():
+        if value is not None:
+            page.fm[key] = value
+    pages.write_page(page.path, page.fm, page.body)
+    manifest.touch_updated(root)
+    _regenerate_views(root)
+    return pages.Page(path=page.path, fm=page.fm, body=page.body)

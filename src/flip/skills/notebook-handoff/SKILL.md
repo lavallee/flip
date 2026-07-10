@@ -24,17 +24,18 @@ history (history is the ledgers' job).
      id (`C7`) and what corroboration each still needs
    - **Next actions** — concrete, ordered; include walls already hit (with
      log pointers) so nobody re-runs into them
-   - **Don't redo** — point at `log/passed.jsonl` and `log/decisions.jsonl`
-     highlights that a newcomer would otherwise relitigate
-4. **Update the manifest** if the work is pausing: set `status = "dormant"`
-   (or `done`) in `notebook.toml`.
+   - **Don't redo** — point at `log/passed.jsonl` entries and decision pages
+     (`[D2]`) that a newcomer would otherwise relitigate
+4. **Update the manifest** if the work is pausing: set `status: dormant`
+   (or `done`) in the root `index.md` frontmatter — change only that key
+   and leave the body alone (it's a generated listing).
 5. **Record the handoff.** `flip log "handoff: <one-line state of play>"`
    and, if an episode is open, `flip session end <slug> --summary ...`.
 6. **Verify cold pickup.** Reread HANDOFF.md pretending you know nothing:
-   every id it cites must resolve (`flip source list`, `flip question list`,
-   `flip claim list`, or `grep` the ledgers), every next action must be
-   executable without asking you anything.
+   every id it cites must resolve (`flip open <id>` per id, or scan
+   `flip source list` / `flip question list` / `flip claim list`), every
+   next action must be executable without asking you anything.
 
 Do not write a handoff that summarizes history instead of state — the next
 actor needs what is true now and what to do next; if a fact matters, cite
-the ledger id, don't retell the story.
+the entity id, don't retell the story.

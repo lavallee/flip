@@ -1,189 +1,183 @@
-"""OKF export — project a notebook as an Open Knowledge Format v0.1 bundle.
+"""OKF export — a policy filter over the bundle the notebook already is (SPEC §17).
 
-Design: docs/wiki-alignment.md. The bundle is a *render* (SPEC §11): generated
-deterministically from the ledgers, never edited in place, safe to delete.
-Sources become `references/` concepts carrying custody frontmatter, claims
-cite them via `# Citations`, decisions get their own concepts, and the work
-log renders as OKF's reserved `log.md`. Consumers that know nothing about
-flip can traverse all of it; consumers that do get the custody metadata as
-extension frontmatter keys (OKF consumers must preserve unknown keys).
+Since v0.4 a flip notebook IS a conformant OKF v0.1 knowledge bundle at rest,
+so exporting one is no longer a format transform: it is a **copy for outside
+consumption**, honoring the manifest policy. `visibility` gates the export
+(refuse unless `public` or `--include-private`); `source_trail_public`
+decides whether custody detail ships (raw bytes, provenance ledger, log
+ledgers and their generated log.md, URLs, fixity) or reference pages are
+reduced to judgment stubs (grade / independence / freshness stay; the trail —
+including capture notes and captured-file names in title/description — is
+withheld). Nested exports (a bag or a previous OKF bundle inside the
+notebook) are never payload: they are copies, not notebook content. The
+exported bundle is a render (SPEC §11): regenerated in full on every export,
+never edited in place, safe to delete.
 """
 
 from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 from pathlib import Path
 
-from . import __version__
+from . import __version__, pages
 from .manifest import load_manifest
+from .registry import COPY_MARKERS
 from .util import read_jsonl, utc_now
 
 MARKER_START = "<!-- FLIP:START -->"
 MARKER_END = "<!-- FLIP:END -->"
 STATE_FILE = ".last-export.json"
 
+# Directory names never part of an outside-facing bundle: generated renders,
+# versioned drafts, reprocessable derivations, tooling internals. Dot-prefixed
+# entries (.git, .venv, .flip, .obsidian, dotfiles) are excluded wholesale.
+EXCLUDE_NAMES = {"renders", "drafts", "derived", "__pycache__", "node_modules"}
 
-def _yaml_value(v) -> str:
-    if isinstance(v, bool):
-        return "true" if v else "false"
-    if isinstance(v, (int, float)):
-        return str(v)
-    if isinstance(v, list):
-        return "[" + ", ".join(_yaml_value(x) for x in v) + "]"
-    s = str(v)
-    # Quote anything YAML could misread (specials, or scalars that would
-    # coerce to numbers/booleans); json.dumps is a valid YAML scalar.
-    looks_typed = s.lower() in ("true", "false", "null", "~") or _is_numberish(s)
-    if s == "" or any(c in s for c in ':#[]{}"\'\n') or s.strip() != s or looks_typed:
-        return json.dumps(s, ensure_ascii=False)
-    return s
+# Custody keys stripped from reference pages when the source trail is withheld
+# (judgment keys — grade/independence/freshness/status — always ship). title
+# and description are stripped separately: they carry the captured file's
+# basename and the capture note.
+TRAIL_KEYS = ("local", "resource", "url", "date", "authors", "publisher")
+
+WITHHELD_NOTE = "_Source trail withheld by notebook policy; grading judgment shown above._"
 
 
-def _is_numberish(s: str) -> bool:
-    try:
-        float(s)
-        return True
-    except ValueError:
-        return False
+def _regenerate_views(root: Path) -> None:
+    """Refresh generated index.md bodies / log.md before copying (SPEC §10)."""
+    from . import views
+
+    views.regenerate(root)
 
 
-def _frontmatter(fields: dict) -> str:
-    lines = ["---"]
-    for k, v in fields.items():
-        if v is None or v == "" or v == []:
+def _included(rel_parts: tuple[str, ...], full_trail: bool) -> bool:
+    """Policy filter for one file, as root-relative path parts."""
+    wholesale = full_trail and rel_parts[0] in ("sources", "log")
+    for part in rel_parts:
+        if part.startswith("."):
+            return False
+        if part in EXCLUDE_NAMES:
+            return False
+        if part.startswith("_") and not wholesale:
+            return False  # private scratch files; ledgers ship only with the trail
+    if not full_trail:
+        if rel_parts[0] in ("sources", "log"):
+            return False  # custody bytes and event ledgers withheld
+        if rel_parts == ("log.md",):
+            return False  # the generated rendering of the withheld work log
+    return True
+
+
+def _export_dirs(root: Path) -> list[Path]:
+    """Directories under `root` holding a previous export — a BagIt bag or an
+    OKF bundle, marked by bagit.txt / .last-export.json (the same markers the
+    registry prunes on). Their contents are copies of custody bytes, never
+    notebook payload."""
+    return [
+        marker_path.parent
+        for marker in COPY_MARKERS
+        for marker_path in root.rglob(marker)
+        if marker_path.parent != root
+    ]
+
+
+def _payload_files(root: Path, dest: Path, full_trail: bool) -> list[Path]:
+    """Root-relative files passing the policy filter, sorted. A dest nested
+    inside the notebook (or a stale export there) never feeds itself, and any
+    nested export — bag or OKF bundle — is pruned wholesale: a stripped
+    export must not ship raw custody bytes riding inside an old full-trail
+    copy."""
+    dest = dest.resolve()
+    nested_exports = _export_dirs(root)
+    out: list[Path] = []
+    for path in sorted(p for p in root.rglob("*") if p.is_file()):
+        if path.resolve().is_relative_to(dest):
             continue
-        lines.append(f"{k}: {_yaml_value(v)}")
-    lines.append("---")
-    return "\n".join(lines) + "\n"
+        if any(path.is_relative_to(d) for d in nested_exports):
+            continue
+        rel = path.relative_to(root)
+        if _included(rel.parts, full_trail):
+            out.append(rel)
+    return out
 
 
-def _id_sort_key(row: dict) -> tuple:
-    rid = row.get("id", "")
-    head = rid.rstrip("0123456789")
-    tail = rid[len(head):]
-    return (head, int(tail) if tail.isdigit() else 0)
-
-
-def _git_head(root: Path) -> str:
-    try:
-        out = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, timeout=5
-        )
-        return out.stdout.strip() if out.returncode == 0 else ""
-    except Exception:
-        return ""
-
-
-def _latest_provenance(root: Path) -> dict[str, dict]:
-    """source_id → most recent capture event."""
-    events: dict[str, dict] = {}
+def _provenance_by_source(root: Path) -> dict[str, list[dict]]:
+    """source_id → capture events, in ledger (chronological) order."""
+    events: dict[str, list[dict]] = {}
     for ev in read_jsonl(root / "sources" / "_provenance.jsonl"):
         sid = ev.get("source_id")
         if sid:
-            events[sid] = ev  # file is chronological; last write wins
+            events.setdefault(str(sid), []).append(ev)
     return events
 
 
-def _reference_page(row: dict, prov: dict | None, full_trail: bool) -> str:
-    title = row.get("title") or row.get("id", "")
-    fm: dict = {
-        "type": "Source",
-        "title": title,
-        "description": row.get("notes") or f"{row.get('kind', 'source')} source",
-        "grade": row.get("grade"),
-        "independence": row.get("independence"),
-        "freshness": row.get("freshness"),
-    }
-    body = [f"# {title}", ""]
+def _filter_reference_page(path: Path, prov: dict[str, list[dict]], full_trail: bool) -> None:
+    """Apply the source-trail policy to one COPIED reference page (never the
+    notebook's own). Full trail: enrich frontmatter with fixity from the
+    provenance event for the page's `local` file. Withheld: strip custody
+    keys plus title/description (capture note, captured basename) and replace
+    the body with a judgment stub headed by the id. Foreign frontmatter keys
+    survive either way.
+    """
+    page = pages.read_page(path)
+    fm = dict(page.fm)
     if full_trail:
-        fm["resource"] = row.get("url")
-        fm["timestamp"] = row.get("date") or (prov or {}).get("ts")
-        if prov:
-            fm["sha256"] = prov.get("sha256")
-            fm["retrieved_at"] = prov.get("ts")
-            fm["captured_with"] = prov.get("tool")
-        if row.get("url"):
-            body.append(f"Canonical: <{row['url']}>")
-        if row.get("local"):
-            body.append(f"Archived copy: `{row['local']}` (in the source notebook)")
-        if row.get("authors"):
-            body.append("Authors: " + ", ".join(row["authors"]))
-    else:
-        body.append(
-            "_Source trail withheld by notebook policy; grading judgment shown above._"
+        events = prov.get(page.id) or []
+        if not events:
+            return  # nothing to add; keep the copied bytes untouched
+        # Fixity must describe the file `local` points at: multi-file captures
+        # log one event per file, so pick the event whose local_path matches;
+        # fall back to the most recent event when none does.
+        local = str(fm.get("local") or "")
+        ev = next(
+            (e for e in reversed(events) if str(e.get("local_path") or "") == local),
+            events[-1],
         )
-    if row.get("notes"):
-        body += ["", row["notes"]]
-    return _frontmatter(fm) + "\n" + "\n".join(body) + "\n"
+        for key, value in (
+            ("sha256", ev.get("sha256")),
+            ("retrieved_at", ev.get("ts")),
+            ("captured_with", ev.get("tool")),
+        ):
+            if value:
+                fm[key] = value
+        body = page.body
+    else:
+        for key in TRAIL_KEYS:
+            fm.pop(key, None)
+        fm.pop("title", None)  # captured-file basename / fetched page name
+        fm.pop("description", None)  # capture note
+        heading = str(fm.get("id") or path.stem)
+        body = f"# {heading}\n\n{WITHHELD_NOTE}\n"
+    pages.write_page(path, fm, body)
 
 
-def _claim_page(row: dict, ledger_by_id: dict[str, dict]) -> str:
-    cid = row.get("id", "")
-    fm = {
-        "type": "Claim",
-        "title": cid,
-        "description": (row.get("text") or "")[:160],
-        "status": row.get("status"),
-        "load_bearing": bool(row.get("load_bearing")),
-        "timestamp": row.get("first_asserted"),
-        "supports": [f"/references/{sid}" for sid in row.get("sources", [])],
-    }
-    body = [row.get("text", ""), ""]
-    if row.get("notes"):
-        body += [f"_{row['notes']}_", ""]
-    srcs = row.get("sources", [])
-    if srcs:
-        body.append("# Citations")
-        for n, sid in enumerate(srcs, 1):
-            label = ledger_by_id.get(sid, {}).get("title") or sid
-            body.append(f"[{n}] [{label}](/references/{sid}.md)")
-    return _frontmatter(fm) + "\n" + "\n".join(body) + "\n"
+def _write_stripped_refs_index(refs: Path) -> None:
+    """Regenerate references/index.md from the stripped pages: id as label,
+    the grade as description. The listing copied from the notebook carries
+    titles and capture notes, which stripped mode withholds."""
+    lines = ["# References", ""]
+    for page_path in sorted(refs.glob("*.md")):
+        if page_path.name in pages.RESERVED or page_path.name.startswith("_"):
+            continue
+        fm = pages.read_page(page_path).fm
+        label = str(fm.get("id") or page_path.stem)
+        line = f"* [{label}]({page_path.stem}.md)"
+        grade = fm.get("grade")
+        if grade:
+            line += f" - grade {grade}"
+        lines.append(line)
+    (refs / "index.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _decision_page(row: dict) -> str:
-    fm = {
-        "type": "Decision",
-        "title": row.get("id", ""),
-        "description": (row.get("decision") or "")[:160],
-        "timestamp": row.get("ts"),
-        "question": row.get("question"),
-    }
-    body = [
-        f"**Question.** {row.get('question', '')}",
-        "",
-        f"**Decision.** {row.get('decision', '')}",
-        "",
-        f"**Why.** {row.get('why', '')}",
-    ]
-    rejected = row.get("alternatives_rejected") or []
-    if rejected:
-        body += ["", "**Rejected.** " + "; ".join(map(str, rejected))]
-    return _frontmatter(fm) + "\n" + "\n".join(body) + "\n"
-
-
-def _log_md(root: Path) -> str:
-    events = read_jsonl(root / "log" / "log.jsonl")
-    by_day: dict[str, list[dict]] = {}
-    for ev in events:
-        day = str(ev.get("ts", ""))[:10]
-        by_day.setdefault(day, []).append(ev)
-    lines = ["# Update Log", ""]
-    for day in sorted(by_day, reverse=True):
-        lines.append(f"## {day}")
-        for ev in reversed(by_day[day]):
-            actor = ev.get("actor", "")
-            lines.append(f"* **Update**: {ev.get('text', '')} _({actor})_")
-        lines.append("")
-    return "\n".join(lines).rstrip() + "\n"
-
-
-def _dir_index(title: str, entries: list[tuple[str, str, str]]) -> str:
-    lines = [f"# {title}", ""]
-    for fname, label, desc in entries:
-        lines.append(f"* [{label}]({fname}) - {desc}")
-    return "\n".join(lines) + "\n"
+def _drop_log_listing(index_path: Path) -> None:
+    """Remove the Update Log bullet from the copied root listing: log.md does
+    not ship when the trail is withheld, so its entry must not either. A
+    text-level line filter — the manifest frontmatter stays byte-identical."""
+    text = index_path.read_text(encoding="utf-8")
+    kept = [line for line in text.splitlines() if "](log.md)" not in line]
+    new_text = "\n".join(kept) + ("\n" if text.endswith("\n") else "")
+    if new_text != text:
+        index_path.write_text(new_text, encoding="utf-8")
 
 
 def export_okf(
@@ -192,15 +186,30 @@ def export_okf(
     include_private: bool = False,
     announce: Path | None = None,
 ) -> Path:
-    m = load_manifest(root)
+    """Copy the notebook to `dest` as an outside-facing OKF bundle.
+
+    Refuses unless the manifest's visibility is "public" or `include_private`
+    is set. With the full trail (include_private or source_trail_public) the
+    sources/ and log/ trees ship wholesale and reference pages gain fixity
+    keys; without it, custody detail — raw bytes, ledgers, log.md, capture
+    notes and titles on reference pages — is withheld. Regenerates `dest` in
+    full; an existing `dest` is replaced only if it is a previous flip export.
+    """
+    root = Path(root)
+    dest = Path(dest)
+    m = load_manifest(root)  # validates the notebook root first
     visibility = m.policy.get("visibility", "internal")
     if visibility != "public" and not include_private:
         raise SystemExit(
             f"notebook visibility is '{visibility}'; OKF export is a render for outside "
-            "consumption — set [policy] visibility = \"public\" or pass --include-private"
+            "consumption — set visibility: public in the root index.md or pass "
+            "--include-private"
         )
     full_trail = include_private or bool(m.policy.get("source_trail_public", False))
 
+    _regenerate_views(root)
+
+    files = _payload_files(root, dest, full_trail)
     if dest.exists():
         if not (dest / STATE_FILE).is_file():
             raise SystemExit(
@@ -210,85 +219,24 @@ def export_okf(
         shutil.rmtree(dest)  # regenerate: the bundle is a render, never precious
     dest.mkdir(parents=True)
 
-    ledger = sorted(read_jsonl(root / "sources" / "ledger.jsonl"), key=_id_sort_key)
-    claims = sorted(read_jsonl(root / "analysis" / "claims.jsonl"), key=_id_sort_key)
-    decisions = sorted(read_jsonl(root / "log" / "decisions.jsonl"), key=_id_sort_key)
-    prov = _latest_provenance(root)
-    ledger_by_id = {r["id"]: r for r in ledger if "id" in r}
+    for rel in files:
+        target = dest / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / rel, target)
 
-    sections: list[tuple[str, str, str]] = []
-
-    if ledger:
-        refs = dest / "references"
-        refs.mkdir()
-        entries = []
-        for row in ledger:
-            rid = row["id"]
-            (refs / f"{rid}.md").write_text(
-                _reference_page(row, prov.get(rid), full_trail), encoding="utf-8"
-            )
-            entries.append(
-                (f"{rid}.md", row.get("title") or rid,
-                 row.get("notes") or f"{row.get('kind', 'source')} · grade {row.get('grade', '?')}")
-            )
-        (refs / "index.md").write_text(_dir_index("References", entries), encoding="utf-8")
-        sections.append(("references/", "References",
-                         f"{len(ledger)} captured source(s) with custody and grading"))
-
-    if claims:
-        cdir = dest / "claims"
-        cdir.mkdir()
-        entries = [
-            (f"{row['id']}.md", row["id"], (row.get("text") or "")[:100])
-            for row in claims if "id" in row
-        ]
-        for row in claims:
-            if "id" in row:
-                (cdir / f"{row['id']}.md").write_text(
-                    _claim_page(row, ledger_by_id), encoding="utf-8"
-                )
-        (cdir / "index.md").write_text(_dir_index("Claims", entries), encoding="utf-8")
-        sections.append(("claims/", "Claims",
-                         f"{len(claims)} claim(s) with status and citations"))
-
-    if decisions:
-        ddir = dest / "decisions"
-        ddir.mkdir()
-        entries = [
-            (f"{row['id']}.md", row["id"], (row.get("decision") or "")[:100])
-            for row in decisions if "id" in row
-        ]
-        for row in decisions:
-            if "id" in row:
-                (ddir / f"{row['id']}.md").write_text(_decision_page(row), encoding="utf-8")
-        (ddir / "index.md").write_text(_dir_index("Decisions", entries), encoding="utf-8")
-        sections.append(("decisions/", "Decisions", f"{len(decisions)} recorded decision(s)"))
-
-    if (root / "log" / "log.jsonl").exists():
-        (dest / "log.md").write_text(_log_md(root), encoding="utf-8")
+    prov = _provenance_by_source(root) if full_trail else {}
+    refs = dest / "references"
+    if refs.is_dir():
+        for page_path in sorted(refs.glob("*.md")):
+            if page_path.name in pages.RESERVED:
+                continue  # the generated listing is handled below
+            _filter_reference_page(page_path, prov, full_trail)
+        if not full_trail and (refs / "index.md").is_file():
+            _write_stripped_refs_index(refs)
+    if not full_trail:
+        _drop_log_listing(dest / "index.md")
 
     generated_at = utc_now()
-    root_fm = {
-        "okf_version": "0.1",
-        "notebook": m.slug,
-        "generated_by": f"flip {__version__}",
-        "generated_at": generated_at,
-    }
-    head = _git_head(root)
-    if head:
-        root_fm["source_commit"] = head
-    title = m.title or m.slug
-    body = [f"# {title}", ""]
-    if m.title:
-        body += [f"OKF projection of the flip notebook `{m.slug}` ({m.kind}).", ""]
-    for path, label, desc in sections:
-        body.append(f"* [{label}]({path}) - {desc}")
-    if (dest / "log.md").exists():
-        body.append("* [Update Log](log.md) - chronological work history")
-    (dest / "index.md").write_text(
-        _frontmatter(root_fm) + "\n" + "\n".join(body) + "\n", encoding="utf-8"
-    )
-
     (dest / STATE_FILE).write_text(
         json.dumps(
             {"generated_at": generated_at, "tool": f"flip {__version__}", "notebook": m.slug},

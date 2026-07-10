@@ -1,5 +1,5 @@
 id = "scout"
 description = "Screen an angle fast with the editor lens active; kill or graduate."
 sections = ["tip", "frame", "hypotheses", "sources", "decisions", "gaps"]
-requires = ["log/decisions.jsonl", "log/passed.jsonl"]
+requires = ["decisions", "log/passed.jsonl"]
 claim_min_independent = 1

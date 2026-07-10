@@ -1,34 +1,45 @@
-"""notebook.toml read/write (SPEC §4).
+"""The manifest — flip identity in the root index.md frontmatter (SPEC §4).
 
-TOML is read with stdlib tomllib and written by template so flip carries no
-TOML-writer dependency. `save_manifest` re-renders the whole file: manifests
-are small and flip owns every field it writes; hand-added comments do not
-survive a rewrite, which is why judgments live in ledgers, not the manifest.
-Unknown keys and tables DO survive: anything flip doesn't recognize is
-collected into `Manifest.extras` at load and rendered back at save, so a
-hand-added `description` or `[beat]` table isn't dropped by the first
-mutating command.
+OKF sanctions frontmatter on exactly one index: the bundle root. That is
+where a notebook's identity, status, and policy live — visible to any OKF
+consumer, editable as properties in Obsidian-style tools, preserved key-for-
+key on rewrite. The index *body* is a generated directory listing owned by
+views; save_manifest touches only the frontmatter and keeps the body as-is.
+
+Unknown frontmatter keys survive: anything flip doesn't recognize is
+collected into `Manifest.extras` at load and re-emitted at save (SPEC §6.6).
 """
 
 from __future__ import annotations
 
 import re
-import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .util import MANIFEST, today
+from . import pages
+from .util import ROOT_FILE, today
 
 VISIBILITIES = ("private", "internal", "client-confidential", "public")
 STATUSES = ("active", "dormant", "done", "published", "archived")
+FLIP_PROFILE_VERSION = "0.4"
 
 # SPEC §3: slugs are filesystem- and cite-safe. Validated at create/save so a
-# bad slug never reaches disk (a quote or newline would break the TOML and
-# every <slug>#<id> cross-reference).
+# bad slug never reaches disk (it names files and every <slug>#<id> cross-ref).
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
-_KNOWN_SCALARS = {"slug", "title", "kind", "status", "created", "updated", "host"}
-_KNOWN_TABLES = {"policy", "links", "tools"}
+# Manifest keys flip owns, in canonical frontmatter order.
+KNOWN_KEYS = (
+    "okf_version", "flip", "slug", "title", "kind", "status", "created",
+    "updated", "host", "visibility", "renders_public", "source_trail_public",
+    "citation_rule", "links", "relations", "consumers", "tools",
+)
+
+DEFAULT_POLICY = {
+    "visibility": "internal",
+    "renders_public": False,
+    "source_trail_public": False,
+    "citation_rule": "public-terminus",
+}
 
 
 @dataclass
@@ -40,144 +51,115 @@ class Manifest:
     created: str = ""
     updated: str = ""
     host: str = ""  # set only for detached notebooks (SPEC §3)
-    policy: dict = field(default_factory=dict)
+    visibility: str = DEFAULT_POLICY["visibility"]
+    renders_public: bool = DEFAULT_POLICY["renders_public"]
+    source_trail_public: bool = DEFAULT_POLICY["source_trail_public"]
+    citation_rule: str = DEFAULT_POLICY["citation_rule"]
     links: dict = field(default_factory=dict)
+    relations: list = field(default_factory=list)
+    consumers: list = field(default_factory=list)
     tools: dict = field(default_factory=dict)
-    # Unknown top-level keys and tables, preserved verbatim across a
-    # load/save round-trip (insertion order kept).
+    # Unknown frontmatter keys, preserved verbatim across load/save.
     extras: dict = field(default_factory=dict)
+
+    @property
+    def policy(self) -> dict:
+        """Policy fields as a dict — the shape doctor/export/okf consume."""
+        return {
+            "visibility": self.visibility,
+            "renders_public": self.renders_public,
+            "source_trail_public": self.source_trail_public,
+            "citation_rule": self.citation_rule,
+        }
 
     def policy_get(self, key: str, default=None):
         return self.policy.get(key, default)
 
 
-DEFAULT_POLICY = {
-    "visibility": "internal",
-    "renders_public": False,
-    "source_trail_public": False,
-    "citation_rule": "public-terminus",
-}
-
-
-def load_manifest(root: Path) -> Manifest:
-    path = root / MANIFEST
-    try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        raise SystemExit(f"no {MANIFEST} in {root}") from None
-    except tomllib.TOMLDecodeError as e:
-        raise SystemExit(f"{path}: invalid TOML: {e}") from None
-    if not isinstance(data.get("slug"), str) or not data["slug"]:
-        raise SystemExit(f"{path}: missing required field 'slug'; add e.g. slug = \"my-notebook\"")
-    top = {k: v for k, v in data.items() if k in _KNOWN_SCALARS}
-    extras = {k: v for k, v in data.items() if k not in _KNOWN_SCALARS | _KNOWN_TABLES}
-    return Manifest(
-        **top,
-        policy=data.get("policy", {}),
-        links=data.get("links", {}),
-        tools=data.get("tools", {}),
-        extras=extras,
-    )
-
-
-# TOML basic-string escapes (TOML 1.0 §String): the named ones, then \uXXXX
-# for every other control character.
-_STR_ESCAPES = {
-    "\\": "\\\\",
-    '"': '\\"',
-    "\b": "\\b",
-    "\t": "\\t",
-    "\n": "\\n",
-    "\f": "\\f",
-    "\r": "\\r",
-}
-
-_BARE_KEY_RE = re.compile(r"^[A-Za-z0-9_-]+$")
-
-
-def _escape_str(s: str) -> str:
-    out = []
-    for ch in s:
-        if ch in _STR_ESCAPES:
-            out.append(_STR_ESCAPES[ch])
-        elif ord(ch) < 0x20 or ord(ch) == 0x7F:
-            out.append(f"\\u{ord(ch):04X}")
-        else:
-            out.append(ch)
-    return "".join(out)
-
-
-def _toml_key(k: str) -> str:
-    return k if _BARE_KEY_RE.match(k) else f'"{_escape_str(k)}"'
-
-
-def _toml_value(v) -> str:
-    if isinstance(v, bool):
-        return "true" if v else "false"
-    if isinstance(v, (int, float)):
-        return str(v)
-    if isinstance(v, list):
-        return "[" + ", ".join(_toml_value(x) for x in v) + "]"
-    if isinstance(v, dict):  # nested table value → inline table
-        return "{ " + ", ".join(f"{_toml_key(k)} = {_toml_value(x)}" for k, x in v.items()) + " }"
-    return f'"{_escape_str(str(v))}"'
-
-
-def _render_table(name: str, table: dict) -> str:
-    if not table:
-        return ""
-    lines = [f"[{_toml_key(name)}]"]
-    for k, v in table.items():
-        lines.append(f"{_toml_key(k)} = {_toml_value(v)}")
-    return "\n".join(lines) + "\n"
-
-
-def render_manifest(m: Manifest) -> str:
-    head = [f"slug = {_toml_value(m.slug)}"]
-    if m.title:
-        head.append(f"title = {_toml_value(m.title)}")
-    head.append(f"kind = {_toml_value(m.kind)}")
-    if m.host:
-        head.append(f"host = {_toml_value(m.host)}")
-    head.append(f"status = {_toml_value(m.status)}")
-    head.append(f"created = {_toml_value(m.created or today())}")
-    head.append(f"updated = {_toml_value(m.updated or today())}")
-    extra_tables: dict[str, dict] = {}
-    for k, v in m.extras.items():
-        if isinstance(v, dict):
-            extra_tables[k] = v  # unknown table → its own [table]
-        else:
-            head.append(f"{_toml_key(k)} = {_toml_value(v)}")  # unknown scalar/list
-    parts = ["\n".join(head) + "\n"]
-    for name, table in (("policy", m.policy), ("links", m.links), ("tools", m.tools)):
-        rendered = _render_table(name, table)
-        if rendered:
-            parts.append(rendered)
-    for name, table in extra_tables.items():
-        rendered = _render_table(name, table)
-        if rendered:
-            parts.append(rendered)
-    return "\n".join(parts)
-
-
-def require_valid_slug(slug: object) -> str:
-    """Validate a slug at create/save time; SystemExit with the rule if bad."""
-    if not isinstance(slug, str) or not SLUG_RE.match(slug):
+def require_valid_slug(slug: str) -> str:
+    if not SLUG_RE.match(slug or ""):
         raise SystemExit(
             f"invalid slug {slug!r}: use lowercase letters, digits, and ._- "
-            "(starting with a letter or digit), e.g. 'nj-schools'"
+            "(starting with a letter or digit), e.g. nj-schools"
         )
     return slug
 
 
-def save_manifest(root: Path, m: Manifest) -> None:
+def load_manifest(root: Path) -> Manifest:
+    path = root / ROOT_FILE
+    if not path.is_file():
+        raise SystemExit(
+            f"no {ROOT_FILE} in {root} — not a flip notebook root "
+            "(run `flip new <slug>`, or `flip migrate` for a v0.3 notebook)"
+        )
+    fm = pages.read_page(path).fm
+    if not isinstance(fm.get("slug"), str) or not fm["slug"]:
+        raise SystemExit(
+            f"{path}: frontmatter missing required key 'slug' — add e.g. slug: my-notebook"
+        )
+    m = Manifest(slug=fm["slug"])
+    for key in ("title", "kind", "status", "created", "updated", "host",
+                "visibility", "citation_rule"):
+        if key in fm and fm[key] is not None:
+            setattr(m, key, str(fm[key]))
+    for key in ("renders_public", "source_trail_public"):
+        if key in fm:
+            setattr(m, key, bool(fm[key]))
+    m.extras = {k: v for k, v in fm.items() if k not in KNOWN_KEYS}
+    # Known keys with foreign-typed values (tools: "a string", relations:
+    # {a: map}, …) are never silently dropped: the typed field keeps its
+    # default and the hand-authored value rides along in extras, re-emitted
+    # verbatim under its own name on save (SPEC §6.6).
+    for key, want in (("links", dict), ("tools", dict),
+                      ("relations", list), ("consumers", list)):
+        value = fm.get(key)
+        if isinstance(value, want):
+            setattr(m, key, value)
+        elif key in fm and value is not None:
+            m.extras[key] = value
+    return m
+
+
+def manifest_frontmatter(m: Manifest) -> dict:
+    fm: dict = {"okf_version": "0.1", "flip": FLIP_PROFILE_VERSION, "slug": m.slug}
+    if m.title:
+        fm["title"] = m.title
+    fm["kind"] = m.kind
+    fm["status"] = m.status
+    fm["created"] = m.created or today()
+    fm["updated"] = m.updated or today()
+    if m.host:
+        fm["host"] = m.host
+    fm["visibility"] = m.visibility
+    fm["renders_public"] = m.renders_public
+    fm["source_trail_public"] = m.source_trail_public
+    fm["citation_rule"] = m.citation_rule
+    for key, value in (("links", m.links), ("relations", m.relations),
+                       ("consumers", m.consumers), ("tools", m.tools)):
+        if value:
+            fm[key] = value
+    fm.update(m.extras)
+    return fm
+
+
+def save_manifest(root: Path, m: Manifest, body: str | None = None) -> None:
+    """Rewrite the root index.md frontmatter; keep (or set) the body.
+
+    The body is the generated listing owned by views — preserved byte-for-
+    byte here; only the views layer replaces it. A brand-new notebook gets a
+    minimal heading body.
+    """
     require_valid_slug(m.slug)
     if m.status not in STATUSES:
         raise SystemExit(f"invalid status '{m.status}' (one of: {', '.join(STATUSES)})")
-    vis = m.policy.get("visibility")
-    if vis is not None and vis not in VISIBILITIES:
-        raise SystemExit(f"invalid visibility '{vis}' (one of: {', '.join(VISIBILITIES)})")
-    (root / MANIFEST).write_text(render_manifest(m), encoding="utf-8")
+    if m.visibility not in VISIBILITIES:
+        raise SystemExit(
+            f"invalid visibility '{m.visibility}' (one of: {', '.join(VISIBILITIES)})"
+        )
+    path = root / ROOT_FILE
+    if body is None:
+        body = pages.read_page(path).body if path.is_file() else f"# {m.title or m.slug}\n"
+    pages.write_page(path, manifest_frontmatter(m), body)
 
 
 def touch_updated(root: Path) -> None:

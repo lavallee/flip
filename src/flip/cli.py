@@ -1,15 +1,18 @@
-"""The flip CLI — one subcommand per module surface (SPEC §14).
+"""The flip CLI — one subcommand per module surface (SPEC §15).
 
 Thin wiring only: every command resolves the enclosing notebook with
 util.require_notebook_root() (so commands work from any subdirectory of a
 notebook), calls exactly one library function, and prints a terse result.
-All failure modes are SystemExit one-liners raised by the library. Read
-commands take --json so agents can consume output without scraping.
+All failure modes are SystemExit one-liners raised by the library; every
+mutating library function refreshes the generated views itself, so the CLI
+never regenerates twice. Read commands take --json so agents can consume
+output without scraping.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict
 from pathlib import Path
 
@@ -20,8 +23,11 @@ from . import (
     doctor as doctor_mod,
     export as export_mod,
     ledgers,
+    migrate as migrate_mod,
+    pages,
     profiles as profiles_mod,
     registry,
+    rename as rename_mod,
     scaffold,
     sessions,
     sources,
@@ -35,10 +41,14 @@ from .util import find_notebook_root, require_notebook_root
 def main() -> None:
     """Reporter's notebooks: plain-file research corpora for humans and agents.
 
-    A notebook is one directory — notebook.toml + notebook.md plus JSONL
-    ledgers for sources, claims, questions, decisions, and the work log.
-    Start one with `flip new <slug> --kind <profile>`; run every other
-    command from anywhere inside it (flip walks up to find the root).
+    A notebook is one directory and a conformant OKF knowledge bundle: the
+    manifest lives in the root index.md frontmatter, notebook.md is the
+    working memory, and every source, claim, decision, question, and session
+    is one markdown page with YAML frontmatter (references/, claims/,
+    decisions/, questions/, sessions/) — ids like A3/C7 resolve via
+    `flip open`. Event history is append-only JSONL under log/ and sources/.
+    Start with `flip new <slug> --kind <profile>`; run every other command
+    from anywhere inside the notebook (flip walks up to find the root).
     `flip show` is the hot view, `flip doctor` the lint. Read commands
     accept --json for machine consumption.
     """
@@ -55,14 +65,14 @@ def main() -> None:
 @click.option("--title", default="", help="Human title; slug is used when omitted.")
 @click.option("--visibility", default=None,
               type=click.Choice(["private", "internal", "client-confidential", "public"]),
-              help="Override the profile's default [policy] visibility.")
+              help="Override the profile's default visibility policy.")
 @click.option("--dest", default=None, type=click.Path(path_type=Path),
               help="Directory to create the notebook in [default: ./<slug>].")
 def new(slug: str, kind: str, title: str, visibility: str | None, dest: Path | None) -> None:
-    """Create a notebook: manifest + notebook.md section stubs, nothing else.
+    """Create a notebook: index.md manifest + notebook.md stubs, nothing else.
 
-    Use once per piece of research; directories (sources/, log/, analysis/)
-    appear lazily as commands need them. Then cd in and start logging.
+    Use once per piece of research; entity directories (references/, claims/,
+    log/, …) appear lazily as commands need them. Then cd in and start logging.
     """
     dest = dest if dest is not None else Path.cwd() / slug
     path = scaffold.create_notebook(dest, slug, kind, title=title, visibility=visibility)
@@ -79,16 +89,19 @@ def new(slug: str, kind: str, title: str, visibility: str | None, dest: Path | N
               help="Source kind (web|paper|file|dataset|talk|…); inferred from the "
                    "target when omitted. Non-file kinds run the [fetchers] command "
                    "configured in $FLIP_HOME/config.toml.")
-@click.option("--note", default=None, help="Capture note, recorded in provenance and ledger.")
+@click.option("--note", default=None, help="Capture note, recorded in provenance and on the page.")
 def add_source(target: str, kind: str | None, note: str | None) -> None:
-    """Capture a source: fetch/copy into sources/raw/, hash it, open a ledger row.
+    """Capture a source: fetch/copy into sources/raw/, hash it, open a page.
 
     Use the moment you rely on something external — URL, DOI, or local file.
-    The row opens at grade "?"; judge it with `flip grade` once read.
+    The references/ page opens at grade "?"; judge it with `flip grade` once
+    read — ungraded sources never count toward claim verification.
     """
-    row = sources.add_source(require_notebook_root(), target, kind=kind, note=note)
-    click.echo(f"{row['id']} · {row['kind']} · {row['local']} (grade ?)")
-    click.echo(f"judge it: flip grade {row['id']} --grade A|B|C "
+    root = require_notebook_root()
+    page = sources.add_source(root, target, kind=kind, note=note)
+    rel = page.path.relative_to(root).as_posix()
+    click.echo(f"{page.id} · {page.fm.get('local', '')} · {rel} (grade ?)")
+    click.echo(f"judge it: flip grade {page.id} --grade A|B|C "
                f"--independence original|republisher|derivative|self-interested")
 
 
@@ -104,30 +117,32 @@ def add_source(target: str, kind: str | None, note: str | None) -> None:
 @click.option("--notes", default=None, help="Judgment notes (why this grade).")
 def grade(source_id: str, grade: str | None, independence: str | None,
           freshness: str | None, notes: str | None) -> None:
-    """Record source-quality judgments on a captured source (SPEC §5.4).
+    """Record source-quality judgments on a source's page (SPEC §5.4).
 
     Use after actually reading a source; grading gates claim verification.
+    Only the judgment keys change — the rest of the page round-trips.
     At least one option is required.
     """
     if grade is None and independence is None and freshness is None and notes is None:
         raise SystemExit(
             "nothing to record; pass at least one of --grade/--independence/--freshness/--notes"
         )
-    row = sources.grade_source(require_notebook_root(), source_id, grade=grade,
-                               independence=independence, freshness=freshness, notes=notes)
-    click.echo(f"{row['id']} · grade {row.get('grade', '?')} · "
-               f"{row.get('independence', '?')} · {row.get('freshness', '?')}")
+    page = sources.grade_source(require_notebook_root(), source_id, grade=grade,
+                                independence=independence, freshness=freshness, notes=notes)
+    click.echo(f"{page.id} · grade {page.fm.get('grade', '?')} · "
+               f"{page.fm.get('independence', '?')} · {page.fm.get('freshness', '?')}")
 
 
 @main.group()
 def source() -> None:
-    """Inspect the source ledger (sources/ledger.jsonl) without reading JSONL."""
+    """Inspect captured sources (references/ pages) without reading files."""
 
 
 @source.command("list")
-@click.option("--json", "as_json", is_flag=True, help="Emit the raw ledger rows as JSON.")
+@click.option("--json", "as_json", is_flag=True,
+              help="Emit the page frontmatter (+ slug, path) as JSON.")
 def source_list(as_json: bool) -> None:
-    """List captured sources: id · kind · grade/independence/freshness · title-or-local.
+    """List sources: id · grade/independence/freshness · title · page path.
 
     The quick judgment audit: any line still showing grade "?" is captured
     but unjudged — and ungraded sources never count toward verification.
@@ -137,13 +152,13 @@ def source_list(as_json: bool) -> None:
         click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
         return
     if not rows:
-        click.echo("no sources captured (sources/ledger.jsonl is absent or empty)")
+        click.echo("no sources captured (references/ is absent or empty)")
         return
     for r in rows:
         judgment = (f"{r.get('grade', '?')}/{r.get('independence', '?')}"
                     f"/{r.get('freshness', '?')}")
-        click.echo(f"{r.get('id', '?')} · {r.get('kind', '?')} · {judgment} · "
-                   f"{r.get('title') or r.get('local', '')}")
+        click.echo(f"{r.get('id', '?')} · {judgment} · "
+                   f"{r.get('title') or r.get('local', '')} · {r.get('path', '')}")
 
 
 # ---------------------------------------------------------------- log ledgers
@@ -155,7 +170,7 @@ def log(text: str) -> None:
     """Append one event to the work log (log/log.jsonl); actor auto-detected.
 
     Use for anything a future reader needs to retrace: fetched X, ran Y,
-    hit wall Z. Terse; one event per line.
+    hit wall Z. Terse; one event per line. log.md regenerates from it.
     """
     row = ledgers.log_event(require_notebook_root(), text)
     click.echo(f"logged {row['ts']} · {row['actor']}")
@@ -169,14 +184,14 @@ def log(text: str) -> None:
 @click.option("--rejected", multiple=True,
               help="Alternative rejected (repeatable).")
 def decide(question: str, decision: str, why: str, rejected: tuple[str, ...]) -> None:
-    """Record a decision in log/decisions.jsonl, allocating the next D#.
+    """Record a decision page (decisions/<slug>.md), allocating the next D#.
 
     Use at every resolved fork so nobody relitigates it: the why is the
-    point. Cite the id in prose as [D3].
+    point. Cite the id in prose as [D3]; `flip open D3` finds it again.
     """
-    row = ledgers.add_decision(require_notebook_root(), question, decision, why,
-                               alternatives_rejected=list(rejected) or None)
-    click.echo(f"{row['id']} · {row['decision']}")
+    page = ledgers.add_decision(require_notebook_root(), question, decision, why,
+                                alternatives_rejected=list(rejected) or None)
+    click.echo(f"{page.id} · {page.fm.get('description', '')}")
 
 
 @main.command("pass")
@@ -195,10 +210,11 @@ def pass_(text: str, reason: str, url: str | None) -> None:
 
 @main.group()
 def question() -> None:
-    """Track open questions (Q#) in log/questions.jsonl.
+    """Track questions as pages (questions/<slug>.md, ids Q#).
 
     Add one whenever something needs an answer before the work can ship;
-    `flip show` surfaces the open ones. Answering appends — history stays.
+    `flip show` surfaces the open ones. Answering updates the page in
+    place — history stays in git, and the Q# is never reused.
     """
 
 
@@ -206,18 +222,22 @@ def question() -> None:
 @click.argument("text")
 def question_add(text: str) -> None:
     """Open a question, allocating the next Q#. Cite it in prose as [Q2]."""
-    row = ledgers.add_question(require_notebook_root(), text)
-    click.echo(f"{row['id']} open · {row['text']}")
+    page = ledgers.add_question(require_notebook_root(), text)
+    click.echo(f"{page.id} open · {page.fm.get('description', '')}")
 
 
 @question.command("answer")
 @click.argument("qid", metavar="ID")
-def question_answer(qid: str) -> None:
-    """Mark a question answered (append-only; the ask stays in the ledger).
-
-    Record where the answer landed with `flip log` or in notebook.md.
+@click.option("--note", default=None,
+              help="Where the answer landed; recorded under '## Answer' on the page.")
+def question_answer(qid: str, note: str | None) -> None:
+    """Mark a question answered: status, answered timestamp, and actor land
+    on the page; the ask text stays. Pass --note to record the answer itself.
     """
-    ledgers.answer_question(require_notebook_root(), qid)
+    if not re.fullmatch(r"Q\d+", qid):
+        raise SystemExit(f"'{qid}' is not a question id (expected Q<number>, e.g. Q2); "
+                         "`flip question list` shows them")
+    ledgers.answer_question(require_notebook_root(), qid, note=note)
     click.echo(f"{qid} answered")
 
 
@@ -226,15 +246,15 @@ def question_answer(qid: str) -> None:
 def question_list(as_json: bool) -> None:
     """List every question with its current status: id · open/answered · text.
 
-    Open ones also surface in `flip show`; this is the full history view
-    (answered questions stay listed — the ledger never forgets).
+    Open ones also surface in `flip show`; this is the full view (answered
+    questions keep their pages — ids are never reused).
     """
     rows = ledgers.list_questions(require_notebook_root())
     if as_json:
         click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
         return
     if not rows:
-        click.echo("no questions recorded (log/questions.jsonl is absent or empty)")
+        click.echo("no questions recorded (questions/ is absent or empty)")
         return
     for r in rows:
         click.echo(f"{r.get('id', '?')} · {r.get('status', 'open')} · {r.get('text', '')}")
@@ -245,29 +265,30 @@ def question_list(as_json: bool) -> None:
 
 @main.group()
 def claim() -> None:
-    """The claim ledger (analysis/claims.jsonl): assertions the work relies on.
+    """Claims as pages (claims/<slug>.md, ids C#): assertions the work relies on.
 
     Add a claim when the work starts leaning on an assertion; link the
-    sources that back it. Verification is gated by the notebook profile's
-    corroboration bar — `flip doctor` audits load-bearing claims against it.
+    source ids that back it (its page gets a generated # Citations block).
+    Verification is gated by the notebook profile's corroboration bar —
+    `flip doctor` audits load-bearing claims against it.
     """
 
 
 @claim.command("add")
 @click.argument("text")
 @click.option("--source", "source_ids", multiple=True, metavar="SOURCE_ID",
-              help="Backing source id from sources/ledger.jsonl (repeatable).")
+              help="Backing source id (a references/ page, e.g. A3); repeatable.")
 @click.option("--load-bearing", is_flag=True,
               help="The piece falls over if this claim is wrong; doctor audits these.")
 @click.option("--notes", default=None, help="Caveats, e.g. 'single vendor study'.")
 def claim_add(text: str, source_ids: tuple[str, ...], load_bearing: bool,
               notes: str | None) -> None:
     """Assert a claim (status "asserted"), allocating the next C#."""
-    row = claims.add_claim(require_notebook_root(), text, list(source_ids),
-                           load_bearing=load_bearing, notes=notes)
-    srcs = ", ".join(row["sources"]) or "none"
-    click.echo(f"{row['id']} asserted · sources: {srcs} · "
-               f"corroboration: {row['independent_corroboration']}")
+    page = claims.add_claim(require_notebook_root(), text, list(source_ids),
+                            load_bearing=load_bearing, notes=notes)
+    srcs = ", ".join(page.fm.get("sources") or []) or "none"
+    click.echo(f"{page.id} asserted · sources: {srcs} · "
+               f"corroboration: {page.fm.get('independent_corroboration', 0)}")
 
 
 @claim.command("status")
@@ -277,17 +298,19 @@ def claim_status(claim_id: str, status: str) -> None:
     """Move a claim to a new status, recomputing its corroboration count.
 
     "verified" is refused until the profile's bar is met (independent
-    original sources, or a grade-A source where the profile allows it).
+    original sources, or a grade-A source where the profile allows it) —
+    counting judged sources only.
     """
-    row = claims.set_claim_status(require_notebook_root(), claim_id, status)
-    click.echo(f"{row['id']} → {row['status']} · "
-               f"corroboration: {row['independent_corroboration']}")
+    page = claims.set_claim_status(require_notebook_root(), claim_id, status)
+    click.echo(f"{page.id} → {page.fm.get('status', '?')} · "
+               f"corroboration: {page.fm.get('independent_corroboration', 0)}")
 
 
 @claim.command("list")
 @click.option("--status", default=None, type=click.Choice(claims.STATUSES),
               help="Only claims in this status.")
-@click.option("--json", "as_json", is_flag=True, help="Emit the raw rows as JSON.")
+@click.option("--json", "as_json", is_flag=True,
+              help="Emit the page frontmatter (+ slug, path) as JSON.")
 def claim_list(status: str | None, as_json: bool) -> None:
     """List claims, optionally filtered by status (grouped view: `flip show --claims`)."""
     rows = claims.list_claims(require_notebook_root(), status=status)
@@ -301,7 +324,7 @@ def claim_list(status: str | None, as_json: bool) -> None:
         flag = " [load-bearing]" if r.get("load_bearing") else ""
         srcs = ", ".join(str(s) for s in r.get("sources", [])) or "none"
         click.echo(f"{r.get('id', '?')} · {r.get('status', '?')}{flag} · "
-                   f"{r.get('text', '')} · sources: {srcs}")
+                   f"{r.get('description', '')} · sources: {srcs}")
 
 
 # ---------------------------------------------------------------- sessions
@@ -309,7 +332,7 @@ def claim_list(status: str | None, as_json: bool) -> None:
 
 @main.group()
 def session() -> None:
-    """Session records (log/sessions/): one file per working episode.
+    """Session pages (sessions/<UTC stamp>-<slug>.md): one per working episode.
 
     Start one before an LLM run or research sweep; end it with a summary so
     the reasoning chain survives as evidence (SPEC §8).
@@ -321,7 +344,7 @@ def session() -> None:
 @click.option("--model", default=None, help="Model driving the episode, e.g. 'claude-fable-5'.")
 @click.option("--tools", multiple=True, help="Tool available in the episode (repeatable).")
 def session_start(slug: str, model: str | None, tools: tuple[str, ...]) -> None:
-    """Open log/sessions/<UTC stamp>-<slug>.md with frontmatter and stubs.
+    """Open sessions/<UTC stamp>-<slug>.md with frontmatter and stubs.
 
     Prints the file path — fill in Goal/Prompt/Key outputs as you work.
     """
@@ -335,7 +358,7 @@ def session_start(slug: str, model: str | None, tools: tuple[str, ...]) -> None:
 @click.option("--summary", required=True,
               help="What the session accomplished — the cold-pickup line.")
 def session_end(slug_or_path: str, summary: str) -> None:
-    """Close a session: append ended-timestamp + summary to its file.
+    """Close a session: `ended` lands in its frontmatter, the summary in its body.
 
     Pass the path printed by `session start`, or just the slug (newest
     matching session wins).
@@ -344,7 +367,7 @@ def session_end(slug_or_path: str, summary: str) -> None:
     click.echo(f"ended {path}")
 
 
-# ---------------------------------------------------------------- views
+# ---------------------------------------------------------------- views / navigation
 
 
 @main.command()
@@ -357,8 +380,8 @@ def show(claims_flag: bool, stale_flag: bool, as_json: bool) -> None:
     """Show a computed view of the notebook; default is the hot view.
 
     The hot view is the resume-here screen: open questions, claims needing
-    work, recent log, latest session. Views are computed from the ledgers,
-    never stored (SPEC §10).
+    work, recent log, latest session. Views are computed from the pages and
+    ledgers, never stored (SPEC §10).
     """
     if claims_flag and stale_flag:
         raise SystemExit("pass at most one of --claims/--stale")
@@ -368,16 +391,56 @@ def show(claims_flag: bool, stale_flag: bool, as_json: bool) -> None:
     click.echo(json.dumps(out, ensure_ascii=False, indent=2) if as_json else out)
 
 
+@main.command("open")
+@click.argument("entity_id", metavar="ID")
+def open_(entity_id: str) -> None:
+    """Resolve a compact id (A3, C7, D2, Q4…) to its entity page path.
+
+    Ids are immutable frontmatter; filenames are human slugs (SPEC §9), so
+    this is how a bare [A3] cite becomes a file. Prints the absolute path —
+    compose it: `$EDITOR $(flip open A3)`.
+    """
+    root = require_notebook_root()
+    page = pages.find_by_id(root, entity_id)
+    if page is None:
+        known = sorted(
+            {p.id for d in pages.SCAN_DIRS for p in pages.iter_pages(root, d) if p.id},
+            key=lambda s: (s.rstrip("0123456789"), len(s), s),
+        )
+        hint = f"known ids: {', '.join(known)}" if known else "no entity pages yet"
+        raise SystemExit(f"no page with id '{entity_id}' ({hint})")
+    click.echo(str(page.path))
+
+
+@main.command()
+@click.argument("entity_id", metavar="ID")
+@click.argument("new_slug", metavar="NEW_SLUG")
+def rename(entity_id: str, new_slug: str) -> None:
+    """Rename an entity page to NEW_SLUG, rewriting links notebook-wide.
+
+    The only sanctioned rename (SPEC §9): the id and aliases never change,
+    so [A3]-style cites keep resolving; every markdown link and supports
+    path pointing at the old filename is rewritten, and the generated
+    listings refresh.
+    """
+    root = require_notebook_root()
+    old_path, new_path, changed = rename_mod.rename_entity(root, entity_id, new_slug)
+    click.echo(f"{entity_id}: {old_path.relative_to(root).as_posix()} → "
+               f"{new_path.relative_to(root).as_posix()}")
+    if changed:
+        click.echo(f"rewrote links in {changed} file(s)")
+
+
 @main.command()
 @click.option("--json", "as_json", is_flag=True, help="Emit findings as JSON.")
 def doctor(as_json: bool) -> None:
     """Lint the notebook against the spec and its profile; exit 1 on errors.
 
-    Checks manifest sanity, profile minimums (WARN while status is
-    active/dormant, ERROR once done/published/archived), orphan/unhashed
-    sources, stale freshness, claim enums, and load-bearing claims below the
-    verification bar. Run before a handoff or publish; fix ERRORs, weigh
-    WARNs.
+    Checks manifest sanity, OKF conformance (frontmatter + type on every
+    page), id/alias integrity, dangling citations, profile minimums (WARN
+    while status is active/dormant, ERROR once done/published/archived),
+    orphan custody, stale freshness, and claims below the verification bar.
+    Run before a handoff or publish; fix ERRORs, weigh WARNs.
     """
     findings = doctor_mod.run_doctor(require_notebook_root())
     if as_json:
@@ -413,6 +476,33 @@ def index(roots: tuple[Path, ...]) -> None:
     click.echo(f"indexed {len(good)} notebook(s){tail} → {registry.flip_home() / registry.INDEX}")
 
 
+@main.command()
+def migrate() -> None:
+    """Convert a v0.3 notebook (notebook.toml + JSONL entity ledgers) to v0.4.
+
+    In place: the manifest moves into the root index.md frontmatter and every
+    source/claim/decision/question/session becomes an entity page, preserving
+    ids and fields. Event ledgers (log/, provenance) and sources/raw/ stay as
+    they are. Resumable if interrupted; run `flip doctor` afterwards.
+    """
+    cwd = Path.cwd().resolve()
+    root = next(
+        (c for c in (cwd, *cwd.parents) if (c / migrate_mod.NOTEBOOK_TOML).is_file()), None
+    )
+    if root is None:
+        # No v0.3 root above us: let migrate explain (already-v0.4 vs not a notebook).
+        root = find_notebook_root() or cwd
+    counts = migrate_mod.migrate(root)
+    summary = ", ".join(
+        f"{n} {name.replace('_', ' ')}"
+        for name, n in counts.items()
+        if n or name != "already_migrated"  # mention skips only when they happened
+    )
+    click.echo(f"migrated {root} to v0.4 · {summary}")
+    click.echo("entity pages: references/ claims/ decisions/ questions/ sessions/ — "
+               "run `flip doctor` to audit the result")
+
+
 @main.group()
 def export() -> None:
     """Interop exports (SPEC §17) — projections; the notebook stays canonical."""
@@ -434,7 +524,7 @@ def export_bag(dest: Path) -> None:
 @click.option("--output", default=None, type=click.Path(path_type=Path),
               help="Write the CSL JSON here instead of stdout.")
 def export_csl(output: Path | None) -> None:
-    """Emit CSL JSON from the source ledger for citation managers (Zotero etc.)."""
+    """Emit CSL JSON from the references/ pages for citation managers (Zotero etc.)."""
     items = export_mod.export_csl(require_notebook_root())
     text = json.dumps(items, ensure_ascii=False, indent=2)
     if output is None:
@@ -451,12 +541,12 @@ def export_csl(output: Path | None) -> None:
 @click.option("--announce", default=None, type=click.Path(path_type=Path),
               help="AGENTS.md file to point at the bundle via a FLIP marker block.")
 def export_okf(dest: Path, include_private: bool, announce: Path | None) -> None:
-    """Project the notebook as an OKF v0.1 knowledge bundle at DEST.
+    """Copy the notebook to DEST as an outside-facing OKF bundle (policy filter).
 
-    Sources become references/ concepts with custody frontmatter, claims cite
-    them, decisions get concept pages, and the work log renders as log.md.
-    The bundle is a generated render — re-export rather than editing it.
-    Design notes: docs/wiki-alignment.md.
+    The notebook already IS an OKF bundle; this honors `visibility` (refuses
+    unless public or --include-private) and `source_trail_public` (custody
+    detail ships, or reference pages reduce to judgment stubs). The bundle is
+    a render — re-export rather than editing it. Notes: docs/wiki-alignment.md.
     """
     path = export_mod.export_okf(
         require_notebook_root(), dest, include_private=include_private, announce=announce

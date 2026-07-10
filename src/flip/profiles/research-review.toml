@@ -1,5 +1,5 @@
 id = "research-review"
 description = "Question-organized survey headed for publication: full custody and claim audit."
 sections = ["tip", "frame", "explore", "hypotheses", "sources", "priors", "decisions", "omissions", "workflow", "gaps"]
-requires = ["sources/ledger.jsonl", "analysis/claims.jsonl", "log/sessions", "drafts"]
+requires = ["references", "claims", "sessions", "drafts"]
 claim_min_independent = 2

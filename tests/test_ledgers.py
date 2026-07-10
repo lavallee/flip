@@ -1,4 +1,4 @@
-"""Tests for flip.ledgers — log, decisions, passed, questions."""
+"""Tests for flip.ledgers — work log, passed ledger, decision and question pages."""
 
 from __future__ import annotations
 
@@ -7,22 +7,31 @@ from pathlib import Path
 
 import pytest
 
-from flip import ledgers, util
+from flip import ledgers, pages, util
 from flip.manifest import load_manifest
 
-MANIFEST = """\
-slug = "t"
-kind = "scout"
-status = "active"
-created = "2020-01-01"
-updated = "2020-01-01"
+ROOT_MD = """\
+---
+okf_version: "0.1"
+flip: "0.4"
+slug: t
+kind: scout
+status: active
+created: 2020-01-01
+updated: 2020-01-01
+visibility: internal
+renders_public: false
+source_trail_public: false
+citation_rule: public-terminus
+---
+# t
 """
 
 
 @pytest.fixture
 def root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("FLIP_ACTOR", "human:test")
-    (tmp_path / "notebook.toml").write_text(MANIFEST, encoding="utf-8")
+    (tmp_path / "index.md").write_text(ROOT_MD, encoding="utf-8")
     return tmp_path
 
 
@@ -77,40 +86,71 @@ def test_all_mutators_outside_notebook_raise_and_write_nothing(tmp_path: Path):
 # --- add_decision ------------------------------------------------------------
 
 
-def test_add_decision_allocates_sequential_ids(root: Path):
-    r1 = ledgers.add_decision(root, "q1?", "yes", "because")
-    r2 = ledgers.add_decision(root, "q2?", "no", "reasons")
-    assert (r1["id"], r2["id"]) == ("D1", "D2")
-    rows = _lines(root / "log" / "decisions.jsonl")
-    assert [r["id"] for r in rows] == ["D1", "D2"]
-    assert rows[0]["question"] == "q1?"
-    assert rows[0]["decision"] == "yes"
-    assert rows[0]["why"] == "because"
-    assert rows[0]["actor"] == "human:test"
-    assert "alternatives_rejected" not in rows[0]
+def test_add_decision_creates_page_with_sequential_ids(root: Path):
+    p1 = ledgers.add_decision(root, "q1?", "use jsonl", "because")
+    p2 = ledgers.add_decision(root, "q2?", "skip toml", "reasons")
+    assert (p1.id, p2.id) == ("D1", "D2")
+    assert p1.path == root / "decisions" / "use-jsonl.md"
+    page = pages.read_page(p1.path)
+    assert page.fm["type"] == "Decision"
+    assert page.fm["id"] == "D1"
+    assert page.fm["aliases"] == ["D1"]
+    assert page.fm["description"] == "use jsonl"
+    assert page.fm["question"] == "q1?"
+    assert page.fm["actor"] == "human:test"
+    assert page.fm["timestamp"].endswith("Z")
+    assert "alternatives_rejected" not in page.fm
+    assert load_manifest(root).updated == util.today()
+
+
+def test_add_decision_body_paragraphs(root: Path):
+    p = ledgers.add_decision(root, "store format?", "use jsonl", "diffable")
+    body = pages.read_page(p.path).body
+    assert "**Question.** store format?" in body
+    assert "**Decision.** use jsonl" in body
+    assert "**Why.** diffable" in body
+    assert "**Rejected.**" not in body  # only present when alternatives given
 
 
 def test_add_decision_ids_never_reused(root: Path):
-    util.append_jsonl(
-        root / "log" / "decisions.jsonl",
-        {"ts": "2020-01-01T00:00:00Z", "id": "D5", "question": "old", "decision": "x",
-         "why": "y", "actor": "human:test"},
+    # a pre-existing page holding D5 reserves everything up to it
+    pages.write_page(
+        root / "decisions" / "old-choice.md",
+        {"type": "Decision", "id": "D5", "aliases": ["D5"]},
+        "old\n",
     )
-    row = ledgers.add_decision(root, "new?", "yes", "because")
-    assert row["id"] == "D6"
+    assert ledgers.add_decision(root, "new?", "yes", "because").id == "D6"
+
+
+def test_add_decision_slug_from_text_with_collision_suffix(root: Path):
+    p1 = ledgers.add_decision(root, "q?", "Use JSONL", "a")
+    p2 = ledgers.add_decision(root, "q2?", "use jsonl!", "b")
+    assert p1.path.name == "use-jsonl.md"
+    assert p2.path.name == "use-jsonl-2.md"
+    assert (p1.id, p2.id) == ("D1", "D2")
 
 
 def test_add_decision_alternatives_rejected(root: Path):
-    row = ledgers.add_decision(root, "q?", "a", "w", alternatives_rejected=["b", "c"])
-    assert row["alternatives_rejected"] == ["b", "c"]
+    p = ledgers.add_decision(root, "q?", "a", "w", alternatives_rejected=["b", "c"])
+    assert p.fm["alternatives_rejected"] == ["b", "c"]
+    assert "**Rejected.** b; c" in pages.read_page(p.path).body
     # a bare string is wrapped into a list
-    row2 = ledgers.add_decision(root, "q?", "a", "w", alternatives_rejected="b")
-    assert row2["alternatives_rejected"] == ["b"]
+    p2 = ledgers.add_decision(root, "q?", "a2", "w", alternatives_rejected="b")
+    assert p2.fm["alternatives_rejected"] == ["b"]
+
+
+def test_add_decision_long_text_truncates_description(root: Path):
+    p = ledgers.add_decision(root, "q?", "word " * 60, "w")
+    assert len(p.fm["description"]) <= 160
+    assert p.fm["description"].endswith("…")
+    # the full decision text still lives in the body
+    assert "word word" in pages.read_page(p.path).body
 
 
 def test_add_decision_empty_why_raises(root: Path):
     with pytest.raises(SystemExit, match="empty why"):
         ledgers.add_decision(root, "q?", "a", "")
+    assert not (root / "decisions").exists()
 
 
 # --- add_passed --------------------------------------------------------------
@@ -135,27 +175,72 @@ def test_add_passed_empty_reason_raises(root: Path):
 
 
 def test_add_question_opens_with_id(root: Path):
-    row = ledgers.add_question(root, "who funded it?")
-    assert row["id"] == "Q1"
-    assert row["status"] == "open"
-    assert ledgers.add_question(root, "when?")["id"] == "Q2"
+    p = ledgers.add_question(root, "who funded it?")
+    assert p.id == "Q1"
+    assert p.path == root / "questions" / "who-funded-it.md"
+    page = pages.read_page(p.path)
+    assert page.fm["type"] == "Question"
+    assert page.fm["aliases"] == ["Q1"]
+    assert page.fm["status"] == "open"
+    assert page.fm["description"] == "who funded it?"
+    assert page.fm["actor"] == "human:test"
+    assert page.fm["timestamp"].endswith("Z")
+    assert page.body.strip() == "who funded it?"
+    assert ledgers.add_question(root, "when?").id == "Q2"
 
 
-def test_answer_question_appends_never_rewrites(root: Path):
+def test_answer_question_updates_frontmatter_keeps_body(root: Path):
+    asked = ledgers.add_question(root, "who?")
+    got = ledgers.answer_question(root, "Q1")
+    page = pages.read_page(got.path)
+    assert page.fm["status"] == "answered"
+    assert page.fm["answered"].endswith("Z")
+    assert page.fm["answered_by"] == "human:test"
+    assert page.fm["timestamp"] == asked.fm["timestamp"]  # ask time untouched
+    assert page.body.strip() == "who?"  # body untouched without a note
+
+
+def test_answer_question_note_appends_answer_section(root: Path):
     ledgers.add_question(root, "who?")
-    ledgers.answer_question(root, "Q1")
-    rows = _lines(root / "log" / "questions.jsonl")
-    assert len(rows) == 2
-    assert rows[0]["status"] == "open"  # original ask row untouched
-    assert rows[0]["text"] == "who?"
-    assert rows[1] == {"ts": rows[1]["ts"], "id": "Q1", "status": "answered",
-                       "actor": "human:test"}
+    got = ledgers.answer_question(root, "Q1", note="the foundation")
+    body = pages.read_page(got.path).body
+    assert "who?" in body
+    assert body.rstrip().endswith("## Answer\nthe foundation")
+
+
+def test_answer_question_preserves_foreign_frontmatter_key(root: Path):
+    # round-trip rule (SPEC §6.6): a key some other tool wrote must survive
+    p = ledgers.add_question(root, "who?")
+    page = pages.read_page(p.path)
+    page.fm["obsidian_color"] = "red"
+    pages.write_page(p.path, page.fm, page.body)
+    ledgers.answer_question(root, "Q1", note="found it")
+    after = pages.read_page(p.path)
+    assert after.fm["obsidian_color"] == "red"
+    assert after.fm["status"] == "answered"
+    assert "who?" in after.body
 
 
 def test_question_ids_never_reused_after_answer(root: Path):
     ledgers.add_question(root, "one?")
     ledgers.answer_question(root, "Q1")
-    assert ledgers.add_question(root, "two?")["id"] == "Q2"
+    assert ledgers.add_question(root, "two?").id == "Q2"
+
+
+def test_question_id_not_reused_after_page_deletion(root: Path):
+    # SPEC §9: deleting a page never frees its id — the .flip/ids reservation
+    # file backstops allocation for pages with no provenance trail
+    p = ledgers.add_question(root, "one?")
+    p.path.unlink()
+    assert ledgers.add_question(root, "two?").id == "Q2"
+
+
+def test_decision_id_not_reused_after_page_deletion(root: Path):
+    p = ledgers.add_decision(root, "scope?", "first pass", "time-boxed")
+    p.path.unlink()
+    second = ledgers.add_decision(root, "scope?", "second pass", "still time-boxed")
+    assert second.id == "D2"
+    assert "D1" in (root / ".flip" / "ids").read_text(encoding="utf-8").splitlines()
 
 
 def test_answer_unknown_question_raises(root: Path):
@@ -180,7 +265,7 @@ def test_answer_question_twice_raises(root: Path):
         ledgers.answer_question(root, "Q1")
 
 
-def test_open_questions_last_event_wins(root: Path):
+def test_open_questions_excludes_answered(root: Path):
     ledgers.add_question(root, "one?")
     ledgers.add_question(root, "two?")
     ledgers.answer_question(root, "Q1")
@@ -189,7 +274,7 @@ def test_open_questions_last_event_wins(root: Path):
     assert open_qs[0]["text"] == "two?"
 
 
-def test_open_questions_empty_when_no_ledger(root: Path):
+def test_open_questions_empty_when_no_pages(root: Path):
     assert ledgers.open_questions(root) == []
 
 
@@ -202,7 +287,22 @@ def test_list_questions_reports_current_status(root: Path):
         ("Q1", "answered", "one?"),
         ("Q2", "open", "two?"),
     ]
+    assert rows[0]["path"] == "questions/one.md"
 
 
-def test_list_questions_empty_when_no_ledger(root: Path):
+def test_list_questions_status_filter(root: Path):
+    ledgers.add_question(root, "one?")
+    ledgers.add_question(root, "two?")
+    ledgers.answer_question(root, "Q1")
+    assert [r["id"] for r in ledgers.list_questions(root, status="answered")] == ["Q1"]
+    assert [r["id"] for r in ledgers.list_questions(root, status="open")] == ["Q2"]
+
+
+def test_list_questions_text_excludes_answer_section(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.answer_question(root, "Q1", note="them")
+    assert ledgers.list_questions(root)[0]["text"] == "who?"
+
+
+def test_list_questions_empty_when_no_pages(root: Path):
     assert ledgers.list_questions(root) == []

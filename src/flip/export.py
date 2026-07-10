@@ -2,8 +2,8 @@
 
 Exports are projections — the canonical artifact stays the plain-file
 notebook, and exporters never mutate it. `export_bag` writes a BagIt 1.0 bag
-for cold archival; `export_csl` maps the source ledger to CSL-JSON items for
-citation managers.
+for cold archival; `export_csl` maps the source entity pages under
+references/ to CSL-JSON items for citation managers.
 """
 
 from __future__ import annotations
@@ -12,7 +12,8 @@ import shutil
 import sys
 from pathlib import Path
 
-from .util import MANIFEST, read_jsonl, sha256_file, today
+from . import pages
+from .util import ROOT_FILE, is_notebook_root, sha256_file, today
 
 # Directory names excluded from bag payloads: repo/tooling internals and
 # derived renders are not evidentiary content (SPEC §11, §16).
@@ -21,19 +22,29 @@ EXCLUDE_DIRS = {".git", ".venv", ".flip", "renders", "__pycache__"}
 _CSL_TYPES = {
     "paper": "article-journal",
     "web": "webpage",
-    "article": "webpage",  # ledger "article" rows are captured web articles
+    "article": "webpage",  # "article" sources are captured web articles
     "dataset": "dataset",
     "file": "dataset",
+    "document": "dataset",
     "talk": "speech",
+    "transcript": "speech",
+}
+
+# Fallback when a page carries no `kind`: infer from the id prefix (SPEC §9).
+_PREFIX_CSL_TYPES = {
+    "P": "article-journal",
+    "A": "webpage",
+    "F": "dataset",
+    "T": "speech",
 }
 
 
 def _require_notebook(root: Path) -> Path:
     root = Path(root)
-    if not (root / MANIFEST).is_file():
+    if not is_notebook_root(root):
         raise SystemExit(
-            f"{root} is not a flip notebook (no {MANIFEST}); "
-            "pass a notebook root or run `flip new <slug>` first"
+            f"{root} is not a flip notebook (no {ROOT_FILE} with flip manifest "
+            "frontmatter); pass a notebook root or run `flip new <slug>` first"
         )
     return root
 
@@ -123,7 +134,7 @@ def export_bag(root: Path, dest: Path) -> Path:
 
 
 def _issued(date: object) -> dict | None:
-    """Parse a ledger date ("2025-11-23", "2025-11", "2025") to CSL issued."""
+    """Parse a page date ("2025-11-23", "2025-11", "2025") to CSL issued."""
     parts: list[int] = []
     for piece in str(date).split("T")[0].split("-")[:3]:
         if not piece.isdigit():
@@ -134,47 +145,67 @@ def _issued(date: object) -> dict | None:
     return {"date-parts": [parts]}
 
 
-def _note(row: dict) -> str:
-    bits = [f"{key}: {row[key]}" for key in ("grade", "independence", "freshness") if row.get(key)]
+def _note(fm: dict) -> str:
+    """Judgment note; a grade of "?" is custody, not judgment, and says nothing."""
+    bits = [
+        f"{key}: {fm[key]}"
+        for key in ("grade", "independence", "freshness")
+        if fm.get(key) and fm[key] != "?"
+    ]
     return "; ".join(bits)
 
 
+def _csl_type(fm: dict) -> str:
+    kind = str(fm.get("kind", ""))
+    if kind in _CSL_TYPES:
+        return _CSL_TYPES[kind]
+    prefix = str(fm.get("id", "")).rstrip("0123456789")
+    return _PREFIX_CSL_TYPES.get(prefix, "document")
+
+
 def export_csl(root: Path) -> list[dict]:
-    """Map sources/ledger.jsonl rows to CSL-JSON items (one per source)."""
+    """Map references/ source pages to CSL-JSON items (one per source, id order).
+
+    Item id is the compact source id (P3, A1, …); the CSL type comes from the
+    page's `kind` when present (migrated pages keep it) else the id prefix.
+    """
     root = _require_notebook(root)
-    ledger = root / "sources" / "ledger.jsonl"
-    try:
-        rows = read_jsonl(ledger)
-    except ValueError as e:
-        raise SystemExit(f"{e}; fix that line in the source ledger, then re-export") from None
     items: list[dict] = []
-    for row in rows:
-        item: dict = {
-            "id": row.get("id"),
-            "type": _CSL_TYPES.get(row.get("kind", ""), "document"),
-        }
-        if row.get("title"):
-            item["title"] = row["title"]
-        if row.get("authors"):
-            item["author"] = [{"literal": a} for a in row["authors"]]
-        issued = _issued(row["date"]) if row.get("date") else None
+    for page in pages.iter_pages(root, "references"):
+        fm = page.fm
+        item: dict = {"id": fm.get("id") or page.slug, "type": _csl_type(fm)}
+        if fm.get("title"):
+            item["title"] = str(fm["title"])
+        if fm.get("authors"):
+            # as_list: a hand-edited scalar `authors: Jane Doe` is one author,
+            # not a string to iterate char by char.
+            item["author"] = [{"literal": str(a)} for a in pages.as_list(fm["authors"])]
+        issued = _issued(fm["date"]) if fm.get("date") else None
         if issued:
             item["issued"] = issued
-        if row.get("url"):
-            item["URL"] = row["url"]
-        if row.get("publisher"):
-            item["publisher"] = row["publisher"]
-        note = _note(row)
+        url = fm.get("resource") or fm.get("url")
+        if url:
+            item["URL"] = str(url)
+        if fm.get("publisher"):
+            item["publisher"] = str(fm["publisher"])
+        note = _note(fm)
         if note:
             item["note"] = note
         items.append(item)
-    return items
+    return sorted(items, key=_id_sort_key)
+
+
+def _id_sort_key(item: dict) -> tuple:
+    rid = str(item.get("id", ""))
+    head = rid.rstrip("0123456789")
+    tail = rid[len(head):]
+    return (head, int(tail) if tail.isdigit() else 0, rid)
 
 
 def export_okf(
     root: Path, dest: Path, include_private: bool = False, announce: Path | None = None
 ) -> Path:
-    """OKF v0.1 knowledge-bundle export; see okf.py and docs/wiki-alignment.md."""
+    """OKF policy-filter export; see okf.py (SPEC §17)."""
     from .okf import export_okf as _export_okf
 
     return _export_okf(root, dest, include_private=include_private, announce=announce)

@@ -3,7 +3,8 @@
 flip keeps research honest: every source you rely on is captured locally and
 hashed, every judgment about source quality is recorded, every load-bearing
 claim is linked to sources and gated before it can be called verified, and
-the whole trail is plain files in git.
+the whole trail is plain files in git. The notebook is a conformant OKF v0.1
+knowledge bundle — any markdown tool can browse and edit it.
 
 ## Install
 
@@ -24,8 +25,8 @@ uv sync
 uv run flip --help
 ```
 
-Requires Python 3.12+. The core is stdlib + click: no network calls, no LLM
-calls, no services.
+Requires Python 3.12+. The core is stdlib + click + PyYAML: no network
+calls, no LLM calls, no services.
 
 ## Create a notebook
 
@@ -34,10 +35,12 @@ flip new nj-schools --kind scout --title "NJ enrollment dip"
 cd nj-schools
 ```
 
-You get exactly two files — `notebook.toml` (the manifest) and `notebook.md`
-(prose working memory, scaffolded with section stubs like "The tip" and
-"Hypotheses & falsifiers"). Everything else appears lazily as commands need
-it. Every `flip` command works from anywhere inside the notebook.
+You get exactly two files — `index.md` (the manifest lives in its
+frontmatter; the notebook is an OKF knowledge bundle and this is its root)
+and `notebook.md` (prose working memory, scaffolded with section stubs like
+"The tip" and "Hypotheses & falsifiers"). Everything else appears lazily as
+commands need it. Every `flip` command works from anywhere inside the
+notebook.
 
 If you're an agent (or supervising one), set the actor once:
 
@@ -51,23 +54,25 @@ export FLIP_ACTOR="human:marc"     # or agent:claude, tool:ingest-script
 
 ```bash
 flip add-source ./districts.csv --note "district enrollment table"
-# F1 · file · sources/raw/F1.csv (grade ?)
+# F1 · sources/raw/F1.csv · references/districts-csv.md (grade ?)
 ```
 
 The bytes land verbatim in `sources/raw/`, get hashed into the append-only
-provenance log, and open a ledger row at grade `?`.
+provenance log, and open a source page in `references/` at grade `?` —
+custody and judgment in the frontmatter, your notes in the body.
 
 **Grade** after you've actually read it:
 
 ```bash
 flip grade F1 --grade A --independence original --notes "state data, extracted ourselves"
+# F1 · grade A · original · fresh
 ```
 
 `A` authoritative primary · `B` official/independent · `C` vendor,
 practitioner, or LLM synthesis. `independence` records whether this is the
 original or downstream of one — republishers don't count as corroboration,
 and neither does a source still graded `?` (capture is custody, not
-judgment). `flip source list` shows the whole ledger at a glance; any `?`
+judgment). `flip source list` shows every source at a glance; any `?`
 line still needs judging.
 
 **Claim** when the work starts leaning on an assertion:
@@ -87,7 +92,8 @@ flip claim status C1 verified
 
 If the bar isn't met, flip refuses with instructions instead of complying.
 
-**Show** the hot view — the resume-here screen, computed from the ledgers:
+**Show** the hot view — the resume-here screen, computed from the pages and
+ledgers:
 
 ```bash
 flip show            # open questions, claims needing work, recent log, latest session
@@ -105,19 +111,60 @@ sweep.
 
 ```bash
 flip doctor
-# WARN missing-required log/decisions.jsonl — profile 'scout' requires
-#   log/decisions.jsonl (it appears with use; required before
-#   done/published/archived); create it
+# WARN missing-required decisions — profile 'scout' requires decisions
+#   (it appears with use; required before done/published/archived); create it
 # WARN missing-required log/passed.jsonl — ...
 ```
 
-Doctor lints against the notebook's profile. Profile minimums are satisfied
-through use — on the scout above they stay WARNs until the first
-`flip decide` and `flip pass` create its decision and passed ledgers, after
-which `flip doctor` reports `ok: no findings`. Once you set the manifest
-status to `done`, `published`, or `archived`, anything still missing becomes
-an ERROR and doctor exits 1: completion requirements, not creation
-requirements.
+Doctor lints against the spec (OKF conformance, id/alias integrity, dangling
+citations, custody orphans) and the notebook's profile. Profile minimums are
+satisfied through use — on the scout above they stay WARNs until the first
+`flip decide` and `flip pass` create `decisions/` and the passed ledger,
+after which `flip doctor` reports `ok: no findings`. Once you set the
+manifest status to `done`, `published`, or `archived`, anything still
+missing becomes an ERROR and doctor exits 1: completion requirements, not
+creation requirements.
+
+## IDs, filenames, renames
+
+Filenames are human slugs; the immutable id lives in the page's frontmatter
+(with `aliases: [<id>]`). Cite ids in prose as `[F1]` or `[C1]` and resolve
+them back to files with `flip open`:
+
+```bash
+flip open F1
+# /work/nj-schools/references/districts-csv.md
+$EDITOR $(flip open F1)      # paths are absolute, so this works from any subdirectory
+```
+
+When a slug deserves a better name, `flip rename` is the only sanctioned
+way — it moves the page and rewrites every markdown link and `supports` path
+notebook-wide, while the id (and every `[F1]` cite) stays put:
+
+```bash
+flip rename F1 district-enrollment-table
+# F1: references/districts-csv.md → references/district-enrollment-table.md
+# rewrote links in 2 file(s)
+```
+
+## Using the notebook as an Obsidian vault
+
+Open the notebook directory as a vault and it just works:
+
+- Frontmatter renders as the **Properties** panel — re-grading a source by
+  editing `grade` there is a legitimate flip operation, validated by the
+  next `flip doctor` run.
+- `aliases` make id wikilinks resolve: type `[[F1]]` and Obsidian finds
+  `references/district-enrollment-table.md`.
+- flip's generated links are relative markdown links, so the **graph view**
+  lights up; the folder taxonomy (references / claims / decisions /
+  questions / sessions) reads as intended structure.
+- `.obsidian/` is local editor state: gitignore it; flip never reads it.
+
+Two things to know: `index.md` bodies and `log.md` are **generated** views —
+flip rewrites them on every mutating command, so edit pages, not listings —
+and flip preserves frontmatter keys it doesn't own, so your own properties
+survive its rewrites (and it expects the same courtesy from other tools).
 
 ## Configuring fetchers
 
@@ -158,10 +205,32 @@ claim-verification bar. Pick one with `flip new --kind`; list them with
 profiles as TOML under `.flip/profiles/` inside the notebook — profiles are
 data, not code.
 
+## Migrating a pre-0.4 notebook
+
+v0.3 notebooks kept entities in JSONL ledgers with a `notebook.toml`
+manifest. `flip migrate` converts one in place — run it from anywhere inside
+the old notebook:
+
+```bash
+flip migrate
+# migrated /work/legacy to v0.4 · 1 sources, 1 claims, 1 decisions, 1 questions, 1 sessions
+# entity pages: references/ claims/ decisions/ questions/ sessions/ — run `flip doctor` to audit the result
+```
+
+Ids, judgment fields, and append-only history (work log, provenance,
+`sources/raw/`) are preserved; the manifest moves into the root `index.md`
+frontmatter; each ledger row becomes an entity page. The migration is
+resumable if interrupted. Run `flip doctor` afterwards — an old
+`notebook.md` typically WARNs about missing profile sections until you add
+the headings.
+
 ## Next
 
 - [SPEC.md](../SPEC.md) — the full format.
-- [AGENTS.md](../AGENTS.md) — conventions and recipes for agents working in
-  notebooks.
-- `flip export bag` (BagIt archival) and `flip export csl` (citations for
-  Zotero and friends) when a notebook needs to travel.
+- [AGENTS.md](../AGENTS.md) — the lineage-rule contract and recipes for
+  agents working in notebooks.
+- [wiki-alignment.md](wiki-alignment.md) — how flip relates to OKF,
+  Karpathy's LLM-wiki pattern, and OpenWiki.
+- `flip export bag` (BagIt archival), `flip export csl` (citations for
+  Zotero and friends), and `flip export okf` (an outside-facing copy of the
+  bundle, honoring visibility policy) when a notebook needs to travel.

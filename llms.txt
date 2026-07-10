@@ -1,17 +1,17 @@
 # flip
 
-> CLI and plain-file format for reporter's notebooks — git-friendly research corpora (sources with custody and grading, claims with verification, work/session logs) maintained by humans and agents, with no service required to read them.
+> CLI and plain-file format for reporter's notebooks — git-friendly research corpora (sources with custody and grading, claims with verification, work/session logs) maintained by humans and agents in the same files. A notebook is natively an OKF v0.1 knowledge bundle: one markdown page per entity with YAML frontmatter, browsable by any OKF consumer or markdown editor (Obsidian works out of the box), no service required.
 
 ## Docs
 
-- [README.md](README.md): Project overview, design commitments, install, and quickstart.
-- [SPEC.md](SPEC.md): The notebook format — directory layout, manifest, source ledger and provenance, claim ledger, logs, profiles, CLI, and integration contract.
-- [AGENTS.md](AGENTS.md): How agents should use flip — the five-minute tour, the conventions that must be honored, and task recipes.
-- [docs/quickstart.md](docs/quickstart.md): Human-facing walkthrough — install, create a notebook, the capture→grade→claim→verify loop, fetcher configuration, profiles.
+- [README.md](README.md): Project overview — the notebook-as-OKF-bundle positioning, design commitments, install, and quickstart.
+- [SPEC.md](SPEC.md): The notebook format (v0.4) — directory layout, the root index.md manifest, source pages and provenance, claims and the verification bar, logs and sessions, the flip lineage profile (§6), ids/slugs/links, profiles, CLI, and integration contract.
+- [AGENTS.md](AGENTS.md): How agents should use flip — the five-minute tour with real output, the lineage-rule contract (capture before cite, round-trip rule, verification bar), and task recipes.
+- [docs/quickstart.md](docs/quickstart.md): Human-facing walkthrough — install, create a notebook, the capture→grade→claim→verify loop, ids and renames, fetcher configuration, profiles, migrating from v0.3, and using the notebook as an Obsidian vault.
 - [docs/internals.md](docs/internals.md): Module map and code contracts for the reference implementation (normative for contributors).
 
 ## Optional
 
-- [docs/wiki-alignment.md](docs/wiki-alignment.md): Design notes for `flip export okf` — projecting a notebook as an OKF v0.1 knowledge bundle.
+- [docs/wiki-alignment.md](docs/wiki-alignment.md): How flip relates to the LLM-wiki pattern — the notebook as a native OKF bundle, flip as a candidate OKF provenance profile, `flip export okf` as a policy filter, and coexistence with OpenWiki.
 - [CONTRIBUTING.md](CONTRIBUTING.md): How to contribute; tests and style expectations.
 - [CHANGELOG.md](CHANGELOG.md): Release history.

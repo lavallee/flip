@@ -1,6 +1,6 @@
 ---
 name: notebook-create
-description: Start a new flip notebook — invoke when research begins and there is no notebook.toml yet, or when a thread graduates to its own notebook.
+description: Start a new flip notebook — invoke when research begins and there is no notebook yet (no index.md with flip frontmatter up the tree), or when a thread graduates to its own notebook.
 ---
 
 # notebook-create
@@ -24,12 +24,16 @@ one piece of research; don't create it until you can say what that piece is.
    cd <slug>
    export FLIP_ACTOR="agent:<name>"   # or human:<name>
    ```
-   Check `notebook.toml` `[policy]` — set `--visibility` at creation if the
-   default (per profile) is wrong for this work.
+   This creates exactly two files: `index.md` (the manifest lives in its
+   frontmatter — the notebook is an OKF bundle and this is its root) and
+   `notebook.md`. Check the policy keys in the `index.md` frontmatter
+   (`visibility`, `citation_rule`, …) — set `--visibility` at creation if
+   the profile's default is wrong for this work.
 4. **Seed the tip.** In `notebook.md`, replace the "The tip" stub with the
    real tip, and write hypotheses **before looking**, each with a named
    falsifier (H1, H2…). Delete section stubs this project genuinely won't
-   need — empty structure is worse than absent structure.
+   need — empty structure is worse than absent structure. (Keep the
+   frontmatter block; edit prose freely — the body is yours.)
 5. **First log line.** `flip log "started: <one-line mission>"`.
 6. **Lint.** `flip doctor`. Heavier profiles require files that appear
    through use (`add-source`, `claim add`, `session start`) plus `drafts/`

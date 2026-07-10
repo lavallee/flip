@@ -16,7 +16,26 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-MANIFEST = "notebook.toml"
+ROOT_FILE = "index.md"
+
+
+def is_notebook_root(directory: Path) -> bool:
+    """A flip notebook root is a directory whose index.md opens with a
+    frontmatter block declaring a `flip:` profile version (SPEC §4). Cheap
+    textual sniff — no YAML parse — so root discovery stays dependency-light;
+    doctor does the strict validation. Plain OKF bundles (okf_version but no
+    flip key) and generated sub-indexes (no frontmatter) don't match.
+    """
+    path = directory / ROOT_FILE
+    try:
+        with open(path, encoding="utf-8") as f:
+            head = f.read(4096)
+    except OSError:
+        return False
+    if not head.startswith("---\n"):
+        return False
+    block = head.split("\n---", 1)[0]
+    return any(line.startswith("flip:") for line in block.splitlines())
 
 
 def utc_now() -> str:
@@ -131,10 +150,11 @@ def next_id(prefix: str, existing: list[str]) -> str:
 
 
 def find_notebook_root(start: Path | None = None) -> Path | None:
-    """Walk up from `start` (default cwd) to the nearest directory holding notebook.toml."""
+    """Walk up from `start` (default cwd) to the nearest flip notebook root
+    (an index.md carrying flip manifest frontmatter — see is_notebook_root)."""
     cur = (start or Path.cwd()).resolve()
     for candidate in [cur, *cur.parents]:
-        if (candidate / MANIFEST).is_file():
+        if is_notebook_root(candidate):
             return candidate
     return None
 
@@ -143,7 +163,8 @@ def require_notebook_root(start: Path | None = None) -> Path:
     root = find_notebook_root(start)
     if root is None:
         raise SystemExit(
-            "not inside a flip notebook (no notebook.toml found here or above); "
-            "run `flip new <slug>` to create one"
+            "not inside a flip notebook (no index.md with flip manifest frontmatter "
+            "found here or above); run `flip new <slug>` to create one, or "
+            "`flip migrate` inside a v0.3 notebook"
         )
     return root

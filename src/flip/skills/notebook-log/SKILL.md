@@ -15,13 +15,14 @@ promote what matters out of it before the episode ends.
    export FLIP_ACTOR="agent:<name>"
    flip session start <slug> --model <model> --tools <tool> --tools <tool>
    ```
-   It prints the session file path (`log/sessions/<UTC stamp>-<slug>.md`).
-   Fill in **Goal** and **Prompt** now, while they're true.
+   It prints the session page path (`sessions/<UTC stamp>-<slug>.md` — an
+   entity page, `type: Work Session`). Fill in **Goal** and **Prompt** now,
+   while they're true.
 2. **Log as you go.** Terse work-log lines for anything a future reader must
    retrace: `flip log "fetched X"`, `flip log "hit wall: Y requires auth"`.
    Walls and pivots are the payload — git can't recover the why.
 3. **Promote before you close.** Walk the episode's output and route each
-   item to its ledger:
+   item to its page or ledger:
    - leads worth relying on → `flip add-source` + `flip grade`
      (session text itself is grade C until promoted)
    - assertions the work now leans on → `flip claim add --source ...`
@@ -41,4 +42,4 @@ promote what matters out of it before the episode ends.
 
 Do not let findings live only in the session transcript — an unpromoted
 session is a lead that dies with the context window; if the work will rely
-on it, it goes through the ledgers before `session end`.
+on it, it goes through source/claim/question pages before `session end`.

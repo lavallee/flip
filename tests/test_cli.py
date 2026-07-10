@@ -1,7 +1,8 @@
 """CLI wiring tests: every subcommand end-to-end through click's CliRunner.
 
 The library modules own their behavior tests; these verify the wiring — argument
-shapes, output, exit codes, and the actionable one-liners on unhappy paths.
+shapes, output, exit codes, and the actionable one-liners on unhappy paths —
+against the v0.4 layout (index.md manifest, entity pages, JSONL event ledgers).
 """
 
 from __future__ import annotations
@@ -39,7 +40,9 @@ def test_new_creates_notebook(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     result = invoke(["new", "demo", "--kind", "scout", "--title", "Demo run"])
     assert result.exit_code == 0, result.output
-    assert (tmp_path / "demo" / "notebook.toml").is_file()
+    index = (tmp_path / "demo" / "index.md").read_text(encoding="utf-8")
+    assert index.startswith("---\n")
+    assert "flip: '0.4'" in index and "slug: demo" in index
     md = (tmp_path / "demo" / "notebook.md").read_text(encoding="utf-8")
     assert "# Reporter's notebook — Demo run" in md
     assert "## The tip" in md
@@ -58,12 +61,13 @@ def test_new_refuses_existing_notebook(tmp_path):
     make_notebook(tmp_path / "demo")
     result = invoke(["new", "again", "--dest", str(tmp_path / "demo")])
     assert result.exit_code == 1
-    assert "notebook.toml" in result.output
+    assert "index.md" in result.output
 
 
 def test_commands_outside_a_notebook_fail_actionably(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    for args in (["log", "x"], ["show"], ["doctor"], ["question", "add", "x"]):
+    for args in (["log", "x"], ["show"], ["doctor"], ["question", "add", "x"],
+                 ["open", "F1"], ["rename", "F1", "new-slug"]):
         result = invoke(args)
         assert result.exit_code == 1, args
         assert "not inside a flip notebook" in result.output
@@ -97,16 +101,18 @@ def test_full_flow(tmp_path, monkeypatch):
     assert "F1" in result.output
     assert (root / "sources" / "raw" / "F1.txt").is_file()
     assert (root / "sources" / "_provenance.jsonl").is_file()
+    assert (root / "references" / "report-txt.md").is_file()  # slug, not id
 
     assert invoke(["log", "captured the vendor report"]).exit_code == 0
+    assert (root / "log.md").is_file()  # generated view appears with the first event
     assert "Q1" in invoke(["question", "add", "does it replicate?"]).output
-    assert (
-        invoke(
-            ["decide", "--question", "scope", "--decision", "scout only",
-             "--why", "fast screen", "--rejected", "full sweep"]
-        ).exit_code
-        == 0
+    assert (root / "questions" / "does-it-replicate.md").is_file()
+    decided = invoke(
+        ["decide", "--question", "scope", "--decision", "scout only",
+         "--why", "fast screen", "--rejected", "full sweep"]
     )
+    assert decided.exit_code == 0, decided.output
+    assert "D1" in decided.output
     passed = invoke(["pass", "aggregator recap", "--reason", "derivative of F1"])
     assert passed.exit_code == 0
     assert "passed" in passed.output and "derivative of F1" in passed.output
@@ -174,11 +180,12 @@ def test_source_list_text_and_json(tmp_path, monkeypatch):
 
     listing = invoke(["source", "list"])
     assert listing.exit_code == 0, listing.output
-    assert "F1 · file · B/republisher/fresh · sources/raw/F1.csv" in listing.output
+    assert "F1 · B/republisher/fresh · table.csv · references/table-csv.md" in listing.output
 
     rows = json.loads(invoke(["source", "list", "--json"]).output)
     assert rows[0]["id"] == "F1"
     assert rows[0]["grade"] == "B"
+    assert rows[0]["local"] == "sources/raw/F1.csv"
 
 
 def test_question_list_text_and_json(tmp_path, monkeypatch):
@@ -220,7 +227,7 @@ def test_new_bad_slug_is_actionable(tmp_path, monkeypatch):
 
 
 def test_doctor_fresh_scout_warns_but_exits_zero(tmp_path, monkeypatch):
-    # SPEC §12: missing profile-required ledgers are WARNs while active.
+    # SPEC §13: missing profile-required paths are WARNs while active.
     root = make_notebook(tmp_path / "demo")  # scout, nothing run yet
     monkeypatch.chdir(root)
     result = invoke(["doctor"])
@@ -248,6 +255,7 @@ def test_claim_list_filters_and_json(tmp_path, monkeypatch):
     assert "C2" in listing.output and "C1" not in listing.output
     rows = json.loads(invoke(["claim", "list", "--json"]).output)
     assert [r["id"] for r in rows] == ["C1", "C2"]
+    assert rows[0]["description"] == "first"
 
 
 def test_claim_status_rejects_unknown_status(tmp_path, monkeypatch):
@@ -269,6 +277,29 @@ def test_question_answer_unknown_id(tmp_path, monkeypatch):
     assert "Q9" in result.output
 
 
+def test_question_answer_rejects_non_question_id(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    invoke(["claim", "add", "some claim"])
+    result = invoke(["question", "answer", "C1"])
+    assert result.exit_code == 1
+    assert "not a question id" in result.output
+    # the claim page was NOT touched
+    claim_files = list((root / "claims").glob("*.md"))
+    assert "answered" not in (root / "claims" / claim_files[0].name).read_text(encoding="utf-8")
+
+
+def test_question_answer_with_note_lands_on_the_page(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    invoke(["question", "add", "who funded it?"])
+    result = invoke(["question", "answer", "Q1", "--note", "the county, per budget doc"])
+    assert result.exit_code == 0, result.output
+    page = (root / "questions" / "who-funded-it.md").read_text(encoding="utf-8")
+    assert "status: answered" in page
+    assert "## Answer\nthe county, per budget doc" in page
+
+
 def test_question_add_empty_text(tmp_path, monkeypatch):
     root = make_notebook(tmp_path / "demo")
     monkeypatch.chdir(root)
@@ -284,6 +315,7 @@ def test_session_start_end_and_double_end(tmp_path, monkeypatch):
     assert started.exit_code == 0, started.output
     path = Path(started.output.strip())
     assert path.is_file() and path.name.endswith("-sweep.md")
+    assert path.parent == root / "sessions"  # top level (SPEC §3)
     assert "model: m1" in path.read_text(encoding="utf-8")
 
     ended = invoke(["session", "end", "sweep", "--summary", "done"])
@@ -293,6 +325,97 @@ def test_session_start_end_and_double_end(tmp_path, monkeypatch):
     again = invoke(["session", "end", "sweep", "--summary", "twice"])
     assert again.exit_code == 1
     assert "already ended" in again.output
+
+
+# ---------------------------------------------------------------- open / rename
+
+
+def test_open_resolves_ids_to_page_paths(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    invoke(["question", "add", "who funded it?"])
+    result = invoke(["open", "Q1"])
+    assert result.exit_code == 0, result.output
+    assert Path(result.output.strip()) == root / "questions" / "who-funded-it.md"
+
+
+def test_open_resolves_hypothesis_ids_in_analysis(tmp_path, monkeypatch):
+    # H# ids live on analysis/ pages (SPEC §9): `flip open H1` must resolve
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    (root / "analysis").mkdir()
+    (root / "analysis" / "hypotheses.md").write_text(
+        "---\ntype: Hypothesis\nid: H1\naliases: [H1]\n---\n\n# H1: the dip is real\n",
+        encoding="utf-8",
+    )
+    result = invoke(["open", "H1"])
+    assert result.exit_code == 0, result.output
+    assert Path(result.output.strip()) == root / "analysis" / "hypotheses.md"
+
+
+def test_open_unknown_id_exits_1_with_hint(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    invoke(["question", "add", "who funded it?"])
+    result = invoke(["open", "Z9"])
+    assert result.exit_code == 1
+    assert "no page with id 'Z9'" in result.output
+    assert "Q1" in result.output  # the hint lists what exists
+
+
+def test_rename_moves_page_and_rewrites_links(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    payload = tmp_path / "report.txt"
+    payload.write_text("vendor says 42%\n", encoding="utf-8")
+    invoke(["add-source", str(payload)])
+    invoke(["claim", "add", "vendor reports uplift", "--source", "F1"])
+    claim_path = root / "claims" / "vendor-reports-uplift.md"
+    assert "(../references/report-txt.md)" in claim_path.read_text(encoding="utf-8")
+    # prose elsewhere links to it too
+    (root / "analysis").mkdir()
+    (root / "analysis" / "findings.md").write_text(
+        "---\ntype: Finding\n---\nSee [the report](../references/report-txt.md#quote).\n",
+        encoding="utf-8",
+    )
+
+    result = invoke(["rename", "F1", "vendor-report"])
+    assert result.exit_code == 0, result.output
+    assert "references/report-txt.md → references/vendor-report.md" in result.output
+    assert not (root / "references" / "report-txt.md").exists()
+    assert (root / "references" / "vendor-report.md").is_file()
+    claim_text = claim_path.read_text(encoding="utf-8")
+    assert "(../references/vendor-report.md)" in claim_text
+    assert "report-txt" not in claim_text  # supports path rewritten too
+    assert "- /references/vendor-report" in claim_text
+    prose = (root / "analysis" / "findings.md").read_text(encoding="utf-8")
+    assert "(../references/vendor-report.md#quote)" in prose
+    # the generated listing picked up the new slug
+    assert "vendor-report.md" in (root / "references" / "index.md").read_text(encoding="utf-8")
+    # and the id still resolves
+    assert "vendor-report.md" in invoke(["open", "F1"]).output
+
+
+def test_rename_validates_slug_and_target(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    invoke(["question", "add", "one?"])
+    invoke(["question", "add", "two?"])
+    bad = invoke(["rename", "Q1", "Bad Slug"])
+    assert bad.exit_code == 1
+    assert "invalid slug" in bad.output
+    reserved = invoke(["rename", "Q1", "index"])
+    assert reserved.exit_code == 1
+    assert "reserved" in reserved.output
+    unknown = invoke(["rename", "Q9", "fine-slug"])
+    assert unknown.exit_code == 1
+    assert "no page with id 'Q9'" in unknown.output
+    collision = invoke(["rename", "Q1", "two"])
+    assert collision.exit_code == 1
+    assert "already exists" in collision.output
+    noop = invoke(["rename", "Q1", "one"])
+    assert noop.exit_code == 1
+    assert "nothing to do" in noop.output
 
 
 # ---------------------------------------------------------------- show / doctor
@@ -380,7 +503,7 @@ def test_export_bag_writes_bag_and_refuses_existing_dest(tmp_path, monkeypatch):
     result = invoke(["export", "bag", str(dest)])
     assert result.exit_code == 0, result.output
     assert (dest / "bagit.txt").is_file()
-    assert (dest / "data" / "notebook.toml").is_file()
+    assert (dest / "data" / "index.md").is_file()
     manifest = (dest / "manifest-sha256.txt").read_text(encoding="utf-8")
     assert "data/notebook.md" in manifest
     again = invoke(["export", "bag", str(dest)])
@@ -389,6 +512,64 @@ def test_export_bag_writes_bag_and_refuses_existing_dest(tmp_path, monkeypatch):
 
 
 # `flip export okf` wiring/behavior is owned by okf.py; see tests/test_okf.py.
+
+
+# ---------------------------------------------------------------- migrate
+
+
+def make_v03_notebook(root: Path) -> Path:
+    """A minimal hand-built v0.3 notebook: notebook.toml + JSONL entity ledgers."""
+    root.mkdir(parents=True)
+    (root / "notebook.toml").write_text(
+        'slug = "old"\nkind = "scout"\nstatus = "active"\n'
+        'created = "2026-01-01"\nupdated = "2026-01-02"\n',
+        encoding="utf-8",
+    )
+    (root / "notebook.md").write_text("# Reporter's notebook — old\n", encoding="utf-8")
+    (root / "sources").mkdir()
+    (root / "sources" / "ledger.jsonl").write_text(
+        json.dumps({"id": "A1", "kind": "web", "title": "Vendor study",
+                    "url": "https://example.com/study", "grade": "B",
+                    "independence": "original"}) + "\n",
+        encoding="utf-8",
+    )
+    (root / "analysis").mkdir()
+    (root / "analysis" / "claims.jsonl").write_text(
+        json.dumps({"id": "C1", "text": "vendor reports uplift", "status": "asserted",
+                    "load_bearing": False, "sources": ["A1"]}) + "\n",
+        encoding="utf-8",
+    )
+    return root
+
+
+def test_migrate_converts_v03_and_walks_up(tmp_path, monkeypatch):
+    root = make_v03_notebook(tmp_path / "old")
+    sub = root / "analysis"
+    monkeypatch.chdir(sub)  # migrate must find the v0.3 root by walking up
+    result = invoke(["migrate"])
+    assert result.exit_code == 0, result.output
+    assert "1 sources" in result.output and "1 claims" in result.output
+    assert not (root / "notebook.toml").exists()
+    assert (root / "index.md").is_file()
+    assert (root / "references" / "vendor-study.md").is_file()
+    monkeypatch.chdir(root)
+    shown = json.loads(invoke(["show", "--json"]).output)
+    assert shown["slug"] == "old"
+    assert [c["id"] for c in shown["claims_needing_work"]] == ["C1"]
+
+
+def test_migrate_refuses_v04_and_non_notebooks(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    result = invoke(["migrate"])
+    assert result.exit_code == 1
+    assert "already a v0.4 notebook" in result.output
+    elsewhere = tmp_path / "plain"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    result = invoke(["migrate"])
+    assert result.exit_code == 1
+    assert "not a flip notebook" in result.output
 
 
 # ---------------------------------------------------------------- misc

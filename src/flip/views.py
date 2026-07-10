@@ -1,21 +1,33 @@
-"""Computed hot/cold views for `flip show` (SPEC §10).
+"""Computed views and generated at-rest projections (SPEC §10).
 
-Views are computed, never stored: each function reads whatever ledgers exist
-under the notebook root and assembles a windowed projection. Every ledger is
-optional — a missing file simply contributes nothing. Each view returns a
-rendered plain-text string, or a plain dict when `as_data=True` (for `--json`).
+Views are computed, never canonical. Two surfaces live here:
+
+- **`flip show`** — hot_view/claims_view/stale_view assemble windowed
+  projections (open questions, claims needing work, dated sources, recent
+  log, latest session) from the entity pages and JSONL ledgers. Each returns
+  rendered plain text, or a plain dict when `as_data=True` (for `--json`).
+- **`regenerate(root)`** — rewrites the at-rest equivalents after every
+  mutation: `log.md` (newest-first view of log/log.jsonl), each entity
+  directory's `index.md` listing, and the root `index.md` *body* (the OKF
+  directory listing; the manifest frontmatter is preserved untouched).
+  Deterministic: the same notebook state always produces the same bytes.
+
+Reads are tolerant (pages.iter_pages_tolerant): one corrupt page never takes
+down a view — `flip doctor` is where corruption gets reported.
 """
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .manifest import Manifest, load_manifest
+from . import pages
+from .manifest import Manifest, load_manifest, save_manifest
 from .profiles import Profile, load_profile
 from .util import age_months, read_jsonl
 
-# Claim status enum (SPEC §7.2), in display order.
+# Claim status enum (SPEC §7), in display order.
 CLAIM_STATUS_ORDER = (
     "asserted",
     "verified",
@@ -30,6 +42,20 @@ NEEDS_WORK_STATUSES = ("asserted", "needs-2nd")
 RECENT_LOG_COUNT = 8
 TRUNCATE_WIDTH = 80
 
+LOG_JSONL = Path("log") / "log.jsonl"
+LOG_MD = "log.md"
+
+# Entity directory → (listing title, root-listing description builder input).
+_DIR_TITLES = {
+    "references": "References",
+    "claims": "Claims",
+    "decisions": "Decisions",
+    "questions": "Questions",
+    "sessions": "Sessions",
+}
+
+_ID_NUM = re.compile(r"(\d+)$")
+
 
 def _trunc(text: object, width: int = TRUNCATE_WIDTH) -> str:
     s = " ".join(str(text or "").split())
@@ -38,7 +64,16 @@ def _trunc(text: object, width: int = TRUNCATE_WIDTH) -> str:
     return s[: width - 1].rstrip() + "…"
 
 
-def _read(root: Path, rel: str) -> list[dict]:
+def _one_line(text: object) -> str:
+    return " ".join(str(text or "").split())
+
+
+def _id_num(entity_id: str) -> int:
+    m = _ID_NUM.search(str(entity_id))
+    return int(m.group(1)) if m else 0
+
+
+def _read(root: Path, rel: Path | str) -> list[dict]:
     """Read an optional ledger; a corrupt line becomes an actionable exit."""
     try:
         return read_jsonl(root / rel)
@@ -46,15 +81,10 @@ def _read(root: Path, rel: str) -> list[dict]:
         raise SystemExit(f"{e}; fix or remove that line (flip doctor pinpoints it)") from None
 
 
-def _manifest(root: Path) -> Manifest:
-    try:
-        return load_manifest(root)
-    except SystemExit:
-        raise
-    except Exception as e:  # e.g. notebook.toml missing required fields
-        raise SystemExit(
-            f"{root / 'notebook.toml'} is not a valid manifest ({e}); run `flip doctor`"
-        ) from None
+def _pages(root: Path, dirname: str) -> list[pages.Page]:
+    """Entity pages, filename order; corrupt pages skipped (doctor flags them)."""
+    out, _errors = pages.iter_pages_tolerant(root, dirname)
+    return out
 
 
 def _profile_or_default(m: Manifest, root: Path) -> Profile:
@@ -65,41 +95,69 @@ def _profile_or_default(m: Manifest, root: Path) -> Profile:
         return Profile(id=m.kind)
 
 
+def _question_text(page: pages.Page) -> str:
+    """The question text: the body up to any ## Answer, else the description."""
+    body = page.body.lstrip("\n")
+    if body.startswith("## Answer"):
+        body = ""
+    body = body.split("\n## Answer", 1)[0].strip()
+    return body or str(page.fm.get("description", ""))
+
+
 def _open_questions(root: Path) -> list[dict]:
-    """Last-event-wins per id: a question is open unless its latest event in
-    log/questions.jsonl carries status "answered" (ledgers.py convention)."""
-    latest: dict[str, dict] = {}
-    texts: dict[str, str] = {}
-    order: list[str] = []
-    for ev in _read(root, "log/questions.jsonl"):
-        qid = ev.get("id")
-        if not qid:
+    """Question pages whose status is not "answered" (missing status = open)."""
+    out = []
+    for page in _pages(root, "questions"):
+        if str(page.fm.get("type", "")) != "Question":
             continue
-        if qid not in latest:
-            order.append(qid)
-        latest[qid] = ev
-        if ev.get("text"):
-            texts[qid] = ev["text"]
-    return [
-        {"id": qid, "text": texts.get(qid, ""), "ts": latest[qid].get("ts", "")}
-        for qid in order
-        if latest[qid].get("status") != "answered"
+        if str(page.fm.get("status", "open")) == "answered":
+            continue
+        out.append(
+            {"id": page.id, "text": _question_text(page), "ts": str(page.fm.get("timestamp", ""))}
+        )
+    out.sort(key=lambda q: _id_num(q["id"]))
+    return out
+
+
+def _claim_rows(root: Path) -> list[dict]:
+    """Claim pages as plain dicts (fm + slug + root-relative path), id order."""
+    rows = [
+        {**p.fm, "slug": p.slug, "path": p.path.relative_to(root).as_posix()}
+        for p in _pages(root, "claims")
+        if str(p.fm.get("type", "")) == "Claim"
     ]
+    rows.sort(key=lambda r: _id_num(str(r.get("id", ""))))
+    return rows
 
 
 def _claims_needing_work(root: Path) -> list[dict]:
-    claims = [
-        c for c in _read(root, "analysis/claims.jsonl") if c.get("status") in NEEDS_WORK_STATUSES
-    ]
+    claims = [c for c in _claim_rows(root) if c.get("status") in NEEDS_WORK_STATUSES]
     claims.sort(key=lambda c: not c.get("load_bearing", False))  # load-bearing first, stable
     return claims
 
 
+def _source_rows(root: Path) -> list[dict]:
+    rows = [
+        {**p.fm, "slug": p.slug, "path": p.path.relative_to(root).as_posix()}
+        for p in _pages(root, "references")
+        if str(p.fm.get("type", "")) == "Source"
+    ]
+    rows.sort(key=lambda r: _id_num(str(r.get("id", ""))))
+    return rows
+
+
 def _latest_session(root: Path) -> str | None:
-    sessions = root / "log" / "sessions"
+    sessions = root / "sessions"
     if not sessions.is_dir():
         return None
-    files = [p for p in sessions.iterdir() if p.is_file() and not p.name.startswith(".")]
+    files = [
+        p
+        for p in sessions.iterdir()
+        if p.is_file()
+        and p.suffix == ".md"
+        and p.name not in pages.RESERVED
+        and not p.name.startswith((".", "_"))
+    ]
     if not files:
         return None
     newest = max(files, key=lambda p: p.name)  # names are UTC-stamped (SPEC §3)
@@ -107,7 +165,7 @@ def _latest_session(root: Path) -> str | None:
 
 
 def _stale_sources(rows: list[dict], freshness_months: int) -> list[dict]:
-    """Sources judged dated, or whose ledger date is at/past the profile threshold."""
+    """Sources judged dated, or whose page date is at/past the profile threshold."""
     today = datetime.now(timezone.utc).date()
     out = []
     for row in rows:
@@ -126,8 +184,8 @@ def _claim_line(c: dict, with_status: bool = False) -> str:
         parts.append(str(c.get("status", "")))
     if c.get("load_bearing"):
         parts.append("[load-bearing]")
-    parts.append(_trunc(c.get("text", "")))
-    sources = c.get("sources") or []
+    parts.append(_trunc(c.get("description", "")))
+    sources = pages.as_list(c.get("sources"))
     parts.append("sources: " + (", ".join(str(s) for s in sources) if sources else "none"))
     parts.append(f"corroboration: {c.get('independent_corroboration', 0)}")
     return " · ".join(parts)
@@ -135,13 +193,13 @@ def _claim_line(c: dict, with_status: bool = False) -> str:
 
 def hot_view(root: Path, as_data: bool = False) -> str | dict:
     """Current focus: open questions, claims needing work, recent activity."""
-    m = _manifest(root)
+    m = load_manifest(root)
     profile = _profile_or_default(m, root)
     questions = _open_questions(root)
     claims = _claims_needing_work(root)
-    recent = _read(root, "log/log.jsonl")[-RECENT_LOG_COUNT:]
+    recent = _read(root, LOG_JSONL)[-RECENT_LOG_COUNT:]
     session = _latest_session(root)
-    dated = _stale_sources(_read(root, "sources/ledger.jsonl"), profile.freshness_months)
+    dated = _stale_sources(_source_rows(root), profile.freshness_months)
     if as_data:
         return {
             "slug": m.slug,
@@ -176,8 +234,8 @@ def hot_view(root: Path, as_data: bool = False) -> str | dict:
 
 def claims_view(root: Path, as_data: bool = False) -> str | dict:
     """All claims grouped by status, enum order first, unknown statuses last."""
-    _manifest(root)  # fail early with an actionable error if this isn't a notebook
-    claims = _read(root, "analysis/claims.jsonl")
+    load_manifest(root)  # fail early with an actionable error if this isn't a notebook
+    claims = _claim_rows(root)
     groups: dict[str, list[dict]] = {}
     for c in claims:
         groups.setdefault(str(c.get("status", "unknown")), []).append(c)
@@ -186,7 +244,7 @@ def claims_view(root: Path, as_data: bool = False) -> str | dict:
     if as_data:
         return {"total": len(claims), "by_status": {s: groups[s] for s in order}}
     if not claims:
-        return "no claims recorded (analysis/claims.jsonl is absent or empty)"
+        return "no claims recorded (claims/ is absent or empty)"
     lines: list[str] = []
     for status in order:
         lines.append(status.upper())
@@ -197,9 +255,9 @@ def claims_view(root: Path, as_data: bool = False) -> str | dict:
 
 def stale_view(root: Path, as_data: bool = False) -> str | dict:
     """What has gone cold: dated sources, open questions, stuck claims."""
-    m = _manifest(root)
+    m = load_manifest(root)
     profile = _profile_or_default(m, root)
-    dated = _stale_sources(_read(root, "sources/ledger.jsonl"), profile.freshness_months)
+    dated = _stale_sources(_source_rows(root), profile.freshness_months)
     questions = _open_questions(root)
     stuck = _claims_needing_work(root)
     if as_data:
@@ -225,3 +283,124 @@ def stale_view(root: Path, as_data: bool = False) -> str | dict:
     if not lines:
         return "nothing stale"
     return "\n".join(lines).rstrip()
+
+
+# --- generated at-rest views (SPEC §10) --------------------------------------
+
+
+def regenerate(root: Path) -> None:
+    """Rewrite the generated projections after a mutation (SPEC §6.5, §10).
+
+    Writes, in order: log.md at the root (skipped while there are no log
+    events, so a fresh notebook stays two files), an index.md listing inside
+    each entity directory that exists, and the root index.md *body* — through
+    save_manifest, so the manifest frontmatter (including keys flip doesn't
+    know) is preserved byte-for-key. Hand-edits to any of these don't survive;
+    canonical records (entity pages, JSONL ledgers) are never touched.
+    """
+    m = load_manifest(root)  # validates the root before writing anything
+    try:
+        events = read_jsonl(root / LOG_JSONL)
+    except ValueError:
+        events = []  # corrupt ledger: leave log.md as-is; doctor pinpoints the line
+    if events:
+        _write_log_md(root, events)
+    for dirname in pages.ENTITY_DIRS:
+        _write_dir_index(root, dirname)
+    save_manifest(root, m, body=_root_body(root, m, events))
+
+
+def _write_log_md(root: Path, events: list[dict]) -> None:
+    """log.md: the OKF-reserved, newest-first view of log/log.jsonl (SPEC §8)."""
+    by_day: dict[str, list[dict]] = {}
+    for ev in events:
+        day = str(ev.get("ts", ""))[:10] or "undated"
+        by_day.setdefault(day, []).append(ev)
+    lines = ["# Update Log"]
+    for day in sorted(by_day, reverse=True):
+        lines += ["", f"## {day}", ""]
+        for ev in reversed(by_day[day]):  # newest first within the day
+            actor = _one_line(ev.get("actor", ""))
+            suffix = f" _({actor})_" if actor else ""
+            lines.append(f"* **Update**: {_one_line(ev.get('text', ''))}{suffix}")
+    (root / LOG_MD).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _write_dir_index(root: Path, dirname: str) -> None:
+    """<dirname>/index.md: one listing line per entity page, filename order.
+
+    Empty structure is worse than absent structure (SPEC §1.10): when the
+    directory holds no entity pages, a previously generated listing (its
+    frontmatter-free shape marks it as flip's) is deleted rather than left
+    stale — authored files, even misplaced ones, are never deleted.
+    """
+    directory = root / dirname
+    if not directory.is_dir():
+        return
+    entries = _pages(root, dirname)
+    index = directory / "index.md"
+    if not entries:
+        if index.is_file() and _is_generated(index):
+            index.unlink()
+        return
+    lines = [f"# {_DIR_TITLES.get(dirname, dirname.title())}", ""]
+    for page in entries:
+        label = _one_line(page.fm.get("title") or page.id or page.slug)
+        line = f"* [{label}]({page.slug}.md)"
+        desc = _one_line(page.fm.get("description", ""))
+        if desc:
+            line += f" - {desc}"
+        lines.append(line)
+    index.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _is_generated(index: Path) -> bool:
+    """A frontmatter-free index.md is flip's generated listing; anything
+    carrying frontmatter (or unreadable) is treated as authored and kept."""
+    try:
+        fm, _body = pages.parse(index.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return False
+    return not fm
+
+
+def _count(n: int, noun: str) -> str:
+    return f"{n} {noun}{'' if n == 1 else 's'}"
+
+
+def _root_body(root: Path, m: Manifest, events: list[dict]) -> str:
+    """The root index.md body: title heading + OKF directory listing (SPEC §4).
+
+    Sections appear once they have content — an empty entity directory gets
+    no bullet, matching _write_dir_index dropping its listing.
+    """
+    lines = [f"# {m.title or m.slug}"]
+    bullets: list[str] = []
+    counts = {d: n for d in pages.ENTITY_DIRS if (n := len(_pages(root, d)))}
+    if "references" in counts:
+        bullets.append(
+            f"* [References](references/) - {_count(counts['references'], 'captured source')} "
+            "with custody and grading"
+        )
+    if "claims" in counts:
+        bullets.append(
+            f"* [Claims](claims/) - {_count(counts['claims'], 'claim')} with status and citations"
+        )
+    if "decisions" in counts:
+        bullets.append(
+            f"* [Decisions](decisions/) - {_count(counts['decisions'], 'recorded decision')}"
+        )
+    if "questions" in counts:
+        open_n = len(_open_questions(root))
+        bullets.append(
+            f"* [Questions](questions/) - {_count(counts['questions'], 'question')}, {open_n} open"
+        )
+    if "sessions" in counts:
+        bullets.append(f"* [Sessions](sessions/) - {_count(counts['sessions'], 'work session')}")
+    if (root / LOG_MD).is_file():
+        detail = f"{_count(len(events), 'logged event')}, newest first" if events else "work log"
+        bullets.append(f"* [Update Log]({LOG_MD}) - {detail}")
+    if bullets:
+        lines.append("")
+        lines += bullets
+    return "\n".join(lines) + "\n"

@@ -1,13 +1,14 @@
-"""Session records — log/sessions/ (SPEC §8).
+"""Session entity pages — sessions/ at the notebook top level (SPEC §3, §8).
 
-One markdown file per working episode, named `<UTC stamp>-<slug>.md`
+One markdown page per working episode, named `<UTC stamp>-<slug>.md`
 (util.stamp_slug has minute precision, so filenames sort chronologically).
-The frontmatter is YAML-ish — plain `key: value` lines between `---` fences —
-written for humans and agents to read; flip never parses it back.
+Sessions are entity pages like any other: YAML frontmatter (`type: Work
+Session`, `actor`, `model`, `tools`, `started`, `ended`) written and read
+through the pages layer, body owned by whoever ran the session.
 
-`end_session` never edits the frontmatter: it appends a closing block at the
-end of the file — `---`, `ended: <ts>`, then `## Summary` — so session files
-stay append-friendly like the ledgers.
+`end_session` sets `ended` in the FRONTMATTER (current-state metadata any
+OKF consumer can read) and appends the summary to the body; foreign
+frontmatter keys and the existing body survive (round-trip rule, SPEC §6.6).
 """
 
 from __future__ import annotations
@@ -15,11 +16,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from . import manifest, util
+from . import manifest, pages, util, views
 
-SESSIONS = Path("log") / "sessions"
+SESSIONS = Path("sessions")
 
-_SECTION_STUBS = "\n## Goal\n\n## Prompt\n\n## Key outputs\n\n## Transcript\n"
+_SECTION_STUBS = "## Goal\n\n## Prompt\n\n## Key outputs\n\n## Transcript\n"
 
 
 def _clean_slug(slug: str) -> str:
@@ -37,12 +38,12 @@ def start_session(
     model: str | None = None,
     tools: list[str] | str | None = None,
 ) -> Path:
-    """Create log/sessions/<stamp>-<slug>.md with frontmatter and section stubs.
+    """Create sessions/<stamp>-<slug>.md with frontmatter and section stubs.
 
-    Frontmatter carries actor, model (if given), tools (if given), started.
-    Returns the path written.
+    Frontmatter carries type, actor, model (if given), tools (if given),
+    started. Returns the path written.
     """
-    root = util.require_notebook_root(root)
+    root = util.require_notebook_root(root)  # before any write: no stray sessions/ dirs
     slug = _clean_slug(slug)
     path = root / SESSIONS / f"{util.stamp_slug()}-{slug}.md"
     if path.exists():
@@ -50,19 +51,15 @@ def start_session(
             f"session file already exists: {path}; "
             "pick a different slug (one session per slug per minute)"
         )
-    lines = ["---", f"actor: {util.detect_actor()}"]
+    fm: dict = {"type": "Work Session", "actor": util.detect_actor()}
     if model:
-        lines.append(f"model: {model}")
+        fm["model"] = str(model)
     if tools:
-        if isinstance(tools, (list, tuple)):
-            lines.append("tools: [" + ", ".join(str(t) for t in tools) + "]")
-        else:
-            lines.append(f"tools: {tools}")
-    lines.append(f"started: {util.utc_now()}")
-    lines.append("---")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines) + "\n" + _SECTION_STUBS, encoding="utf-8")
+        fm["tools"] = [str(t) for t in tools] if isinstance(tools, (list, tuple)) else str(tools)
+    fm["started"] = util.utc_now()
+    pages.write_page(path, fm, _SECTION_STUBS)
     manifest.touch_updated(root)
+    views.regenerate(root)
     return path
 
 
@@ -103,21 +100,27 @@ def _find_session(root: Path, path_or_slug: Path | str) -> Path:
 
 
 def end_session(root: Path, path_or_slug: Path | str, summary: str) -> Path:
-    """Close a session: append `---` / `ended: <ts>` / `## Summary` to its file.
+    """Close a session: set `ended` in the frontmatter, append `## Summary`.
 
     `path_or_slug` may be the session file path (absolute, root-relative, or
     bare filename) or the exact slug it was started with — among sessions
-    whose slug matches exactly, the newest wins. Returns the path appended to.
+    whose slug matches exactly, the newest wins. Only the `ended` key changes;
+    everything else round-trips (SPEC §6.6). Returns the path written.
     """
     root = util.require_notebook_root(root)
     summary = (summary or "").strip()
     if not summary:
         raise SystemExit("empty session summary; say what the session accomplished")
     path = _find_session(root, path_or_slug)
-    content = path.read_text(encoding="utf-8")
-    if re.search(r"^ended: ", content, flags=re.MULTILINE):
+    page = pages.read_page(path)
+    if page.fm.get("ended"):
         raise SystemExit(f"session already ended: {path}; start a new session instead")
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(f"\n---\nended: {util.utc_now()}\n\n## Summary\n{summary}\n")
+    page.fm["ended"] = util.utc_now()
+    # read_page keeps the blank separator line write_page emits as a leading
+    # newline on the body; normalize so rewrites don't accrete blank lines.
+    base = page.body.strip("\n")
+    body = (base + "\n\n" if base else "") + f"## Summary\n{summary}\n"
+    pages.write_page(path, page.fm, body)
     manifest.touch_updated(root)
+    views.regenerate(root)
     return path

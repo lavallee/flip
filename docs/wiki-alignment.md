@@ -1,7 +1,8 @@
 # flip and the LLM-wiki pattern — OKF and OpenWiki alignment
 
-**Status:** design note, 2026-07-10. Defines `flip export okf` and how notebooks
-coexist with repo wikis.
+**Status:** design note, updated for spec v0.4. Explains how a flip notebook
+relates to OKF and repo wikis, and what `flip export okf` does now that the
+notebook itself is a bundle.
 
 ## The grain
 
@@ -17,85 +18,108 @@ anything they don't understand. [LangChain's OpenWiki][openwiki] is the same
 idea pointed at codebases: an agent generates and incrementally maintains
 `openwiki/` in your repo.
 
-flip sits one layer below all of this and shares every substrate choice:
-plain markdown + git, timestamped evolution, agents as first-class authors.
-The difference is what the layers are *for*:
+Through v0.3, flip sat *beside* this pattern and projected into it: the
+notebook was JSONL ledgers, and `flip export okf` transformed them into a
+bundle. **As of v0.4 the notebook is a citizen, not an export surface: a
+flip notebook is a conformant OKF v0.1 bundle at rest.** Every source,
+claim, decision, question, and session is an OKF concept page; the manifest
+lives in the bundle root's `index.md` frontmatter (the one index OKF allows
+frontmatter on); `log.md` is the reserved update log; `sources/raw/` and the
+`_*.jsonl` ledgers ride along as non-markdown sidecar content, which OKF
+explicitly leaves unconstrained. Any OKF consumer — Google's graph
+visualizer, a catalog, another agent — can browse a live notebook directly.
+
+## flip as an OKF extension profile
+
+What flip adds is what OKF v0.1 deliberately leaves open: a provenance
+scheme. The difference is what the layers are *for*:
 
 | | LLM wiki / OKF bundle | flip notebook |
 |---|---|---|
 | unit | distilled knowledge (concepts) | evidence + reasoning (sources, claims, logs) |
 | trust model | consumer tolerance, citations optional | custody, hashes, grading, corroboration bars |
-| maintenance | regenerate from the world | append-only; judgments revised in place, history in git |
+| maintenance | regenerate from the world | pages revised in place, events append-only, history in git |
 
-So the alignment is a projection, not a merger: **the notebook is the
-evidence-grade substrate; an OKF bundle is one of its renders.** A wiki tells
-an agent what we know; the notebook can prove where it came from.
+SPEC §6 states the profile as eight lineage rules — capture before cite,
+judgment separate from capture, status-carrying claims, logged generation,
+append-only events with regenerated views, unknown-key preservation,
+attribution everywhere, renders never edited — plus an extension vocabulary
+(`id`, `aliases`, `grade`, `independence`, `freshness`, `status`, `sources`,
+`supports`, `actor`, …) layered on OKF's base keys. Everything conformant:
 
-## `flip export okf <dest>`
-
-Deterministic projection of a notebook into an OKF v0.1 bundle — no LLM in
-the loop, reproducible, diff-auditable (stronger than LLM re-summarization:
-the pages regenerate byte-identically from the ledgers).
-
-Mapping (per the [OKF spec][okf-spec] mechanics):
-
-- **Bundle root `index.md`** — the only index allowed frontmatter; carries
-  `okf_version: "0.1"` plus extension keys: `notebook` (slug), `generated_by`
-  (`flip <version>`), `generated_at`, and the source notebook's git commit
-  when available. Body: the standard `* [Title](url) - description` listing.
-- **Sources → `references/<id>.md`** with `type: Source`. The spec explicitly
-  blesses `references/` as the home for external material mirrored as
-  first-class concepts — that is flip's custody layer, verbatim. Frontmatter
-  carries the ledger row as extension keys (`url`, `sha256`, `retrieved_at`,
-  `grade`, `independence`, `freshness`); consumers MUST preserve unknown keys,
-  so custody metadata survives round-trips through stock tooling. Body: title,
-  capture note, and a pointer to the raw file (non-`.md` files in a bundle are
-  unconstrained, so `sources/raw/` can ship inside the bundle when policy
-  allows).
-- **Claims → `claims/<id>.md`** with `type: Claim`; `status`, `load_bearing`,
-  and machine-usable `supports: [/references/A3]` lists as extension
-  frontmatter; the human-facing links go in a numbered `# Citations` block
-  targeting the reference pages. Dangling citations are legal in OKF ("broken
-  links may represent not-yet-written knowledge") — which matches claims whose
-  sources are graded `?`.
-- **Decisions → `decisions/<id>.md`** with `type: Decision`.
-- **`log.md`** — generated from `log/log.jsonl`: ISO `YYYY-MM-DD` headings,
-  newest first, `**Update**`-style bold prefixes. The JSONL stays the
-  substrate; `log.md` is the lossy human/agent view.
-- **Per-directory `index.md`** in the exact listing shape, so progressive
-  disclosure works in stock OKF viewers (including Google's graph visualizer).
+- **`references/` as the custody layer.** The OKF spec blesses `references/`
+  as the home for external material mirrored as first-class concepts; flip's
+  source pages live there, with custody (`local`, capture provenance) and
+  judgment (`grade`/`independence`/`freshness`) as extension frontmatter.
+  Consumers MUST preserve unknown keys, so lineage survives round-trips
+  through stock tooling.
+- **Claims with machine edges and human citations.** `sources: [A3]` (stable
+  ids) and `supports: [/references/<slug>]` (bundle paths) in frontmatter;
+  a numbered `# Citations` block in the body. Dangling citations are legal
+  in OKF ("broken links may represent not-yet-written knowledge") — flip
+  keeps them legal but `flip doctor` counts them.
 - **Untyped links, typed frontmatter.** OKF links are deliberately untyped;
-  epistemics ("corroborated by", "contradicts") live in prose and in extension
-  frontmatter lists — conformant today, positioned for richer profiles (the
-  W3C Holon CG is exploring formal semantics) without a private dialect.
+  epistemics ("corroborated by", "contradicts") live in prose and extension
+  frontmatter lists. The W3C Holon CG is exploring formal-semantics profiles
+  for exactly this layer; OKF v0.1 has no provenance scheme and flip has a
+  worked one, so proposing flip's vocabulary upstream as a candidate OKF
+  provenance profile is an open question the spec tracks (SPEC §18).
+- **Generated views where OKF expects them.** `index.md` listing bodies and
+  `log.md` regenerate deterministically from pages and ledgers on every
+  mutating command — reproducible and diff-auditable, no LLM in the loop.
 
-**Policy gate:** export refuses unless `[policy] visibility = "public"` or
-`--include-private` is passed explicitly; `source_trail_public = false` strips
-`references/` down to grade + title stubs. The bundle is a *render* — SPEC §11
-applies: it is never edited in place, only regenerated.
+## `flip export okf <dest>` — now a policy filter
 
-**Incremental:** the exporter writes `.last-export.json` (`generated_at`,
-ledger cursor, tool version) into the bundle and regenerates only pages whose
-ledger entries changed — OpenWiki's update discipline, minus the LLM.
+Since the notebook already is a bundle, the exporter no longer transforms
+formats; it produces the **outside-facing copy** your visibility policy
+allows:
+
+- **Visibility gate.** Refuses unless the manifest says `visibility: public`
+  or you pass `--include-private` — the live notebook may be internal; the
+  export is for outside consumption.
+- **Source-trail policy.** With the full trail (`source_trail_public: true`
+  or `--include-private`), `sources/` and `log/` ship wholesale (with the
+  generated `log.md`) and reference pages gain fixity keys (`sha256`, capture
+  metadata for the file `local` points at). Without it, custody detail is
+  withheld: raw bytes, event ledgers, and `log.md` stay home, and each
+  reference page reduces to a judgment stub headed by its id — grade,
+  independence, freshness survive; the capture-note `description` and
+  captured-file `title` do not, and `references/index.md` regenerates from
+  the stubs; the body notes *"Source trail withheld by notebook policy."*
+  Exports nested inside the notebook (bags, previous bundles) never ship.
+- **The bundle is a render** (SPEC §11): `.last-export.json` marks it as
+  generated; never edit it in place — edit the notebook and re-export. `flip
+  index` recognizes the marker and won't register exports as notebooks.
+- **`--announce <AGENTS.md>`** appends a marker block to a host repo's
+  agent instructions, pointing agents at the bundle root — the proven
+  OpenWiki idiom for getting agents to find and traverse a wiki:
+
+  ```markdown
+  <!-- FLIP:START -->
+  This repository contains an OKF knowledge bundle exported from the flip
+  notebook `nj-schools`. Start at [nj-schools-public/index.md](nj-schools-public/index.md)
+  and follow links; the bundle is generated — do not edit it by hand (edit
+  the notebook and re-export instead).
+  <!-- FLIP:END -->
+  ```
 
 ## Coexisting with OpenWiki
 
+Unchanged by v0.4:
+
 - **Never write into `openwiki/`** — its updater owns that directory and will
   regenerate over anything else.
-- flip's bundle exports to a sibling directory (`notebook-export/` by
-  default); the two cross-link freely (OKF links are just markdown links).
-  Division of labor: OpenWiki documents *the code*, flip documents *the
-  investigation*.
-- **Consumption path:** like OpenWiki's marker blocks, `flip export okf
-  --announce` appends a `<!-- FLIP:START -->…<!-- FLIP:END -->` block to the
-  host repo's `AGENTS.md`, pointing agents at the bundle's root `index.md` —
-  the proven idiom for getting agents to find and traverse a wiki.
+- flip's notebook (or its exported bundle) lives in a sibling directory; the
+  two cross-link freely (OKF links are just markdown links). Division of
+  labor: OpenWiki documents *the code*, flip documents *the investigation*.
+- Both use marker blocks in AGENTS.md as the consumption path
+  (`flip export okf --announce`).
 
 ## Beats are the compounding wiki
 
 Karpathy's core claim — "humans abandon wikis because the maintenance burden
 grows faster than the value; LLMs don't get bored" — is flip's beat layer
-(SPEC §13) seen from the wiki side. A beat's cross-notebook memory (coverage,
+(SPEC §14) seen from the wiki side. A beat's cross-notebook memory (coverage,
 lessons, recurring wells) is exactly the persistent compounding artifact; its
 notebooks are the evidence behind each page. When the beat layer lands, a
 beat should be exportable as an OKF bundle whose concepts cite into

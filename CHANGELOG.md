@@ -4,6 +4,57 @@ All notable changes to the flip spec and tooling are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] — 2026-07-10
+
+**A flip notebook is now natively an
+[OKF v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
+knowledge bundle** — flip becomes an extension profile of OKF (lineage rules
+for LLM-built wikis, SPEC §6) rather than an exporter to it. Breaking
+release; `flip migrate` converts v0.3 notebooks.
+
+### Changed (breaking)
+- **Entities are pages.** Sources, claims, decisions, questions, and sessions
+  are one markdown file each with YAML frontmatter — the canonical record —
+  in `references/`, `claims/`, `decisions/`, `questions/`, `sessions/`.
+  The JSONL entity ledgers (`sources/ledger.jsonl`, `analysis/claims.jsonl`,
+  `log/decisions.jsonl`, `log/questions.jsonl`) are gone; event logs
+  (`log/log.jsonl`, `log/passed.jsonl`, `_provenance.jsonl`,
+  `_derivations.jsonl`) remain append-only JSONL sidecars.
+- **Filenames are human slugs** (`references/lecun-jepa-keynote.md`); the
+  immutable compact id lives in frontmatter with `aliases: [<id>]`, so id
+  wikilinks resolve in Obsidian-style editors. `flip rename` moves a page and
+  rewrites links; `flip open <id>` resolves ids.
+- **The manifest moved into the root `index.md` frontmatter** (OKF's
+  sanctioned identity slot); `notebook.toml` is retired. Policy keys are
+  flat (`visibility`, `source_trail_public`, …) and edit cleanly as
+  Obsidian properties.
+- **`index.md` bodies and `log.md` are generated views**, regenerated on
+  every mutating command.
+- **`flip export okf` is now a policy filter** (visibility gate + source-
+  trail stripping) over an already-conformant bundle, not a format transform.
+- PyYAML joins click as a core dependency (faithful reading of human/editor-
+  authored frontmatter); flip writes a deterministic strict subset.
+
+### Security
+- Stripped exports (`source_trail_public: false`) withhold **derived views of
+  withheld data**, not just the data: `log.md` (a rendering of the withheld
+  work log), reference titles/descriptions (capture notes, private file
+  basenames), and any prior export or bag nested inside the notebook are all
+  excluded; the references listing is regenerated from the stripped pages.
+  Known residual: a claim's `# Citations` label text is frozen at claim-add
+  time and ships as written.
+
+### Added
+- **The flip profile for OKF** (SPEC §6): eight lineage rules — capture
+  before cite, explicit judgment, status-carrying claims, logged generation,
+  append-only events, key preservation, attribution, render discipline —
+  plus the extension frontmatter vocabulary.
+- **Round-trip guarantee**: flip preserves frontmatter keys and bodies it
+  doesn't own, so humans (Obsidian) and other agents can edit the same
+  files (SPEC §12).
+- `flip open`, `flip rename`, `flip migrate`; doctor checks for OKF
+  conformance, id/alias integrity, dangling citations, corroboration drift.
+
 ## [0.3.0] — 2026-07-10
 
 ### Added

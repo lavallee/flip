@@ -4,17 +4,23 @@ from __future__ import annotations
 
 import pytest
 
+from flip import pages
 from flip.manifest import DEFAULT_POLICY, load_manifest
 from flip.profiles import SECTIONS, load_profile
 from flip.scaffold import create_notebook
-from flip.util import today
+from flip.util import is_notebook_root, today
 
 
-def test_creates_manifest_and_notebook_md_only(tmp_path):
+def body_title(body: str) -> str:
+    return body.lstrip("\n").splitlines()[0]
+
+
+def test_creates_root_index_and_notebook_md_only(tmp_path):
     dest = tmp_path / "nb"
     result = create_notebook(dest, "nj-schools", "scout")
     assert result == dest
-    assert sorted(p.name for p in dest.iterdir()) == ["notebook.md", "notebook.toml"]
+    assert sorted(p.name for p in dest.iterdir()) == ["index.md", "notebook.md"]
+    assert is_notebook_root(dest)  # root discovery sniffs the new manifest
 
 
 def test_manifest_fields_round_trip(tmp_path):
@@ -30,21 +36,30 @@ def test_manifest_fields_round_trip(tmp_path):
     assert m.policy == DEFAULT_POLICY
 
 
+def test_notebook_md_has_notebook_type_frontmatter(tmp_path):
+    # OKF conformance: every non-reserved .md carries frontmatter with a type
+    dest = create_notebook(tmp_path / "nb", "nj-schools", "scout", title="NJ schools")
+    page = pages.read_page(dest / "notebook.md")
+    assert page.fm["type"] == "Notebook"
+    assert page.fm["description"] == "NJ schools"
+
+
 def test_notebook_md_title_and_section_stubs(tmp_path):
     dest = create_notebook(tmp_path / "nb", "nj-schools", "scout", title="NJ schools")
-    text = (dest / "notebook.md").read_text(encoding="utf-8")
-    assert text.startswith("# Reporter's notebook — NJ schools\n")
+    body = pages.read_page(dest / "notebook.md").body
+    assert body.lstrip("\n").startswith("# Reporter's notebook — NJ schools\n")
     profile = load_profile("scout")
-    headings = [line for line in text.splitlines() if line.startswith("## ")]
+    headings = [line for line in body.splitlines() if line.startswith("## ")]
     assert headings == [f"## {SECTIONS[s]['heading']}" for s in profile.sections]
     for s in profile.sections:
-        assert f"## {SECTIONS[s]['heading']}\n\n> {SECTIONS[s]['prompt']}\n" in text
+        assert f"## {SECTIONS[s]['heading']}\n\n> {SECTIONS[s]['prompt']}\n" in body
 
 
 def test_title_falls_back_to_slug(tmp_path):
     dest = create_notebook(tmp_path / "nb", "nj-schools", "scout")
-    text = (dest / "notebook.md").read_text(encoding="utf-8")
-    assert text.startswith("# Reporter's notebook — nj-schools\n")
+    page = pages.read_page(dest / "notebook.md")
+    assert page.fm["description"] == "nj-schools"
+    assert body_title(page.body) == "# Reporter's notebook — nj-schools"
 
 
 def test_forced_policy_overlays_default(tmp_path):
@@ -68,17 +83,17 @@ def test_visibility_arg_applied_for_plain_profile(tmp_path):
 def test_creates_parent_directories(tmp_path):
     dest = tmp_path / "deep" / "nested" / "nb"
     create_notebook(dest, "nj-schools", "scout")
-    assert (dest / "notebook.toml").is_file()
+    assert (dest / "index.md").is_file()
 
 
-def test_existing_manifest_refused(tmp_path):
+def test_existing_notebook_root_refused(tmp_path):
     dest = tmp_path / "nb"
     create_notebook(dest, "nj-schools", "scout")
-    before = (dest / "notebook.toml").read_text(encoding="utf-8")
-    with pytest.raises(SystemExit, match="notebook.toml"):
+    before = (dest / "index.md").read_text(encoding="utf-8")
+    with pytest.raises(SystemExit, match="index.md"):
         create_notebook(dest, "other", "ledger")
     # nothing clobbered
-    assert (dest / "notebook.toml").read_text(encoding="utf-8") == before
+    assert (dest / "index.md").read_text(encoding="utf-8") == before
 
 
 def test_bad_slug_rejected_without_creating_dest(tmp_path):
@@ -113,16 +128,17 @@ def test_every_shipped_profile_scaffolds(tmp_path):
         dest = create_notebook(tmp_path / kind, kind, kind)
         m = load_manifest(dest)
         assert m.kind == kind
-        text = (dest / "notebook.md").read_text(encoding="utf-8")
-        assert text.startswith("# Reporter's notebook — ")
-        assert sorted(p.name for p in dest.iterdir()) == ["notebook.md", "notebook.toml"]
+        page = pages.read_page(dest / "notebook.md")
+        assert page.fm["type"] == "Notebook"
+        assert body_title(page.body).startswith("# Reporter's notebook — ")
+        assert sorted(p.name for p in dest.iterdir()) == ["index.md", "notebook.md"]
 
 
-def test_notebook_local_profile_override_used(tmp_path):
+def test_notebook_local_profile_override_not_consulted(tmp_path):
     # a notebook-local profile only applies with a notebook_root, which
     # create_notebook does not have (the notebook doesn't exist yet) — so the
     # shipped profile is used even if a stray .flip/profiles exists elsewhere.
     dest = create_notebook(tmp_path / "nb", "s", "scout")
     profile = load_profile("scout")
-    text = (dest / "notebook.md").read_text(encoding="utf-8")
-    assert len([ln for ln in text.splitlines() if ln.startswith("## ")]) == len(profile.sections)
+    body = pages.read_page(dest / "notebook.md").body
+    assert len([ln for ln in body.splitlines() if ln.startswith("## ")]) == len(profile.sections)

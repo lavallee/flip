@@ -1,23 +1,34 @@
-"""Tests for flip.sources: classification, capture, provenance, grading."""
+"""Tests for flip.sources: classification, capture, provenance, entity pages,
+grading (round-trip rule), and id allocation over pages + provenance."""
 
 import stat
-import tomllib
 
 import pytest
 
-from flip import sources
-from flip.util import append_jsonl, read_jsonl, sha256_file, write_jsonl
+from flip import pages, sources
+from flip.manifest import load_manifest
+from flip.util import append_jsonl, read_jsonl, sha256_file
+
+MANIFEST_MD = """\
+---
+okf_version: "0.1"
+flip: "0.4"
+slug: test-nb
+kind: scout
+status: active
+created: 2026-01-01
+updated: 2026-01-01
+---
+# test-nb
+"""
 
 
 def make_notebook(tmp_path):
     root = tmp_path / "nb"
     root.mkdir()
-    (root / "notebook.toml").write_text(
-        'slug = "test-nb"\nkind = "scout"\nstatus = "active"\n'
-        'created = "2026-01-01"\nupdated = "2026-01-01"\n',
-        encoding="utf-8",
-    )
-    return root
+    (root / "index.md").write_text(MANIFEST_MD, encoding="utf-8")
+    # resolve so Page.path comparisons hold when tmp_path crosses a symlink
+    return root.resolve()
 
 
 def make_fetcher(tmp_path, body):
@@ -75,22 +86,32 @@ def test_builtin_copy_end_to_end(tmp_path):
     payload = b"%PDF fake content"
     src.write_bytes(payload)
 
-    row = sources.add_source(root, str(src), note="grabbed for test")
+    page = sources.add_source(root, str(src), note="grabbed for test")
 
-    assert row["id"] == "F1"
-    assert row["kind"] == "file"
-    assert row["local"] == "sources/raw/F1.pdf"
-    assert row["grade"] == "?"
-    assert row["independence"] == "original"
-    assert row["freshness"] == "fresh"
-    assert row["status"] == "captured"
-    assert row["supports"] == []
-    assert row["notes"] == "grabbed for test"
-    assert "url" not in row  # local copies carry origin in provenance only
+    fm = page.fm
+    assert fm["type"] == "Source"
+    assert fm["id"] == "F1"
+    assert fm["aliases"] == ["F1"]
+    assert fm["title"] == "report.pdf"
+    assert fm["description"] == "grabbed for test"
+    assert fm["local"] == "sources/raw/F1.pdf"
+    assert fm["grade"] == "?"
+    assert fm["independence"] == "original"
+    assert fm["freshness"] == "fresh"
+    assert fm["status"] == "captured"
+    assert fm["actor"]
+    assert "resource" not in fm  # local copies carry origin in provenance only
+
+    # the page is the canonical record: on disk, human slug, heading + note body
+    # (parse keeps the blank separator line after the frontmatter, hence lstrip)
+    assert page.path == root / "references" / "report-pdf.md"
+    on_disk = pages.read_page(page.path)
+    assert on_disk.fm == fm
+    assert on_disk.body.lstrip("\n").startswith("# report.pdf")
+    assert "grabbed for test" in on_disk.body
 
     copied = root / "sources" / "raw" / "F1.pdf"
     assert copied.read_bytes() == payload
-    assert read_jsonl(root / "sources" / "ledger.jsonl") == [row]
 
     events = read_jsonl(root / "sources" / "_provenance.jsonl")
     assert len(events) == 1
@@ -107,8 +128,7 @@ def test_builtin_copy_end_to_end(tmp_path):
     assert ev["note"] == "grabbed for test"
     assert "tool_version" not in ev
 
-    manifest = tomllib.loads((root / "notebook.toml").read_text(encoding="utf-8"))
-    assert manifest["updated"] != "2026-01-01"
+    assert load_manifest(root).updated != "2026-01-01"
 
 
 def test_copy_missing_file_errors(tmp_path):
@@ -128,9 +148,8 @@ def test_copy_directory_target_errors(tmp_path):
 
 
 def test_add_source_outside_notebook_errors(tmp_path):
-    with pytest.raises(SystemExit) as ei:
+    with pytest.raises(SystemExit, match="not inside a flip notebook"):
         sources.add_source(tmp_path / "not-a-notebook", "https://example.com")
-    assert "notebook.toml" in str(ei.value)
 
 
 # --- fetcher routing ------------------------------------------------------
@@ -146,12 +165,16 @@ def test_fetcher_end_to_end(tmp_path, monkeypatch):
     )
     make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}} {{dest}}"})
 
-    row = sources.add_source(root, "https://example.com/story")
+    page = sources.add_source(root, "https://example.com/story")
 
-    assert row["id"] == "A1"
-    assert row["kind"] == "web"
-    assert row["url"] == "https://example.com/story"
-    assert row["local"] == "sources/raw/A1/page.html"  # the largest captured file
+    fm = page.fm
+    assert fm["id"] == "A1"
+    assert fm["title"] == "example.com/story"  # URL host+path names the page
+    assert fm["description"] == "web source"
+    assert fm["resource"] == "https://example.com/story"
+    assert fm["local"] == "sources/raw/A1/page.html"  # the largest captured file
+    assert page.path == root / "references" / "example-com-story.md"
+    assert page.path.is_file()
     assert (root / "sources" / "raw" / "A1" / "meta.json").is_file()
 
     events = read_jsonl(root / "sources" / "_provenance.jsonl")
@@ -174,11 +197,12 @@ def test_paper_fetcher_gets_bare_doi_via_id_placeholder(tmp_path, monkeypatch):
     script = make_fetcher(tmp_path, 'printf "%s" "$1" > "$2/paper.txt"\n')
     make_flip_home(tmp_path, monkeypatch, {"paper": f"{script} {{id}} {{dest}}"})
 
-    row = sources.add_source(root, "doi:10.1234/widgets.5")
+    page = sources.add_source(root, "doi:10.1234/widgets.5")
 
-    assert row["id"] == "P1"
-    assert row["kind"] == "paper"
-    assert row["url"] == "doi:10.1234/widgets.5"
+    assert page.fm["id"] == "P1"
+    assert page.fm["resource"] == "doi:10.1234/widgets.5"
+    assert page.fm["title"] == "doi:10.1234/widgets.5"
+    assert page.path.name == "doi-10-1234-widgets-5.md"
     captured = root / "sources" / "raw" / "P1" / "paper.txt"
     assert captured.read_text(encoding="utf-8") == "10.1234/widgets.5"
 
@@ -192,9 +216,11 @@ def test_config_routed_builtin_copy_and_prefixes(tmp_path, monkeypatch):
     talk = sources.add_source(root, str(f), kind="talk")
     other = sources.add_source(root, str(f), kind="screenshot")
 
-    assert talk["id"] == "T1"  # talk -> T
-    assert other["id"] == "S1"  # unmapped kinds -> S
-    assert talk["local"] == "sources/raw/T1.txt"
+    assert talk.fm["id"] == "T1"  # talk -> T
+    assert other.fm["id"] == "S1"  # unmapped kinds -> S
+    assert talk.fm["local"] == "sources/raw/T1.txt"
+    assert talk.fm["description"] == "talk source"
+    assert other.fm["description"] == "screenshot source"
     events = read_jsonl(root / "sources" / "_provenance.jsonl")
     assert all(e["tool"] == "builtin:copy" and e["strategy"] == "copy" for e in events)
 
@@ -208,6 +234,7 @@ def test_missing_config_names_file_and_stanza(tmp_path, monkeypatch):
     assert str(home / "config.toml") in msg
     assert "[fetchers]" in msg
     assert not (root / "sources").exists()  # nothing written on failure
+    assert not (root / "references").exists()
 
 
 def test_missing_fetcher_kind_names_file_and_stanza(tmp_path, monkeypatch):
@@ -231,7 +258,7 @@ def test_fetcher_nonzero_exit_errors(tmp_path, monkeypatch):
     assert "exit 3" in msg
     assert "boom" in msg
     assert not (root / "sources" / "_provenance.jsonl").exists()
-    assert not (root / "sources" / "ledger.jsonl").exists()
+    assert not (root / "references").exists()  # no page opened on failure
 
 
 def test_fetcher_producing_no_files_errors(tmp_path, monkeypatch):
@@ -254,18 +281,22 @@ def test_fetcher_command_not_found_errors(tmp_path, monkeypatch):
 # --- id allocation --------------------------------------------------------
 
 
-def test_ids_scan_ledger_and_provenance_never_reused(tmp_path):
+def test_ids_scan_pages_and_provenance_never_reused(tmp_path):
     root = make_notebook(tmp_path)
-    # F2 lives only in the ledger; F5 only in provenance (its row was retracted).
-    write_jsonl(root / "sources" / "ledger.jsonl", [{"id": "F2", "kind": "file"}])
+    # F2 lives only as a page; F5 only in provenance (its page was deleted).
+    pages.write_page(
+        root / "references" / "old-capture.md",
+        {"type": "Source", "id": "F2", "aliases": ["F2"]},
+        "# old capture\n",
+    )
     append_jsonl(root / "sources" / "_provenance.jsonl", {"source_id": "F5"})
     f = tmp_path / "data.csv"
     f.write_text("a,b\n", encoding="utf-8")
 
-    row = sources.add_source(root, str(f))
+    page = sources.add_source(root, str(f))
 
-    assert row["id"] == "F6"
-    ids = [r["id"] for r in read_jsonl(root / "sources" / "ledger.jsonl")]
+    assert page.fm["id"] == "F6"
+    ids = sorted(p.id for p in sources.source_pages(root))
     assert ids == ["F2", "F6"]
 
 
@@ -273,20 +304,40 @@ def test_ids_increment_per_prefix(tmp_path):
     root = make_notebook(tmp_path)
     f = tmp_path / "one.txt"
     f.write_text("x", encoding="utf-8")
-    assert sources.add_source(root, str(f))["id"] == "F1"
-    assert sources.add_source(root, str(f))["id"] == "F2"
+    assert sources.add_source(root, str(f)).fm["id"] == "F1"
+    assert sources.add_source(root, str(f)).fm["id"] == "F2"
 
 
 def test_file_dataset_document_kinds_get_f_prefix_not_d(tmp_path, monkeypatch):
-    # SPEC §3: D is reserved for decisions; files/datasets/documents are F#.
+    # SPEC §9: D is reserved for decisions; files/datasets/documents are F#.
     root = make_notebook(tmp_path)
     make_flip_home(tmp_path, monkeypatch, {"dataset": "builtin:copy", "document": "builtin:copy"})
     f = tmp_path / "table.csv"
     f.write_text("a,b\n", encoding="utf-8")
-    assert sources.add_source(root, str(f), kind="file")["id"] == "F1"
-    assert sources.add_source(root, str(f), kind="dataset")["id"] == "F2"
-    assert sources.add_source(root, str(f), kind="document")["id"] == "F3"
-    assert not any(r["id"].startswith("D") for r in read_jsonl(root / "sources" / "ledger.jsonl"))
+    assert sources.add_source(root, str(f), kind="file").fm["id"] == "F1"
+    assert sources.add_source(root, str(f), kind="dataset").fm["id"] == "F2"
+    assert sources.add_source(root, str(f), kind="document").fm["id"] == "F3"
+    assert not any(p.id.startswith("D") for p in sources.source_pages(root))
+
+
+# --- slugs ------------------------------------------------------------------
+
+
+def test_slug_collision_gets_numeric_suffix(tmp_path):
+    root = make_notebook(tmp_path)
+    a = tmp_path / "one" / "report.pdf"
+    b = tmp_path / "two" / "report.pdf"
+    for f in (a, b):
+        f.parent.mkdir()
+        f.write_bytes(b"x")
+
+    first = sources.add_source(root, str(a))
+    second = sources.add_source(root, str(b))  # same title -> -2 suffix
+
+    assert first.path.name == "report-pdf.md"
+    assert second.path.name == "report-pdf-2.md"
+    assert first.fm["id"] == "F1" and second.fm["id"] == "F2"
+    assert pages.read_page(second.path).fm["id"] == "F2"
 
 
 # --- grade_source ---------------------------------------------------------
@@ -296,45 +347,102 @@ def _captured_source(tmp_path):
     root = make_notebook(tmp_path)
     f = tmp_path / "doc.txt"
     f.write_text("hello", encoding="utf-8")
-    row = sources.add_source(root, str(f))
-    return root, row["id"]
+    page = sources.add_source(root, str(f))
+    return root, page
 
 
-def test_grade_source_updates_row_in_place(tmp_path):
-    root, sid = _captured_source(tmp_path)
-    row = sources.grade_source(
-        root, sid, grade="B", independence="republisher", freshness="dated", notes="vendor blog"
+def test_grade_source_updates_page_in_place(tmp_path):
+    root, page = _captured_source(tmp_path)
+    graded = sources.grade_source(
+        root, page.id, grade="B", independence="republisher", freshness="dated",
+        notes="vendor blog",
     )
-    assert row["grade"] == "B"
-    assert row["independence"] == "republisher"
-    assert row["freshness"] == "dated"
-    assert row["notes"] == "vendor blog"
-    assert row["status"] == "captured"  # untouched fields survive
-    assert read_jsonl(root / "sources" / "ledger.jsonl") == [row]
+    assert graded.fm["grade"] == "B"
+    assert graded.fm["independence"] == "republisher"
+    assert graded.fm["freshness"] == "dated"
+    assert graded.fm["notes"] == "vendor blog"
+    assert graded.fm["status"] == "captured"  # untouched keys survive
+    assert graded.path == page.path  # same page, no new file
+    assert pages.read_page(page.path).fm == graded.fm
 
 
 def test_grade_source_partial_update(tmp_path):
-    root, sid = _captured_source(tmp_path)
-    row = sources.grade_source(root, sid, grade="A")
-    assert row["grade"] == "A"
-    assert row["independence"] == "original"
-    assert row["freshness"] == "fresh"
+    root, page = _captured_source(tmp_path)
+    graded = sources.grade_source(root, page.id, grade="A")
+    assert graded.fm["grade"] == "A"
+    assert graded.fm["independence"] == "original"
+    assert graded.fm["freshness"] == "fresh"
+
+
+def test_add_source_reserves_its_id(tmp_path):
+    root, page = _captured_source(tmp_path)
+    assert page.id == "F1"
+    reserved = (root / ".flip" / "ids").read_text(encoding="utf-8").splitlines()
+    assert reserved == ["F1"]
+
+
+def test_grade_source_normalizes_foreign_tz_to_utc(tmp_path):
+    # an editor can legally write a tz-aware timestamp; a read-modify-write
+    # must convert it to the same UTC instant, not relabel the wall clock as Z
+    root, page = _captured_source(tmp_path)
+    text = page.path.read_text(encoding="utf-8")
+    text = text.replace(
+        "type: Source\n", "type: Source\nretrieved: 2026-07-09T14:30:00+02:00\n", 1
+    )
+    page.path.write_text(text, encoding="utf-8")
+
+    graded = sources.grade_source(root, page.id, grade="B")
+
+    assert graded.fm["retrieved"] == "2026-07-09T12:30:00Z"  # instant preserved
+    on_disk = page.path.read_text(encoding="utf-8")
+    assert "12:30:00" in on_disk
+    assert "14:30:00" not in on_disk  # the wall clock was not relabeled Z
+
+
+def test_grade_source_round_trips_foreign_frontmatter_and_body(tmp_path):
+    # An Obsidian-authored page: extra frontmatter keys and prose must survive
+    # a grading pass byte-for-value (SPEC §6.6).
+    root, page = _captured_source(tmp_path)
+    edited = pages.read_page(page.path)
+    edited.fm["starred"] = True
+    edited.fm["cssclasses"] = ["wide"]
+    pages.write_page(page.path, edited.fm, edited.body + "\nPull-quote I care about.\n")
+
+    graded = sources.grade_source(root, page.id, grade="B", notes="read in full")
+
+    on_disk = pages.read_page(page.path)
+    assert on_disk.fm["starred"] is True
+    assert on_disk.fm["cssclasses"] == ["wide"]
+    assert on_disk.fm["grade"] == "B"
+    assert on_disk.fm["notes"] == "read in full"
+    assert "Pull-quote I care about." in on_disk.body
+    assert graded.fm == on_disk.fm
+
+
+def test_grade_source_rewrites_are_byte_stable(tmp_path):
+    # read-modify-write must not accrete whitespace (SPEC §12): grading twice
+    # with the same values leaves the file byte-identical.
+    root, page = _captured_source(tmp_path)
+    sources.grade_source(root, page.id, grade="B")
+    first = page.path.read_text(encoding="utf-8")
+    sources.grade_source(root, page.id, grade="B")
+    assert page.path.read_text(encoding="utf-8") == first
 
 
 def test_grade_source_invalid_values(tmp_path):
-    root, sid = _captured_source(tmp_path)
+    root, page = _captured_source(tmp_path)
     with pytest.raises(SystemExit, match="invalid grade"):
-        sources.grade_source(root, sid, grade="Z")
+        sources.grade_source(root, page.id, grade="Z")
     with pytest.raises(SystemExit, match="invalid independence"):
-        sources.grade_source(root, sid, independence="biased")
+        sources.grade_source(root, page.id, independence="biased")
     with pytest.raises(SystemExit, match="invalid freshness"):
-        sources.grade_source(root, sid, freshness="stale")
-    # invalid input must not dirty the ledger
-    assert read_jsonl(root / "sources" / "ledger.jsonl")[0]["grade"] == "?"
+        sources.grade_source(root, page.id, freshness="stale")
+    # invalid input must not dirty the page
+    assert pages.read_page(page.path).fm["grade"] == "?"
 
 
 def test_grade_source_unknown_id(tmp_path):
-    root, _ = _captured_source(tmp_path)
+    root, _page = _captured_source(tmp_path)
     with pytest.raises(SystemExit) as ei:
         sources.grade_source(root, "P99", grade="A")
     msg = str(ei.value)
@@ -342,23 +450,42 @@ def test_grade_source_unknown_id(tmp_path):
     assert "F1" in msg  # names the ids it does have
 
 
-def test_grade_source_empty_ledger(tmp_path):
+def test_grade_source_no_sources_yet(tmp_path):
     root = make_notebook(tmp_path)
     with pytest.raises(SystemExit) as ei:
         sources.grade_source(root, "A1", grade="B")
     assert "unknown source id" in str(ei.value)
 
 
-# --- list_sources ----------------------------------------------------------
+# --- list_sources / source_pages -------------------------------------------
 
 
-def test_list_sources_returns_ledger_rows_in_order(tmp_path):
+def test_list_sources_returns_fm_dicts_with_slug_and_path(tmp_path):
     root = make_notebook(tmp_path)
     f = tmp_path / "doc.txt"
     f.write_text("hello", encoding="utf-8")
-    r1 = sources.add_source(root, str(f))
-    r2 = sources.add_source(root, str(f))
-    assert sources.list_sources(root) == [r1, r2]
+    p1 = sources.add_source(root, str(f))
+    p2 = sources.add_source(root, str(f))
+
+    rows = sources.list_sources(root)
+
+    assert [r["id"] for r in rows] == ["F1", "F2"]
+    assert rows[0]["slug"] == p1.slug
+    assert rows[0]["path"] == "references/doc-txt.md"
+    assert rows[1]["path"] == "references/doc-txt-2.md"
+    assert rows[0]["grade"] == "?"
+    assert p2.slug == "doc-txt-2"
+
+
+def test_list_sources_orders_by_id_number(tmp_path):
+    root = make_notebook(tmp_path)
+    for sid, slug in (("F10", "zzz"), ("F2", "aaa")):
+        pages.write_page(
+            root / "references" / f"{slug}.md",
+            {"type": "Source", "id": sid, "aliases": [sid]},
+            f"# {slug}\n",
+        )
+    assert [r["id"] for r in sources.list_sources(root)] == ["F2", "F10"]
 
 
 def test_list_sources_empty_and_non_notebook(tmp_path):
@@ -366,6 +493,13 @@ def test_list_sources_empty_and_non_notebook(tmp_path):
     assert sources.list_sources(root) == []
     with pytest.raises(SystemExit, match="not inside a flip notebook"):
         sources.list_sources(tmp_path / "nowhere")
+
+
+def test_source_pages_returns_pages(tmp_path):
+    root, page = _captured_source(tmp_path)
+    got = sources.source_pages(root)
+    assert [p.id for p in got] == [page.id]
+    assert isinstance(got[0], pages.Page)
 
 
 # --- fetcher template tokenization ------------------------------------------

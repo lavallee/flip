@@ -42,8 +42,8 @@ SECTIONS: dict[str, dict[str, str]] = {
     },
     "sources": {
         "heading": "Sources & provenance",
-        "prompt": "What fed this. Point at sources/ledger.jsonl; for datasets name the "
-        "generator, inputs, cut date, and rebuild command.",
+        "prompt": "What fed this. Point at references/ and sources/_provenance.jsonl; for "
+        "datasets name the generator, inputs, cut date, and rebuild command.",
     },
     "priors": {
         "heading": "Priors ledger",

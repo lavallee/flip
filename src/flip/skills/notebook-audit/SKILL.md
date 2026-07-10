@@ -11,7 +11,7 @@ verification bar, and what doesn't clear it gets flagged, not shipped.
 ## Checklist
 
 1. **Lint first.** `flip doctor` — fix every ERROR (bad enums, orphan
-   sources, unregistered raw files, under-verified claims) before auditing
+   custody, id/alias breakage, under-verified claims) before auditing
    content. Doctor exits 1 while ERRORs remain.
 2. **Pull the claim map.** `flip show --claims` (or
    `flip claim list --json`). Audit every claim marked `load_bearing` first,
@@ -43,4 +43,6 @@ verification bar, and what doesn't clear it gets flagged, not shipped.
 
 Do not mark a claim verified without the corroboration bar — independent
 original sources or a grade-A primary, actually reread — and never soften
-the bar by editing statuses or grades directly in the JSONL.
+the bar by editing statuses or grades directly in page frontmatter: go
+through `flip claim status` and `flip grade`, which enforce and recompute
+(hand-set corroboration counts show up as doctor drift findings).
