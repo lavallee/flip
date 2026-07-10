@@ -1,0 +1,19 @@
+version = "0.5.0"
+absolutes = ["A1", "A2", "A3"]
+
+skills = [
+  "notebook-create",
+  "notebook-source",
+  "notebook-log",
+  "notebook-audit",
+  "notebook-handoff",
+  "notebook-lessons",
+]
+
+[tiers]
+notebook-create = "judgment"
+notebook-source = "judgment"
+notebook-log = "mechanical"
+notebook-audit = "judgment"
+notebook-handoff = "judgment"
+notebook-lessons = "judgment"

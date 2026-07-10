@@ -1,0 +1,9 @@
+{
+  "id": "flip-notebook",
+  "name": "flip",
+  "version": "0.6.0",
+  "minAppVersion": "1.4.0",
+  "description": "Doctor findings, verification status, and id navigation for flip notebooks.",
+  "author": "Marc Lavallee",
+  "isDesktopOnly": true
+}

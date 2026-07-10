@@ -4,6 +4,25 @@ All notable changes to the flip spec and tooling are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] — 2026-07-10
+
+### Added
+- **Obsidian integration** (SPEC §12): `flip obsidian` prepares a notebook
+  (or beat) as a vault — merge-writes `.obsidian/app.json` so Obsidian
+  authors the same relative markdown links flip does, and installs the
+  packaged companion plugin (plain CommonJS, no build step) into
+  `.obsidian/plugins/flip-notebook/`. The plugin surfaces doctor findings
+  and the hot view in a sidebar panel, a status bar summary, and open-by-id
+  navigation, all read-only over `flip … --json`. Walkthrough:
+  [docs/obsidian.md](docs/obsidian.md).
+- **Spindle distribution** (`spindle/`): `flip-core` bundles the six
+  notebook skills with a flip-flavored doctrine (capture before cite; never
+  verify below the bar; preserve keys you don't own) so any surface can
+  `spindle dist install` + `bind` them.
+- `src/flip/spindle-package.toml`: the `[tool.spindle.package]` table as
+  package data, so wheel installs (PyPI) stay discoverable by spindle
+  (wheels don't carry pyproject.toml); a test keeps it in sync.
+
 ## [0.5.0] — 2026-07-10
 
 ### Added

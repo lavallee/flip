@@ -1,0 +1,23 @@
+# Mirror of pyproject.toml's [tool.spindle.package] — shipped inside the
+# module so wheel installs (PyPI) stay discoverable by spindle, which cannot
+# see pyproject.toml in a wheel. tests/test_spindle_package.py keeps the two
+# in sync.
+[tool.spindle.package]
+name = "flip"
+version = "0.6.0"
+skills = [
+  "notebook-create",
+  "notebook-source",
+  "notebook-log",
+  "notebook-audit",
+  "notebook-handoff",
+  "notebook-lessons",
+]
+capabilities = [
+  "research-notebook-scaffolding",
+  "source-custody-and-provenance",
+  "claim-audit",
+  "session-logging",
+  "notebook-handoff",
+  "lessons-distillation",
+]

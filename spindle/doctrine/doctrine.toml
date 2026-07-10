@@ -1,0 +1,38 @@
+version = "0.1.0"
+
+[[preference]]
+id = "P1"
+scope = "system"
+favor = "captured, graded sources"
+over = "links that may rot and claims from memory"
+note = "Capture before cite: the notebook holds custody, then judgment, then use."
+provenance = ["flip"]
+
+[[preference]]
+id = "P2"
+scope = "system"
+favor = "recording why (decisions, drops, passes)"
+over = "recording only what"
+note = "The what is recoverable from git; the why is not."
+provenance = ["flip"]
+
+[[absolute]]
+id = "A1"
+scope = "system"
+mode = "NEVER"
+statement = "mark a load-bearing claim verified below the corroboration bar"
+provenance = ["flip"]
+
+[[absolute]]
+id = "A2"
+scope = "system"
+mode = "ALWAYS"
+statement = "preserve frontmatter keys you do not own when editing a page"
+provenance = ["flip"]
+
+[[absolute]]
+id = "A3"
+scope = "system"
+mode = "NEVER"
+statement = "edit generated views or renders in place"
+provenance = ["flip"]

@@ -98,6 +98,15 @@ Notebooks are built to be maintained by humans and agents together:
   any agent runtime. The skills also ship as a
   [spindle](https://github.com/lavallee/spindle) package named `flip`.
 
+### For humans (Obsidian)
+
+A notebook is already a valid Obsidian vault; `flip obsidian` finishes the
+job — it writes the vault link config to match flip's relative markdown
+links and installs the packaged companion plugin (doctor findings and the
+hot view in the sidebar, a status bar summary, open-by-id navigation, all
+driven by `flip … --json`). The walkthrough is
+[docs/obsidian.md](docs/obsidian.md).
+
 Status: spec draft v0.5 — notebooks are native OKF v0.1 bundles. The CLI
 covers the full surface (`new`, `add-source`, `grade`, `log`, `decide`,
 `pass`, `question`, `claim`, `session`, `show`, `open`, `rename`, `doctor`,
@@ -108,8 +117,9 @@ cross-notebook coverage memory. `flip migrate` converts v0.3 notebooks in
 place. See [docs/wiki-alignment.md](docs/wiki-alignment.md) for how flip
 relates to OKF and OpenWiki, and
 [docs/okf-provenance-profile.md](docs/okf-provenance-profile.md) for flip's
-vocabulary as a draft OKF provenance profile. Next: an Obsidian plugin
-surfacing doctor findings inline.
+vocabulary as a draft OKF provenance profile. `flip obsidian` prepares a
+notebook as an Obsidian vault, with a packaged plugin surfacing doctor
+findings inline ([docs/obsidian.md](docs/obsidian.md)).
 
 Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Changes are
 tracked in [CHANGELOG.md](CHANGELOG.md). [MIT licensed](LICENSE).

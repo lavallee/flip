@@ -25,6 +25,7 @@ from . import (
     export as export_mod,
     ledgers,
     migrate as migrate_mod,
+    obsidian as obsidian_mod,
     pages,
     profiles as profiles_mod,
     registry,
@@ -453,6 +454,45 @@ def doctor(as_json: bool) -> None:
             click.echo(f"{f.level} {f.code} {f.path} — {f.message}")
     if any(f.level == "ERROR" for f in findings):
         raise SystemExit(1)
+
+
+# ---------------------------------------------------------------- obsidian
+
+
+@main.command("obsidian")
+@click.option("--no-plugin", is_flag=True,
+              help="Write the vault link config only; skip installing the flip plugin.")
+def obsidian_cmd(no_plugin: bool) -> None:
+    """Prepare the notebook (or beat) to open cleanly as an Obsidian vault.
+
+    Merge-writes .obsidian/app.json so links Obsidian authors match the
+    relative markdown links flip writes, installs the packaged flip plugin
+    (doctor findings, hot view, status bar, open-by-id) into
+    .obsidian/plugins/flip-notebook/, and enables it. Existing Obsidian
+    settings survive; a second run changes nothing. Walkthrough:
+    docs/obsidian.md.
+    """
+    root = find_notebook_root() or beat_mod.find_beat_root()
+    if root is None:
+        raise SystemExit(
+            "not inside a flip notebook or beat (no index.md with flip/flip_beat "
+            "frontmatter found here or above); run `flip new <slug>` or "
+            "`flip beat new <slug>` first"
+        )
+    actions = obsidian_mod.prepare_vault(root, with_plugin=not no_plugin)
+    if actions:
+        for action in actions:
+            click.echo(action)
+    else:
+        click.echo("already prepared — nothing to change")
+    click.echo(f"next: open {root} in Obsidian ('Open folder as vault')")
+    if not no_plugin:
+        click.echo("      first time: Settings → Community plugins → turn off Restricted "
+                   "mode, then enable 'flip'")
+        click.echo("      if `flip` isn't on Obsidian's PATH, set the plugin's "
+                   "'flip path' setting (see `which flip`)")
+    click.echo("note: .obsidian/ is editor-local state — add it to the repo's "
+               "gitignore if this notebook is committed")
 
 
 # ---------------------------------------------------------------- registry / export

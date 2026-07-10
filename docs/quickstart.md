@@ -149,7 +149,13 @@ flip rename F1 district-enrollment-table
 
 ## Using the notebook as an Obsidian vault
 
-Open the notebook directory as a vault and it just works:
+Run `flip obsidian` inside the notebook first — it merge-writes the vault
+link config (so links Obsidian authors match the relative markdown links
+flip writes) and installs the packaged flip plugin: doctor findings and the
+hot view in a sidebar panel, a status bar summary, and open-by-id
+navigation. The full walkthrough is [obsidian.md](obsidian.md).
+
+Then open the notebook directory as a vault and it just works:
 
 - Frontmatter renders as the **Properties** panel — re-grading a source by
   editing `grade` there is a legitimate flip operation, validated by the

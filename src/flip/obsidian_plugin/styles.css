@@ -1,0 +1,114 @@
+/* flip — sidebar panel, status bar, and open-by-id modal.
+ * Theme variables only; no hardcoded colors, so light and dark themes
+ * (and community themes) style the panel for free. */
+
+.flip-view {
+  padding: 0 4px;
+}
+
+.flip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.flip-title {
+  margin: 0;
+}
+
+.flip-refresh {
+  font-size: var(--font-ui-smaller);
+}
+
+.flip-section {
+  margin-bottom: 16px;
+}
+
+.flip-section-title {
+  font-weight: 600;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 2px;
+  margin-bottom: 6px;
+}
+
+.flip-subtitle {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 8px 0 2px;
+}
+
+.flip-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: 4px;
+  font-size: var(--font-ui-small);
+}
+
+.flip-row-clickable {
+  cursor: pointer;
+}
+
+.flip-row-clickable:hover {
+  background: var(--background-modifier-hover);
+}
+
+.flip-badge {
+  flex-shrink: 0;
+  font-size: var(--font-ui-smaller);
+  line-height: 1.4;
+  padding: 0 5px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  color: var(--text-muted);
+}
+
+.flip-badge-error {
+  color: var(--text-error);
+  border-color: var(--text-error);
+}
+
+.flip-badge-warn {
+  color: var(--text-warning);
+  border-color: var(--text-warning);
+}
+
+.flip-id {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+}
+
+.flip-code {
+  flex-shrink: 0;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.flip-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.flip-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  padding: 2px 4px;
+}
+
+.flip-suggestion-id {
+  font-weight: 600;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+}
+
+.flip-suggestion-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
