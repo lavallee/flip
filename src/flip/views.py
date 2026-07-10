@@ -304,14 +304,17 @@ def regenerate(root: Path) -> None:
     except ValueError:
         events = []  # corrupt ledger: leave log.md as-is; doctor pinpoints the line
     if events:
-        _write_log_md(root, events)
+        write_log_md(root, events)
     for dirname in pages.ENTITY_DIRS:
         _write_dir_index(root, dirname)
     save_manifest(root, m, body=_root_body(root, m, events))
 
 
-def _write_log_md(root: Path, events: list[dict]) -> None:
-    """log.md: the OKF-reserved, newest-first view of log/log.jsonl (SPEC §8)."""
+def write_log_md(root: Path, events: list[dict]) -> None:
+    """log.md: the OKF-reserved, newest-first view of log/log.jsonl (SPEC §8).
+
+    Shared with the beat layer (beat.regenerate) so beat and notebook logs
+    render identically."""
     by_day: dict[str, list[dict]] = {}
     for ev in events:
         day = str(ev.get("ts", ""))[:10] or "undated"
@@ -340,7 +343,7 @@ def _write_dir_index(root: Path, dirname: str) -> None:
     entries = _pages(root, dirname)
     index = directory / "index.md"
     if not entries:
-        if index.is_file() and _is_generated(index):
+        if index.is_file() and is_generated_index(index):
             index.unlink()
         return
     lines = [f"# {_DIR_TITLES.get(dirname, dirname.title())}", ""]
@@ -354,9 +357,10 @@ def _write_dir_index(root: Path, dirname: str) -> None:
     index.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _is_generated(index: Path) -> bool:
+def is_generated_index(index: Path) -> bool:
     """A frontmatter-free index.md is flip's generated listing; anything
-    carrying frontmatter (or unreadable) is treated as authored and kept."""
+    carrying frontmatter (or unreadable) is treated as authored and kept.
+    Shared with the beat layer (threads/index.md follows the same rule)."""
     try:
         fm, _body = pages.parse(index.read_text(encoding="utf-8"))
     except (ValueError, OSError):

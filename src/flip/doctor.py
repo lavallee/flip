@@ -11,8 +11,10 @@ id integrity (prefix routing, aliases, duplicates), link rot (dangling
 relative citations — legal in OKF, counted here), corroboration drift and
 under-verified claims (recomputed via claims.corroboration_count; ungraded
 sources never count), stale freshness, orphan custody (pages ↔ raw bytes ↔
-provenance events), profile minimums with status gating, and forced-policy
-mismatches against the flat manifest fields.
+provenance events), profile minimums with status gating, forced-policy
+mismatches against the flat manifest fields, and — for notebooks graduated
+from a beat (SPEC §14) — that the manifest's `links.beat` still resolves to
+the beat root above.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import pages
+from .beat import find_beat_root, load_beat
 from .claims import STATUSES as CLAIM_STATUSES  # claim status enum (SPEC §7)
 from .claims import corroboration_count
 from .manifest import STATUSES, VISIBILITIES, Manifest, load_manifest
@@ -83,6 +86,7 @@ def run_doctor(root: Path) -> list[Finding]:
 
     manifest = _check_manifest(root, findings)
     profile = _check_profile(root, manifest, findings)
+    _check_beat_link(root, manifest, findings)
 
     provenance = _check_ledgers(root, findings)
     by_dir = _collect_pages(root, findings)  # okf-conformance: parses + typed
@@ -177,6 +181,49 @@ def _check_profile(
                 )
             )
     return profile
+
+
+def _check_beat_link(root: Path, manifest: Manifest | None, findings: list[Finding]) -> None:
+    """A notebook graduated from a beat carries `links: {beat: "<slug>#<TH#>"}`
+    (SPEC §14). Verify the link still resolves — a beat root above the
+    notebook whose slug matches, holding the thread — and WARN when it does
+    not: moved notebooks keep working, but the beat's memory has lost them."""
+    if manifest is None:
+        return
+    link = manifest.links.get("beat")
+    if not link:
+        return
+    beat_slug, _, thread_id = str(link).partition("#")
+    fix = "move the notebook back under its beat or update links.beat in index.md"
+    beat_root = find_beat_root(root)
+    if beat_root is None:
+        findings.append(
+            _warn("broken-beat-link",
+                  f"links.beat is '{link}' but no beat root (index.md with flip_beat "
+                  f"frontmatter) exists above the notebook; {fix}", ROOT_FILE)
+        )
+        return
+    try:
+        found_slug = load_beat(beat_root).slug
+    except SystemExit as e:
+        findings.append(
+            _warn("broken-beat-link",
+                  f"links.beat is '{link}' but the beat root above is unreadable: {e}",
+                  ROOT_FILE)
+        )
+        return
+    if found_slug != beat_slug:
+        findings.append(
+            _warn("broken-beat-link",
+                  f"links.beat names beat '{beat_slug}' but the beat above is "
+                  f"'{found_slug}' ({beat_root}); {fix}", ROOT_FILE)
+        )
+    elif thread_id and pages.find_by_id(beat_root, thread_id) is None:
+        findings.append(
+            _warn("broken-beat-link",
+                  f"links.beat points at thread {thread_id} but the beat at "
+                  f"{beat_root} has no page with that id; {fix}", ROOT_FILE)
+        )
 
 
 # --- ledgers -------------------------------------------------------------------

@@ -4,6 +4,28 @@ All notable changes to the flip spec and tooling are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-07-10
+
+### Added
+- **Beats** (SPEC §14): the grouping layer above notebooks. A beat is itself
+  an OKF bundle — `flip_beat:` manifest in its root `index.md`, a `beat.md`
+  mission page, and one **thread** page per line of attention (`TH#`, kind
+  `arc`/`vein`, weighted triage scores). `flip beat new / thread add|update|
+  drop / graduate / show / log`. Graduation scaffolds a child notebook under
+  `notebooks/`, back-links both ways (`links.beat: <beat>#<thread>`), and
+  records coverage; drops record the reason as negative coverage. Beat and
+  notebook commands resolve correctly from inside each other.
+- Notebook doctor WARNs `broken-beat-link` when a manifest's `links.beat` no
+  longer resolves.
+- Trusted-publishing workflow (`publish.yml`): GitHub releases publish
+  `flip-notebook` to PyPI via OIDC.
+- [docs/okf-provenance-profile.md](docs/okf-provenance-profile.md): flip's
+  extension vocabulary written up as a draft OKF provenance profile.
+
+### Fixed
+- File captures slug from the stem: `districts.csv` →
+  `references/districts.md` (was `districts-csv.md`; found dogfooding).
+
 ## [0.4.0] — 2026-07-10
 
 **A flip notebook is now natively an

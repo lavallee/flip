@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.4 · 2026-07-10
+**Status:** draft v0.5 · 2026-07-10
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -437,14 +437,55 @@ pivots; a working thesis rewritten as evidence lands, version-marked.
 ## 14. Beats — the grouping layer above notebooks
 
 A **beat** is a standing mission that outlives any single notebook: "school
-funding in this county." *A beat contains many notebooks.* It is a sibling
-structure sharing the ledger grammar: `beat.toml` (mission, cadence),
-`threads.jsonl` (arcs — self-initiated investigations — and veins —
-recurring typifications monitored reactively — with status and priority),
-`coverage.jsonl`, and its notebooks (or pointers to them). Threads spawn
-notebooks as they get real. A beat is itself exportable as an OKF bundle
-whose concepts cite into per-notebook bundles — a compounding wiki with
-receipts all the way down. Full shape: future work (§18).
+funding in this county." *A beat contains many notebooks* — scouts that
+died, reviews that published, investigations in flight — and holds the
+cross-notebook memory that makes the eleventh notebook cheaper than the
+first. A beat is itself an OKF bundle; same grammar as a notebook, different
+state:
+
+```text
+<beat>/
+  index.md                 # beat manifest frontmatter (flip_beat: "0.1",
+                           #   slug, mission, status, cadence) + generated listing
+  beat.md                  # prose working memory (type: Beat): the mission,
+                           #   standing sources, what "covered" means here
+  threads/<slug>.md        # type: Thread — one page per thread (+ generated index.md)
+  log/log.jsonl            # append-only beat work log (log.md generated view)
+  coverage.jsonl           # append-only: one event per notebook outcome or
+                           #   coverage-relevant act {ts, thread, notebook?, note, actor}
+  notebooks/<slug>/        # child notebooks (default home; a thread page may
+                           #   point anywhere via its `notebook` key)
+```
+
+**Threads** are the beat's unit of attention — an entity page like any
+other (`id: TH#`, `aliases`), in two kinds: **arc** (a self-initiated
+investigation pulled over time) and **vein** (a recurring story-type
+monitored reactively). Frontmatter: `kind: arc | vein`, `status: open |
+active | dormant | done | dropped`, `scores` (see below), `notebook:
+<slug>` once graduated, `next_review: <date>` for dormancy. The body is the
+thread's running rationale.
+
+**Triage is computed, not stored.** `flip beat show` ranks open/active
+threads by a weighted sum of five 0–1 scores in frontmatter — `payoff`
+(what it's worth if it lands), `access` (can we actually get the material),
+`urgency` (does it decay), `connection` (does it compound other threads),
+`uniqueness` (would anyone else do it) — with default weights
+.30/.25/.20/.15/.10, overridable in the beat manifest (`weights:`). A
+missing score reads as 0.5; ranking never mutates pages.
+
+**Graduation is the beat's core act**: `flip beat graduate TH3 <slug>
+--kind scout` creates a notebook (scaffolded per §13) under `notebooks/`,
+stamps the thread `status: active` + `notebook: <slug>`, links the notebook
+manifest back (`links: {beat: <beat-slug>#TH3}`), and appends a coverage
+event. Kill decisions are first-class too: `flip beat thread drop TH3
+--reason …` records why in the page and the coverage ledger — negative
+coverage prevents re-scouting dead angles.
+
+A beat root is distinguishable from a notebook root (`flip_beat:` vs
+`flip:` in the index frontmatter); notebook commands inside a child
+notebook resolve to the notebook, `flip beat …` commands walk up to the
+beat. Beat-level doctor, saturation warnings ("this well is over-visited"),
+and richer coverage roll-ups are future work (§18).
 
 ## 15. Tooling — the flip CLI
 
@@ -525,8 +566,9 @@ are referenced, never required, and never proprietary-by-design.
 ## 18. Open questions
 
 - **Profile tunables** — which fields are per-profile-tunable vs fixed?
-- **Beat layer** — full shape of `beat.toml`/`threads.jsonl`; thread scoring
-  and review cadence; when a thread must graduate to a notebook.
+- **Beat layer, phase 2** — beat-level doctor; saturation warnings over
+  coverage.jsonl; cross-beat lessons roll-up; when a thread *must* graduate
+  (today it's judgment; should high-score staleness force the question?).
 - **OKF profile standing** — whether flip's extension vocabulary should be
   proposed upstream (the W3C Holon CG is exploring formal-semantics
   profiles; OKF v0.1 has no provenance scheme, and flip has a worked one).

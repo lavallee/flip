@@ -62,7 +62,7 @@ then `uv run flip --help`. Python 3.12+; the core is stdlib + click + PyYAML.
 flip new nj-schools --kind scout --title "NJ enrollment dip"
 cd nj-schools
 flip add-source ./districts.csv --note "district enrollment table"
-# F1 · sources/raw/F1.csv · references/districts-csv.md (grade ?)
+# F1 · sources/raw/F1.csv · references/districts.md (grade ?)
 flip grade F1 --grade A --independence original         # judge it after reading
 flip claim add "Enrollment fell 4.2% since 2021" --source F1 --load-bearing
 # C1 asserted · sources: F1 · corroboration: 1
@@ -73,7 +73,7 @@ flip show                          # the hot view: open questions, claims needin
 flip doctor                        # lint: OKF conformance, profile minimums, verification bar
 ```
 
-Filenames are human slugs (`references/districts-csv.md`); the immutable id
+Filenames are human slugs (`references/districts.md`); the immutable id
 (`F1`) lives in frontmatter. `flip open F1` resolves an id to its page;
 `flip rename F1 district-enrollment-table` renames the file and rewrites
 every link to it. `flip migrate` upgrades a pre-0.4 notebook in place.
@@ -98,13 +98,18 @@ Notebooks are built to be maintained by humans and agents together:
   any agent runtime. The skills also ship as a
   [spindle](https://github.com/lavallee/spindle) package named `flip`.
 
-Status: spec draft v0.4 — notebooks are native OKF v0.1 bundles. The CLI
+Status: spec draft v0.5 — notebooks are native OKF v0.1 bundles. The CLI
 covers the full surface (`new`, `add-source`, `grade`, `log`, `decide`,
 `pass`, `question`, `claim`, `session`, `show`, `open`, `rename`, `doctor`,
-`index`, `migrate`, `export bag|csl|okf`); `flip migrate` converts v0.3
-notebooks in place. See [docs/wiki-alignment.md](docs/wiki-alignment.md) for
-how flip relates to OKF and OpenWiki. Next: the beat layer and an Obsidian
-plugin surfacing doctor findings inline.
+`index`, `migrate`, `export bag|csl|okf`), plus **beats** — the standing
+layer above notebooks (`flip beat new / thread add / graduate / show`): a
+mission with weighted-triage threads that graduate into notebooks and keep
+cross-notebook coverage memory. `flip migrate` converts v0.3 notebooks in
+place. See [docs/wiki-alignment.md](docs/wiki-alignment.md) for how flip
+relates to OKF and OpenWiki, and
+[docs/okf-provenance-profile.md](docs/okf-provenance-profile.md) for flip's
+vocabulary as a draft OKF provenance profile. Next: an Obsidian plugin
+surfacing doctor findings inline.
 
 Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Changes are
 tracked in [CHANGELOG.md](CHANGELOG.md). [MIT licensed](LICENSE).

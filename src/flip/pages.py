@@ -30,14 +30,16 @@ RESERVED = {"index.md", "log.md"}
 ENTITY_DIRS = ("references", "claims", "decisions", "questions", "sessions")
 # Directories scanned when resolving ids: the entity dirs plus analysis/,
 # where H# hypothesis pages live (SPEC §9 — any frontmatter scan resolves
-# ids). Analysis pages are concept pages and need no id, but when one carries
+# ids), plus threads/, where a beat root keeps its TH# thread pages (SPEC
+# §14; a notebook has no threads/ dir, so the extra scan is free there).
+# Analysis pages are concept pages and need no id, but when one carries
 # an id it must resolve and count toward uniqueness like any other.
-SCAN_DIRS = (*ENTITY_DIRS, "analysis")
+SCAN_DIRS = (*ENTITY_DIRS, "analysis", "threads")
 PREFIX_DIR = {
     "P": "references", "A": "references", "F": "references",
     "T": "references", "S": "references",
     "C": "claims", "D": "decisions", "Q": "questions",
-    "H": "analysis",
+    "H": "analysis", "TH": "threads",
 }
 
 # Notebook-local, append-only id reservation file (one id per line): every

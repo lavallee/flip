@@ -272,7 +272,11 @@ def add_source(
     )
 
     ref_dir = root / "references"
-    slug = pages.unique_slug(ref_dir, pages.slugify(title, fallback=source_id.lower()))
+    # File captures slug from the stem: `districts.csv` lives at
+    # references/districts.md, not districts-csv.md (dogfood finding:
+    # extension noise doubles up on .md captures — "…-survey-md.md").
+    slug_source = Path(title).stem if strategy == "copy" else title
+    slug = pages.unique_slug(ref_dir, pages.slugify(slug_source, fallback=source_id.lower()))
     body = f"# {title}\n" + (f"\n{note}\n" if note else "")
     path = pages.write_page(ref_dir / f"{slug}.md", fm, body)
     manifest.touch_updated(root)

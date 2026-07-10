@@ -19,6 +19,7 @@ from pathlib import Path
 import click
 
 from . import (
+    beat as beat_mod,
     claims,
     doctor as doctor_mod,
     export as export_mod,
@@ -576,6 +577,154 @@ def profiles_cmd() -> None:
     for pid in (p for p in local if p not in shipped):
         prof = profiles_mod.load_profile(pid, root)
         click.echo(f"{pid} (local) — {prof.description}")
+
+
+# ---------------------------------------------------------------- beat
+
+
+@main.group(name="beat")
+def beat() -> None:
+    """Beats: the standing-mission layer above notebooks (SPEC §14).
+
+    A beat groups many notebooks under one mission ("school funding in this
+    county") and holds the cross-notebook memory: threads/ (units of
+    attention, ids TH#), coverage.jsonl (outcomes, including deliberate
+    drops), and child notebooks under notebooks/. Start with `flip beat new
+    <slug>`; every other beat command works from anywhere inside the beat —
+    including from inside a child notebook (the walk climbs past the
+    notebook root). `flip beat show` is the ranked triage view.
+    """
+
+
+@beat.command("new")
+@click.argument("slug")
+@click.option("--mission", default="", help="One line a stranger could act on; "
+              "lands in the manifest and beat.md.")
+@click.option("--dest", default=None, type=click.Path(path_type=Path),
+              help="Directory to create the beat in [default: ./<slug>].")
+def beat_new(slug: str, mission: str, dest: Path | None) -> None:
+    """Create a beat: index.md manifest + beat.md prompts, nothing else.
+
+    threads/, notebooks/, log/, and coverage.jsonl appear lazily as commands
+    need them. Then cd in and open the first thread.
+    """
+    dest = dest if dest is not None else Path.cwd() / slug
+    path = beat_mod.create_beat(dest, slug, mission=mission)
+    click.echo(f"created beat '{slug}' at {path}")
+    click.echo(f'next: cd {path} && flip beat thread add "<title>" --kind arc|vein')
+
+
+@beat.group("thread")
+def beat_thread() -> None:
+    """Threads: the beat's unit of attention (threads/<slug>.md, ids TH#).
+
+    Two kinds: arc (a self-initiated investigation pulled over time) and
+    vein (a recurring story-type monitored reactively). Score them 0–1 on
+    payoff/access/urgency/connection/uniqueness — `flip beat show` ranks
+    open/active threads by the weighted sum (missing scores read as 0.5).
+    """
+
+
+@beat_thread.command("add")
+@click.argument("title")
+@click.option("--kind", required=True, type=click.Choice(beat_mod.THREAD_KINDS),
+              help="arc: self-initiated investigation · vein: recurring story-type.")
+@click.option("--note", default=None,
+              help="Opening rationale for the thread body [default: the title].")
+@click.option("--score", "score_pairs", multiple=True, metavar="KEY=VALUE",
+              help="Triage score 0–1 (payoff|access|urgency|connection|uniqueness), "
+                   "e.g. --score payoff=0.8; repeatable. Unscored keys rank as 0.5.")
+def beat_thread_add(title: str, kind: str, note: str | None,
+                    score_pairs: tuple[str, ...]) -> None:
+    """Open a thread, allocating the next TH#. Cite it in prose as [TH3]."""
+    page = beat_mod.add_thread(beat_mod.require_beat_root(), title, kind, note=note,
+                               scores=beat_mod.parse_score_pairs(score_pairs))
+    click.echo(f"{page.id} · {page.fm.get('kind', '?')} · open · {page.fm.get('title', '')}")
+
+
+@beat_thread.command("update")
+@click.argument("thread_id", metavar="THREAD_ID")
+@click.option("--status", default=None,
+              type=click.Choice([s for s in beat_mod.THREAD_STATUSES if s != "dropped"]),
+              help="New status (dropping goes through `thread drop` — it needs a reason).")
+@click.option("--note", default=None,
+              help="Progress note, appended to the thread body under today's date.")
+@click.option("--score", "score_pairs", multiple=True, metavar="KEY=VALUE",
+              help="Re-judge a triage score 0–1, e.g. --score access=0.2; repeatable. "
+                   "Other scores keep their values.")
+@click.option("--next-review", default=None, metavar="DATE",
+              help="YYYY-MM-DD to resurface a dormant thread; `flip beat show` "
+                   "flags dormant threads past this date.")
+def beat_thread_update(thread_id: str, status: str | None, note: str | None,
+                       score_pairs: tuple[str, ...], next_review: str | None) -> None:
+    """Update a thread in place: status, scores, next review, a dated note.
+
+    Round-trip rule: only the keys you pass change; foreign frontmatter and
+    the running rationale in the body survive.
+    """
+    page = beat_mod.update_thread(
+        beat_mod.require_beat_root(), thread_id, status=status, note=note,
+        scores=beat_mod.parse_score_pairs(score_pairs), next_review=next_review,
+    )
+    line = f"{page.id} · {page.fm.get('kind', '?')} · {page.fm.get('status', '?')}"
+    if page.fm.get("next_review"):
+        line += f" · next review {page.fm['next_review']}"
+    click.echo(line)
+
+
+@beat_thread.command("drop")
+@click.argument("thread_id", metavar="THREAD_ID")
+@click.option("--reason", required=True,
+              help="Why the thread died — the payload; it lands on the page and "
+                   "in coverage.jsonl so nobody re-scouts the dead angle.")
+def beat_thread_drop(thread_id: str, reason: str) -> None:
+    """Drop a thread: negative coverage is first-class (SPEC §14)."""
+    page = beat_mod.drop_thread(beat_mod.require_beat_root(), thread_id, reason)
+    click.echo(f"{page.id} dropped · {page.fm.get('dropped_reason', '')}")
+
+
+@beat.command("graduate")
+@click.argument("thread_id", metavar="THREAD_ID")
+@click.argument("notebook_slug", metavar="NOTEBOOK_SLUG")
+@click.option("--kind", default="scout", show_default=True,
+              help="Notebook profile for the new child (see `flip profiles`).")
+@click.option("--title", default="", help="Notebook title; the slug is used when omitted.")
+def beat_graduate(thread_id: str, notebook_slug: str, kind: str, title: str) -> None:
+    """Graduate a thread into a child notebook under notebooks/<slug>/.
+
+    The beat's core act: the thread goes active with `notebook: <slug>`, the
+    notebook manifest links back (links.beat: "<beat>#<TH#>"), and a coverage
+    event records the outcome. Then cd in and work it like any notebook.
+    """
+    path = beat_mod.graduate(beat_mod.require_beat_root(), thread_id, notebook_slug,
+                             kind=kind, title=title)
+    click.echo(f"{thread_id} → {kind} notebook '{notebook_slug}' at {path}")
+    click.echo(f'next: cd {path} && flip log "started" — see `flip --help` for the toolkit')
+
+
+@beat.command("show")
+@click.option("--json", "as_json", is_flag=True, help="Emit the view as JSON.")
+def beat_show(as_json: bool) -> None:
+    """Show the beat triage view: ranked threads, dormant due, notebooks, log.
+
+    Open/active threads are ranked by the weighted score sum (weights from
+    the beat manifest, defaults .30/.25/.20/.15/.10); a missing score reads
+    as 0.5. Computed on the fly — ranking never mutates pages (SPEC §14).
+    """
+    out = beat_mod.beat_show(beat_mod.require_beat_root(), as_data=as_json)
+    click.echo(json.dumps(out, ensure_ascii=False, indent=2) if as_json else out)
+
+
+@beat.command("log")
+@click.argument("text")
+def beat_log(text: str) -> None:
+    """Append one event to the beat work log (log/log.jsonl); actor auto-detected.
+
+    Beat-level memory: sweeps, tips, coverage decisions that belong to the
+    mission rather than to any one notebook. log.md regenerates from it.
+    """
+    row = beat_mod.log_event(beat_mod.require_beat_root(), text)
+    click.echo(f"logged {row['ts']} · {row['actor']}")
 
 
 if __name__ == "__main__":  # pragma: no cover

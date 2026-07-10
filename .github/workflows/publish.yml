@@ -1,0 +1,37 @@
+# Publishes flip-notebook to PyPI via trusted publishing (OIDC — no stored
+# API tokens).
+#
+# PREREQUISITE (one-time, on pypi.org): register a pending trusted publisher
+# at PyPI → Account settings → Publishing with owner "lavallee", repo
+# "flip", workflow "publish.yml", environment "pypi-flip-notebook". The
+# GitHub environment is created automatically on first workflow run.
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi-flip-notebook
+      url: https://pypi.org/p/flip-notebook
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          enable-cache: true
+      - name: Build
+        run: uv build
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        with:
+          # Idempotent re-runs: a version already on PyPI is skipped, not an
+          # error — needed when a partial publish is completed by
+          # re-dispatching after the pending publisher is registered.
+          skip-existing: true

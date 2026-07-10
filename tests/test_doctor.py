@@ -692,3 +692,49 @@ def test_findings_are_json_serializable(tmp_path):
 
     payload = json.dumps([asdict(f) for f in run_doctor(root)])
     assert "bad-enum" in payload
+
+
+# --- beat back-link (SPEC §14) --------------------------------------------------
+
+
+def make_beat_with_notebook(tmp_path: Path, link: str = "county#TH1") -> Path:
+    """A beat at tmp_path with one thread, and a hand-built notebook under it
+    carrying links.beat — the shape `flip beat graduate` leaves behind."""
+    from flip import beat
+
+    beat.create_beat(tmp_path, "county", mission="cover it")
+    beat.add_thread(tmp_path, "an angle", "arc")
+    extra = f"links:\n  beat: {link}\n"
+    return make_notebook(tmp_path, extra_fm=extra)
+
+
+def test_beat_link_resolving_above_is_silent(tmp_path):
+    root = make_beat_with_notebook(tmp_path)
+    assert "broken-beat-link" not in codes(run_doctor(root))
+
+
+def test_beat_link_without_beat_above_warns(tmp_path):
+    root = make_notebook(tmp_path, extra_fm="links:\n  beat: county#TH1\n")
+    broken = [f for f in run_doctor(root) if f.code == "broken-beat-link"]
+    assert broken and broken[0].level == "WARN"
+    assert "county#TH1" in broken[0].message
+    assert "no beat root" in broken[0].message
+
+
+def test_beat_link_slug_mismatch_warns(tmp_path):
+    root = make_beat_with_notebook(tmp_path, link="other-beat#TH1")
+    broken = [f for f in run_doctor(root) if f.code == "broken-beat-link"]
+    assert broken and broken[0].level == "WARN"
+    assert "'other-beat'" in broken[0].message and "'county'" in broken[0].message
+
+
+def test_beat_link_missing_thread_warns(tmp_path):
+    root = make_beat_with_notebook(tmp_path, link="county#TH9")
+    broken = [f for f in run_doctor(root) if f.code == "broken-beat-link"]
+    assert broken and broken[0].level == "WARN"
+    assert "TH9" in broken[0].message
+
+
+def test_no_links_beat_no_beat_checks(tmp_path):
+    root = make_notebook(tmp_path)
+    assert "broken-beat-link" not in codes(run_doctor(root))

@@ -42,7 +42,7 @@ $ flip log "started scouting the angle"
 logged 2026-07-10T19:59:41Z · agent:claude
 
 $ flip add-source ./districts.csv --note "district enrollment table"
-F1 · sources/raw/F1.csv · references/districts-csv.md (grade ?)
+F1 · sources/raw/F1.csv · references/districts.md (grade ?)
 judge it: flip grade F1 --grade A|B|C --independence original|republisher|derivative|self-interested
 
 $ flip grade F1 --grade A --independence original --notes "state data, extracted ourselves"
@@ -78,16 +78,16 @@ ok: no findings
 
 Every entity is a page whose **filename is a human slug and whose id is
 immutable frontmatter**: the capture above created
-`references/districts-csv.md` with `id: F1` and `aliases: [F1]`. Cite ids in
+`references/districts.md` with `id: F1` and `aliases: [F1]`. Cite ids in
 prose as `[F1]`, `[C1]` — greppable both directions — and resolve them with
 `flip open`:
 
 ```console
 $ flip open F1
-/work/nj-schools/references/districts-csv.md
+/work/nj-schools/references/districts.md
 
 $ flip rename F1 district-enrollment-table
-F1: references/districts-csv.md → references/district-enrollment-table.md
+F1: references/districts.md → references/district-enrollment-table.md
 rewrote links in 2 file(s)
 ```
 

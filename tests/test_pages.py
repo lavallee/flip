@@ -130,6 +130,39 @@ def test_find_by_id_resolves_h_ids_in_analysis(tmp_path):
     assert pages.PREFIX_DIR["H"] == "analysis"
 
 
+def test_find_by_id_routes_th_to_threads_and_t_to_references(tmp_path):
+    # TH# (beat threads, SPEC §14) and T# (talk sources) must never shadow
+    # each other: find_by_id strips trailing digits, so TH3 → "TH", T3 → "T"
+    root = make_root(tmp_path)
+    write_page(
+        root / "threads" / "bus.md",
+        {"type": "Thread", "id": "TH3", "aliases": ["TH3"]},
+        "thread\n",
+    )
+    write_page(
+        root / "references" / "talk.md",
+        {"type": "Source", "id": "T3", "aliases": ["T3"]},
+        "talk\n",
+    )
+    assert pages.PREFIX_DIR["TH"] == "threads"
+    assert pages.PREFIX_DIR["T"] == "references"
+    assert find_by_id(root, "TH3").path == root / "threads" / "bus.md"
+    assert find_by_id(root, "T3").path == root / "references" / "talk.md"
+    assert {"TH3", "T3"} <= set(all_ids(root))
+
+
+def test_allocate_id_multi_char_prefix_ignores_single_char_ids(tmp_path):
+    # a T7 talk source must not advance the TH counter, and vice versa
+    root = make_root(tmp_path)
+    write_page(
+        root / "references" / "talk.md",
+        {"type": "Source", "id": "T7", "aliases": ["T7"]},
+        "talk\n",
+    )
+    assert allocate_id(root, "TH") == "TH1"
+    assert allocate_id(root, "T") == "T8"
+
+
 # --- id reservation (.flip/ids) -----------------------------------------------------
 
 

@@ -101,7 +101,7 @@ def test_full_flow(tmp_path, monkeypatch):
     assert "F1" in result.output
     assert (root / "sources" / "raw" / "F1.txt").is_file()
     assert (root / "sources" / "_provenance.jsonl").is_file()
-    assert (root / "references" / "report-txt.md").is_file()  # slug, not id
+    assert (root / "references" / "report.md").is_file()  # slug, not id
 
     assert invoke(["log", "captured the vendor report"]).exit_code == 0
     assert (root / "log.md").is_file()  # generated view appears with the first event
@@ -180,7 +180,7 @@ def test_source_list_text_and_json(tmp_path, monkeypatch):
 
     listing = invoke(["source", "list"])
     assert listing.exit_code == 0, listing.output
-    assert "F1 · B/republisher/fresh · table.csv · references/table-csv.md" in listing.output
+    assert "F1 · B/republisher/fresh · table.csv · references/table.md" in listing.output
 
     rows = json.loads(invoke(["source", "list", "--json"]).output)
     assert rows[0]["id"] == "F1"
@@ -371,18 +371,18 @@ def test_rename_moves_page_and_rewrites_links(tmp_path, monkeypatch):
     invoke(["add-source", str(payload)])
     invoke(["claim", "add", "vendor reports uplift", "--source", "F1"])
     claim_path = root / "claims" / "vendor-reports-uplift.md"
-    assert "(../references/report-txt.md)" in claim_path.read_text(encoding="utf-8")
+    assert "(../references/report.md)" in claim_path.read_text(encoding="utf-8")
     # prose elsewhere links to it too
     (root / "analysis").mkdir()
     (root / "analysis" / "findings.md").write_text(
-        "---\ntype: Finding\n---\nSee [the report](../references/report-txt.md#quote).\n",
+        "---\ntype: Finding\n---\nSee [the report](../references/report.md#quote).\n",
         encoding="utf-8",
     )
 
     result = invoke(["rename", "F1", "vendor-report"])
     assert result.exit_code == 0, result.output
-    assert "references/report-txt.md → references/vendor-report.md" in result.output
-    assert not (root / "references" / "report-txt.md").exists()
+    assert "references/report.md → references/vendor-report.md" in result.output
+    assert not (root / "references" / "report.md").exists()
     assert (root / "references" / "vendor-report.md").is_file()
     claim_text = claim_path.read_text(encoding="utf-8")
     assert "(../references/vendor-report.md)" in claim_text

@@ -104,7 +104,7 @@ def test_builtin_copy_end_to_end(tmp_path):
 
     # the page is the canonical record: on disk, human slug, heading + note body
     # (parse keeps the blank separator line after the frontmatter, hence lstrip)
-    assert page.path == root / "references" / "report-pdf.md"
+    assert page.path == root / "references" / "report.md"
     on_disk = pages.read_page(page.path)
     assert on_disk.fm == fm
     assert on_disk.body.lstrip("\n").startswith("# report.pdf")
@@ -334,8 +334,8 @@ def test_slug_collision_gets_numeric_suffix(tmp_path):
     first = sources.add_source(root, str(a))
     second = sources.add_source(root, str(b))  # same title -> -2 suffix
 
-    assert first.path.name == "report-pdf.md"
-    assert second.path.name == "report-pdf-2.md"
+    assert first.path.name == "report.md"
+    assert second.path.name == "report-2.md"
     assert first.fm["id"] == "F1" and second.fm["id"] == "F2"
     assert pages.read_page(second.path).fm["id"] == "F2"
 
@@ -471,10 +471,10 @@ def test_list_sources_returns_fm_dicts_with_slug_and_path(tmp_path):
 
     assert [r["id"] for r in rows] == ["F1", "F2"]
     assert rows[0]["slug"] == p1.slug
-    assert rows[0]["path"] == "references/doc-txt.md"
-    assert rows[1]["path"] == "references/doc-txt-2.md"
+    assert rows[0]["path"] == "references/doc.md"
+    assert rows[1]["path"] == "references/doc-2.md"
     assert rows[0]["grade"] == "?"
-    assert p2.slug == "doc-txt-2"
+    assert p2.slug == "doc-2"
 
 
 def test_list_sources_orders_by_id_number(tmp_path):

@@ -54,7 +54,7 @@ export FLIP_ACTOR="human:marc"     # or agent:claude, tool:ingest-script
 
 ```bash
 flip add-source ./districts.csv --note "district enrollment table"
-# F1 · sources/raw/F1.csv · references/districts-csv.md (grade ?)
+# F1 · sources/raw/F1.csv · references/districts.md (grade ?)
 ```
 
 The bytes land verbatim in `sources/raw/`, get hashed into the append-only
@@ -133,7 +133,7 @@ them back to files with `flip open`:
 
 ```bash
 flip open F1
-# /work/nj-schools/references/districts-csv.md
+# /work/nj-schools/references/districts.md
 $EDITOR $(flip open F1)      # paths are absolute, so this works from any subdirectory
 ```
 
@@ -143,7 +143,7 @@ notebook-wide, while the id (and every `[F1]` cite) stays put:
 
 ```bash
 flip rename F1 district-enrollment-table
-# F1: references/districts-csv.md → references/district-enrollment-table.md
+# F1: references/districts.md → references/district-enrollment-table.md
 # rewrote links in 2 file(s)
 ```
 
