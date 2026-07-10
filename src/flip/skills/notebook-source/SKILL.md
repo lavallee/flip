@@ -1,0 +1,50 @@
+---
+name: notebook-source
+description: Capture and grade a source with custody discipline — invoke every time the work starts relying on an external artifact (URL, DOI, file, dataset, transcript).
+---
+
+# notebook-source
+
+Custody first: local bytes, hash, provenance, then judgment. A source you
+didn't capture is a source you don't have.
+
+## Checklist
+
+1. **Capture the moment you rely on it.**
+   ```bash
+   flip add-source <url|doi:...|path> --note "<why captured / anything odd about the get>"
+   ```
+   flip infers the kind (web/paper/file); pass `--kind` for datasets, talks,
+   or anything ambiguous. URL/DOI capture runs the fetcher configured in
+   `$FLIP_HOME/config.toml` — if flip errors, add the stanza it prints; never
+   work around the fetcher by saving text yourself.
+2. **Chase the original.** Before grading, check whether this is the original
+   or a republisher/derivative. If it republishes, capture the original too
+   and grade the republisher accordingly — republishers and derivatives do
+   not count toward claim corroboration.
+3. **Read it, then grade it** (grading is a judgment made after reading, not
+   a formality at capture):
+   ```bash
+   flip grade <id> --grade A|B|C --independence original|republisher|derivative|self-interested \
+       --freshness fresh|dated --notes "<why this grade>"
+   ```
+   `A` authoritative primary (gov / peer-reviewed / data extracted
+   ourselves) · `B` official docs, independent journalism · `C` vendor,
+   practitioner, self-interested, or any LLM/retrieval synthesis. Flag
+   `--freshness dated` when older than the profile's threshold (~18 months).
+   A source left at grade `?` counts toward nothing — it cannot corroborate
+   a claim until judged. `flip source list` shows every capture's
+   grade/independence/freshness at a glance; sweep it for `?` rows before
+   any claim audit.
+4. **Public-terminus check.** If the manifest's `citation_rule` is
+   `public-terminus`, confirm any load-bearing chain this source joins ends
+   at a public, independently verifiable source — a grade-C intermediary
+   can't be the terminus.
+5. **Wire it in.** Link the source to the claims it backs
+   (`flip claim add ... --source <id>` or update existing claims), and cite
+   it in prose as `[A3]`. Log anything notable about the capture with
+   `flip log`.
+
+Do not paste fetched text into the notebook as if it were a source — every
+source enters through `flip add-source` so raw bytes, hash, and provenance
+are on record; prose without a ledger id is opinion.

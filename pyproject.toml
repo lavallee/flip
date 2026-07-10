@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "flip-notebook"
+version = "0.3.0"
+description = "Reporter's notebooks: git-friendly research corpora maintained by humans and agents"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Marc Lavallee" }]
+keywords = [
+  "research", "provenance", "journalism", "notebook", "agents", "knowledge",
+]
+# Core is deliberately tiny: click for the CLI, stdlib for everything else.
+# No network calls, no LLM calls, no services (SPEC §14).
+dependencies = ["click>=8.1"]
+
+[project.urls]
+Homepage = "https://github.com/lavallee/flip"
+Repository = "https://github.com/lavallee/flip"
+
+[project.scripts]
+flip = "flip.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.8"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/flip"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+# flip ships its agent skills as a spindle package: any repo or agent surface
+# can `spindle bind` to receive the notebook-* skills. Spindle is optional —
+# the skills are plain markdown under src/flip/skills/ and work standalone.
+[tool.spindle.package]
+name = "flip"
+version = "0.3.0"
+skills = [
+  "notebook-create",
+  "notebook-source",
+  "notebook-log",
+  "notebook-audit",
+  "notebook-handoff",
+  "notebook-lessons",
+]
+capabilities = [
+  "research-notebook-scaffolding",
+  "source-custody-and-provenance",
+  "claim-audit",
+  "session-logging",
+  "notebook-handoff",
+  "lessons-distillation",
+]

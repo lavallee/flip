@@ -1,0 +1,9 @@
+id = "engagement"
+description = "Confidential client work: research-review discipline plus enforced confidentiality."
+sections = ["tip", "frame", "explore", "hypotheses", "sources", "decisions", "omissions", "workflow", "gaps", "handoff"]
+requires = ["sources/ledger.jsonl", "analysis/claims.jsonl", "log/sessions", "HANDOFF.md"]
+claim_min_independent = 2
+
+[forced_policy]
+visibility = "client-confidential"
+citation_rule = "public-terminus"

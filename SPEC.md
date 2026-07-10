@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.2 · 2026-07-09
+**Status:** draft v0.3 · 2026-07-10
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -108,7 +108,9 @@ them lazily, never as empty scaffolding.
 - Notebook file is `notebook.md`, lowercase, always.
 - Log/session files are date-prefixed UTC: `2026-07-09T1430-corpus-sweep.md`.
 - Source ids are compact and prefixed by kind: `P1` papers, `A1` articles,
-  `D1` datasets/documents, `T1` talks/transcripts, `S1` when unkinded.
+  `F1` files/datasets/documents, `T1` talks/transcripts, `S1` when unkinded.
+  (`D#` is reserved for decisions — the two appear together in prose cites
+  constantly, so sources never use `D`.)
 - Private scratch files use a `_` prefix and are never rendered.
 
 ### Detached notebooks
@@ -274,7 +276,10 @@ published pieces):
 `status`: `asserted` → `verified` | `needs-2nd` | `unconfirmed` |
 `false-positive` | `retracted` | `superseded`. A claim is `verified` only with
 the corroboration its profile demands (default: two independent sources or
-one grade-A primary).
+one grade-A primary). **Ungraded sources never corroborate:** a source still
+graded `?` counts toward nothing — capture is custody, not judgment, and the
+verification bar only sees sources whose grade and independence have been
+explicitly recorded.
 
 Fine-grained anchoring (claim → exact span in a source) uses W3C Web
 Annotation selectors stored per claim when needed; optional, not required.
@@ -300,8 +305,9 @@ and `actor` (`human:<name>`, `agent:<name>`, `tool:<name>`).
 
 ## 9. IDs and cross-references
 
-- Per-notebook compact ids: `P#/A#/D#/T#/S#` sources · `C#` claims · `D#`
-  decisions · `Q#` open questions · `H#` hypotheses.
+- Per-notebook compact ids: `P#/A#/F#/T#/S#` sources · `C#` claims · `D#`
+  decisions · `Q#` open questions · `H#` hypotheses. Prefixes are disjoint
+  across ledgers so a bare `[F3]` or `[D2]` cite is unambiguous.
 - Prose cites ids in brackets: `[A3]`, `[C7]` — greppable both directions.
 - Cross-notebook references use `<slug>#<id>` (`nj-schools#C7`).
 - ids are never reused, even after retraction.
@@ -341,7 +347,10 @@ Everything else is optional everywhere.
 
 Profiles are data (a TOML file shipped with flip), not code — projects can
 define their own. `kind` in the manifest selects one; `flip doctor` lints
-against it.
+against it. Profile minimums are **completion requirements, not creation
+requirements**: while a notebook's status is `active` or `dormant`, missing
+profile-required files are warnings (they appear with use); once status is
+`done`, `published`, or `archived`, they are errors.
 
 ## 13. Beats — the grouping layer above notebooks
 
@@ -468,6 +477,11 @@ custody is not delegated.
 ## 17. Interop (optional, generated)
 
 - **BagIt** bag for cold archival (`flip export bag`).
+- **OKF** knowledge bundle (`flip export okf`) — the notebook projected as an
+  [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
+  bundle for LLM-wiki consumers: sources become `references/` concepts
+  carrying custody frontmatter, claims cite them, the work log renders as
+  `log.md`. Design: [docs/wiki-alignment.md](docs/wiki-alignment.md).
 - **RO-Crate** metadata envelope generated from manifest + ledgers
   (`flip export ro-crate`) — for sharing with the outside world.
 - **CSL JSON** from the source ledger for citation managers.

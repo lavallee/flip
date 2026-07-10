@@ -1,0 +1,5 @@
+id = "data-investigation"
+description = "Dataset-first reporting: ingest scripts, frozen data contracts, logged derivations."
+sections = ["tip", "frame", "explore", "sources", "decisions", "workflow", "gaps"]
+requires = ["sources/ledger.jsonl", "derived/_derivations.jsonl"]
+claim_min_independent = 1
