@@ -1,0 +1,10 @@
+# session/tool state
+.gstack/
+
+# local-only scratch — never commit
+_private/
+*.local.*
+
+# generated artifacts
+renders/
+dist/
