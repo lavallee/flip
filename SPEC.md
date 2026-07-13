@@ -518,9 +518,13 @@ flip export bag|csl|okf|ro-crate     # projections (§17)
 
 `flip add-source` routes by input type to fetchers registered in
 `~/.flip/config.toml` (`[fetchers]`, command templates with `{url}`/`{id}`/
-`{dest}`). Only `builtin:copy` is built in. Whatever runs, the tool,
-version, and strategy land in `_provenance.jsonl` automatically —
-principle 9 costs nothing when the tool does it.
+`{dest}`). Commands that write files receive `{dest}`; stdout-only commands
+may omit `{dest}` and their stdout is preserved as `capture.json` or
+`capture.txt`. Only `builtin:copy` is built in. Whatever runs, the tool,
+best-effort version, and strategy land in `_provenance.jsonl` automatically —
+principle 9 costs nothing when the tool does it. X/Twitter post URLs classify
+as `social` so a cookie-authenticated capture lane can preserve them separately
+from the ordinary `web` fetcher.
 
 ### The registry
 

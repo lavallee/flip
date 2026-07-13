@@ -12,7 +12,9 @@ the judgment keys on an existing page, round-tripping everything else on it
 Fetcher templates live in $FLIP_HOME/config.toml under [fetchers] (SPEC §15).
 Placeholders: {url} = the target as given, {id} = the target with a leading
 "doi:" stripped (for `doi-fetch {id}`-style tools), {dest} = the capture
-directory sources/raw/<source id>/.
+directory sources/raw/<source id>/. A fetcher that writes files uses {dest}; a
+stdout-only fetcher may omit it and flip will preserve stdout as capture.json
+or capture.txt.
 """
 
 from __future__ import annotations
@@ -51,14 +53,20 @@ _ID_PREFIXES = {
     "document": "F",
     "talk": "T",
     "transcript": "T",
+    "social": "A",
 }
 
 _DOI_RE = re.compile(r"^10\.\d{4,}/\S+$")
 _ARXIV_RE = re.compile(r"^(arxiv:)?\d{4}\.\d{4,5}(v\d+)?$", re.IGNORECASE)
+_X_POST_RE = re.compile(
+    r"^/(?:i/web/)?(?:[^/]+/)?status(?:es)?/\d+(?:[/?#]|$)", re.IGNORECASE
+)
 
 _EXAMPLE_TEMPLATES = {
-    "web": "single-file {url} --output {dest}",
-    "paper": "doi-fetch {id} --dir {dest}",
+    "web": "downunder fetch --min-words 1 --html --quiet {url}",
+    "social": "jackdaw read {url} --json",
+    "paper": "paperboy get {id} --output {dest}",
+    "lookup": "trawler lookup {url}",
 }
 
 
@@ -67,12 +75,16 @@ def _classify(target: str) -> str:
     if Path(target).expanduser().exists():
         return "file"
     if target.startswith(("http://", "https://")):
+        parts = urlsplit(target)
+        host = (parts.hostname or "").lower().removeprefix("www.").removeprefix("mobile.")
+        if host in {"x.com", "twitter.com"} and _X_POST_RE.match(parts.path):
+            return "social"
         return "web"
     if target.lower().startswith("doi:") or _DOI_RE.match(target) or _ARXIV_RE.match(target):
         return "paper"
     raise SystemExit(
         f"can't classify '{target}' (not an existing file, http(s) URL, DOI, or arXiv id) — "
-        "pass the kind explicitly, e.g. --kind web|paper|file|dataset|talk"
+        "pass the kind explicitly, e.g. --kind web|social|paper|file|dataset|talk|lookup"
     )
 
 
@@ -151,30 +163,38 @@ def _run_fetcher(
     dest = root / "sources" / "raw" / source_id
     dest.mkdir(parents=True, exist_ok=True)
     before = {p for p in dest.rglob("*") if p.is_file()}
+    captures_stdout = "{dest}" not in template
     bare = target[4:] if target.lower().startswith("doi:") else target
     argv = [
         tok.replace("{url}", target).replace("{id}", bare).replace("{dest}", str(dest))
         for tok in _tokenize_template(template)
     ]
     try:
-        proc = subprocess.run(argv, capture_output=True, text=True, cwd=root)
+        proc = subprocess.run(argv, capture_output=True, cwd=root)
     except FileNotFoundError:
         raise SystemExit(
             f"fetcher '{argv[0]}' for kind '{kind}' not found on PATH — "
             f"install it or fix [fetchers] in {_config_path()}"
         ) from None
     if proc.returncode != 0:
-        lines = (proc.stderr or proc.stdout).strip().splitlines()
+        output = proc.stderr or proc.stdout
+        lines = output.decode("utf-8", errors="replace").strip().splitlines()
         detail = lines[-1] if lines else "no output"
         raise SystemExit(
             f"fetcher for kind '{kind}' failed (exit {proc.returncode}): "
             f"{shlex.join(argv)} — {detail}"
         )
     new = [p for p in dest.rglob("*") if p.is_file() and p not in before]
+    if not new and captures_stdout and proc.stdout:
+        suffix = ".json" if proc.stdout.lstrip().startswith((b"{", b"[")) else ".txt"
+        captured = dest / f"capture{suffix}"
+        captured.write_bytes(proc.stdout)
+        new = [captured]
     if not new:
         raise SystemExit(
-            f"fetcher for kind '{kind}' wrote nothing to {dest} — "
-            f"make sure its template in {_config_path()} uses the {{dest}} placeholder"
+            f"fetcher for kind '{kind}' wrote nothing to {dest} and emitted no stdout — "
+            f"make sure its template in {_config_path()} uses the {{dest}} placeholder "
+            "or emits the captured artifact on stdout"
         )
     return new, argv[0]
 

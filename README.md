@@ -78,10 +78,10 @@ Filenames are human slugs (`references/districts.md`); the immutable id
 `flip rename F1 district-enrollment-table` renames the file and rewrites
 every link to it. `flip migrate` upgrades a pre-0.4 notebook in place.
 
-URL and DOI capture route through fetchers you configure (e.g.
-[SingleFile](https://github.com/gildas-lormeau/single-file-cli) for web
-pages) — see [docs/quickstart.md](docs/quickstart.md) for the walkthrough,
-fetcher config, profiles, and the Obsidian setup.
+URL and DOI capture route through fetchers you configure. Commands can write
+files into flip's destination or emit JSON/text on stdout; either way, flip
+preserves and hashes the artifact. See [docs/quickstart.md](docs/quickstart.md)
+for the walkthrough, research-tool config, profiles, and the Obsidian setup.
 
 ## For agents
 
