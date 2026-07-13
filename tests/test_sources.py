@@ -64,6 +64,13 @@ def test_classify_urls_are_web():
     assert sources._classify("http://example.com/a") == "web"
 
 
+def test_classify_x_and_twitter_posts_as_social_but_profiles_as_web():
+    assert sources._classify("https://x.com/reporter/status/123456789") == "social"
+    assert sources._classify("https://twitter.com/reporter/statuses/123456789?s=20") == "social"
+    assert sources._classify("https://www.x.com/i/status/123456789") == "social"
+    assert sources._classify("https://x.com/reporter") == "web"
+
+
 def test_classify_dois_and_arxiv_are_paper():
     assert sources._classify("10.1234/abc.def-5") == "paper"
     assert sources._classify("doi:10.1234/abc") == "paper"
@@ -205,6 +212,37 @@ def test_paper_fetcher_gets_bare_doi_via_id_placeholder(tmp_path, monkeypatch):
     assert page.path.name == "doi-10-1234-widgets-5.md"
     captured = root / "sources" / "raw" / "P1" / "paper.txt"
     assert captured.read_text(encoding="utf-8") == "10.1234/widgets.5"
+
+
+def test_stdout_fetcher_is_preserved_as_json_with_real_tool_provenance(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path)
+    script = make_fetcher(
+        tmp_path,
+        'if [ "$1" = "--version" ]; then echo "leadtool 2.0"; exit 0; fi\n'
+        'printf \'{"query":"%s","answer":"lead"}\\n\' "$1"\n',
+    )
+    make_flip_home(tmp_path, monkeypatch, {"lookup": f"{script} {{url}}"})
+
+    page = sources.add_source(root, "who owns Acme?", kind="lookup")
+
+    captured = root / "sources" / "raw" / "S1" / "capture.json"
+    assert captured.read_text(encoding="utf-8") == (
+        '{"query":"who owns Acme?","answer":"lead"}\n'
+    )
+    assert page.fm["id"] == "S1"
+    assert page.fm["local"] == "sources/raw/S1/capture.json"
+    event = read_jsonl(root / "sources" / "_provenance.jsonl")[0]
+    assert event["tool"] == str(script)
+    assert event["tool_version"] == "leadtool 2.0"
+
+
+def test_stdout_is_not_mistaken_for_capture_when_template_promises_dest(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path)
+    script = make_fetcher(tmp_path, 'printf "log only"\n')
+    make_flip_home(tmp_path, monkeypatch, {"paper": f"{script} {{id}} {{dest}}"})
+
+    with pytest.raises(SystemExit, match="wrote nothing"):
+        sources.add_source(root, "doi:10.1234/missing")
 
 
 def test_config_routed_builtin_copy_and_prefixes(tmp_path, monkeypatch):

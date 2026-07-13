@@ -73,7 +73,8 @@ document disagree, fix one of them in the same change.
 
 - `FLIP_HOME` (default `~/.flip`) holds `config.toml` and `index.jsonl`.
 - `config.toml` `[fetchers]` maps kind → command template with `{url}`/`{id}`/
-  `{dest}` placeholders (SPEC §15). Unknown kind or missing fetcher →
+  `{dest}` placeholders (SPEC §15); templates without `{dest}` may emit the
+  captured artifact on stdout. Unknown kind or missing fetcher →
   actionable error naming the config file. `builtin:copy` needs no config.
 - Notebook-local `.flip/profiles/*.toml` overrides shipped profiles.
 - `FLIP_ACTOR` overrides actor detection (then agent-harness env vars, then

@@ -88,7 +88,7 @@ def new(slug: str, kind: str, title: str, visibility: str | None, dest: Path | N
 @main.command("add-source")
 @click.argument("target")
 @click.option("--kind", default=None,
-              help="Source kind (web|paper|file|dataset|talk|…); inferred from the "
+              help="Source kind (web|social|paper|file|dataset|talk|lookup|…); inferred from the "
                    "target when omitted. Non-file kinds run the [fetchers] command "
                    "configured in $FLIP_HOME/config.toml.")
 @click.option("--note", default=None, help="Capture note, recorded in provenance and on the page.")

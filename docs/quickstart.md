@@ -176,22 +176,30 @@ survive its rewrites (and it expects the same courtesy from other tools).
 
 Local files copy with no configuration. URLs, DOIs, and anything else route
 through commands you configure in `~/.flip/config.toml` (override the
-directory with `$FLIP_HOME`). Example, using
-[SingleFile CLI](https://github.com/gildas-lormeau/single-file-cli) for
-self-contained web captures:
+directory with `$FLIP_HOME`). Example using the local research-tool lanes:
 
 ```toml
 [fetchers]
-web = "single-file {url} --output {dest}"
-paper = "doi-fetch {id} --dir {dest}"
+web = "downunder fetch --min-words 1 --html --quiet {url}"
+social = "jackdaw read {url} --json"
+paper = "paperboy get {id} --output {dest}"
+lookup = "trawler lookup {url}"
 media = "yt-dlp {url} -o {dest}"
 ```
 
 `{url}` is the target as given, `{id}` is the target with a leading `doi:`
 stripped, `{dest}` is the capture directory `sources/raw/<source id>/`. Any
-command works; whatever runs, its name and version land in the provenance
-log automatically. If a fetcher isn't configured, `flip add-source` tells
-you the exact stanza to add.
+command works. Commands that create one or more files use `{dest}`; commands
+that emit the artifact on stdout may omit `{dest}`, and flip preserves their
+stdout as `capture.json` or `capture.txt`. Whatever runs, its name and version
+when supported land in the provenance log automatically. X/Twitter post URLs
+are routed to `social`; other HTTP URLs route to `web`.
+
+Trawler is a discovery lane, not an evidence terminus. Capture a cited lookup
+with `flip add-source --kind lookup "<question>"`, grade that synthesized
+output C after reading it, then capture and judge the public URLs in its
+`citations` array before a load-bearing claim relies on the result. If a
+fetcher isn't configured, `flip add-source` tells you the exact stanza to add.
 
 ## Profiles
 

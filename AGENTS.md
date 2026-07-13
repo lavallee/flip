@@ -200,6 +200,7 @@ creation requirements).
 flip add-source https://example.com/report --note "why captured"   # runs your configured web fetcher
 flip add-source ./filing.pdf                                       # local file: builtin copy + hash
 flip add-source doi:10.1234/abcd                                   # paper: configured doi fetcher
+flip add-source --kind lookup "who acquired X?"                    # cited synthesis; grade C, then capture its citations
 # read it, then judge it — grading is a judgment, not a formality:
 flip grade A1 --grade B --independence original --freshness fresh --notes "official docs; original publisher"
 flip source list           # audit: any grade "?" line is captured but unjudged
@@ -213,6 +214,10 @@ frontmatter, your capture notes in the body. URL/DOI capture needs a
 configured, flip's error shows the exact stanza to add.
 `republisher`/`derivative` sources don't count toward corroboration — prefer
 the original — and neither does anything still graded `?`.
+On a fleet-configured workstation, ordinary URLs route through Downunder,
+X/Twitter post URLs through Jackdaw, DOI/arXiv identifiers through Paperboy,
+and explicit `lookup` captures through Trawler. Trawler output is a lead, not
+an evidence terminus: grade it C and capture its cited public URLs separately.
 
 ### Assert and verify a claim
 
