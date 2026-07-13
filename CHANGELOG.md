@@ -4,6 +4,14 @@ All notable changes to the flip spec and tooling are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- Removed site-specific fetcher names and assumptions from the public source,
+  docs, agent guide, and packaged skills. Missing-config guidance now describes
+  only the portable fetcher protocol; implementations remain private operator
+  configuration.
+
 ## [0.6.0] — 2026-07-10
 
 ### Added

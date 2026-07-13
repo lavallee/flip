@@ -62,14 +62,6 @@ _X_POST_RE = re.compile(
     r"^/(?:i/web/)?(?:[^/]+/)?status(?:es)?/\d+(?:[/?#]|$)", re.IGNORECASE
 )
 
-_EXAMPLE_TEMPLATES = {
-    "web": "downunder fetch --min-words 1 --html --quiet {url}",
-    "social": "jackdaw read {url} --json",
-    "paper": "paperboy get {id} --output {dest}",
-    "lookup": "trawler lookup {url}",
-}
-
-
 def _classify(target: str) -> str:
     """Infer a source kind from the target when the caller didn't name one."""
     if Path(target).expanduser().exists():
@@ -95,12 +87,17 @@ def _config_path() -> Path:
 def _fetcher_template(kind: str) -> str:
     """Look up the [fetchers] command template for a kind; actionable error if absent."""
     config = _config_path()
-    example = _EXAMPLE_TEMPLATES.get(kind, "fetch-cmd {url} --output {dest}")
+    # The public package defines the command protocol, not deployment-specific
+    # implementations. Keep the prompt schematic so operator tooling remains
+    # private configuration rather than becoming a package default or assumption.
+    target_placeholder = "{id}" if kind == "paper" else "{url}"
+    example = f"your-fetcher {target_placeholder} {{dest}}"
     stanza = f'[fetchers]\n{kind} = "{example}"'
+    guidance = f"{stanza}\n(replace 'your-fetcher' with your capture command)"
     if not config.is_file():
         raise SystemExit(
             f"no fetcher configured for kind '{kind}' ({config} does not exist) — "
-            f"create it with a stanza like:\n{stanza}"
+            f"create it with a stanza like:\n{guidance}"
         )
     try:
         data = tomllib.loads(config.read_text(encoding="utf-8"))
@@ -109,7 +106,8 @@ def _fetcher_template(kind: str) -> str:
     template = data.get("fetchers", {}).get(kind)
     if not isinstance(template, str) or not template.strip():
         raise SystemExit(
-            f"no fetcher configured for kind '{kind}' in {config} — add a stanza like:\n{stanza}"
+            f"no fetcher configured for kind '{kind}' in {config} — add a stanza like:\n"
+            f"{guidance}"
         )
     return template.strip()
 

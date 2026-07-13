@@ -39,7 +39,9 @@ Design commitments:
   format — except OKF, which the notebook natively is.
 - **No proprietary dependencies.** Capture tools, retrieval services, and
   render targets are all pluggable; a notebook is intelligible from its
-  local files alone.
+  local files alone. Site-specific implementations live in operator config
+  or private integration repositories, never in public defaults, docs, or
+  packaged skills.
 - **Custody first.** Local archival copies with hashes at capture; processing
   is logged and re-runnable; LLM output is a lead, not evidence, until
   promoted through `references/` and graded.
@@ -81,7 +83,8 @@ every link to it. `flip migrate` upgrades a pre-0.4 notebook in place.
 URL and DOI capture route through fetchers you configure. Commands can write
 files into flip's destination or emit JSON/text on stdout; either way, flip
 preserves and hashes the artifact. See [docs/quickstart.md](docs/quickstart.md)
-for the walkthrough, research-tool config, profiles, and the Obsidian setup.
+for the walkthrough, tool-neutral fetcher config, profiles, and the Obsidian
+setup.
 
 ## For agents
 

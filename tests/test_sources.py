@@ -271,6 +271,8 @@ def test_missing_config_names_file_and_stanza(tmp_path, monkeypatch):
     msg = str(ei.value)
     assert str(home / "config.toml") in msg
     assert "[fetchers]" in msg
+    assert 'web = "your-fetcher {url} {dest}"' in msg
+    assert "replace 'your-fetcher'" in msg
     assert not (root / "sources").exists()  # nothing written on failure
     assert not (root / "references").exists()
 
@@ -284,6 +286,17 @@ def test_missing_fetcher_kind_names_file_and_stanza(tmp_path, monkeypatch):
     assert "media" in msg
     assert str(home / "config.toml") in msg
     assert "[fetchers]" in msg
+    assert 'media = "your-fetcher {url} {dest}"' in msg
+
+
+def test_missing_paper_fetcher_suggests_id_placeholder(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path)
+    make_flip_home(tmp_path, monkeypatch, {})
+
+    with pytest.raises(SystemExit) as ei:
+        sources.add_source(root, "doi:10.1234/missing")
+
+    assert 'paper = "your-fetcher {id} {dest}"' in str(ei.value)
 
 
 def test_fetcher_nonzero_exit_errors(tmp_path, monkeypatch):

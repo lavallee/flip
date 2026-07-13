@@ -211,13 +211,15 @@ Each capture opens a `references/<slug>.md` page — custody and judgment in
 frontmatter, your capture notes in the body. URL/DOI capture needs a
 `[fetchers]` entry in `$FLIP_HOME/config.toml` (default `~/.flip/config.toml`)
 — see [docs/quickstart.md](docs/quickstart.md). If the fetcher isn't
-configured, flip's error shows the exact stanza to add.
+configured, flip's error prints a schematic stanza to adapt.
 `republisher`/`derivative` sources don't count toward corroboration — prefer
 the original — and neither does anything still graded `?`.
-On a fleet-configured workstation, ordinary URLs route through Downunder,
-X/Twitter post URLs through Jackdaw, DOI/arXiv identifiers through Paperboy,
-and explicit `lookup` captures through Trawler. Trawler output is a lead, not
-an evidence terminus: grade it C and capture its cited public URLs separately.
+Fetcher implementations are operator configuration, not flip's public
+contract. Keep site-specific commands in `$FLIP_HOME/config.toml` or a
+separate private integration repository; public docs and packaged skills
+should refer only to source kinds and `{url}`/`{id}`/`{dest}` placeholders.
+Retrieval- or LLM-backed `lookup` output is a lead, not an evidence terminus:
+grade it C and capture its cited public URLs separately.
 
 ### Assert and verify a claim
 

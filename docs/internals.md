@@ -76,6 +76,9 @@ document disagree, fix one of them in the same change.
   `{dest}` placeholders (SPEC §15); templates without `{dest}` may emit the
   captured artifact on stdout. Unknown kind or missing fetcher →
   actionable error naming the config file. `builtin:copy` needs no config.
+  The public distribution supplies only this protocol and schematic missing-
+  config guidance; site-specific commands live in operator config or private
+  integration repositories.
 - Notebook-local `.flip/profiles/*.toml` overrides shipped profiles.
 - `FLIP_ACTOR` overrides actor detection (then agent-harness env vars, then
   git user.name, then the OS user).

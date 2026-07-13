@@ -176,15 +176,18 @@ survive its rewrites (and it expects the same courtesy from other tools).
 
 Local files copy with no configuration. URLs, DOIs, and anything else route
 through commands you configure in `~/.flip/config.toml` (override the
-directory with `$FLIP_HOME`). Example using the local research-tool lanes:
+directory with `$FLIP_HOME`). For example, these public command-line tools
+can capture ordinary web pages and media:
 
 ```toml
 [fetchers]
-web = "downunder fetch --min-words 1 --html --quiet {url}"
-social = "jackdaw read {url} --json"
-paper = "paperboy get {id} --output {dest}"
-lookup = "trawler lookup {url}"
-media = "yt-dlp {url} -o {dest}"
+web = "curl --fail --location --silent --show-error {url} --output {dest}/capture"
+media = "yt-dlp {url} --output {dest}/%(title)s.%(ext)s"
+
+# Other optional roles use the same protocol. Replace the schematic command:
+# social = "your-fetcher {url} {dest}"
+# paper = "your-fetcher {id} {dest}"
+# lookup = "your-fetcher {url}"
 ```
 
 `{url}` is the target as given, `{id}` is the target with a leading `doi:`
@@ -195,11 +198,16 @@ stdout as `capture.json` or `capture.txt`. Whatever runs, its name and version
 when supported land in the provenance log automatically. X/Twitter post URLs
 are routed to `social`; other HTTP URLs route to `web`.
 
-Trawler is a discovery lane, not an evidence terminus. Capture a cited lookup
-with `flip add-source --kind lookup "<question>"`, grade that synthesized
-output C after reading it, then capture and judge the public URLs in its
-`citations` array before a load-bearing claim relies on the result. If a
-fetcher isn't configured, `flip add-source` tells you the exact stanza to add.
+Fetcher implementations are operator configuration, not part of flip's public
+contract. Keep site-specific commands in `$FLIP_HOME/config.toml` or a separate
+private integration repository; the public package, documentation, and skills
+deal only in source kinds and the placeholder protocol above.
+
+Retrieval- or LLM-backed `lookup` output is a discovery lead, not an evidence
+terminus. Capture it with `flip add-source --kind lookup "<question>"`, grade
+the synthesized output C after reading it, then separately capture and judge
+its cited public URLs before a load-bearing claim relies on the result. If a
+fetcher isn't configured, `flip add-source` prints a schematic stanza to adapt.
 
 ## Profiles
 

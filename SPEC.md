@@ -544,6 +544,12 @@ checklists that make the §6 lineage rules habitual.
 A notebook must remain intelligible from its local files alone; integrations
 are referenced, never required, and never proprietary-by-design.
 
+The public distribution specifies integration roles and the fetcher
+placeholder protocol only. Site-specific command names, defaults, and
+operational guidance belong in user-owned configuration or a separate private
+integration repository; they are not part of flip's public source, package,
+documentation, or portable skills.
+
 | role | how referenced |
 |---|---|
 | capture tools (web, papers, media) | `[fetchers]` config + `tool` field in provenance |

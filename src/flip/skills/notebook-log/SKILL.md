@@ -21,9 +21,9 @@ promote what matters out of it before the episode ends.
 2. **Log as you go.** Terse work-log lines for anything a future reader must
    retrace: `flip log "fetched X"`, `flip log "hit wall: Y requires auth"`.
    Walls and pivots are the payload — git can't recover the why.
-   A Trawler lookup belongs inside this session and should be named in
-   `--tools trawler`; its synthesis remains a grade-C lead until the cited
-   public sources are captured and judged.
+   A retrieval or LLM-backed lookup belongs inside this session; record the
+   configured command's name with `--tools`. Its synthesis remains a grade-C
+   lead until the cited public sources are captured and judged.
 3. **Promote before you close.** Walk the episode's output and route each
    item to its page or ledger:
    - leads worth relying on → `flip add-source` + `flip grade`
