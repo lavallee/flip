@@ -495,6 +495,7 @@ the library**. Fetchers are pluggable externals. Dependencies: click, PyYAML
 purity; flip's own writer emits a deterministic strict subset).
 
 ```text
+flip config init                     # write a starter config.toml (bundled flip-fetch web lane)
 flip new <slug> --kind <profile>     # scaffold manifest + notebook.md
 flip add-source <url|doi|file|->     # capture: fetch/copy → raw/, hash, provenance,
                                      #   open a references/ page at grade "?" (--via <variant>)
@@ -530,7 +531,11 @@ preserved. The library makes **no network or LLM calls itself** — it only runs
 what you configure.
 
 - **`[fetchers]` — capture.** A target (`url`/`id`/`file`) → local bytes +
-  custody. `flip add-source` routes by kind. Only `builtin:copy` is built in.
+  custody. `flip add-source` routes by kind. `builtin:copy` (local files) and
+  the bundled `flip-fetch` (a stdlib web GET) are the only shipped capture
+  helpers — `flip config init` writes a starter config that wires `flip-fetch`
+  to the `web` lane, so capture works with no external tool; everything else is
+  operator-configured.
   A key's value may be a bare command string, an inline table
   (`{ cmd = "…", needs = [...] }`), or a table of named variants selectable with
   `--via <name>`. X/Twitter post URLs classify as `social` so a

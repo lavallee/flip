@@ -218,7 +218,9 @@ configured, flip's error prints a schematic stanza to adapt.
 the original — and neither does anything still graded `?`.
 Integrations are configured under three roles in `$FLIP_HOME/config.toml`:
 `[fetchers]` (capture, run by `add-source`), `[research]` (`find`/`ask`), and
-`[knowledge]` (`recall`). They are operator configuration, not flip's public
+`[knowledge]` (`recall`). `flip config init` writes a starter config whose
+`web` lane uses the bundled `flip-fetch` helper, so URL capture works with no
+external tool; local files always copy with no config. They are operator configuration, not flip's public
 contract — public docs and packaged skills refer only to kinds/verbs and the
 `{url}`/`{id}`/`{query}`/`{dest}` placeholders, never to a deployment's tools.
 `flip find`/`ask` output is a **lead, grade C, not evidence**: `ask` saves its

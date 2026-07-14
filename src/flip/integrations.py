@@ -69,6 +69,48 @@ def config_path() -> Path:
     return Path(os.environ.get("FLIP_HOME", "~/.flip")).expanduser() / "config.toml"
 
 
+# A starter config `flip config init` writes. The web lane defaults to the
+# bundled `flip-fetch` helper so capture works out of the box with no external
+# tool; everything else is commented, ready to uncomment and adapt. flip never
+# ships a deployment's tools — only this schematic scaffold.
+STARTER_CONFIG = '''\
+# flip integration config — commands flip runs to capture sources and answer
+# research queries. Placeholders: {url} target · {id} doi-stripped · {query}
+# question · {dest} capture directory. See docs/quickstart.md.
+
+[fetchers]
+# Out-of-the-box web capture via the bundled zero-dependency helper:
+web = "flip-fetch {url} {dest}"
+# ...or swap in a ubiquitous tool, or a purpose-built fetcher:
+# web = "curl --fail --location --silent --show-error {url} --output {dest}/capture.html"
+# web = "wget --quiet --output-document {dest}/capture.html {url}"
+# media = "yt-dlp {url} --output {dest}/%(title)s.%(ext)s"
+# social = "your-x-fetcher {url} {dest}"
+# paper = "your-doi-fetcher {id} {dest}"
+
+# [research]                     # a question -> candidate leads / cited synthesis
+# find = "your-research-tool {query}"
+# ask = "your-research-tool {query}"
+
+# [knowledge]                    # a question -> what you already hold locally
+# recall = "your-knowledge-tool {query}"
+'''
+
+
+def write_starter_config(force: bool = False) -> tuple[Path, bool]:
+    """Write STARTER_CONFIG to $FLIP_HOME/config.toml. Returns (path, written).
+
+    Refuses to clobber an existing config unless `force`; then `written` is
+    False and the caller reports that the file was left as-is.
+    """
+    path = config_path()
+    if path.exists() and not force:
+        return path, False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(STARTER_CONFIG, encoding="utf-8")
+    return path, True
+
+
 def _load_config() -> dict | None:
     """Parse ``$FLIP_HOME/config.toml`` → dict, or None when it doesn't exist."""
     config = config_path()
@@ -93,7 +135,12 @@ def _example(role: str, key: str) -> str:
 
 def _guidance(role: str, key: str) -> str:
     stanza = _example(role, key)
-    return f"{stanza}\n(replace '{_ROLE_TOOL.get(role, 'your-tool')}' with your command)"
+    tail = f"(replace '{_ROLE_TOOL.get(role, 'your-tool')}' with your command)"
+    if role == "fetchers":
+        # the fetchers lane has a batteries-included path; point there first
+        tail = ("(run `flip config init` for a starter config with a bundled "
+                "web fetcher, or replace 'your-fetcher' with your own command)")
+    return f"{stanza}\n{tail}"
 
 
 @dataclass

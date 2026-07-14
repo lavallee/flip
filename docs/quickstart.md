@@ -174,14 +174,29 @@ survive its rewrites (and it expects the same courtesy from other tools).
 
 ## Configuring fetchers
 
-Local files copy with no configuration. URLs, DOIs, and anything else route
-through commands you configure in `~/.flip/config.toml` (override the
-directory with `$FLIP_HOME`). For example, these public command-line tools
-can capture ordinary web pages and media:
+**Fastest start:** `flip config init` writes a starter `~/.flip/config.toml`
+whose `web` lane uses **`flip-fetch`** — a zero-dependency helper shipped with
+flip — so `flip add-source <url>` works immediately, no external tool to
+install:
+
+```console
+$ flip config init
+wrote ~/.flip/config.toml
+next: flip add-source https://example.com  (captures via the bundled flip-fetch)
+```
+
+`flip-fetch` is a plain stdlib GET (it extracts the page title and records the
+canonical URL); for JavaScript-rendered pages, paywalls, or auth, swap in a
+purpose-built fetcher. Local files always copy with no configuration at all.
+
+URLs, DOIs, and anything else route through commands you configure in
+`~/.flip/config.toml` (override the directory with `$FLIP_HOME`). The bundled
+helper or any public command-line tool works:
 
 ```toml
 [fetchers]
-web = "curl --fail --location --silent --show-error {url} --output {dest}/capture"
+web = "flip-fetch {url} {dest}"                 # bundled, zero-setup default
+# web = "curl --fail --location --silent --show-error {url} --output {dest}/capture"
 media = "yt-dlp {url} --output {dest}/%(title)s.%(ext)s"
 
 # social = "your-fetcher {url} {dest}"        # inline table + --via variants also allowed:

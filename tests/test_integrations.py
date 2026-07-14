@@ -172,3 +172,36 @@ def test_run_query_nonzero_exit_errors(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as ei:
         integrations.run_query(integrations.resolve("knowledge", "recall"), tmp_path, "q")
     assert "exit 2" in str(ei.value) and "backend down" in str(ei.value)
+
+
+# --- starter config (flip config init) --------------------------------------
+
+
+def test_starter_config_is_valid_toml_with_working_web_default():
+    import tomllib
+
+    data = tomllib.loads(integrations.STARTER_CONFIG)
+    assert data["fetchers"]["web"] == "flip-fetch {url} {dest}"
+
+
+def test_write_starter_config_creates_refuses_clobber_then_forces(tmp_path, monkeypatch):
+    monkeypatch.setenv("FLIP_HOME", str(tmp_path / "h"))
+    path, written = integrations.write_starter_config()
+    assert written and path.exists()
+    assert 'web = "flip-fetch {url} {dest}"' in path.read_text(encoding="utf-8")
+
+    path.write_text("hand-edited", encoding="utf-8")
+    same, written2 = integrations.write_starter_config()
+    assert same == path and written2 is False
+    assert path.read_text(encoding="utf-8") == "hand-edited"  # not clobbered
+
+    _, written3 = integrations.write_starter_config(force=True)
+    assert written3 is True
+    assert "flip-fetch" in path.read_text(encoding="utf-8")
+
+
+def test_fetchers_guidance_points_at_config_init(tmp_path, monkeypatch):
+    monkeypatch.setenv("FLIP_HOME", str(tmp_path / "empty"))
+    with pytest.raises(SystemExit) as ei:
+        integrations.resolve("fetchers", "web")
+    assert "flip config init" in str(ei.value)

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "flip-notebook"
-version = "0.7.0"
+version = "0.8.0"
 description = "Reporter's notebooks: git-friendly research corpora maintained by humans and agents"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -27,6 +27,7 @@ Repository = "https://github.com/lavallee/flip"
 
 [project.scripts]
 flip = "flip.cli:main"
+flip-fetch = "flip.fetch:main"
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.8"]
@@ -47,7 +48,7 @@ testpaths = ["tests"]
 # the skills are plain markdown under src/flip/skills/ and work standalone.
 [tool.spindle.package]
 name = "flip"
-version = "0.7.0"
+version = "0.8.0"
 skills = [
   "notebook-create",
   "notebook-source",

@@ -6,7 +6,20 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [0.7.0] — 2026-07-14
+## [0.8.0] — 2026-07-14
+
+### Added
+- **`flip-fetch`** — a bundled, zero-dependency web fetcher (stdlib only,
+  shipped as its own console script). Point a `[fetchers]` lane at it —
+  `web = "flip-fetch {url} {dest}"` — for out-of-the-box URL capture with no
+  external tool. It does a plain GET, extracts the page title, and records the
+  canonical URL/mime in a return envelope. The core library stays network-free
+  (SPEC §15): `flip-fetch` is a separate process, like any other fetcher.
+- **`flip config init`** — writes a starter `$FLIP_HOME/config.toml` whose `web`
+  lane defaults to `flip-fetch` (so `flip add-source <url>` works right away),
+  with commented curl/wget/yt-dlp and research/knowledge stubs. Refuses to
+  overwrite an existing config without `--force`. The "no fetcher configured"
+  error now points at it.
 
 ### Added
 - **Integration roles** (SPEC §15–16): the single `[fetchers]` seam generalizes

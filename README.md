@@ -80,10 +80,13 @@ Filenames are human slugs (`references/districts.md`); the immutable id
 `flip rename F1 district-enrollment-table` renames the file and rewrites
 every link to it. `flip migrate` upgrades a pre-0.4 notebook in place.
 
-URL and DOI capture route through fetchers you configure. Commands can write
-files into flip's destination or emit JSON/text on stdout; either way, flip
-preserves and hashes the artifact, and an optional return envelope lets a tool
-hand back a title, canonical URL, and the strategy it used. Two more configured
+URL and DOI capture route through fetchers you configure — `flip config init`
+writes a starter config whose `web` lane uses the bundled zero-dependency
+`flip-fetch` helper, so `flip add-source <url>` works out of the box (local
+files always copy with no config). Commands can write files into flip's
+destination or emit JSON/text on stdout; either way, flip preserves and hashes
+the artifact, and an optional return envelope lets a tool hand back a title,
+canonical URL, and the strategy it used. Two more configured
 roles take a question rather than a target: `flip find`/`flip ask` (research —
 candidate leads and cited synthesis, a grade-C lead) and `flip recall`
 (knowledge — what you already hold locally). See

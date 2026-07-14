@@ -21,6 +21,7 @@ import click
 from . import (
     beat as beat_mod,
     claims,
+    integrations,
     doctor as doctor_mod,
     export as export_mod,
     ledgers,
@@ -118,6 +119,34 @@ def add_source(target: str, kind: str | None, via: str | None, note: str | None)
     click.echo(f"{page.id} · {page.fm.get('local', '')} · {rel} (grade ?)")
     click.echo(f"judge it: flip grade {page.id} --grade A|B|C "
                f"--independence original|republisher|derivative|self-interested")
+
+
+# ---------------------------------------------------------------- config
+
+
+@main.group()
+def config() -> None:
+    """Manage the integration config ($FLIP_HOME/config.toml, default ~/.flip)."""
+
+
+@config.command("init")
+@click.option("--force", is_flag=True, help="Overwrite an existing config.toml.")
+def config_init(force: bool) -> None:
+    """Write a starter config.toml: a bundled web fetcher plus commented examples.
+
+    The `web` lane defaults to `flip-fetch` (shipped with flip, no external tool
+    needed), so `flip add-source <url>` works right after this. Social/paper and
+    the research/knowledge roles are commented stubs to adapt. Won't overwrite an
+    existing config unless --force.
+    """
+    path, written = integrations.write_starter_config(force=force)
+    if not written:
+        raise SystemExit(
+            f"{path} already exists — edit it, or pass --force to overwrite "
+            "(back it up first)"
+        )
+    click.echo(f"wrote {path}")
+    click.echo('next: flip add-source https://example.com  (captures via the bundled flip-fetch)')
 
 
 # ---------------------------------------------------------------- research / knowledge
