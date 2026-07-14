@@ -184,30 +184,48 @@ can capture ordinary web pages and media:
 web = "curl --fail --location --silent --show-error {url} --output {dest}/capture"
 media = "yt-dlp {url} --output {dest}/%(title)s.%(ext)s"
 
-# Other optional roles use the same protocol. Replace the schematic command:
-# social = "your-fetcher {url} {dest}"
-# paper = "your-fetcher {id} {dest}"
-# lookup = "your-fetcher {url}"
+# social = "your-fetcher {url} {dest}"        # inline table + --via variants also allowed:
+# paper  = "your-fetcher {id} {dest}"         #   web = { cmd = "…", needs = ["cookies"] }
+
+[research]                                     # a question → leads / cited synthesis
+# find = "your-research-tool {query}"
+# ask  = "your-research-tool {query}"
+
+[knowledge]                                    # a question → what we already hold locally
+# recall = "your-knowledge-tool {query}"
 ```
 
 `{url}` is the target as given, `{id}` is the target with a leading `doi:`
-stripped, `{dest}` is the capture directory `sources/raw/<source id>/`. Any
-command works. Commands that create one or more files use `{dest}`; commands
-that emit the artifact on stdout may omit `{dest}`, and flip preserves their
-stdout as `capture.json` or `capture.txt`. Whatever runs, its name and version
-when supported land in the provenance log automatically. X/Twitter post URLs
-are routed to `social`; other HTTP URLs route to `web`.
+stripped, `{query}` is a research/recall question, and `{dest}` is the capture
+directory `sources/raw/<source id>/`. Any command works. Commands that create
+one or more files use `{dest}`; commands that emit the artifact on stdout may
+omit `{dest}`, and flip preserves their stdout as `capture.json` or
+`capture.txt`. Whatever runs, its name and version when supported land in the
+provenance log automatically. X/Twitter post URLs are routed to `social`; other
+HTTP URLs route to `web`.
 
-Fetcher implementations are operator configuration, not part of flip's public
+A capture command may optionally hand back a small `flip` envelope (a
+`flip.json` sidecar in `{dest}`, or a JSON stdout capture with a top-level
+`flip` object). flip harvests its all-optional neutral keys — `title`,
+`canonical_url`, `strategy`, `retrieved_at`, `status`, `mime`, `from_cache`,
+`backend_ref`, and independence/freshness *hints* — onto the page and
+provenance. Hints are recorded as a page note, never the grade. This is also how
+a shared cache/archive store plugs in: a fetcher that checks the store first can
+serve stored bytes with `from_cache: true` and a `backend_ref`, so you don't
+re-fetch what you already hold. Omit the envelope and nothing changes.
+
+Integration commands are operator configuration, not part of flip's public
 contract. Keep site-specific commands in `$FLIP_HOME/config.toml` or a separate
 private integration repository; the public package, documentation, and skills
-deal only in source kinds and the placeholder protocol above.
+deal only in kinds/verbs and the placeholder protocol above.
 
-Retrieval- or LLM-backed `lookup` output is a discovery lead, not an evidence
-terminus. Capture it with `flip add-source --kind lookup "<question>"`, grade
-the synthesized output C after reading it, then separately capture and judge
-its cited public URLs before a load-bearing claim relies on the result. If a
-fetcher isn't configured, `flip add-source` prints a schematic stanza to adapt.
+**Leads vs. evidence.** `flip find "<q>"` lists candidate sources (capture one
+with `--capture <n>` or `flip add-source <url>`). `flip ask "<q>"` returns cited
+synthesis — a discovery **lead, grade C, not evidence**: its raw output is saved
+under `sessions/raw/` and logged, but you must separately capture and judge its
+cited public URLs before a load-bearing claim relies on it. `flip recall "<q>"`
+reads what you already hold locally and captures nothing. If a role isn't
+configured, flip prints a schematic stanza to adapt.
 
 ## Profiles
 

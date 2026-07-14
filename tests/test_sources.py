@@ -329,6 +329,138 @@ def test_fetcher_command_not_found_errors(tmp_path, monkeypatch):
     assert "not found" in str(ei.value)
 
 
+# --- return envelope --------------------------------------------------------
+
+
+def _envelope_fetcher(tmp_path, envelope_json, *, to_dest=False):
+    """A fake fetcher that emits a {"flip": …} envelope on stdout, or writes a
+    page.html + flip.json into {dest} when to_dest is set."""
+    if to_dest:
+        body = (
+            'printf "the big captured body" > "$2/page.html"\n'
+            f"cat > \"$2/flip.json\" <<'EOF'\n{envelope_json}\nEOF\n"
+        )
+    else:
+        body = f"cat <<'EOF'\n{envelope_json}\nEOF\n"
+    return make_fetcher(tmp_path, body)
+
+
+ENVELOPE = (
+    '{"flip": {"title": "Real Headline", '
+    '"canonical_url": "https://example.com/canonical", '
+    '"strategy": "googlebot", "status": "paywalled", '
+    '"retrieved_at": "2026-07-01T00:00:00Z", "mime": "text/html", '
+    '"backend_ref": "store:abc123", '
+    '"independence_hint": "republisher", "freshness_hint": "dated"}}'
+)
+
+
+def test_envelope_from_stdout_harvested_to_page_and_provenance(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path)
+    script = _envelope_fetcher(tmp_path, ENVELOPE)
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}}"})
+
+    page = sources.add_source(root, "https://example.com/story")
+
+    # page: the fetcher's title and canonical_url win over host+path derivation
+    assert page.fm["title"] == "Real Headline"
+    assert page.fm["resource"] == "https://example.com/canonical"
+    assert page.fm["local"] == "sources/raw/A1/capture.json"
+    # grading stays a judgment: hints never touch the judgment keys
+    assert page.fm["grade"] == "?"
+    assert page.fm["independence"] == "original"
+    assert page.fm["freshness"] == "fresh"
+    # hints land in the body as an unverified note
+    assert "capture hints" in page.body
+    assert "independence=republisher" in page.body
+    assert "freshness=dated" in page.body
+    assert "status=paywalled" in page.body
+
+    ev = read_jsonl(root / "sources" / "_provenance.jsonl")[0]
+    assert ev["strategy"] == "googlebot"  # envelope strategy overrides "config"
+    assert ev["status"] == "paywalled"
+    assert ev["retrieved_at"] == "2026-07-01T00:00:00Z"
+    assert ev["mime"] == "text/html"
+    assert ev["backend_ref"] == "store:abc123"
+    assert ev["url"] == "https://example.com/story"  # requested target, not canonical
+
+
+def test_envelope_from_flip_json_file(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path)
+    script = _envelope_fetcher(tmp_path, ENVELOPE, to_dest=True)
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}} {{dest}}"})
+
+    page = sources.add_source(root, "https://example.com/story")
+
+    assert page.fm["title"] == "Real Headline"
+    assert page.fm["resource"] == "https://example.com/canonical"
+    # local is the largest real artifact, not the tiny flip.json sidecar
+    assert page.fm["local"] == "sources/raw/A1/page.html"
+    assert (root / "sources" / "raw" / "A1" / "flip.json").is_file()
+    ev = {e["local_path"]: e for e in read_jsonl(root / "sources" / "_provenance.jsonl")}
+    assert ev["sources/raw/A1/page.html"]["strategy"] == "googlebot"
+
+
+def test_envelope_from_cache_recorded_in_provenance(tmp_path, monkeypatch):
+    # a shared-store cache hit: from_cache + backend_ref land in provenance, so
+    # the capture is auditable as "served, not re-fetched"
+    root = make_notebook(tmp_path)
+    script = _envelope_fetcher(
+        tmp_path,
+        '{"flip": {"from_cache": true, "backend_ref": "store:xyz", "strategy": "store"}}',
+    )
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}}"})
+
+    sources.add_source(root, "https://example.com/story")
+
+    ev = read_jsonl(root / "sources" / "_provenance.jsonl")[0]
+    assert ev["from_cache"] is True
+    assert ev["backend_ref"] == "store:xyz"
+    assert ev["strategy"] == "store"
+
+
+def test_envelope_from_cache_false_is_not_recorded(tmp_path, monkeypatch):
+    # a fresh fetch is the default — don't clutter provenance with from_cache:false
+    root = make_notebook(tmp_path)
+    script = _envelope_fetcher(tmp_path, '{"flip": {"from_cache": false, "title": "T"}}')
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}}"})
+
+    sources.add_source(root, "https://example.com/story")
+
+    ev = read_jsonl(root / "sources" / "_provenance.jsonl")[0]
+    assert "from_cache" not in ev
+
+
+def test_no_envelope_leaves_behavior_unchanged(tmp_path, monkeypatch):
+    # plain JSON without a "flip" object is captured opaquely, title derived
+    root = make_notebook(tmp_path)
+    script = make_fetcher(tmp_path, 'printf \'{"data": 1}\'\n')
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}}"})
+
+    page = sources.add_source(root, "https://example.com/story")
+
+    assert page.fm["title"] == "example.com/story"  # host+path, as before
+    assert "resource" in page.fm and page.fm["resource"] == "https://example.com/story"
+    assert "capture hints" not in page.body
+    ev = read_jsonl(root / "sources" / "_provenance.jsonl")[0]
+    assert ev["strategy"] == "config"
+    assert "status" not in ev
+
+
+def test_envelope_ignores_out_of_vocab_hints(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path)
+    script = _envelope_fetcher(
+        tmp_path, '{"flip": {"independence_hint": "nonsense", "status": "success"}}'
+    )
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}}"})
+
+    page = sources.add_source(root, "https://example.com/story")
+
+    # invalid hint dropped; status "success" is not noise-noted
+    assert "capture hints" not in page.body
+    assert page.fm["independence"] == "original"
+
+
 # --- id allocation --------------------------------------------------------
 
 
@@ -551,22 +683,3 @@ def test_source_pages_returns_pages(tmp_path):
     got = sources.source_pages(root)
     assert [p.id for p in got] == [page.id]
     assert isinstance(got[0], pages.Page)
-
-
-# --- fetcher template tokenization ------------------------------------------
-
-
-def test_tokenize_template_posix_mode_handles_quotes():
-    assert sources._tokenize_template('fetch "{url}" --out {dest}') == [
-        "fetch", "{url}", "--out", "{dest}",
-    ]
-
-
-def test_tokenize_template_windows_mode_keeps_backslash_paths(monkeypatch):
-    template = r'C:\Tools\fetch.exe {url} --out {dest}'
-    # posix mode would eat the backslashes ...
-    monkeypatch.setattr(sources.os, "name", "posix")
-    assert sources._tokenize_template(template)[0] == "C:Toolsfetch.exe"
-    # ... nt mode must keep them
-    monkeypatch.setattr(sources.os, "name", "nt")
-    assert sources._tokenize_template(template)[0] == r"C:\Tools\fetch.exe"

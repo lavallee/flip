@@ -82,9 +82,13 @@ every link to it. `flip migrate` upgrades a pre-0.4 notebook in place.
 
 URL and DOI capture route through fetchers you configure. Commands can write
 files into flip's destination or emit JSON/text on stdout; either way, flip
-preserves and hashes the artifact. See [docs/quickstart.md](docs/quickstart.md)
-for the walkthrough, tool-neutral fetcher config, profiles, and the Obsidian
-setup.
+preserves and hashes the artifact, and an optional return envelope lets a tool
+hand back a title, canonical URL, and the strategy it used. Two more configured
+roles take a question rather than a target: `flip find`/`flip ask` (research —
+candidate leads and cited synthesis, a grade-C lead) and `flip recall`
+(knowledge — what you already hold locally). See
+[docs/quickstart.md](docs/quickstart.md) for the walkthrough, tool-neutral
+integration config, profiles, and the Obsidian setup.
 
 ## For agents
 

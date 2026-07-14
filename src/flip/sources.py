@@ -2,33 +2,29 @@
 
 `add_source` is the write path for `flip add-source`: classify the target,
 allocate a kind-prefixed id, capture bytes into sources/raw/ (builtin copy for
-local files, a configured external fetcher for everything else), hash every
-captured file into sources/_provenance.jsonl (append-only), and open a
-references/<slug>.md entity page graded "?" — the canonical record of the
-source (SPEC §5.3). `grade_source` is the write path for `flip grade`: record
-the judgment keys on an existing page, round-tripping everything else on it
-(frontmatter flip doesn't own and the prose body survive, SPEC §6.6).
+local files, a configured [fetchers] command for everything else via the
+integrations layer), hash every captured file into sources/_provenance.jsonl
+(append-only), and open a references/<slug>.md entity page graded "?" — the
+canonical record of the source (SPEC §5.3). `grade_source` is the write path
+for `flip grade`: record the judgment keys on an existing page, round-tripping
+everything else on it (frontmatter flip doesn't own and the prose body survive,
+SPEC §6.6).
 
-Fetcher templates live in $FLIP_HOME/config.toml under [fetchers] (SPEC §15).
-Placeholders: {url} = the target as given, {id} = the target with a leading
-"doi:" stripped (for `doi-fetch {id}`-style tools), {dest} = the capture
-directory sources/raw/<source id>/. A fetcher that writes files uses {dest}; a
-stdout-only fetcher may omit it and flip will preserve stdout as capture.json
-or capture.txt.
+Fetcher command templates and the capture runner live in `integrations` (SPEC
+§15). A fetcher may hand back an optional neutral return envelope; when present,
+its title/canonical_url flow onto the page and its strategy/retrieved_at/status/
+backend_ref into provenance. Independence/freshness *hints* are recorded as a
+page note only — grading stays a judgment made after reading, never auto-set.
 """
 
 from __future__ import annotations
 
-import os
 import re
-import shlex
 import shutil
-import subprocess
-import tomllib
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from . import manifest, pages
+from . import integrations, manifest, pages
 from .util import (
     append_jsonl,
     detect_actor,
@@ -62,6 +58,7 @@ _X_POST_RE = re.compile(
     r"^/(?:i/web/)?(?:[^/]+/)?status(?:es)?/\d+(?:[/?#]|$)", re.IGNORECASE
 )
 
+
 def _classify(target: str) -> str:
     """Infer a source kind from the target when the caller didn't name one."""
     if Path(target).expanduser().exists():
@@ -76,52 +73,8 @@ def _classify(target: str) -> str:
         return "paper"
     raise SystemExit(
         f"can't classify '{target}' (not an existing file, http(s) URL, DOI, or arXiv id) — "
-        "pass the kind explicitly, e.g. --kind web|social|paper|file|dataset|talk|lookup"
+        "pass the kind explicitly, e.g. --kind web|social|paper|file|dataset|talk"
     )
-
-
-def _config_path() -> Path:
-    return Path(os.environ.get("FLIP_HOME", "~/.flip")).expanduser() / "config.toml"
-
-
-def _fetcher_template(kind: str) -> str:
-    """Look up the [fetchers] command template for a kind; actionable error if absent."""
-    config = _config_path()
-    # The public package defines the command protocol, not deployment-specific
-    # implementations. Keep the prompt schematic so operator tooling remains
-    # private configuration rather than becoming a package default or assumption.
-    target_placeholder = "{id}" if kind == "paper" else "{url}"
-    example = f"your-fetcher {target_placeholder} {{dest}}"
-    stanza = f'[fetchers]\n{kind} = "{example}"'
-    guidance = f"{stanza}\n(replace 'your-fetcher' with your capture command)"
-    if not config.is_file():
-        raise SystemExit(
-            f"no fetcher configured for kind '{kind}' ({config} does not exist) — "
-            f"create it with a stanza like:\n{guidance}"
-        )
-    try:
-        data = tomllib.loads(config.read_text(encoding="utf-8"))
-    except tomllib.TOMLDecodeError as e:
-        raise SystemExit(f"{config}: invalid TOML: {e}") from None
-    template = data.get("fetchers", {}).get(kind)
-    if not isinstance(template, str) or not template.strip():
-        raise SystemExit(
-            f"no fetcher configured for kind '{kind}' in {config} — add a stanza like:\n"
-            f"{guidance}"
-        )
-    return template.strip()
-
-
-def _tool_version(tool: str) -> str | None:
-    """Best effort `<tool> --version`: first output line on success, else None."""
-    try:
-        proc = subprocess.run([tool, "--version"], capture_output=True, text=True, timeout=5)
-    except Exception:
-        return None
-    if proc.returncode != 0:
-        return None
-    out = proc.stdout.strip() or proc.stderr.strip()
-    return out.splitlines()[0] if out else None
 
 
 def _capture_copy(root: Path, source_id: str, target: str) -> tuple[list[Path], str]:
@@ -133,7 +86,7 @@ def _capture_copy(root: Path, source_id: str, target: str) -> tuple[list[Path], 
     if src.is_dir():
         raise SystemExit(
             f"'{target}' is a directory — point at a single file, or configure a "
-            f"[fetchers] command in {_config_path()} for multi-file captures"
+            f"[fetchers] command in {integrations.config_path()} for multi-file captures"
         )
     if not src.is_file():
         raise SystemExit(f"no such file '{target}' — check the path, or pass a URL/DOI instead")
@@ -144,59 +97,6 @@ def _capture_copy(root: Path, source_id: str, target: str) -> tuple[list[Path], 
     return [dest], src.resolve().as_uri()
 
 
-def _tokenize_template(template: str) -> list[str]:
-    """Split a fetcher template into argv tokens.
-
-    posix mode everywhere except Windows: posix-mode shlex treats backslashes
-    as escapes, which mangles paths like C:\\Tools\\fetch.exe in a Windows
-    user's config.toml.
-    """
-    return shlex.split(template, posix=(os.name != "nt"))
-
-
-def _run_fetcher(
-    root: Path, source_id: str, kind: str, target: str, template: str
-) -> tuple[list[Path], str]:
-    """Run a configured fetcher into sources/raw/<id>/; return (new files, argv[0])."""
-    dest = root / "sources" / "raw" / source_id
-    dest.mkdir(parents=True, exist_ok=True)
-    before = {p for p in dest.rglob("*") if p.is_file()}
-    captures_stdout = "{dest}" not in template
-    bare = target[4:] if target.lower().startswith("doi:") else target
-    argv = [
-        tok.replace("{url}", target).replace("{id}", bare).replace("{dest}", str(dest))
-        for tok in _tokenize_template(template)
-    ]
-    try:
-        proc = subprocess.run(argv, capture_output=True, cwd=root)
-    except FileNotFoundError:
-        raise SystemExit(
-            f"fetcher '{argv[0]}' for kind '{kind}' not found on PATH — "
-            f"install it or fix [fetchers] in {_config_path()}"
-        ) from None
-    if proc.returncode != 0:
-        output = proc.stderr or proc.stdout
-        lines = output.decode("utf-8", errors="replace").strip().splitlines()
-        detail = lines[-1] if lines else "no output"
-        raise SystemExit(
-            f"fetcher for kind '{kind}' failed (exit {proc.returncode}): "
-            f"{shlex.join(argv)} — {detail}"
-        )
-    new = [p for p in dest.rglob("*") if p.is_file() and p not in before]
-    if not new and captures_stdout and proc.stdout:
-        suffix = ".json" if proc.stdout.lstrip().startswith((b"{", b"[")) else ".txt"
-        captured = dest / f"capture{suffix}"
-        captured.write_bytes(proc.stdout)
-        new = [captured]
-    if not new:
-        raise SystemExit(
-            f"fetcher for kind '{kind}' wrote nothing to {dest} and emitted no stdout — "
-            f"make sure its template in {_config_path()} uses the {{dest}} placeholder "
-            "or emits the captured artifact on stdout"
-        )
-    return new, argv[0]
-
-
 def _regenerate_views(root: Path) -> None:
     """Refresh the generated index.md bodies / log.md after a mutation (SPEC §10)."""
     from . import views
@@ -204,17 +104,40 @@ def _regenerate_views(root: Path) -> None:
     views.regenerate(root)
 
 
-def _title_for(target: str, strategy: str) -> str:
-    """The human-readable name a capture gets: no fetcher in the current
-    protocol yields a title (they yield files), so the title is the file
-    basename for copies and host+path for URLs; other targets (DOI, arXiv)
-    keep the target string itself."""
-    if strategy == "copy":
+def _title_for(target: str, capture_kind: str) -> str:
+    """The human-readable name a capture gets when the fetcher didn't supply one:
+    the file basename for copies and host+path for URLs; other targets (DOI,
+    arXiv) keep the target string itself."""
+    if capture_kind == "copy":
         return Path(target).expanduser().name
     if target.startswith(("http://", "https://")):
         parts = urlsplit(target)
         return f"{parts.netloc}{parts.path}".rstrip("/") or target
     return target
+
+
+def _hint_note(envelope: dict | None) -> str:
+    """Render a fetcher's independence/freshness/status hints as a page note.
+
+    Hints are leads for the grader, never the grade itself (custody discipline):
+    they live in the body, not in the judgment frontmatter keys.
+    """
+    if not envelope:
+        return ""
+    bits = []
+    if envelope.get("independence_hint") in INDEPENDENCE:
+        bits.append(f"independence={envelope['independence_hint']}")
+    if envelope.get("freshness_hint") in FRESHNESS:
+        bits.append(f"freshness={envelope['freshness_hint']}")
+    status = envelope.get("status")
+    if isinstance(status, str) and status and status != "success":
+        bits.append(f"status={status}")
+    if not bits:
+        return ""
+    return (
+        "> capture hints (from the fetcher, unverified — judge with `flip grade`): "
+        + ", ".join(bits) + "\n"
+    )
 
 
 def _id_sort_key(fm: dict) -> tuple:
@@ -223,28 +146,37 @@ def _id_sort_key(fm: dict) -> tuple:
 
 
 def add_source(
-    root: Path, target: str, kind: str | None = None, note: str | None = None
+    root: Path,
+    target: str,
+    kind: str | None = None,
+    note: str | None = None,
+    via: str | None = None,
 ) -> pages.Page:
     """Capture a source into the notebook; returns its new entity page.
 
     Routes by kind: "file" (or any kind whose configured fetcher is
     "builtin:copy") copies the file verbatim; everything else runs the
-    [fetchers] command from $FLIP_HOME/config.toml. Appends one provenance
-    event per captured file, opens references/<slug>.md at grade "?", touches
-    the manifest. Local copies carry their origin file:// URI in provenance
-    only; fetched targets also land on the page as `resource`.
+    [fetchers] command resolved from $FLIP_HOME/config.toml (optionally a named
+    variant, `--via`). Appends one provenance event per captured file, opens
+    references/<slug>.md at grade "?", touches the manifest. Local copies carry
+    their origin file:// URI in provenance only; fetched targets also land on
+    the page as `resource` (the fetcher's canonical_url when it reports one).
     """
     root = require_notebook_root(root)
     kind = kind or _classify(target)
     source_id = pages.allocate_id(root, _ID_PREFIXES.get(kind, "S"))
 
-    template = None if kind == "file" else _fetcher_template(kind)
-    if template is None or template == "builtin:copy":
+    resolved = None if kind == "file" else integrations.resolve("fetchers", kind, via=via)
+    envelope: dict | None = None
+    if resolved is None or resolved.template == "builtin:copy":
         files, origin = _capture_copy(root, source_id, target)
-        tool, tool_version, strategy, url = "builtin:copy", None, "copy", origin
+        tool, tool_version, capture_kind, strategy, url = (
+            "builtin:copy", None, "copy", "copy", origin,
+        )
     else:
-        files, tool = _run_fetcher(root, source_id, kind, target, template)
-        tool_version, strategy, url = _tool_version(tool), "config", target
+        run = integrations.run_capture(resolved, root, source_id, target)
+        files, tool, tool_version = run.files, run.tool, run.tool_version
+        capture_kind, strategy, url, envelope = "config", run.strategy, target, run.envelope
 
     ts = utc_now()
     actor = detect_actor()
@@ -262,13 +194,25 @@ def add_source(
         if tool_version:
             event["tool_version"] = tool_version
         event["strategy"] = strategy
+        if envelope:
+            for key in ("canonical_url", "retrieved_at", "status", "mime", "backend_ref"):
+                value = envelope.get(key)
+                if value not in (None, "", [], {}):
+                    event[key] = value
+            if envelope.get("from_cache"):  # only the interesting signal: a store hit
+                event["from_cache"] = True
         event["actor"] = actor
         if note:
             event["note"] = note
         append_jsonl(prov_path, event)
 
-    largest = max(files, key=lambda p: p.stat().st_size)
-    title = _title_for(target, strategy)
+    # the page's primary artifact is the largest real capture, never the tiny
+    # flip.json envelope sidecar (which is metadata, not content)
+    primary = [f for f in files if f.name != "flip.json"] or files
+    largest = max(primary, key=lambda p: p.stat().st_size)
+    env_title = envelope.get("title") if envelope else None
+    title = env_title.strip() if isinstance(env_title, str) and env_title.strip() \
+        else _title_for(target, capture_kind)
     fm: dict = {
         "type": "Source",
         "id": source_id,
@@ -276,8 +220,11 @@ def add_source(
         "title": title,
         "description": note or f"{kind} source",
     }
-    if strategy == "config":
-        fm["resource"] = url  # for copies the origin URI lives in provenance, not the page
+    if capture_kind == "config":
+        canonical = envelope.get("canonical_url") if envelope else None
+        # for copies the origin URI lives in provenance, not the page
+        fm["resource"] = canonical.strip() if isinstance(canonical, str) and canonical.strip() \
+            else url
     fm.update(
         {
             "local": largest.relative_to(root).as_posix(),
@@ -293,9 +240,12 @@ def add_source(
     # File captures slug from the stem: `districts.csv` lives at
     # references/districts.md, not districts-csv.md (dogfood finding:
     # extension noise doubles up on .md captures — "…-survey-md.md").
-    slug_source = Path(title).stem if strategy == "copy" else title
+    slug_source = Path(title).stem if capture_kind == "copy" else title
     slug = pages.unique_slug(ref_dir, pages.slugify(slug_source, fallback=source_id.lower()))
     body = f"# {title}\n" + (f"\n{note}\n" if note else "")
+    hint = _hint_note(envelope)
+    if hint:
+        body += ("\n" if not body.endswith("\n") else "") + hint
     path = pages.write_page(ref_dir / f"{slug}.md", fm, body)
     manifest.touch_updated(root)
     _regenerate_views(root)

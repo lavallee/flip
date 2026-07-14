@@ -200,7 +200,9 @@ creation requirements).
 flip add-source https://example.com/report --note "why captured"   # runs your configured web fetcher
 flip add-source ./filing.pdf                                       # local file: builtin copy + hash
 flip add-source doi:10.1234/abcd                                   # paper: configured doi fetcher
-flip add-source --kind lookup "who acquired X?"                    # cited synthesis; grade C, then capture its citations
+flip find "who acquired X?"                                        # research: candidate leads (--capture <n>)
+flip ask "who acquired X?"                                         # research: cited synthesis (a grade-C lead → sessions/raw/)
+flip recall "prior work on X"                                      # knowledge: what we already hold locally
 # read it, then judge it — grading is a judgment, not a formality:
 flip grade A1 --grade B --independence original --freshness fresh --notes "official docs; original publisher"
 flip source list           # audit: any grade "?" line is captured but unjudged
@@ -214,12 +216,16 @@ frontmatter, your capture notes in the body. URL/DOI capture needs a
 configured, flip's error prints a schematic stanza to adapt.
 `republisher`/`derivative` sources don't count toward corroboration — prefer
 the original — and neither does anything still graded `?`.
-Fetcher implementations are operator configuration, not flip's public
-contract. Keep site-specific commands in `$FLIP_HOME/config.toml` or a
-separate private integration repository; public docs and packaged skills
-should refer only to source kinds and `{url}`/`{id}`/`{dest}` placeholders.
-Retrieval- or LLM-backed `lookup` output is a lead, not an evidence terminus:
-grade it C and capture its cited public URLs separately.
+Integrations are configured under three roles in `$FLIP_HOME/config.toml`:
+`[fetchers]` (capture, run by `add-source`), `[research]` (`find`/`ask`), and
+`[knowledge]` (`recall`). They are operator configuration, not flip's public
+contract — public docs and packaged skills refer only to kinds/verbs and the
+`{url}`/`{id}`/`{query}`/`{dest}` placeholders, never to a deployment's tools.
+`flip find`/`ask` output is a **lead, grade C, not evidence**: `ask` saves its
+raw synthesis under `sessions/raw/` and logs it, but you must capture and grade
+its cited public URLs separately before a load-bearing claim relies on it.
+`flip recall` reads local holdings and captures nothing. (`--kind lookup` is a
+deprecated alias for `flip ask`.)
 
 ### Assert and verify a claim
 

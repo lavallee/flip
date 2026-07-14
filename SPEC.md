@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.5 · 2026-07-10
+**Status:** draft v0.7 · 2026-07-14
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -497,7 +497,10 @@ purity; flip's own writer emits a deterministic strict subset).
 ```text
 flip new <slug> --kind <profile>     # scaffold manifest + notebook.md
 flip add-source <url|doi|file|->     # capture: fetch/copy → raw/, hash, provenance,
-                                     #   open a references/ page at grade "?"
+                                     #   open a references/ page at grade "?" (--via <variant>)
+flip find "<question>"               # research: list candidate leads (--capture <n>)
+flip ask "<question>"                # research: cited synthesis → sessions/raw/ (a grade-C lead)
+flip recall "<question>"             # knowledge: read what we already hold locally
 flip grade <id> …                    # record judgment on a source page
 flip log "<text>"                    # append a work-log event (+ regen log.md)
 flip decide|pass|question …          # decisions/questions pages; passed ledger
@@ -514,17 +517,54 @@ flip migrate                         # v0.3 ledgers → v0.4 pages
 flip export bag|csl|okf|ro-crate     # projections (§17)
 ```
 
-### Pluggable fetchers
+### Integration roles (pluggable externals)
 
-`flip add-source` routes by input type to fetchers registered in
-`~/.flip/config.toml` (`[fetchers]`, command templates with `{url}`/`{id}`/
-`{dest}`). Commands that write files receive `{dest}`; stdout-only commands
-may omit `{dest}` and their stdout is preserved as `capture.json` or
-`capture.txt`. Only `builtin:copy` is built in. Whatever runs, the tool,
-best-effort version, and strategy land in `_provenance.jsonl` automatically —
-principle 9 costs nothing when the tool does it. X/Twitter post URLs classify
-as `social` so a cookie-authenticated capture lane can preserve them separately
-from the ordinary `web` fetcher.
+flip shells out to external tools through a small set of **roles**, each a
+namespaced table in `~/.flip/config.toml` and a thin command protocol. flip
+defines the protocol; the tools that fill a role live only in user
+configuration, never in the package. Placeholders: `{url}` the target as
+given · `{id}` the target with a leading `doi:` stripped · `{query}` a
+research/recall question · `{dest}` the capture directory. Commands that write
+files receive `{dest}`; stdout-only commands may omit it and their stdout is
+preserved. The library makes **no network or LLM calls itself** — it only runs
+what you configure.
+
+- **`[fetchers]` — capture.** A target (`url`/`id`/`file`) → local bytes +
+  custody. `flip add-source` routes by kind. Only `builtin:copy` is built in.
+  A key's value may be a bare command string, an inline table
+  (`{ cmd = "…", needs = [...] }`), or a table of named variants selectable with
+  `--via <name>`. X/Twitter post URLs classify as `social` so a
+  cookie-authenticated lane can preserve them separately from the ordinary
+  `web` fetcher. Whatever runs, the tool, best-effort version, and strategy land
+  in `_provenance.jsonl` automatically — principle 9 costs nothing when the tool
+  does it.
+- **`[research]` — acquire.** A *question* → candidate leads (`flip find`) or
+  cited synthesis (`flip ask`). Synthesis is a **lead, grade C, not evidence**:
+  its raw output lands under `sessions/raw/` for custody and a log breadcrumb is
+  written, but its cited URLs become sources only when captured with
+  `flip add-source`. This role never opens a `references/` page on its own.
+- **`[knowledge]` — recall.** A *question* → what the deployment already holds
+  locally (`flip recall`). Read-only; lands nothing unless `--record`.
+
+#### Return envelope (optional, capture only)
+
+A fetcher may hand structured knowledge back to flip by emitting a `flip.json`
+sidecar in `{dest}` — or a JSON stdout capture — carrying a top-level `flip`
+object. flip harvests its neutral, **all-optional** keys and drops the rest:
+`title`, `canonical_url`, `retrieved_at`, `strategy`, `status`, `mime`,
+`from_cache` (True when served from a shared store rather than freshly fetched),
+`sub_resources`, `backend_ref` (opaque store/corpus id, passed through to
+provenance), and `independence_hint` / `freshness_hint`. Title and canonical URL
+flow onto the page; strategy/retrieved_at/status/mime/from_cache/backend_ref into
+provenance. **Hints are recorded as a page note, never the grade** — grading
+stays a judgment made after reading (SPEC §5.4). An absent envelope changes
+nothing; a strict producer, a tolerant consumer.
+
+This is how a shared blob/archive store plugs in without flip knowing it exists:
+a capture command may check the store first and, on a hit, serve the stored
+bytes (still writing the mandatory local copy) with `from_cache: true` and
+`backend_ref` set — the store id rides *alongside* local custody (§16), and
+nothing is re-fetched.
 
 ### The registry
 
@@ -552,10 +592,11 @@ documentation, or portable skills.
 
 | role | how referenced |
 |---|---|
-| capture tools (web, papers, media) | `[fetchers]` config + `tool` field in provenance |
-| retrieval/RAG corpus services | `links:` in the manifest; raw outputs land in `sessions/`; findings promoted via `references/` as grade `C` intermediaries |
+| capture tools (web, papers, media) | `[fetchers]` config + `tool`/`strategy` in provenance; optional return envelope enriches the page |
+| research multiplexers / SERP tools | `[research]` config (`find`/`ask`); candidate leads for `add-source`; synthesis raw → `sessions/raw/`, a grade-`C` lead promoted via `references/` only when captured |
+| local knowledge / retrieval corpora | `[knowledge]` config (`recall`); read-only; `links:` in the manifest for durable cross-refs |
 | knowledge graphs / lead trackers | `links:`; cross-refs by id |
-| shared blob/archive stores | provenance records may carry a store id **alongside** the mandatory local copy |
+| shared blob/archive stores | a capture command serves stored bytes on a hit; the envelope's `from_cache` + `backend_ref` land in provenance **alongside** the mandatory local copy — no re-fetch |
 | render targets | renderer reads the notebook, writes `renders/<target>/` |
 | OKF consumers (visualizers, catalogs, editors, other agents) | read the notebook directly — it is a bundle; strict-producer/tolerant-consumer |
 | registries / task systems | consume `~/.flip/index.jsonl`; no reverse dependency |

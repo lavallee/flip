@@ -6,6 +6,36 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-14
+
+### Added
+- **Integration roles** (SPEC §15–16): the single `[fetchers]` seam generalizes
+  into three deployment-neutral roles sharing one runner (`integrations.py`),
+  each a config namespace + command protocol + landing contract.
+  - **capture** (`[fetchers]`, hardened): config now accepts an inline table
+    (`{ cmd = "…", needs = […] }`) and named variants selectable with
+    `flip add-source --via <name>`, alongside the 0.6 bare-string form.
+  - **research** (`[research]`): `flip find "<q>"` lists candidate leads (nothing
+    is captured until you pick one, `--capture <n>`); `flip ask "<q>"` returns
+    cited synthesis — a grade-C **lead**, its raw output preserved under
+    `sessions/raw/` and logged, never opened as a source.
+  - **knowledge** (`[knowledge]`): `flip recall "<q>"` reads what the deployment
+    already holds locally (read-only; lands nothing unless `--record`).
+- **Return envelope** (optional, capture): a fetcher may emit a `flip.json`
+  sidecar — or a JSON stdout capture — carrying a top-level `flip` object.
+  flip harvests its neutral, all-optional keys (`title`, `canonical_url`,
+  `strategy`, `retrieved_at`, `status`, `mime`, `from_cache`, `backend_ref`, and
+  independence/freshness *hints*) onto the page and provenance. Hints are
+  recorded as a page note, never the grade — judgment stays explicit. Absent
+  envelope = 0.6 behavior unchanged. `from_cache` + `backend_ref` let a shared
+  cache/archive store serve bytes without a re-fetch, the store id recorded
+  alongside the mandatory local copy.
+
+### Changed
+- `flip add-source --kind lookup` is deprecated: cited synthesis is a lead, so it
+  now reroutes to `flip ask` (landing in `sessions/`, not `references/`) with a
+  one-line notice. Move `[fetchers].lookup` config to `[research].ask`.
+
 ### Fixed
 - Removed site-specific fetcher names and assumptions from the public source,
   docs, agent guide, and packaged skills. Missing-config guidance now describes

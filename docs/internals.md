@@ -54,7 +54,9 @@ document disagree, fix one of them in the same change.
 | `profiles.py` + `profiles/*.toml` | section menu, profile loading | `SECTIONS`, `SECTION_ORDER`, `load_profile`, `list_profiles`, `Profile` (requires paths are v0.4: entity dirs like `references`, `claims`, plus files like `log/passed.jsonl`) |
 | `manifest.py` | root index.md frontmatter | `Manifest` dataclass (flat policy fields + `.policy` dict property), `load_manifest(root)`, `save_manifest(root, m, body=None)` (body preserved byte-for-byte unless views passes a new one), `manifest_frontmatter(m)`, `touch_updated(root)`, `require_valid_slug` (`^[a-z0-9][a-z0-9._-]*$`). Unknown frontmatter keys land in `Manifest.extras` and re-emit on save; a known key whose value fails its type check (`tools: "a string"`, `relations: {map}`) rides along in extras verbatim instead of being dropped |
 | `scaffold.py` | `flip new` | `create_notebook(dest, slug, kind, title, visibility) -> Path`; writes exactly index.md (via `save_manifest`) + notebook.md (`type: Notebook` + section stubs); all validation before mkdir |
-| `sources.py` | `flip add-source` / `flip grade` | `add_source(root, target, kind=None, note=None) -> Page`: fetcher routing/exec, `builtin:copy`, per-file provenance events, opens `references/<slug>.md` at grade `?`; kind→prefix per SPEC §9 (`paper`→P, `web`/`article`→A, `file`/`dataset`/`document`→F, `talk`/`transcript`→T, else S — D is reserved for decisions). `grade_source(...) -> Page` edits only the judgment keys; `list_sources(root) -> list[dict]` (fm + slug + root-relative path, id order); `source_pages(root)` read-only for claims/doctor/export |
+| `integrations.py` | the shared plugin layer (SPEC §15–16) | `resolve(role, key, via=None) -> Resolved` reads `$FLIP_HOME/config.toml` for a role (`fetchers`/`research`/`knowledge`), handling bare-string / inline-table (`{cmd, needs}`) / named-variant (`--via`) forms with actionable per-role guidance. `run_capture(resolved, root, source_id, target) -> CaptureRun` (files + tool/version + strategy + harvested envelope; `{dest}` files or stdout→`capture.{json,txt}`); `run_query(resolved, root, query) -> QueryRun` (raw stdout + best-effort JSON, no capture dir). `_harvest_envelope` pulls the whitelisted `ENVELOPE_KEYS` from a `flip.json` sidecar or JSON stdout; `tool_version`, `_tokenize_template` (posix except on nt), `config_path`. No network/LLM in the library — it only runs configured commands |
+| `sources.py` | `flip add-source` / `flip grade` | `add_source(root, target, kind=None, note=None, via=None) -> Page`: routes via `integrations` (capture role), `builtin:copy` for files, per-file provenance events, opens `references/<slug>.md` at grade `?`; kind→prefix per SPEC §9 (`paper`→P, `web`/`article`→A, `file`/`dataset`/`document`→F, `talk`/`transcript`→T, else S — D is reserved for decisions). Harvests any return envelope: `title`/`canonical_url` onto the page, `strategy`/`retrieved_at`/`status`/`mime`/`backend_ref` into provenance, independence/freshness *hints* as a body note (never the grade). `grade_source(...) -> Page` edits only the judgment keys; `list_sources(root) -> list[dict]` (fm + slug + root-relative path, id order); `source_pages(root)` read-only for claims/doctor/export |
+| `query.py` | `flip find` / `flip ask` / `flip recall` | `research_find(root, query, via=None) -> FindResult` (normalized candidate leads; captures nothing), `research_ask(...) -> AskResult` (cited synthesis; lands verbatim raw under `sessions/raw/<stamp>-ask-<slug>.json`, logs a breadcrumb, opens no `references/` page — a grade-C lead), `knowledge_recall(..., record=False) -> RecallResult` (local hits, read-only unless `record`). Tolerant normalization (url/title/snippet, path/title/excerpt, answer/citations) that drops backend-native ids — flip's shape never promotes them to fields of its own |
 | `ledgers.py` | `flip log/decide/pass/question` | Event ledgers: `log_event`, `add_passed` (append-only JSONL under log/). Entity pages: `add_decision` (D#, decisions/), `add_question` (Q#, questions/, `status: open`), `answer_question(root, qid, note=None)` (status→answered + answered/answered_by; note under `## Answer`), `list_questions(root, status=None)`, `open_questions(root)` |
 | `claims.py` | `flip claim` | `add_claim(root, text, sources, load_bearing, notes) -> Page` (C#, claims/, generated `# Citations` block + `supports` bundle paths); `set_claim_status` (verification bar via the profile: `claim_min_independent` / `claim_grade_a_suffices`; recomputes corroboration, refreshes supports + citations); `list_claims`; `STATUSES`; `corroboration_count(source_fms, source_ids)` is the one shared bar: deduped source ids whose page is judged (grade A/B/C — `?` never counts) with `independence == "original"`; doctor uses it too |
 | `sessions.py` | `flip session` | `start_session(root, slug, model=None, tools=None) -> Path` (top-level `sessions/<stamp>-<slug>.md`, `type: Work Session`), `end_session(root, path_or_slug, summary)` — path or exact slug (newest exact match wins); `ended` lands in frontmatter, summary under `## Summary` |
@@ -72,12 +74,16 @@ document disagree, fix one of them in the same change.
 ## Config resolution
 
 - `FLIP_HOME` (default `~/.flip`) holds `config.toml` and `index.jsonl`.
-- `config.toml` `[fetchers]` maps kind → command template with `{url}`/`{id}`/
-  `{dest}` placeholders (SPEC §15); templates without `{dest}` may emit the
-  captured artifact on stdout. Unknown kind or missing fetcher →
-  actionable error naming the config file. `builtin:copy` needs no config.
-  The public distribution supplies only this protocol and schematic missing-
-  config guidance; site-specific commands live in operator config or private
+- `config.toml` holds three integration-role tables (SPEC §15–16), all
+  resolved through `integrations.resolve`: `[fetchers]` (capture, keyed by
+  kind), `[research]` (`find`/`ask`), `[knowledge]` (`recall`). Placeholders
+  `{url}`/`{id}`/`{query}`/`{dest}`; commands without `{dest}` emit on stdout.
+  A key's value may be a bare string, an inline table (`{cmd, needs}`), or a
+  named-variant map picked with `--via`. Unknown key / missing config →
+  actionable error naming the file and a schematic stanza. `builtin:copy`
+  needs no config. Capture commands may return an optional neutral `flip`
+  envelope. The public distribution supplies only the protocol and schematic
+  guidance; site-specific commands live in operator config or private
   integration repositories.
 - Notebook-local `.flip/profiles/*.toml` overrides shipped profiles.
 - `FLIP_ACTOR` overrides actor detection (then agent-harness env vars, then

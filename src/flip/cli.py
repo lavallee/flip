@@ -28,6 +28,7 @@ from . import (
     obsidian as obsidian_mod,
     pages,
     profiles as profiles_mod,
+    query as query_mod,
     registry,
     rename as rename_mod,
     scaffold,
@@ -88,11 +89,14 @@ def new(slug: str, kind: str, title: str, visibility: str | None, dest: Path | N
 @main.command("add-source")
 @click.argument("target")
 @click.option("--kind", default=None,
-              help="Source kind (web|social|paper|file|dataset|talk|lookup|…); inferred from the "
+              help="Source kind (web|social|paper|file|dataset|talk|…); inferred from the "
                    "target when omitted. Non-file kinds run the [fetchers] command "
                    "configured in $FLIP_HOME/config.toml.")
+@click.option("--via", default=None,
+              help="Named fetcher variant to use, from [fetchers.<kind>] in config.toml "
+                   "(e.g. --via browser).")
 @click.option("--note", default=None, help="Capture note, recorded in provenance and on the page.")
-def add_source(target: str, kind: str | None, note: str | None) -> None:
+def add_source(target: str, kind: str | None, via: str | None, note: str | None) -> None:
     """Capture a source: fetch/copy into sources/raw/, hash it, open a page.
 
     Use the moment you rely on something external — URL, DOI, or local file.
@@ -100,11 +104,131 @@ def add_source(target: str, kind: str | None, note: str | None) -> None:
     read — ungraded sources never count toward claim verification.
     """
     root = require_notebook_root()
-    page = sources.add_source(root, target, kind=kind, note=note)
+    if kind == "lookup":
+        click.echo(
+            "note: --kind lookup is deprecated — use `flip ask`. Cited synthesis is a "
+            "lead (grade C), so it now lands in sessions/, not as a source. Move your "
+            "[fetchers].lookup command to [research].ask in config.toml.",
+            err=True,
+        )
+        _emit_ask(root, target, via, as_json=False)
+        return
+    page = sources.add_source(root, target, kind=kind, note=note, via=via)
     rel = page.path.relative_to(root).as_posix()
     click.echo(f"{page.id} · {page.fm.get('local', '')} · {rel} (grade ?)")
     click.echo(f"judge it: flip grade {page.id} --grade A|B|C "
                f"--independence original|republisher|derivative|self-interested")
+
+
+# ---------------------------------------------------------------- research / knowledge
+
+
+def _emit_ask(root: Path, query: str, via: str | None, as_json: bool) -> None:
+    """Shared renderer for `flip ask` and the deprecated `add-source --kind lookup`."""
+    result = query_mod.research_ask(root, query, via=via)
+    rel = result.raw_path.relative_to(root).as_posix() if result.raw_path else None
+    if as_json:
+        click.echo(json.dumps(
+            {"query": result.query, "answer": result.answer,
+             "citations": result.citations, "raw": rel},
+            ensure_ascii=False, indent=2,
+        ))
+        return
+    click.echo(result.answer)
+    if result.citations:
+        click.echo("\ncitations (leads — capture the ones you'll rely on):")
+        for i, c in enumerate(result.citations, 1):
+            click.echo(f"{i}. {c.get('title') or c['url']}\n   {c['url']}")
+    click.echo(f"\nlead saved to {rel} — this synthesis is grade C, not evidence; "
+               "`flip add-source <url>` then `flip grade` the sources you rely on")
+
+
+@main.command()
+@click.argument("query")
+@click.option("--via", default=None, help="Named [research] variant to use.")
+@click.option("--capture", "capture_n", type=int, default=None, metavar="N",
+              help="Capture candidate N (1-based) as a source instead of listing.")
+@click.option("--json", "as_json", is_flag=True, help="Emit candidates as JSON.")
+def find(query: str, via: str | None, capture_n: int | None, as_json: bool) -> None:
+    """Find candidate sources for a question via [research].find — leads, not captures.
+
+    Runs your configured research tool and lists what it surfaces; nothing is
+    captured until you pick one (`--capture <n>`, or `flip add-source <url>`).
+    """
+    root = require_notebook_root()
+    result = query_mod.research_find(root, query, via=via)
+    if capture_n is not None:
+        if not 1 <= capture_n <= len(result.candidates):
+            raise SystemExit(
+                f"--capture {capture_n} is out of range "
+                f"({len(result.candidates)} candidate(s) found)"
+            )
+        url = result.candidates[capture_n - 1]["url"]
+        page = sources.add_source(root, url)
+        rel = page.path.relative_to(root).as_posix()
+        click.echo(f"captured candidate {capture_n}: {page.id} · {url} · {rel} (grade ?)")
+        return
+    if as_json:
+        click.echo(json.dumps(
+            {"query": result.query, "candidates": result.candidates},
+            ensure_ascii=False, indent=2,
+        ))
+        return
+    if not result.candidates:
+        click.echo("no candidates returned")
+        return
+    for i, c in enumerate(result.candidates, 1):
+        line = f"{i}. {c.get('title') or c['url']}\n   {c['url']}"
+        if c.get("snippet"):
+            line += f"\n   {c['snippet']}"
+        click.echo(line)
+    click.echo('leads only — capture one with `flip find --capture <n> "<query>"` or '
+               "`flip add-source <url>`, then grade it")
+
+
+@main.command()
+@click.argument("query")
+@click.option("--via", default=None, help="Named [research] variant to use.")
+@click.option("--json", "as_json", is_flag=True, help="Emit the answer + citations as JSON.")
+def ask(query: str, via: str | None, as_json: bool) -> None:
+    """Ask [research].ask for cited synthesis — a grade-C lead, saved to sessions/raw/.
+
+    The synthesis is a lead, not evidence: its raw output is preserved for
+    custody and logged, but its citations become sources only when you capture
+    and grade them.
+    """
+    _emit_ask(require_notebook_root(), query, via, as_json)
+
+
+@main.command()
+@click.argument("query")
+@click.option("--via", default=None, help="Named [knowledge] variant to use.")
+@click.option("--record", is_flag=True,
+              help="Also preserve the raw result under sessions/raw/ and log it.")
+@click.option("--json", "as_json", is_flag=True, help="Emit hits as JSON.")
+def recall(query: str, via: str | None, record: bool, as_json: bool) -> None:
+    """Recall what we already hold locally via [knowledge].recall (read-only).
+
+    Answers "do we already know this?" before you go acquire — it reads the
+    deployment's local corpus and creates no source.
+    """
+    root = require_notebook_root()
+    result = query_mod.knowledge_recall(root, query, via=via, record=record)
+    if as_json:
+        click.echo(json.dumps(
+            {"query": result.query, "hits": result.hits}, ensure_ascii=False, indent=2
+        ))
+        return
+    if not result.hits:
+        click.echo("no local matches")
+        return
+    for i, h in enumerate(result.hits, 1):
+        line = f"{i}. {h.get('title') or h.get('path') or '(untitled)'}"
+        if h.get("path") and h.get("title"):
+            line += f"\n   {h['path']}"
+        if h.get("excerpt"):
+            line += f"\n   {h['excerpt']}"
+        click.echo(line)
 
 
 @main.command()

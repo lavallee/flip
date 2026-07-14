@@ -55,11 +55,19 @@ didn't capture is a source you don't have.
    mean to and preserve frontmatter keys you don't own. Log anything notable
    about the capture with `flip log`.
 
-For quick discovery, a retrieval or LLM-backed command may be configured as
-the `lookup` kind: `flip add-source --kind lookup "<question>"`. Its cited
-synthesis is a lead, not corroboration: read it, grade it C, and separately
-capture and judge the public URLs in its citations before relying on any
-claim.
+For discovery, use the research and knowledge roles (configured in
+`$FLIP_HOME/config.toml`) — they never mint a source by themselves:
+- `flip find "<question>"` lists candidate sources; capture one with
+  `flip find --capture <n> "<question>"` or `flip add-source <url>`.
+- `flip ask "<question>"` returns cited synthesis. It is a **lead, not
+  corroboration**: its raw output is saved under `sessions/raw/` and logged, but
+  you must separately `flip add-source` and grade the public URLs it cites
+  before any claim relies on them.
+- `flip recall "<question>"` reads what you already hold locally (captures
+  nothing) — check it before acquiring.
+
+(`flip add-source --kind lookup "<question>"` is a deprecated alias for
+`flip ask`.)
 
 Do not paste fetched text into the notebook as if it were a source — every
 source enters through `flip add-source` so raw bytes, hash, and provenance
