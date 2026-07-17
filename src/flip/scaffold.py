@@ -20,7 +20,7 @@ from .manifest import (
     save_manifest,
 )
 from .profiles import SECTIONS, Profile, load_profile
-from .util import ROOT_FILE, today
+from .util import ROOT_FILE, new_uid, today
 
 NOTEBOOK_MD = "notebook.md"
 
@@ -61,7 +61,10 @@ def create_notebook(
         raise SystemExit(
             f"invalid visibility '{visibility}' (one of: {', '.join(VISIBILITIES)})"
         )
-    m = Manifest(slug=slug, title=title, kind=kind, created=today(), updated=today())
+    m = Manifest(
+        slug=slug, uid=new_uid(), title=title, kind=kind,
+        created=today(), updated=today(),
+    )
     for key, value in profile.forced_policy.items():
         if key in DEFAULT_POLICY:
             setattr(m, key, value)

@@ -104,6 +104,16 @@ def run_doctor(root: Path) -> list[Finding]:
     return findings
 
 
+def run_workspace_doctor(ws_root: Path, fix: bool = False) -> list[Finding]:
+    """Workspace-mode checks (SPEC §18): the table itself (bad-workspace-file,
+    handle-syntax, dangling-workspace-entry), lineage sanity (duplicate-uid,
+    missing-uid), coverage (unregistered-notebook), and cross-notebook
+    ambiguity (ambiguous-id, slug-collision — aggregated, informational).
+    `fix` binds unregistered notebooks, backfills uids, and regenerates
+    qualified aliases. Finding.path is workspace-root-relative."""
+    raise NotImplementedError("WP4")
+
+
 # --- manifest & profile -------------------------------------------------------
 
 

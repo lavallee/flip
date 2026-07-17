@@ -24,6 +24,7 @@ from . import (
     integrations,
     doctor as doctor_mod,
     export as export_mod,
+    importer as importer_mod,
     ledgers,
     migrate as migrate_mod,
     obsidian as obsidian_mod,
@@ -32,12 +33,14 @@ from . import (
     query as query_mod,
     registry,
     rename as rename_mod,
+    resolve as resolve_mod,
     scaffold,
     sessions,
     sources,
     views,
+    workspace as workspace_mod,
 )
-from .util import find_notebook_root, require_notebook_root
+from .util import find_notebook_root, find_workspace_root, require_notebook_root
 
 
 @click.group(name="flip")
@@ -547,24 +550,40 @@ def show(claims_flag: bool, stale_flag: bool, as_json: bool) -> None:
 
 
 @main.command("open")
-@click.argument("entity_id", metavar="ID")
-def open_(entity_id: str) -> None:
-    """Resolve a compact id (A3, C7, D2, Q4…) to its entity page path.
+@click.argument("ref", metavar="REF")
+def open_(ref: str) -> None:
+    """Resolve a reference (A3, C7 … or recipes:A3) to its entity page path.
 
     Ids are immutable frontmatter; filenames are human slugs (SPEC §9), so
-    this is how a bare [A3] cite becomes a file. Prints the absolute path —
-    compose it: `$EDITOR $(flip open A3)`.
+    this is how a bare [A3] cite becomes a file. Qualified refs like
+    recipes:A3 resolve through the enclosing workspace table (SPEC §18).
+    Prints the absolute path — compose it: `$EDITOR $(flip open A3)`.
     """
-    root = require_notebook_root()
-    page = pages.find_by_id(root, entity_id)
-    if page is None:
-        known = sorted(
-            {p.id for d in pages.SCAN_DIRS for p in pages.iter_pages(root, d) if p.id},
-            key=lambda s: (s.rstrip("0123456789"), len(s), s),
-        )
-        hint = f"known ids: {', '.join(known)}" if known else "no entity pages yet"
-        raise SystemExit(f"no page with id '{entity_id}' ({hint})")
-    click.echo(str(page.path))
+    click.echo(str(resolve_mod.resolve_ref(ref).path))
+
+
+@main.command("resolve")
+@click.argument("ref", metavar="REF")
+@click.option("--json", "as_json", is_flag=True,
+              help="Emit ref, id, handle, path, notebook root/slug, uid, title as JSON.")
+def resolve_cmd(ref: str, as_json: bool) -> None:
+    """Resolve a reference to its entity page, with provenance.
+
+    Bare ids (A3) resolve within the containing notebook; qualified refs
+    (recipes:A3) resolve through the nearest workspace table; unknown handles
+    and ids are errors, never guesses (SPEC §9). This is the primitive
+    plugins and agents shell out to — plain output is just the path.
+    """
+    r = resolve_mod.resolve_ref(ref)
+    if as_json:
+        click.echo(json.dumps(
+            {"ref": r.ref, "id": r.entity_id, "handle": r.handle,
+             "path": str(r.path), "notebook_root": str(r.notebook_root),
+             "notebook_slug": r.notebook_slug, "uid": r.uid, "title": r.title},
+            ensure_ascii=False, indent=2,
+        ))
+        return
+    click.echo(str(r.path))
 
 
 @main.command()
@@ -588,7 +607,13 @@ def rename(entity_id: str, new_slug: str) -> None:
 
 @main.command()
 @click.option("--json", "as_json", is_flag=True, help="Emit findings as JSON.")
-def doctor(as_json: bool) -> None:
+@click.option("--workspace", "workspace_flag", is_flag=True,
+              help="Lint the enclosing workspace instead: the handle table, "
+                   "notebook coverage, uid lineage, and cross-notebook ambiguity.")
+@click.option("--fix", is_flag=True,
+              help="Workspace mode only: bind unregistered notebooks, backfill "
+                   "uids, and regenerate qualified aliases.")
+def doctor(as_json: bool, workspace_flag: bool, fix: bool) -> None:
     """Lint the notebook against the spec and its profile; exit 1 on errors.
 
     Checks manifest sanity, OKF conformance (frontmatter + type on every
@@ -596,8 +621,20 @@ def doctor(as_json: bool) -> None:
     while status is active/dormant, ERROR once done/published/archived),
     orphan custody, stale freshness, and claims below the verification bar.
     Run before a handoff or publish; fix ERRORs, weigh WARNs.
+
+    With --workspace (or from a workspace root outside any notebook), lints
+    the shared space instead (SPEC §18): duplicate uids, unbound notebooks,
+    ids and slugs ambiguous across notebooks.
     """
-    findings = doctor_mod.run_doctor(require_notebook_root())
+    nb_root = find_notebook_root()
+    if workspace_flag or (nb_root is None and find_workspace_root() is not None):
+        ws_root = workspace_mod.require_workspace_root()
+        findings = doctor_mod.run_workspace_doctor(ws_root, fix=fix)
+    else:
+        if fix:
+            raise SystemExit("--fix applies to workspace mode only (flip 0.9); "
+                             "run `flip doctor --workspace --fix`")
+        findings = doctor_mod.run_doctor(require_notebook_root())
     if as_json:
         click.echo(json.dumps([asdict(f) for f in findings], ensure_ascii=False, indent=2))
     elif not findings:
@@ -648,6 +685,132 @@ def obsidian_cmd(no_plugin: bool) -> None:
                "gitignore if this notebook is committed")
 
 
+# ---------------------------------------------------------------- workspace
+
+
+@main.group()
+def ws() -> None:
+    """Workspaces: many notebooks sharing one vault or repo (SPEC §18).
+
+    A workspace root carries .flip/workspace.toml — the local table binding
+    short handles to notebook paths, so qualified refs like recipes:A3 stay
+    unambiguous. Handles are yours (like git remote names): the notebook's
+    slug is only a suggestion, and the binding never ships with the bundle.
+    Start with `flip ws init` at the vault/repo root; `flip doctor
+    --workspace` audits the shared space.
+    """
+
+
+@ws.command("init")
+def ws_init_cmd() -> None:
+    """Declare the current directory a workspace root and bind what's here.
+
+    Scans below for notebooks, proposes each one's slug as its handle
+    (collisions get -2, -3 … — rename with `flip ws rename`), writes
+    .flip/workspace.toml, and adds qualified aliases (recipes:A3) to entity
+    pages so Obsidian autocomplete can disambiguate.
+    """
+    ws_obj = workspace_mod.ws_init(Path.cwd().resolve())
+    for handle in sorted(ws_obj.notebooks):
+        click.echo(f"{handle} → {ws_obj.notebooks[handle]}")
+    click.echo(f"workspace initialized: {len(ws_obj.notebooks)} notebook(s) bound "
+               f"→ {workspace_mod.WORKSPACE_FILE}")
+
+
+@ws.command("list")
+@click.option("--json", "as_json", is_flag=True,
+              help="Emit handle, path, slug, uid, title, status rows as JSON.")
+def ws_list(as_json: bool) -> None:
+    """List bound notebooks: handle · slug · uid · path (status flags problems)."""
+    rows = workspace_mod.ws_rows(workspace_mod.require_workspace_root())
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        click.echo("no notebooks bound (bind one: `flip ws add <path>`)")
+        return
+    for r in rows:
+        line = f"{r['handle']} · {r.get('slug', '?')} · {r.get('uid') or '(no uid)'} · {r['path']}"
+        if r.get("status") != "ok":
+            line += f" [{r['status']}]"
+        click.echo(line)
+
+
+@ws.command("add")
+@click.argument("path", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option("--as", "handle", default=None, metavar="HANDLE",
+              help="Handle to bind [default: the notebook's slug].")
+def ws_add_cmd(path: Path, handle: str | None) -> None:
+    """Bind a notebook already on disk to a handle in this workspace."""
+    bound, rel = workspace_mod.ws_add(
+        workspace_mod.require_workspace_root(), path.resolve(), handle
+    )
+    click.echo(f"bound {bound} → {rel}")
+
+
+@ws.command("rename")
+@click.argument("old")
+@click.argument("new")
+def ws_rename_cmd(old: str, new: str) -> None:
+    """Rebind a handle, rewriting qualified refs (old:A3 → new:A3) workspace-wide.
+
+    The same move as `git remote rename`: the notebook itself is untouched
+    except its qualified aliases; prose citations, wikilinks, and frontmatter
+    referencing the old handle are rewritten mechanically (captured bytes
+    under sources/, derived/, and renders/ are never edited).
+    """
+    ws_root = workspace_mod.require_workspace_root()
+    changed = workspace_mod.ws_rename(ws_root, old, new)
+    click.echo(f"renamed {old} → {new}; rewrote refs in {changed} file(s)")
+
+
+@ws.command("rm")
+@click.argument("handle")
+def ws_rm_cmd(handle: str) -> None:
+    """Unbind a handle (files stay on disk; only the binding and its
+    qualified aliases are removed)."""
+    workspace_mod.ws_rm(workspace_mod.require_workspace_root(), handle)
+    click.echo(f"unbound {handle} (files kept — remove the directory yourself if intended)")
+
+
+@main.command("import")
+@click.argument("src", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option("--as", "handle", default=None, metavar="HANDLE",
+              help="Handle to bind the import under [default: the bundle's slug].")
+@click.option("--into", default=None, type=click.Path(path_type=Path),
+              help="Directory to copy the bundle into [default: <workspace>/<handle>].")
+@click.option("--update", "update_handle", default=None, metavar="HANDLE",
+              help="Refresh an existing import from a newer copy of the same "
+                   "notebook (uids must match) instead of adding a new one.")
+def import_cmd(src: Path, handle: str | None, into: Path | None,
+               update_handle: str | None) -> None:
+    """Import a shared notebook (directory, OKF export, or BagIt bag).
+
+    Copies the bundle into the enclosing workspace, binds it to a handle you
+    own, and records provenance (origin, uid). Entity ids are never rekeyed —
+    citations inside the bundle stay valid, and your own notes reference it
+    as handle:id (SPEC §17-§18). --update is replace-if-uid-matches; merging
+    diverged copies is out of scope.
+    """
+    ws_root = workspace_mod.require_workspace_root()
+    if update_handle is not None:
+        if handle is not None or into is not None:
+            raise SystemExit("--update takes only SRC; --as/--into apply to new imports")
+        summary = importer_mod.update_bundle(ws_root, update_handle, src.resolve())
+        click.echo(f"updated {update_handle} from {src} (uid {summary['uid']})")
+    else:
+        summary = importer_mod.import_bundle(
+            ws_root, src.resolve(), handle=handle,
+            into=into.resolve() if into is not None else None,
+        )
+        click.echo(f"imported '{summary['slug']}' as {summary['handle']} → "
+                   f"{summary['path']} (uid {summary['uid']})")
+    errors, warns = summary.get("doctor_errors", 0), summary.get("doctor_warns", 0)
+    if errors or warns:
+        click.echo(f"doctor: {errors} error(s), {warns} warning(s) — "
+                   f"cd {summary['path']} && flip doctor")
+
+
 # ---------------------------------------------------------------- registry / export
 
 
@@ -664,7 +827,10 @@ def index(roots: tuple[Path, ...]) -> None:
     rows = registry.build_index([r.resolve() for r in roots] or [Path.cwd()])
     good = [r for r in rows if "error" not in r]
     for r in good:
-        click.echo(f"{r['slug']} · {r['kind']} · {r['status']} · {r['path']}")
+        if r.get("workspace"):
+            click.echo(f"workspace · {r['path']} · {len(r.get('notebooks', {}))} notebook(s)")
+        else:
+            click.echo(f"{r['slug']} · {r['kind']} · {r['status']} · {r['path']}")
     skipped = len(rows) - len(good)
     tail = f" ({skipped} skipped, see stderr)" if skipped else ""
     click.echo(f"indexed {len(good)} notebook(s){tail} → {registry.flip_home() / registry.INDEX}")
@@ -672,12 +838,14 @@ def index(roots: tuple[Path, ...]) -> None:
 
 @main.command()
 def migrate() -> None:
-    """Convert a v0.3 notebook (notebook.toml + JSONL entity ledgers) to v0.4.
+    """Upgrade a notebook in place to the current profile version.
 
-    In place: the manifest moves into the root index.md frontmatter and every
-    source/claim/decision/question/session becomes an entity page, preserving
-    ids and fields. Event ledgers (log/, provenance) and sources/raw/ stay as
-    they are. Resumable if interrupted; run `flip doctor` afterwards.
+    v0.3 notebooks (notebook.toml + JSONL entity ledgers): the manifest moves
+    into the root index.md frontmatter and every source/claim/decision/
+    question/session becomes an entity page, preserving ids and fields.
+    v0.4 notebooks: the manifest gains a uid and links.beat moves to the
+    canonical ':' separator ('#' reads are deprecated, removed in 0.10).
+    Resumable if interrupted; run `flip doctor` afterwards.
     """
     cwd = Path.cwd().resolve()
     root = next(
@@ -690,9 +858,9 @@ def migrate() -> None:
     summary = ", ".join(
         f"{n} {name.replace('_', ' ')}"
         for name, n in counts.items()
-        if n or name != "already_migrated"  # mention skips only when they happened
+        if isinstance(n, int) and (n or name != "already_migrated")
     )
-    click.echo(f"migrated {root} to v0.4 · {summary}")
+    click.echo(f"migrated {root} · {summary}")
     click.echo("entity pages: references/ claims/ decisions/ questions/ sessions/ — "
                "run `flip doctor` to audit the result")
 

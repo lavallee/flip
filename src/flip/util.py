@@ -11,12 +11,60 @@ import getpass
 import hashlib
 import json
 import os
+import random
 import re
+import secrets
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT_FILE = "index.md"
+
+# Workspace marker: a vault/repo root that binds notebooks to handles (SPEC §18).
+WORKSPACE_FILE = Path(".flip") / "workspace.toml"
+
+# Notebook uid: stable machine-generated identity that travels with the bundle
+# (SPEC §4). Metadata only — never appears in links or filenames. Crockford
+# base32 lowercased, minus vowels, so uids are compact and unpronounceable-safe.
+UID_ALPHABET = "0123456789bcdfghjkmnpqrstvwxyz"
+UID_RE = re.compile(r"^nb-[0-9bcdfghjkmnpqrstvwxyz]{8}$")
+
+# Workspace handles are importer-owned petnames (SPEC §18). Deliberately
+# narrower than SLUG_RE: no dots/underscores, no leading digit, so a handle is
+# always a TOML bare key and reads unambiguously before ':' in a ref.
+HANDLE_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+
+# Cross-notebook reference grammar (SPEC §9): "A3" or "handle:A3".
+# '#' is a deprecated synonym for ':' (removed in 0.10).
+REF_RE = re.compile(r"^(?:(?P<handle>[a-z][a-z0-9-]*)(?P<sep>[:#]))?(?P<id>[A-Z]+\d+)$")
+
+
+def new_uid(rng: random.Random | None = None) -> str:
+    """Mint a notebook uid like nb-7k3m9p2x. Pass a seeded Random in tests."""
+    pick = rng.choice if rng is not None else secrets.SystemRandom().choice
+    return "nb-" + "".join(pick(UID_ALPHABET) for _ in range(8))
+
+
+def parse_ref(ref: str) -> tuple[str | None, str, bool]:
+    """Parse an entity reference into (handle, id, used_deprecated_hash).
+
+    "A3" -> (None, "A3", False); "recipes:A3" -> ("recipes", "A3", False);
+    "recipes#A3" -> ("recipes", "A3", True). Anything else exits with the
+    grammar in the message.
+    """
+    m = REF_RE.match(ref or "")
+    if not m:
+        raise SystemExit(
+            f"invalid reference {ref!r}: expected a compact id like A3 or a "
+            "qualified form like recipes:A3 (handle = lowercase letters, "
+            "digits, hyphens; id = PREFIX + number)"
+        )
+    return m.group("handle"), m.group("id"), m.group("sep") == "#"
+
+
+def format_ref(handle: str | None, entity_id: str) -> str:
+    """"A3" or "recipes:A3" — the canonical textual form of a reference."""
+    return f"{handle}:{entity_id}" if handle else entity_id
 
 
 def is_notebook_root(directory: Path) -> bool:
@@ -168,3 +216,17 @@ def require_notebook_root(start: Path | None = None) -> Path:
             "`flip migrate` inside a v0.3 notebook"
         )
     return root
+
+
+def is_workspace_root(directory: Path) -> bool:
+    """A workspace root is any directory carrying .flip/workspace.toml (SPEC §18)."""
+    return (directory / WORKSPACE_FILE).is_file()
+
+
+def find_workspace_root(start: Path | None = None) -> Path | None:
+    """Walk up from `start` (default cwd) to the nearest workspace root."""
+    cur = (start or Path.cwd()).resolve()
+    for candidate in [cur, *cur.parents]:
+        if is_workspace_root(candidate):
+            return candidate
+    return None

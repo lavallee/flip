@@ -42,7 +42,8 @@ def test_new_creates_notebook(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     index = (tmp_path / "demo" / "index.md").read_text(encoding="utf-8")
     assert index.startswith("---\n")
-    assert "flip: '0.4'" in index and "slug: demo" in index
+    assert "flip: '0.5'" in index and "slug: demo" in index
+    assert "uid: nb-" in index  # every new notebook gets a stable uid (SPEC §4)
     md = (tmp_path / "demo" / "notebook.md").read_text(encoding="utf-8")
     assert "# Reporter's notebook — Demo run" in md
     assert "## The tip" in md

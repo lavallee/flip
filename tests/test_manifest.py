@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from flip.manifest import (
+    FLIP_PROFILE_VERSION,
     Manifest,
     load_manifest,
     manifest_frontmatter,
@@ -155,7 +156,31 @@ def test_manifest_frontmatter_declares_okf_and_flip_versions():
     keys = list(fm)
     assert keys[:3] == ["okf_version", "flip", "slug"]  # canonical order, OKF-first
     assert fm["okf_version"] == "0.1"
-    assert fm["flip"] == "0.4"
+    assert fm["flip"] == FLIP_PROFILE_VERSION
+
+
+def test_manifest_uid_and_origin_round_trip(tmp_path):
+    m = Manifest(slug="t", uid="nb-7k3m9p2x", origin="/elsewhere (imported 2026-07-16)")
+    save_manifest(tmp_path, m)
+    loaded = load_manifest(tmp_path)
+    assert loaded.uid == "nb-7k3m9p2x"
+    assert loaded.origin == "/elsewhere (imported 2026-07-16)"
+
+
+def test_manifest_uid_emitted_after_slug_only_when_set():
+    fm = manifest_frontmatter(Manifest(slug="t", uid="nb-7k3m9p2x"))
+    keys = list(fm)
+    assert keys[keys.index("slug") + 1] == "uid"
+    assert "uid" not in manifest_frontmatter(Manifest(slug="t"))
+    assert "origin" not in manifest_frontmatter(Manifest(slug="t"))
+
+
+def test_load_manifest_captures_declared_flip_version(tmp_path):
+    write_index(tmp_path, "flip: '0.4'\nslug: t\n")
+    m = load_manifest(tmp_path)
+    assert m.flip_version == "0.4"
+    save_manifest(tmp_path, m)  # save stamps the current constant, not the read value
+    assert load_manifest(tmp_path).flip_version == FLIP_PROFILE_VERSION
 
 
 def test_save_manifest_preserves_existing_body(tmp_path):

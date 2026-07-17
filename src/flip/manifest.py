@@ -21,7 +21,7 @@ from .util import ROOT_FILE, today
 
 VISIBILITIES = ("private", "internal", "client-confidential", "public")
 STATUSES = ("active", "dormant", "done", "published", "archived")
-FLIP_PROFILE_VERSION = "0.4"
+FLIP_PROFILE_VERSION = "0.5"
 
 # SPEC §3: slugs are filesystem- and cite-safe. Validated at create/save so a
 # bad slug never reaches disk (it names files and every <slug>#<id> cross-ref).
@@ -29,9 +29,10 @@ SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
 # Manifest keys flip owns, in canonical frontmatter order.
 KNOWN_KEYS = (
-    "okf_version", "flip", "slug", "title", "kind", "status", "created",
-    "updated", "host", "visibility", "renders_public", "source_trail_public",
-    "citation_rule", "links", "relations", "consumers", "tools",
+    "okf_version", "flip", "slug", "uid", "title", "kind", "status", "created",
+    "updated", "host", "origin", "visibility", "renders_public",
+    "source_trail_public", "citation_rule", "links", "relations", "consumers",
+    "tools",
 )
 
 DEFAULT_POLICY = {
@@ -45,12 +46,14 @@ DEFAULT_POLICY = {
 @dataclass
 class Manifest:
     slug: str
+    uid: str = ""  # stable machine identity; travels with the bundle (SPEC §4)
     title: str = ""
     kind: str = "ledger"
     status: str = "active"
     created: str = ""
     updated: str = ""
     host: str = ""  # set only for detached notebooks (SPEC §3)
+    origin: str = ""  # provenance of an imported copy, written by `flip import`
     visibility: str = DEFAULT_POLICY["visibility"]
     renders_public: bool = DEFAULT_POLICY["renders_public"]
     source_trail_public: bool = DEFAULT_POLICY["source_trail_public"]
@@ -61,6 +64,10 @@ class Manifest:
     tools: dict = field(default_factory=dict)
     # Unknown frontmatter keys, preserved verbatim across load/save.
     extras: dict = field(default_factory=dict)
+    # The `flip:` profile version as declared on disk at load time. Read-only
+    # context for doctor (missing-uid is gated to 0.5+); save always stamps
+    # FLIP_PROFILE_VERSION, never this.
+    flip_version: str = ""
 
     @property
     def policy(self) -> dict:
@@ -98,10 +105,12 @@ def load_manifest(root: Path) -> Manifest:
             f"{path}: frontmatter missing required key 'slug' — add e.g. slug: my-notebook"
         )
     m = Manifest(slug=fm["slug"])
-    for key in ("title", "kind", "status", "created", "updated", "host",
-                "visibility", "citation_rule"):
+    for key in ("uid", "title", "kind", "status", "created", "updated", "host",
+                "origin", "visibility", "citation_rule"):
         if key in fm and fm[key] is not None:
             setattr(m, key, str(fm[key]))
+    if fm.get("flip") is not None:
+        m.flip_version = str(fm["flip"])
     for key in ("renders_public", "source_trail_public"):
         if key in fm:
             setattr(m, key, bool(fm[key]))
@@ -122,6 +131,8 @@ def load_manifest(root: Path) -> Manifest:
 
 def manifest_frontmatter(m: Manifest) -> dict:
     fm: dict = {"okf_version": "0.1", "flip": FLIP_PROFILE_VERSION, "slug": m.slug}
+    if m.uid:
+        fm["uid"] = m.uid
     if m.title:
         fm["title"] = m.title
     fm["kind"] = m.kind
@@ -130,6 +141,8 @@ def manifest_frontmatter(m: Manifest) -> dict:
     fm["updated"] = m.updated or today()
     if m.host:
         fm["host"] = m.host
+    if m.origin:
+        fm["origin"] = m.origin
     fm["visibility"] = m.visibility
     fm["renders_public"] = m.renders_public
     fm["source_trail_public"] = m.source_trail_public
