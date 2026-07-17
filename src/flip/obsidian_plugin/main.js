@@ -6,6 +6,11 @@
  * fact on screen comes from `flip doctor --json`, `flip show --json`, and
  * the list commands, run at the vault root.
  *
+ * Workspace vaults (SPEC §18): a vault root carrying .flip/workspace.toml
+ * holds many notebooks. Doctor runs workspace-wide (`--workspace`), the
+ * open-by-id modal aggregates every bound notebook's ids under their
+ * handle-qualified form (recipes:A3), and the hot view stays per-notebook.
+ *
  * Plain CommonJS on purpose: Obsidian loads manifest.json + main.js
  * directly, so there is no build step and no dependencies beyond the
  * Obsidian API and node's child_process (isDesktopOnly).
@@ -17,6 +22,7 @@ const { Plugin, ItemView, PluginSettingTab, Setting, Notice, SuggestModal } = re
 const { execFile } = require("child_process");
 
 const VIEW_TYPE = "flip-doctor";
+const WORKSPACE_TABLE_PATH = ".flip/workspace.toml";
 
 const DEFAULT_SETTINGS = {
   flipPath: "flip",
@@ -28,8 +34,9 @@ const BEAT_GUIDANCE =
   "roots — open a notebook inside this beat (notebooks/<slug>/) as its own vault.";
 
 const NOT_A_ROOT_GUIDANCE =
-  "This vault is not a flip notebook root (no index.md with flip: frontmatter). " +
-  "Run `flip obsidian` inside a notebook and open that folder as a vault.";
+  "This vault is not a flip notebook root (no index.md with flip: frontmatter) " +
+  "or workspace root (no .flip/workspace.toml). Run `flip obsidian` inside a " +
+  "notebook and open that folder as a vault, or `flip ws init` at a shared root.";
 
 function isError(finding) {
   return Boolean(finding) && String(finding.level || "").toUpperCase() === "ERROR";
@@ -76,6 +83,9 @@ class FlipDoctorView extends ItemView {
 
     const header = root.createDiv({ cls: "flip-header" });
     header.createEl("h4", { text: "flip", cls: "flip-title" });
+    if (state.kind === "workspace") {
+      header.createSpan({ cls: "flip-badge flip-badge-status", text: "workspace" });
+    }
     const refresh = header.createEl("button", { text: "Refresh", cls: "flip-refresh" });
     refresh.setAttribute("aria-label", "Refresh doctor & hot view");
     refresh.addEventListener("click", () => this.plugin.refresh());
@@ -89,6 +99,16 @@ class FlipDoctorView extends ItemView {
     }
     if (state.kind === "beat") {
       doctor.createDiv({ cls: "flip-empty", text: BEAT_GUIDANCE });
+      return;
+    }
+    if (state.kind === "workspace") {
+      this.renderFindings(doctor, Array.isArray(state.findings) ? state.findings : []);
+      const hot = root.createDiv({ cls: "flip-section" });
+      hot.createDiv({ cls: "flip-section-title", text: "Hot view" });
+      hot.createDiv({
+        cls: "flip-empty",
+        text: "per-notebook — open a bound notebook as its own vault",
+      });
       return;
     }
     if (state.kind !== "notebook") {
@@ -175,12 +195,17 @@ class FlipDoctorView extends ItemView {
 // ---------------------------------------------------------------- open-by-id modal
 
 class FlipIdModal extends SuggestModal {
-  constructor(plugin) {
+  constructor(plugin, kind) {
     super(plugin.app);
     this.plugin = plugin;
+    this.kind = kind || "notebook";
     this.items = [];
     this.loaded = false;
-    this.setPlaceholder("Open by id — type A3, C7, Q1… or search titles");
+    this.setPlaceholder(
+      this.kind === "workspace"
+        ? "Open by id — type recipes:A3, A3, Q1… or search titles"
+        : "Open by id — type A3, C7, Q1… or search titles"
+    );
   }
 
   onOpen() {
@@ -189,21 +214,39 @@ class FlipIdModal extends SuggestModal {
   }
 
   async loadItems() {
-    const jsonOrEmpty = (args) => this.plugin.flipJson(args).catch(() => []);
-    const lists = await Promise.all([
-      jsonOrEmpty(["source", "list", "--json"]),
-      jsonOrEmpty(["claim", "list", "--json"]),
-      jsonOrEmpty(["question", "list", "--json"]),
-    ]);
+    // One root in a notebook vault; every bound notebook in a workspace
+    // vault, with ids surfaced in their handle-qualified form (recipes:A3)
+    // so `flip open` gets an unambiguous ref back.
+    const base = this.plugin.basePath();
+    let roots = [{ cwd: null, handle: null }];
+    if (this.kind === "workspace") {
+      const table = await this.plugin.readWorkspaceTable();
+      roots = table.map((nb) => ({ cwd: base + "/" + nb.path, handle: nb.handle }));
+    }
+    const jsonOrEmpty = (args, cwd) => this.plugin.flipJson(args, cwd).catch(() => []);
+    const perRoot = await Promise.all(
+      roots.map((root) =>
+        Promise.all([
+          jsonOrEmpty(["source", "list", "--json"], root.cwd),
+          jsonOrEmpty(["claim", "list", "--json"], root.cwd),
+          jsonOrEmpty(["question", "list", "--json"], root.cwd),
+        ])
+      )
+    );
     const items = [];
-    for (const rows of lists) {
-      if (!Array.isArray(rows)) continue;
-      for (const row of rows) {
-        if (!row || typeof row !== "object" || !row.id) continue;
-        items.push({
-          id: String(row.id),
-          label: String(row.title || row.description || row.text || row.slug || ""),
-        });
+    for (let i = 0; i < roots.length; i++) {
+      const handle = roots[i].handle;
+      for (const rows of perRoot[i]) {
+        if (!Array.isArray(rows)) continue;
+        for (const row of rows) {
+          if (!row || typeof row !== "object" || !row.id) continue;
+          items.push({
+            id: handle ? handle + ":" + String(row.id) : String(row.id),
+            label:
+              String(row.title || row.description || row.text || row.slug || "") +
+              (handle ? " · " + handle : ""),
+          });
+        }
       }
     }
     this.items = items;
@@ -217,9 +260,14 @@ class FlipIdModal extends SuggestModal {
     const matches = this.items.filter(
       (it) => !q || it.id.toLowerCase().includes(q) || it.label.toLowerCase().includes(q)
     );
-    // Free-typed ids (D2, H1, TH3…) work even when not in the loaded lists.
-    if (q && /^[a-z]+\d+$/.test(q) && !this.items.some((it) => it.id.toLowerCase() === q)) {
-      matches.unshift({ id: q.toUpperCase(), label: "open this id", free: true });
+    // Free-typed refs (D2, TH3, recipes:A3…) work even when not in the
+    // loaded lists; a deprecated "#" separator is normalized to ":".
+    const m = q.match(/^(?:([a-z][a-z0-9-]*)[:#])?([a-z]+\d+)$/);
+    if (m) {
+      const ref = (m[1] ? m[1] + ":" : "") + m[2].toUpperCase();
+      if (!this.items.some((it) => it.id.toLowerCase() === ref.toLowerCase())) {
+        matches.unshift({ id: ref, label: "open this id", free: true });
+      }
     }
     return matches;
   }
@@ -319,11 +367,11 @@ class FlipPlugin extends Plugin {
           );
           return;
         }
-        if (kind !== "notebook") {
+        if (kind !== "notebook" && kind !== "workspace") {
           new Notice(NOT_A_ROOT_GUIDANCE);
           return;
         }
-        new FlipIdModal(this).open();
+        new FlipIdModal(this, kind).open();
       },
     });
 
@@ -355,9 +403,17 @@ class FlipPlugin extends Plugin {
   }
 
   async rootKind() {
-    // Same cheap sniff flip itself uses for root discovery: the vault root's
-    // index.md opens a frontmatter block declaring flip: (notebook) or
-    // flip_beat: (beat). No YAML parse — doctor does the strict validation.
+    // Same cheap sniffs flip itself uses for root discovery. A workspace
+    // root carries .flip/workspace.toml (SPEC §18) — checked first, since a
+    // workspace root is never also a notebook root. Otherwise the vault
+    // root's index.md opens a frontmatter block declaring flip: (notebook)
+    // or flip_beat: (beat). No parse — doctor does the strict validation.
+    try {
+      await this.app.vault.adapter.read(WORKSPACE_TABLE_PATH);
+      return "workspace";
+    } catch (e) {
+      // not a workspace root; fall through to the index.md sniff
+    }
     try {
       const text = await this.app.vault.adapter.read("index.md");
       const head = String(text).slice(0, 4096);
@@ -371,7 +427,52 @@ class FlipPlugin extends Plugin {
     }
   }
 
-  execFlip(args) {
+  async readWorkspaceTable() {
+    // Minimal TOML-subset reader for the [notebooks] table flip writes:
+    // [section] headers plus `handle = "path"` lines whose RHS is a basic
+    // string (flip serializes paths with json.dumps, so JSON.parse reads
+    // them back exactly). Hand-edited files that stray outside this subset
+    // get a Notice and an empty table — doctor owns the real diagnosis.
+    let text;
+    try {
+      text = await this.app.vault.adapter.read(WORKSPACE_TABLE_PATH);
+    } catch (e) {
+      return [];
+    }
+    const notebooks = [];
+    let section = null;
+    for (const raw of String(text).split("\n")) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const header = line.match(/^\[([^\]]*)\]$/);
+      if (header) {
+        section = header[1].trim();
+        continue;
+      }
+      if (section !== "notebooks") continue;
+      const eq = line.indexOf("=");
+      let path = null;
+      const handle = eq > 0 ? line.slice(0, eq).trim() : "";
+      try {
+        path = eq > 0 ? JSON.parse(line.slice(eq + 1).trim()) : null;
+      } catch (e) {
+        path = null;
+      }
+      if (typeof path !== "string" || !/^[a-z][a-z0-9-]*$/.test(handle)) {
+        new Notice(
+          WORKSPACE_TABLE_PATH + " has an entry this plugin cannot read — " +
+            "run `flip doctor --workspace` for the full story"
+        );
+        return [];
+      }
+      notebooks.push({ handle: handle, path: path });
+    }
+    return notebooks;
+  }
+
+  execFlip(args, cwd) {
+    // cwd defaults to the vault root; workspace vaults pass a bound
+    // notebook's directory so per-notebook commands run where flip expects.
     return new Promise((resolve, reject) => {
       const base = this.basePath();
       if (!base) {
@@ -379,7 +480,7 @@ class FlipPlugin extends Plugin {
         return;
       }
       const bin = String(this.settings.flipPath || "flip").trim() || "flip";
-      const opts = { cwd: base, maxBuffer: 32 * 1024 * 1024 };
+      const opts = { cwd: cwd || base, maxBuffer: 32 * 1024 * 1024 };
       execFile(bin, args, opts, (err, stdout, stderr) => {
         if (err && (err.code === "ENOENT" || err.code === "EACCES")) {
           const friendly = new Error(
@@ -396,8 +497,8 @@ class FlipPlugin extends Plugin {
     });
   }
 
-  async flipJson(args) {
-    const { err, stdout, stderr } = await this.execFlip(args);
+  async flipJson(args, cwd) {
+    const { err, stdout, stderr } = await this.execFlip(args, cwd);
     try {
       return JSON.parse(stdout);
     } catch (e) {
@@ -471,6 +572,16 @@ class FlipPlugin extends Plugin {
           state.error = firstLine(e && e.message) || "flip failed";
           if (e && e.notFound) new Notice(state.error);
         }
+      } else if (state.kind === "workspace") {
+        // Workspace-wide lint; the hot view stays per-notebook (open a
+        // bound notebook as its own vault for it).
+        try {
+          const findings = await this.flipJson(["doctor", "--workspace", "--json"]);
+          state.findings = Array.isArray(findings) ? findings : [];
+        } catch (e) {
+          state.error = firstLine(e && e.message) || "flip failed";
+          if (e && e.notFound) new Notice(state.error);
+        }
       }
     }
     this.state = state;
@@ -493,6 +604,10 @@ class FlipPlugin extends Plugin {
           ? state.hot.claims_needing_work.length
           : 0;
       text = "flip: " + errs + "❗ " + warns + "⚠ · " + claims + " claims open";
+    } else if (state.kind === "workspace" && !state.error) {
+      const findings = Array.isArray(state.findings) ? state.findings : [];
+      text = "flip: workspace · " + findings.filter(isError).length + "❗ " +
+        findings.filter(isWarn).length + "⚠";
     } else if (state.kind === "beat") {
       text = "flip: beat root";
     }

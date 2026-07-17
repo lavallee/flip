@@ -6,6 +6,77 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-07-16
+
+### Added
+- **Workspaces** (SPEC §18): many notebooks sharing one vault or repo. The
+  shared root carries `.flip/workspace.toml` — a local table binding short,
+  importer-owned handles (the git-remote-name model) to notebook paths.
+  `flip ws init` scans and binds what's below; `flip ws add / rename / rm /
+  list [--json]` maintain the table. Binding keeps entity-page `aliases`
+  honest (bare id, then `handle:id`); `flip ws rename` rewrites qualified
+  refs workspace-wide (prose, wikilinks, labels, frontmatter — never
+  captured bytes, export copies, fenced code blocks, or `links.beat`;
+  inline code spans are an accepted limitation). Handles never ship with a
+  bundle.
+- **Notebook uid** (SPEC §4): stable machine identity in the manifest
+  (`uid: nb-7k3m9p2x`), minted by `flip new`, backfilled by `flip migrate`
+  and `flip doctor --workspace --fix`, carried by every export and import —
+  so two copies of one notebook are recognizable as one lineage. Plus
+  `origin:`, the provenance of an imported copy.
+- **`flip import <src>`**: bring a shared notebook — a directory, an OKF
+  export, or a BagIt bag — into the enclosing workspace under a handle you
+  own (`--as`, `--into`). Entity ids are never rekeyed, so citations inside
+  the bundle stay valid; `origin` is stamped and a uid minted only when the
+  source predates uids. `--update <handle>` is replace-if-uid-matches: the
+  same lineage refreshes in place (local `.flip/` id reservations survive);
+  a uid mismatch refuses. Merging diverged copies is out of scope.
+- **`flip resolve <ref> [--json]`** and cross-notebook refs (SPEC §9):
+  `handle:id` (`recipes:A3`) resolves through the nearest workspace table;
+  `flip open` now takes the same refs. Bare ids resolve in the containing
+  notebook exactly as before; under a workspace root (outside any notebook)
+  a bare id resolves iff exactly one bound notebook carries it — ambiguity
+  lists the qualified forms. Unknown handles and ids are errors, never
+  guesses.
+- **`flip doctor --workspace [--fix]`**: lints the shared space —
+  `bad-workspace-file`, `handle-syntax`, `dangling-workspace-entry`
+  (ERRORs); `missing-uid`, `duplicate-uid`, `unregistered-notebook`,
+  `stale-alias`, and the aggregated `ambiguous-id` / `slug-collision`
+  (WARNs). `--fix` binds unregistered notebooks, backfills uids, and
+  regenerates qualified aliases. Notebook-mode doctor gains `missing-uid`
+  (gated to manifests declaring flip 0.5+) and `deprecated-ref-separator`.
+- **Obsidian workspace vaults**: `flip obsidian` now also prepares a
+  workspace root; the companion plugin detects `.flip/workspace.toml`,
+  runs `flip doctor --workspace --json` for the panel and status bar, and
+  open-by-id suggests every bound notebook's entities in qualified form
+  (`recipes:A3`).
+
+### Changed
+- **flip profile 0.5** (SPEC §4): the manifest gains `uid` and `origin`;
+  the normative cross-notebook ref separator is `:`. `flip migrate` brings
+  a 0.4 notebook forward (mints the uid, rewrites `links.beat` `#` → `:`);
+  the v0.3 path now ends at 0.5.
+- `flip beat graduate` writes the back-link as
+  `links.beat: "<beat-slug>:<TH#>"` (was `#`).
+- Doctor's `missing-alias` message now says what aliases honestly buy:
+  they feed Obsidian's `[[` autocomplete; they do not make a raw `[[A3]]`
+  resolve.
+- `flip index` rows gain `uid`; a directory carrying `.flip/workspace.toml`
+  adds a workspace row (`{"path", "workspace": true, "notebooks": …}`) —
+  new row type, consumers that assume every row is a notebook should key on
+  `"workspace"`.
+
+### Deprecated
+- `#` as the cross-notebook / beat-link separator (`recipes#A3`,
+  `links.beat: "<beat>#TH3"`). Readers accept it with a warning
+  (`flip resolve`/`flip open` note it; doctor WARNs
+  `deprecated-ref-separator`); writers emit only `:`; `flip migrate`
+  rewrites stored refs. **`#` reads are removed in flip 0.10.**
+
+### Fixed
+- `flip.__version__` had drifted (stuck at 0.6.0 since the 0.7.0 release);
+  now 0.9.0 and back in lockstep with `pyproject.toml`.
+
 ## [0.8.0] — 2026-07-14
 
 ### Added

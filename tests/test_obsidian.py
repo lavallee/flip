@@ -125,9 +125,68 @@ def test_beat_root_is_accepted(tmp_path):
 def test_non_root_is_refused(tmp_path):
     plain = tmp_path / "plain"
     plain.mkdir()
-    with pytest.raises(SystemExit, match="not a flip notebook or beat root"):
+    with pytest.raises(SystemExit, match="not a flip notebook, beat, or workspace root"):
         prepare_vault(plain)
     assert not (plain / ".obsidian").exists()  # refused before writing anything
+
+
+# ---------------------------------------------------------------- workspace roots
+#
+# The plugin side (main.js) has no JS test harness — no build step, no deps
+# is the point — so its workspace behavior is covered by the marker test
+# below plus this manual checklist, run in Obsidian against a prepared
+# workspace vault (two notebooks bound, e.g. recipes + gardening):
+#
+#   1. Panel shows the "workspace" badge and `flip doctor --workspace --json`
+#      findings; hot view says per-notebook.
+#   2. Open-by-id lists ids from every bound notebook as handle:id
+#      (recipes:A3), labels suffixed with the handle, and opens them.
+#   3. Free-typing recipes:a3 (and the deprecated recipes#a3) offers
+#      "open this id" as recipes:A3 — id uppercased, "#" normalized to ":".
+#   4. Typing [[A3 in the editor autocompletes via the qualified aliases;
+#      confirm an alias containing ":" doesn't confuse the suggester
+#      (plan §12 risk 2 — bare-id alias stays first as the fallback).
+
+
+def make_workspace(dest: Path) -> Path:
+    """A workspace root binding one real notebook, table written the way
+    `flip ws` serializes it (sorted handles, json-quoted paths)."""
+    create_notebook(dest / "recipes", "recipes", "scout")
+    (dest / ".flip").mkdir(parents=True)
+    (dest / ".flip" / "workspace.toml").write_text(
+        '[workspace]\nversion = "0.1"\n\n[notebooks]\nrecipes = "recipes"\n',
+        encoding="utf-8",
+    )
+    return dest
+
+
+def test_workspace_root_is_accepted(tmp_path):
+    root = make_workspace(tmp_path / "shared")
+    actions = prepare_vault(root)
+    assert len(actions) == 3  # app.json, plugin files, community-plugins.json
+    assert (root / ".obsidian" / "plugins" / PLUGIN_ID / "main.js").exists()
+    assert read_json(root / ".obsidian" / "community-plugins.json") == [PLUGIN_ID]
+
+
+def test_workspace_root_second_run_changes_nothing(tmp_path):
+    root = make_workspace(tmp_path / "shared")
+    assert prepare_vault(root)  # first run acts
+    assert prepare_vault(root) == []  # second run: no actions
+
+
+def test_packaged_plugin_carries_workspace_support(tmp_path):
+    # The markers the manual checklist above exercises must ship in the
+    # packaged bundle — catches drift between main.js and this release.
+    root = make_workspace(tmp_path / "shared")
+    prepare_vault(root)
+    plugin_dir = root / ".obsidian" / "plugins" / PLUGIN_ID
+    js = (plugin_dir / "main.js").read_text(encoding="utf-8")
+    assert '".flip/workspace.toml"' in js  # rootKind + readWorkspaceTable
+    assert '"--workspace"' in js  # refresh() runs workspace doctor
+    assert 'handle + ":" + String(row.id)' in js  # modal qualifies ids
+    manifest = read_json(plugin_dir / "manifest.json")
+    assert manifest["version"] == "0.9.0"
+    assert "workspaces" in manifest["description"]
 
 
 # ---------------------------------------------------------------- CLI / export

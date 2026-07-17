@@ -28,7 +28,6 @@ from . import (
     ledgers,
     migrate as migrate_mod,
     obsidian as obsidian_mod,
-    pages,
     profiles as profiles_mod,
     query as query_mod,
     registry,
@@ -760,8 +759,11 @@ def ws_rename_cmd(old: str, new: str) -> None:
     under sources/, derived/, and renders/ are never edited).
     """
     ws_root = workspace_mod.require_workspace_root()
-    changed = workspace_mod.ws_rename(ws_root, old, new)
-    click.echo(f"renamed {old} → {new}; rewrote refs in {changed} file(s)")
+    ref_files, alias_pages = workspace_mod.ws_rename(ws_root, old, new)
+    click.echo(
+        f"renamed {old} → {new}; rewrote refs in {ref_files} file(s), "
+        f"aliases in {alias_pages} page(s)"
+    )
 
 
 @ws.command("rm")
@@ -833,7 +835,10 @@ def index(roots: tuple[Path, ...]) -> None:
             click.echo(f"{r['slug']} · {r['kind']} · {r['status']} · {r['path']}")
     skipped = len(rows) - len(good)
     tail = f" ({skipped} skipped, see stderr)" if skipped else ""
-    click.echo(f"indexed {len(good)} notebook(s){tail} → {registry.flip_home() / registry.INDEX}")
+    ws_count = sum(1 for r in good if r.get("workspace"))
+    ws_part = f" and {ws_count} workspace(s)" if ws_count else ""
+    click.echo(f"indexed {len(good) - ws_count} notebook(s){ws_part}{tail} → "
+               f"{registry.flip_home() / registry.INDEX}")
 
 
 @main.command()

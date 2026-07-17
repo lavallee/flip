@@ -5,7 +5,7 @@
 ## Docs
 
 - [README.md](README.md): Project overview — the notebook-as-OKF-bundle positioning, design commitments, install, and quickstart.
-- [SPEC.md](SPEC.md): The notebook format (v0.4) — directory layout, the root index.md manifest, source pages and provenance, claims and the verification bar, logs and sessions, the flip lineage profile (§6), ids/slugs/links, profiles, CLI, and integration contract.
+- [SPEC.md](SPEC.md): The notebook format (profile 0.5) — directory layout, the root index.md manifest (uid, origin), source pages and provenance, claims and the verification bar, logs and sessions, the flip lineage profile (§6), ids/slugs/links and handle:id cross-notebook refs, profiles, beats, CLI, integration contract, exports/import, and workspaces (§18).
 - [AGENTS.md](AGENTS.md): How agents should use flip — the five-minute tour with real output, the lineage-rule contract (capture before cite, round-trip rule, verification bar), and task recipes.
 - [docs/quickstart.md](docs/quickstart.md): Human-facing walkthrough — install, create a notebook, the capture→grade→claim→verify loop, ids and renames, fetcher configuration, profiles, migrating from v0.3, and using the notebook as an Obsidian vault.
 - [docs/internals.md](docs/internals.md): Module map and code contracts for the reference implementation (normative for contributors).

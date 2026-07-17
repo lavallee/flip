@@ -24,7 +24,7 @@ STATUSES = ("active", "dormant", "done", "published", "archived")
 FLIP_PROFILE_VERSION = "0.5"
 
 # SPEC §3: slugs are filesystem- and cite-safe. Validated at create/save so a
-# bad slug never reaches disk (it names files and every <slug>#<id> cross-ref).
+# bad slug never reaches disk (it names files and every <slug>:<id> cross-ref).
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
 # Manifest keys flip owns, in canonical frontmatter order.

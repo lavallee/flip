@@ -8,14 +8,17 @@ from flip.registry import INDEX, build_index, flip_home, read_index
 from flip.util import read_jsonl
 
 
-def write_manifest(d: Path, slug: str, kind: str = "scout", status: str = "active") -> Path:
+def write_manifest(
+    d: Path, slug: str, kind: str = "scout", status: str = "active", uid: str = ""
+) -> Path:
     d.mkdir(parents=True, exist_ok=True)
     (d / "index.md").write_text(
         "---\n"
         'okf_version: "0.1"\n'
         'flip: "0.4"\n'
         f"slug: {slug}\n"
-        f"title: Title of {slug}\n"
+        + (f"uid: {uid}\n" if uid else "")
+        + f"title: Title of {slug}\n"
         f"kind: {kind}\n"
         f"status: {status}\n"
         "created: 2026-07-09\n"
@@ -25,6 +28,15 @@ def write_manifest(d: Path, slug: str, kind: str = "scout", status: str = "activ
         encoding="utf-8",
     )
     return d
+
+
+def write_workspace_toml(ws_root: Path, notebooks: dict[str, str]) -> Path:
+    path = ws_root / ".flip" / "workspace.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = ["[workspace]\n", 'version = "0.1"\n', "\n[notebooks]\n"]
+    lines += [f'{handle} = "{rel}"\n' for handle, rel in notebooks.items()]
+    path.write_text("".join(lines), encoding="utf-8")
+    return path
 
 
 def set_home(monkeypatch, tmp_path: Path) -> Path:
@@ -201,6 +213,109 @@ def test_build_index_multiple_roots(monkeypatch, tmp_path):
     r2 = write_manifest(tmp_path / "r2" / "nb", "two")
     rows = build_index([r1.parent, r2.parent])
     assert {r["slug"] for r in rows} == {"one", "two"}
+
+
+# -- uid in rows ---------------------------------------------------------
+
+
+def test_build_index_row_carries_uid(monkeypatch, tmp_path):
+    set_home(monkeypatch, tmp_path)
+    root = tmp_path / "projects"
+    write_manifest(root / "recipes", "recipes", uid="nb-7k3m9p2x")
+
+    rows = build_index([root])
+
+    assert rows[0]["uid"] == "nb-7k3m9p2x"
+    # uid sits right after slug, mirroring the manifest's canonical key order
+    keys = list(rows[0])
+    assert keys.index("uid") == keys.index("slug") + 1
+
+
+def test_build_index_uid_empty_for_unmigrated_notebook(monkeypatch, tmp_path):
+    # a pre-0.5 notebook has no uid yet; the key is still present so index
+    # consumers never need to guard for its absence
+    set_home(monkeypatch, tmp_path)
+    root = tmp_path / "projects"
+    write_manifest(root / "gardening", "gardening")
+
+    rows = build_index([root])
+
+    assert rows[0]["uid"] == ""
+
+
+# -- workspace rows ------------------------------------------------------
+
+
+def test_build_index_emits_workspace_row_and_descends(monkeypatch, tmp_path):
+    home = set_home(monkeypatch, tmp_path)
+    ws = tmp_path / "vault"
+    write_manifest(ws / "recipes", "recipes", uid="nb-7k3m9p2x")
+    write_manifest(ws / "plots" / "gardening-notes", "gardening", uid="nb-b2c3d4f5")
+    write_workspace_toml(ws, {"gardening": "plots/gardening-notes", "recipes": "recipes"})
+
+    rows = build_index([tmp_path])
+
+    ws_rows = [r for r in rows if r.get("workspace")]
+    assert ws_rows == [
+        {
+            "path": str(ws.resolve()),
+            "workspace": True,
+            "notebooks": {"gardening": "plots/gardening-notes", "recipes": "recipes"},
+        }
+    ]
+    # the walk still descends: bound notebooks index as themselves
+    assert {r["slug"] for r in rows if "slug" in r} == {"recipes", "gardening"}
+    assert read_jsonl(home / INDEX) == rows
+
+
+def test_build_index_workspace_row_deduplicated(monkeypatch, tmp_path):
+    set_home(monkeypatch, tmp_path)
+    ws = tmp_path / "vault"
+    write_manifest(ws / "recipes", "recipes")
+    write_workspace_toml(ws, {"recipes": "recipes"})
+
+    rows = build_index([tmp_path, ws, ws])
+
+    assert len([r for r in rows if r.get("workspace")]) == 1
+    assert len([r for r in rows if r.get("slug") == "recipes"]) == 1
+
+
+def test_build_index_warns_on_bad_workspace_toml(monkeypatch, tmp_path, capsys):
+    # a broken table must not kill the scan; the notebooks beneath it still index
+    set_home(monkeypatch, tmp_path)
+    ws = tmp_path / "vault"
+    write_manifest(ws / "field-notes", "field-notes")
+    path = ws / ".flip" / "workspace.toml"
+    path.parent.mkdir(parents=True)
+    path.write_text("[workspace\nversion = ", encoding="utf-8")  # invalid TOML
+
+    rows = build_index([tmp_path])
+
+    warn_rows = [r for r in rows if "error" in r]
+    assert [r["path"] for r in warn_rows] == [str(ws.resolve())]
+    assert warn_rows[0]["error"]
+    assert [r["slug"] for r in rows if "slug" in r] == ["field-notes"]
+    assert "WARN" in capsys.readouterr().err
+
+
+def test_build_index_workspace_inside_export_copy_pruned(monkeypatch, tmp_path):
+    # COPY_MARKERS prune wholesale: a workspace table riding inside a bag copy
+    # is never reached, let alone indexed
+    set_home(monkeypatch, tmp_path)
+    root = tmp_path / "projects"
+    write_manifest(root / "orchard-survey", "orchard-survey")
+    bag = root / "old-bag"
+    bag.mkdir(parents=True)
+    (bag / "bagit.txt").write_text(
+        "BagIt-Version: 1.0\nTag-File-Character-Encoding: UTF-8\n", encoding="utf-8"
+    )
+    write_manifest(bag / "data" / "vault" / "recipes", "recipes")
+    write_workspace_toml(bag / "data" / "vault", {"recipes": "recipes"})
+
+    rows = build_index([root])
+
+    assert [r.get("slug") for r in rows] == ["orchard-survey"]
+    assert not any(r.get("workspace") for r in rows)
 
 
 # -- read_index ----------------------------------------------------------

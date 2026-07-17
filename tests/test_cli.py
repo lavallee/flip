@@ -477,6 +477,19 @@ def test_index_defaults_to_cwd(tmp_path, monkeypatch):
     assert "indexed 1 notebook(s)" in result.output
 
 
+def test_index_counts_workspaces_separately(tmp_path, monkeypatch):
+    # A workspace row is not a notebook: 1 workspace + 1 notebook inside it
+    # must not read as "indexed 2 notebook(s)".
+    ws_root = tmp_path / "vault"
+    make_notebook(ws_root / "demo")
+    monkeypatch.chdir(ws_root)
+    assert invoke(["ws", "init"]).exit_code == 0
+    monkeypatch.chdir(tmp_path)
+    result = invoke(["index", "--root", str(ws_root)])
+    assert result.exit_code == 0, result.output
+    assert "indexed 1 notebook(s) and 1 workspace(s)" in result.output
+
+
 def test_index_nonexistent_root_is_rejected(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     result = invoke(["index", "--root", str(tmp_path / "nope")])
@@ -564,7 +577,7 @@ def test_migrate_refuses_v04_and_non_notebooks(tmp_path, monkeypatch):
     monkeypatch.chdir(root)
     result = invoke(["migrate"])
     assert result.exit_code == 1
-    assert "already a v0.4 notebook" in result.output
+    assert "already at the current profile" in result.output
     elsewhere = tmp_path / "plain"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)

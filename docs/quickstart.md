@@ -260,15 +260,15 @@ claim-verification bar. Pick one with `flip new --kind`; list them with
 profiles as TOML under `.flip/profiles/` inside the notebook — profiles are
 data, not code.
 
-## Migrating a pre-0.4 notebook
+## Migrating an older notebook
 
-v0.3 notebooks kept entities in JSONL ledgers with a `notebook.toml`
-manifest. `flip migrate` converts one in place — run it from anywhere inside
-the old notebook:
+`flip migrate` upgrades a notebook in place — run it from anywhere inside
+the old notebook. v0.3 notebooks (JSONL entity ledgers with a
+`notebook.toml` manifest) get the full conversion:
 
 ```bash
 flip migrate
-# migrated /work/legacy to v0.4 · 1 sources, 1 claims, 1 decisions, 1 questions, 1 sessions
+# migrated /work/legacy · 1 sources, 1 claims, 1 decisions, 1 questions, 1 sessions, 1 uid added, 0 beat link rewritten
 # entity pages: references/ claims/ decisions/ questions/ sessions/ — run `flip doctor` to audit the result
 ```
 
@@ -278,6 +278,11 @@ frontmatter; each ledger row becomes an entity page. The migration is
 resumable if interrupted. Run `flip doctor` afterwards — an old
 `notebook.md` typically WARNs about missing profile sections until you add
 the headings.
+
+A 0.4 notebook (already page-shaped) gets the profile pass alone: the
+manifest gains its `uid` (the stable identity exports and imports carry,
+SPEC §4) and a `links.beat` written with the old `#` separator moves to
+the canonical `:` (SPEC §9; `#` reads are removed in flip 0.10).
 
 ## Next
 

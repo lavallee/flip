@@ -307,7 +307,7 @@ def test_graduate_end_to_end(tmp_path):
     assert nb == root / "notebooks" / "bus-scout"
     assert util.is_notebook_root(nb)
     m = load_manifest(nb)
-    assert m.links == {"beat": "county#TH1"}  # child links back
+    assert m.links == {"beat": "county:TH1"}  # child links back
     assert m.kind == "scout" and m.title == "Bus scout"
 
     thread = pages.find_by_id(root, "TH1")
@@ -321,6 +321,19 @@ def test_graduate_end_to_end(tmp_path):
     body = pages.read_page(root / "index.md").body
     assert "* [Notebooks](notebooks/) - 1 child notebook" in body
     assert "[Bus scout](notebooks/bus-scout/) - scout · active" in body
+
+
+def test_graduate_beat_link_uses_canonical_separator(tmp_path):
+    # links.beat is written as "<beat-slug>:<TH#>" — the SPEC §9 ref grammar;
+    # '#' is the deprecated form readers still accept until 0.10
+    from flip.manifest import load_manifest
+
+    root = make_beat(tmp_path)
+    beat.add_thread(root, "Bus contracts", "arc")
+    nb = beat.graduate(root, "TH1", "bus-scout")
+    link = load_manifest(nb).links["beat"]
+    assert "#" not in link
+    assert util.parse_ref(link) == ("county", "TH1", False)  # not the deprecated form
 
 
 def test_graduate_refusals(tmp_path):

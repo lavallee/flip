@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.7 · 2026-07-14
+**Status:** draft v0.8 · 2026-07-16
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -145,6 +145,14 @@ private notebook. The notebook then detaches to a sibling directory
 (`<project>-private/`), and the public repo carries **no reference** to its
 contents. The manifest's `host` key records what the notebook is about.
 
+### Workspaces
+
+Many notebooks can share one vault or repo. The shared root is a
+**workspace root**: it carries `.flip/workspace.toml`, a local table binding
+short handles to notebook paths so qualified cross-notebook refs
+(`recipes:A3`) resolve (§18). The table is machine-local state — it never
+ships in any export or bag.
+
 ## 4. The manifest — root `index.md` frontmatter
 
 OKF sanctions frontmatter on exactly one index: the bundle root. That is
@@ -154,14 +162,16 @@ already looks, and where Obsidian shows it as editable properties.
 ```markdown
 ---
 okf_version: "0.1"
-flip: "0.4"                 # flip profile version this notebook conforms to
+flip: "0.5"                 # flip profile version this notebook conforms to
 slug: nj-schools
+uid: nb-7k3m9p2x             # stable machine identity; travels with the bundle
 title: "NJ schools: five years of test-score data"
 kind: scout                  # profile id, §13
 status: active               # active | dormant | done | published | archived
 created: 2026-07-09
 updated: 2026-07-10          # tooling maintains
 host: ""                     # set only for detached notebooks
+origin: ""                   # provenance of an imported copy (`flip import`)
 visibility: internal         # private | internal | client-confidential | public
 renders_public: false
 source_trail_public: false
@@ -184,6 +194,21 @@ tools:                       # fetchers/processors used, versioned when known
 The body below the frontmatter is the **generated** OKF directory listing —
 flip regenerates it on every mutating command; hand-edits to the body don't
 survive. Frontmatter keys flip doesn't know are preserved on rewrite.
+
+Two identity keys arrived with profile 0.5:
+
+- **`uid`** — a stable, machine-generated notebook identity: `nb-` plus
+  eight characters of a vowel-free base32 alphabet
+  (`0123456789bcdfghjkmnpqrstvwxyz`), e.g. `nb-7k3m9p2x`. Minted once, by
+  `flip new` (or by `flip migrate` for older notebooks), and never edited:
+  an existing uid is identity and is never re-minted. It is metadata only —
+  it appears in no link or filename — and it **travels with the bundle**:
+  exports carry it in the root frontmatter, `flip import` preserves it, and
+  every copy of a notebook (including forks) shares the lineage uid, which
+  is how `flip import --update` recognizes "the same notebook" (§17).
+- **`origin`** — provenance of an imported copy, written by `flip import`:
+  the source path and import date. Empty (and omitted from the emitted
+  frontmatter) on notebooks that were never imported.
 
 ## 5. Sources — custody, entity pages, provenance
 
@@ -239,8 +264,9 @@ Capture notes, pull-quotes, misgivings — anything a reader of this source
 should know before trusting it.
 ```
 
-`aliases` always contains the id, so `[[A3]]` resolves in wikilink-aware
-editors while the filename stays readable.
+`aliases` always contains the id, so typing `[[A3` suggests this page in
+wikilink-aware editors while the filename stays readable (§9 on what aliases
+honestly buy).
 
 ### 5.4 Source-quality model
 
@@ -358,8 +384,11 @@ answered pages keep their history in git).
   reused, even after retraction.
 - **Filenames are slugs; ids resolve through frontmatter.** Prose cites ids
   in brackets (`[A3]`, `[C7]`) — greppable both directions; `flip open A3`
-  and any frontmatter scan resolve them. `aliases: [<id>]` makes id
-  wikilinks resolve in Obsidian-style editors.
+  and any frontmatter scan resolve them. **Honest aliases:** `aliases:
+  [<id>]` feeds Obsidian-style autocomplete — typing `[[A3` suggests the
+  page — but does not make a raw `[[A3]]` resolve on its own (those editors
+  resolve paths and filenames, not aliases). `flip doctor` says exactly
+  this when an alias is missing.
 - flip-generated links are **relative markdown links** (`../references/
   <slug>.md`) — valid OKF edges that also resolve in Obsidian, GitHub, and
   every markdown renderer. Humans may write `[[wikilinks]]` in prose bodies;
@@ -367,7 +396,23 @@ answered pages keep their history in git).
   edges.
 - `flip rename <id> <new-slug>` is the only sanctioned rename: it moves the
   file and rewrites every relative link and listing entry notebook-wide.
-- Cross-notebook references use `<notebook-slug>#<id>`.
+- **Cross-notebook references are `<handle>:<id>`** (`recipes:A3`), where
+  the handle is a name *you* bound in the enclosing workspace table (§18) —
+  not the notebook's slug, though the slug is the default suggestion.
+  Resolution is exact and loud (`flip resolve`, `flip open`): a bare id
+  resolves within the containing notebook; `handle:id` resolves through the
+  nearest workspace table; unknown handles and unknown ids are errors,
+  never guesses. One sanctioned extension: a bare id used under a workspace
+  root but outside any notebook resolves iff exactly one bound notebook
+  carries it — ambiguity is an error listing the qualified forms to use.
+- **`#` as the ref separator is deprecated** (the pre-0.5 form,
+  `<notebook-slug>#<id>`): readers still accept `handle#id` with a warning;
+  writers emit only `:`; `flip migrate` rewrites stored `#` refs. `#` reads
+  are removed in flip 0.10.
+- Binding a notebook also adds **qualified aliases** (`recipes:A3`) to its
+  entity pages, right after the bare id, so workspace-wide autocomplete can
+  disambiguate (§18). Same honesty rule as above: aliases suggest, they
+  don't resolve raw wikilinks.
 
 ## 10. Views
 
@@ -395,9 +440,9 @@ Obsidian is the reference case — is already a first-class flip client:
 - Frontmatter renders as Obsidian **Properties**; a human re-grading a
   source in the properties panel is a legitimate flip operation, validated
   by the next `flip doctor` run.
-- `aliases` make id-based wikilinks resolve; relative links light up the
-  graph view; the folder taxonomy (references / claims / decisions /
-  questions / sessions) reads as intended structure.
+- `aliases` feed id autocomplete (typing `[[A3` suggests the page — §9);
+  relative links light up the graph view; the folder taxonomy (references /
+  claims / decisions / questions / sessions) reads as intended structure.
 - flip must **round-trip foreign formatting**: editors rewrite YAML styling;
   flip preserves key order where it can, unknown keys always, and never
   fights over whitespace.
@@ -476,16 +521,19 @@ missing score reads as 0.5; ranking never mutates pages.
 **Graduation is the beat's core act**: `flip beat graduate TH3 <slug>
 --kind scout` creates a notebook (scaffolded per §13) under `notebooks/`,
 stamps the thread `status: active` + `notebook: <slug>`, links the notebook
-manifest back (`links: {beat: <beat-slug>#TH3}`), and appends a coverage
-event. Kill decisions are first-class too: `flip beat thread drop TH3
+manifest back (`links: {beat: "<beat-slug>:TH3"}` — the canonical `:`
+separator; pre-0.5 `#` links are still read, with a doctor WARN, until 0.10;
+`flip migrate` rewrites them), and appends a coverage event. Kill decisions are first-class too: `flip beat thread drop TH3
 --reason …` records why in the page and the coverage ledger — negative
 coverage prevents re-scouting dead angles.
 
 A beat root is distinguishable from a notebook root (`flip_beat:` vs
 `flip:` in the index frontmatter); notebook commands inside a child
 notebook resolve to the notebook, `flip beat …` commands walk up to the
-beat. Beat-level doctor, saturation warnings ("this well is over-visited"),
-and richer coverage roll-ups are future work (§18).
+beat. In a workspace (§18), handles bind *notebooks* only — a beat root is
+not bindable, but workspace discovery walks through it to the real
+notebooks under `notebooks/`. Beat-level doctor, saturation warnings ("this
+well is over-visited"), and richer coverage roll-ups are future work (§19).
 
 ## 15. Tooling — the flip CLI
 
@@ -508,13 +556,22 @@ flip decide|pass|question …          # decisions/questions pages; passed ledge
 flip claim add|status|list …         # claims pages; verification bar enforced
 flip session start|end …             # session pages
 flip show [--hot|--claims|--stale]   # computed views (--json for agents)
-flip open <id>                       # resolve an id to its page path
+flip open <ref>                      # resolve a ref (A3, recipes:A3) to its page path
+flip resolve <ref> [--json]          # same resolution with provenance: id, handle,
+                                     #   path, notebook root/slug, uid, title (§9)
 flip rename <id> <new-slug>          # move a page + rewrite links notebook-wide
+flip ws init|list|add|rename|rm      # workspace table: bind handles to notebooks (§18)
+flip import <src> [--as <handle>]    # bring a shared notebook / okf export / bag
+            [--into <dir>]           #   into the workspace under a handle you own;
+            [--update <handle>]      #   --update = replace-if-uid-matches (§17)
 flip doctor [--json]                 # lint: conformance, profile minimums, orphan
                                      #   custody, under-verified claims, id/alias
                                      #   integrity, link rot, foreign-edit drift
+flip doctor --workspace [--fix]      # lint the shared space instead (§18); --fix
+                                     #   binds strays, backfills uids, regens aliases
 flip index                           # per-user registry (~/.flip/index.jsonl)
-flip migrate                         # v0.3 ledgers → v0.4 pages
+flip migrate                         # v0.3 ledgers → pages; 0.4 → 0.5 (mint uid,
+                                     #   links.beat '#' → ':')
 flip export bag|csl|okf|ro-crate     # projections (§17)
 ```
 
@@ -574,7 +631,10 @@ nothing is re-fetched.
 ### The registry
 
 `flip index` scans configured roots and writes `~/.flip/index.jsonl` — a
-plain file, built by scanning, no service. Anything richer consumes this
+plain file, built by scanning, no service. One row per notebook (path,
+slug, `uid`, kind, status, updated, title); a directory carrying
+`.flip/workspace.toml` adds one workspace row (`{"path", "workspace":
+true, "notebooks": {handle: relpath}}`). Anything richer consumes this
 file; flip has no reverse dependency.
 
 ### Skills (the encouragement layer)
@@ -619,7 +679,106 @@ documentation, or portable skills.
 - **CSL JSON** from references for citation managers (`flip export csl`).
 - **RO-Crate** envelope, **W3C Web Annotation** anchors: future projections.
 
-## 18. Open questions
+### What travels, and import
+
+Identity travels with the bundle; local state does not. `uid` and `origin`
+ride in the root `index.md` frontmatter, so every export and bag carries
+them; `.flip/` (id reservations, the workspace table) and workspace handles
+never ship — the receiving side chooses its own handle.
+
+**`flip import <src>`** is the reverse projection: bring a shared notebook
+into the enclosing workspace (§18) from a notebook directory, an OKF export
+(`flip export okf` output), or a BagIt bag (payload `data/`; fixity is not
+re-verified on import — validate the bag first if you care). The copy lands
+under the workspace, binds to a handle you own (`--as`, default the
+bundle's slug; `--into` picks the directory), and records provenance:
+`origin` is stamped with the source and date, and a `uid` is minted only
+when the source predates uids. **Entity ids are never rekeyed** — citations
+inside the bundle stay valid, and your own notes reference it as
+`handle:id`. `--update <handle>` is replace-if-uid-matches: the same
+lineage refreshes in place (local `.flip/` id reservations survive);
+anything else refuses — merging diverged copies is out of scope. The
+source must be a separate directory: a src that is, contains, or lives
+inside the bound copy is refused before anything is touched.
+
+## 18. Workspaces — many notebooks, one root
+
+A **workspace** is a directory (an Obsidian vault, a repo, a research
+share) holding many notebooks. Its root carries `.flip/workspace.toml`:
+
+```toml
+# flip workspace table — maintained by `flip ws`; hand edits are read but
+# comments are not preserved on rewrite.
+
+[workspace]
+version = "0.1"
+
+[notebooks]
+gardening = "plots/gardening-notes"
+recipes = "recipes"
+```
+
+Two tables of scalars, nothing else: `[workspace].version` and
+`[notebooks]` mapping **handle → workspace-relative posix path**. flip
+reads it with a real TOML parser (hand edits are fine) and rewrites it
+deterministically (sorted handles, JSON-escaped paths, comments not
+preserved).
+
+**Handles are importer-owned petnames** — the same model as git remote
+names. The notebook's manifest slug is only the default suggestion
+(collisions get `-2`, `-3`); the binding is yours, lives only in your
+table, and never ships with the bundle (§17). Handle syntax is
+deliberately narrower than slugs — `^[a-z][a-z0-9-]*$`, always a TOML bare
+key, always unambiguous before the `:` in a ref (§9).
+
+**The `flip ws` commands** maintain the table:
+
+- `flip ws init` — declare the *current directory* a workspace root (no
+  walk-up; refuses if the table exists or the cwd is itself a notebook
+  root), scan below for notebooks, and bind each under its slug.
+  Discovery is bounded: dot-dirs and export copies (BagIt bags, OKF
+  exports) are pruned, a notebook inside a notebook is counted once, and
+  beat roots are walked *through* to the notebooks under `notebooks/` —
+  handles bind notebooks only (§14).
+- `flip ws add <path> [--as <handle>]` / `flip ws rm <handle>` — bind one
+  notebook already on disk / unbind a handle. `rm` never deletes files;
+  it removes the binding and that handle's qualified aliases.
+- `flip ws rename <old> <new>` — rebind, then rewrite `old:ID` refs
+  workspace-wide: prose cites, wikilinks, link labels, and frontmatter
+  values, mechanically anchored so `other-old:A3` and `old:notafile.md`
+  are never touched. Captured bytes (`sources/`, `derived/`, `renders/`),
+  export copies, and fenced code blocks are never edited (inline code
+  spans are an accepted limitation); `links.beat` is protected
+  structurally (a beat slug is not a workspace handle).
+- `flip ws list [--json]` — the bound rows: handle, path, slug, uid,
+  title, status (`ok` / `missing` / `not-a-notebook`).
+
+**Alias maintenance.** Every bind, rename, unbind, and import keeps entity
+pages' `aliases` honest: the bare id always present, the qualified
+`handle:id` right after it when bound, stale handles' qualified aliases
+removed. Foreign aliases and all other frontmatter survive verbatim; pages
+are rewritten only when the alias list actually changed.
+
+**Workspace doctor.** `flip doctor --workspace` (implied when run under a
+workspace root outside any notebook) lints the shared space and exits 1 on
+ERRORs: `bad-workspace-file` (unparseable table — duplicate handles are a
+TOML parse error and surface here), `handle-syntax`,
+`dangling-workspace-entry` (path missing or not a notebook) — ERRORs;
+`missing-uid`, `duplicate-uid` (same lineage bound twice),
+`unregistered-notebook` (on disk but not in the table), `stale-alias` (a
+qualified alias whose handle no table binds to the notebook — handles from
+an enclosing or nested workspace's table are legitimate, never stale), and
+the aggregated informational pair `ambiguous-id` / `slug-collision` (bare
+ids or filename stems living in ≥ 2 bound notebooks) — WARNs.
+`--fix` (workspace mode only) binds unregistered notebooks, backfills
+missing uids, and regenerates qualified aliases; it never edits a broken
+table.
+
+Inside any single notebook, nothing changes: bare ids, `flip doctor`,
+and every notebook command behave identically whether or not a workspace
+exists above.
+
+## 19. Open questions
 
 - **Profile tunables** — which fields are per-profile-tunable vs fixed?
 - **Beat layer, phase 2** — beat-level doctor; saturation warnings over

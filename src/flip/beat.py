@@ -429,7 +429,7 @@ def graduate(
 
     Scaffolds notebooks/<slug>/ (per the notebook profile `kind`), stamps the
     thread `status: active` + `notebook: <slug>`, links the notebook manifest
-    back (`links: {beat: "<beat-slug>#<id>"}`), and appends a coverage event.
+    back (`links: {beat: "<beat-slug>:<id>"}`), and appends a coverage event.
     Returns the notebook path."""
     root = require_beat_root(root)
     b = load_beat(root)
@@ -455,7 +455,7 @@ def graduate(
     # leaves the beat untouched.
     scaffold.create_notebook(dest, notebook_slug, kind, title=title)
     m = load_manifest(dest)
-    m.links["beat"] = f"{b.slug}#{thread_id}"
+    m.links["beat"] = f"{b.slug}:{thread_id}"  # canonical ref separator (SPEC §9)
     save_manifest(dest, m)
     page.fm["status"] = "active"
     page.fm["notebook"] = notebook_slug

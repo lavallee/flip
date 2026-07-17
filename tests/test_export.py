@@ -329,6 +329,47 @@ def test_export_bag_excludes_dot_dirs_and_ids_file(tmp_path):
     assert ".flip" not in manifest
 
 
+def test_export_bag_payload_carries_uid_and_origin(tmp_path):
+    # uid/origin live in the root index.md frontmatter, so the bag payload
+    # carries them for free — lineage survives cold storage (SPEC §17)
+    root = tmp_path / "nb"
+    root.mkdir()
+    (root / "index.md").write_text(
+        "---\n"
+        'okf_version: "0.1"\n'
+        'flip: "0.5"\n'
+        "slug: orchard-survey\n"
+        "uid: nb-7k3m9p2x\n"
+        "title: Orchard survey\n"
+        "kind: scout\n"
+        "status: active\n"
+        "origin: /shared/orchard-survey (imported 2026-07-01)\n"
+        "---\n"
+        "# Orchard survey\n",
+        encoding="utf-8",
+    )
+    dest = export_bag(root, tmp_path / "bag")
+    fm = pages.read_page(dest / "data" / "index.md").fm
+    assert fm["uid"] == "nb-7k3m9p2x"
+    assert fm["origin"] == "/shared/orchard-survey (imported 2026-07-01)"
+    # byte-identical copy: the bag never rewrites the manifest
+    assert (dest / "data" / "index.md").read_bytes() == (root / "index.md").read_bytes()
+
+
+def test_export_bag_excludes_workspace_toml(tmp_path):
+    # handles are importer-owned petnames: the workspace table (like the whole
+    # of .flip/) never ships inside a bundle
+    root = make_notebook(tmp_path / "nb")
+    (root / ".flip" / "workspace.toml").write_text(
+        '[workspace]\nversion = "0.1"\n\n[notebooks]\nrecipes = "recipes"\n',
+        encoding="utf-8",
+    )
+    dest = export_bag(root, tmp_path / "bag")
+    assert not (dest / "data" / ".flip").exists()
+    manifest = (dest / "manifest-sha256.txt").read_text(encoding="utf-8")
+    assert "workspace.toml" not in manifest
+
+
 def test_export_csl_url_key_also_accepted(tmp_path):
     # migrated/foreign pages may carry `url` instead of SPEC §5.3's `resource`
     root = make_notebook(tmp_path / "nb")

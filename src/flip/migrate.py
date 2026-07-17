@@ -1,19 +1,23 @@
-"""v0.3 → v0.4 migration: JSONL entity ledgers become entity pages (SPEC §15).
+"""In-place upgrades to the current flip profile (SPEC §15).
 
-A v0.3 notebook keeps its identity in notebook.toml and its entities in
-JSONL ledgers (sources/ledger.jsonl, analysis/claims.jsonl,
-log/decisions.jsonl, log/questions.jsonl) plus session files under
-log/sessions/. `migrate` converts all of that to the v0.4 shape — manifest
-frontmatter in the root index.md, one entity page per source / claim /
-decision / question / session — preserving every id, every recorded field,
-and the append-only event history (log/log.jsonl, log/passed.jsonl,
-sources/_provenance.jsonl, derived/ are left untouched).
+Two passes, dispatched by what's on disk. A v0.3 notebook keeps its identity
+in notebook.toml and its entities in JSONL ledgers (sources/ledger.jsonl,
+analysis/claims.jsonl, log/decisions.jsonl, log/questions.jsonl) plus session
+files under log/sessions/; the first pass converts all of that to the page
+shape — manifest frontmatter in the root index.md, one entity page per
+source / claim / decision / question / session — preserving every id, every
+recorded field, and the append-only event history (log/log.jsonl,
+log/passed.jsonl, sources/_provenance.jsonl, derived/ are left untouched).
+The second pass brings any manifest to the 0.5 profile: mint the notebook
+uid (SPEC §4) and move links.beat to the canonical ':' separator ('#' reads
+are deprecated, removed in 0.10).
 
 Each ledger's pages are written before that ledger is deleted, and
 notebook.toml is deleted last, so an interrupted migration resumes cleanly:
 re-running converts only what remains — rows whose id already has a page are
-skipped (counted as already migrated), never duplicated. Running against a
-v0.4 notebook is a refusal, not a no-op, so scripted callers notice.
+skipped (counted as already migrated), never duplicated — and a uid the
+notebook already carries is never re-minted. Running against an already-
+current notebook is a refusal, not a no-op, so scripted callers notice.
 """
 
 from __future__ import annotations
@@ -22,7 +26,7 @@ import tomllib
 from pathlib import Path
 
 from . import claims, manifest, pages
-from .util import ROOT_FILE, is_notebook_root, read_jsonl, today
+from .util import ROOT_FILE, is_notebook_root, new_uid, read_jsonl, today
 
 NOTEBOOK_TOML = "notebook.toml"
 
@@ -393,31 +397,89 @@ def _move_session(root: Path, old: Path) -> Path:
     return path
 
 
+# --- profile upgrade (0.4 → 0.5) -------------------------------------------
+
+
+def _beat_link_fix(links: dict) -> str | None:
+    """The canonical ':' form of a deprecated '<slug>#<TH#>' links.beat value,
+    or None when there is nothing to rewrite."""
+    ref = links.get("beat")
+    if isinstance(ref, str):
+        slug, sep, thread_id = ref.partition("#")
+        if sep and slug and thread_id:
+            return f"{slug}:{thread_id}"
+    return None
+
+
+def _upgrade_profile(root: Path) -> dict:
+    """Bring the manifest at `root` to the 0.5 profile: mint the notebook uid
+    when missing (an existing uid is identity — never re-minted) and move
+    links.beat to the canonical ':' separator. save_manifest stamps
+    flip: FLIP_PROFILE_VERSION; every other key — foreign frontmatter
+    included — round-trips untouched. Only the beat link is rewritten:
+    '#' anywhere else in links is somebody's URL fragment, not ours.
+    """
+    m = manifest.load_manifest(root)
+    counts = {"uid_added": 0, "beat_link_rewritten": 0,
+              "profile": manifest.FLIP_PROFILE_VERSION}
+    if not m.uid:
+        m.uid = new_uid()
+        counts["uid_added"] = 1
+    fixed = _beat_link_fix(m.links)
+    if fixed is not None:
+        m.links["beat"] = fixed
+        counts["beat_link_rewritten"] = 1
+    if (counts["uid_added"] or counts["beat_link_rewritten"]
+            or m.flip_version != manifest.FLIP_PROFILE_VERSION):
+        m.updated = today()  # migration is a mutation
+        manifest.save_manifest(root, m)
+    return counts
+
+
 # --- the migration --------------------------------------------------------
 
 
 def migrate(root: Path) -> dict:
-    """Convert a v0.3 notebook at `root` to v0.4 in place.
+    """Upgrade the notebook at `root` to the current profile, in place.
 
-    Returns a summary dict of per-entity counts: {"sources": n, "claims": n,
-    "decisions": n, "questions": n, "sessions": n, "already_migrated": n} —
-    the last counts ledger rows skipped because a page with their id already
-    exists (a resumed run).
+    A v0.3 notebook (notebook.toml present) runs the full ledger→pages
+    conversion, then the profile pass; a page-shaped notebook gets the
+    profile pass alone. An already-current notebook is a refusal. Returns a
+    summary dict: {"uid_added": n, "beat_link_rewritten": n, "profile":
+    FLIP_PROFILE_VERSION}, plus — on the v0.3 path — per-entity counts
+    {"sources": n, "claims": n, "decisions": n, "questions": n,
+    "sessions": n, "already_migrated": n}; the last counts ledger rows
+    skipped because a page with their id already exists (a resumed run).
     """
     root = Path(root)
     toml_path = root / NOTEBOOK_TOML
-    if not toml_path.is_file():
-        if is_notebook_root(root):
-            raise SystemExit(
-                f"{root} is already a v0.4 notebook (no {NOTEBOOK_TOML}); nothing to migrate"
-            )
+    if toml_path.is_file():
+        counts = _migrate_v03(root, toml_path)
+        counts.update(_upgrade_profile(root))
+        return counts
+    if not is_notebook_root(root):
         raise SystemExit(
             f"{root} is not a flip notebook (no {NOTEBOOK_TOML} to migrate and no "
             f"{ROOT_FILE} with flip manifest frontmatter)"
         )
+    m = manifest.load_manifest(root)
+    if (m.uid and m.flip_version == manifest.FLIP_PROFILE_VERSION
+            and _beat_link_fix(m.links) is None):
+        raise SystemExit(
+            f"{root} is already at the current profile (flip "
+            f"{manifest.FLIP_PROFILE_VERSION}, uid {m.uid}); nothing to migrate"
+        )
+    return _upgrade_profile(root)
 
+
+def _migrate_v03(root: Path, toml_path: Path) -> dict:
+    """The v0.3 → page-shape conversion (SPEC §15); see the module docstring."""
     # Parse everything before writing anything, so a bad ledger aborts clean.
     m = _manifest_from_toml(root, toml_path)
+    if is_notebook_root(root):
+        # Resumed run: the interrupted first pass already wrote the root
+        # index.md — keep the uid it may carry, it is the notebook's identity.
+        m.uid = manifest.load_manifest(root).uid
     source_rows = _read_ledger(root, SOURCES_LEDGER)
     claim_rows = _read_ledger(root, CLAIMS_LEDGER)
     decision_rows = _read_ledger(root, DECISIONS_LEDGER)

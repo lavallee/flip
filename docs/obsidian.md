@@ -8,7 +8,7 @@ id navigation, live in the sidebar.
 
 ## 1. Prepare the vault
 
-From anywhere inside a notebook (or a beat):
+From anywhere inside a notebook (or a beat; for a workspace vault see §5):
 
 ```bash
 flip obsidian
@@ -29,7 +29,7 @@ What it does, and nothing more:
   config alone.
 
 It is idempotent — a second run changes nothing and says so — and it
-refuses to run anywhere that isn't a notebook or beat root.
+refuses to run anywhere that isn't a notebook, beat, or workspace root.
 
 `.obsidian/` is **editor-local state**: flip never reads it, exports never
 ship it, and if the notebook is committed it belongs in the repo's
@@ -53,9 +53,11 @@ binary path (`which flip`).
   independence, freshness are editable properties. Re-grading a source
   there is a legitimate flip operation — the next `flip doctor` run
   validates it after the fact.
-- **`[[A3]]` resolves.** Every entity page carries its id in `aliases`, so
-  id wikilinks find the page whatever its filename; filenames stay human
-  slugs.
+- **`[[A3` autocompletes.** Every entity page carries its id in `aliases`,
+  so typing `[[A3` suggests the page whatever its filename; filenames stay
+  human slugs. (Aliases feed the suggester — they don't make a raw
+  `[[A3]]` you typed blind resolve; accept the suggestion and Obsidian
+  writes a real link.)
 - **Graph view lights up.** flip's citations and listings are relative
   markdown links; the folder taxonomy (references / claims / decisions /
   questions / sessions) reads as intended structure.
@@ -77,7 +79,28 @@ binary path (`which flip`).
   claim, and question (id + title/text); free-typed ids (D2, H1…) work
   too. Choosing one opens the page.
 
-## 5. Two caveats
+## 5. Workspace vaults
+
+A vault holding **many** notebooks works too (SPEC §18). Run `flip ws init`
+at the shared root to bind each notebook to a handle, then `flip obsidian`
+at that same root. The plugin detects `.flip/workspace.toml` and switches
+modes:
+
+- **Doctor goes workspace-wide** — the panel and status bar
+  (`flip: workspace · 0❗ 2⚠`) show `flip doctor --workspace --json`
+  findings: duplicate lineages, unbound notebooks, ids ambiguous across
+  notebooks. The hot view stays notebook-only (open a single notebook as
+  its own vault for that).
+- **Open by id spans the vault** — the command suggests every bound
+  notebook's sources, claims, and questions in their qualified form
+  (`recipes:A3`, labeled with the handle), and free-typed `recipes:A3` /
+  bare `A3` both work (`flip open` does the resolving, so bare ids must be
+  unambiguous).
+- **Qualified aliases autocomplete** — binding added `recipes:A3`-style
+  aliases to entity pages, so typing `[[recipes:A3` suggests the right
+  page even when two notebooks both have an `A3`.
+
+## 6. Two caveats
 
 - **Don't hand-edit generated views.** `index.md` bodies (the root and
   each entity dir's listing) and `log.md` are projections flip rewrites on

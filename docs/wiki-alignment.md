@@ -63,7 +63,7 @@ attribution everywhere, renders never edited — plus an extension vocabulary
   frontmatter lists. The W3C Holon CG is exploring formal-semantics profiles
   for exactly this layer; OKF v0.1 has no provenance scheme and flip has a
   worked one, so proposing flip's vocabulary upstream as a candidate OKF
-  provenance profile is an open question the spec tracks (SPEC §18).
+  provenance profile is an open question the spec tracks (SPEC §19).
 - **Generated views where OKF expects them.** `index.md` listing bodies and
   `log.md` regenerate deterministically from pages and ledgers on every
   mutating command — reproducible and diff-auditable, no LLM in the loop.

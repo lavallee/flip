@@ -78,7 +78,20 @@ flip doctor                        # lint: OKF conformance, profile minimums, ve
 Filenames are human slugs (`references/districts.md`); the immutable id
 (`F1`) lives in frontmatter. `flip open F1` resolves an id to its page;
 `flip rename F1 district-enrollment-table` renames the file and rewrites
-every link to it. `flip migrate` upgrades a pre-0.4 notebook in place.
+every link to it. `flip migrate` upgrades an older notebook in place
+(v0.3 ledgers become pages; a 0.4 manifest gains its `uid`).
+
+Many notebooks can share one vault or repo as a **workspace**: `flip ws
+init` at the shared root binds each notebook to a short handle (yours to
+choose, like a git remote name), and refs qualify as `recipes:A3` —
+`flip resolve recipes:A3` / `flip open recipes:A3` find the page from
+anywhere under the root, and `flip doctor --workspace` audits the shared
+space (duplicate lineages, unbound notebooks, ambiguous ids). Notebooks
+travel: `flip export` output — a directory, an OKF bundle, or a BagIt bag —
+imports into someone else's workspace with `flip import`, keeping every
+entity id and citation valid; a stable `uid` in the manifest makes copies
+of the same notebook recognizable as one lineage, so `flip import --update`
+can refresh your copy safely.
 
 URL and DOI capture route through fetchers you configure — `flip config init`
 writes a starter config whose `web` lane uses the bundled zero-dependency
@@ -114,16 +127,21 @@ A notebook is already a valid Obsidian vault; `flip obsidian` finishes the
 job — it writes the vault link config to match flip's relative markdown
 links and installs the packaged companion plugin (doctor findings and the
 hot view in the sidebar, a status bar summary, open-by-id navigation, all
-driven by `flip … --json`). The walkthrough is
-[docs/obsidian.md](docs/obsidian.md).
+driven by `flip … --json`). A workspace root works as a vault too: the
+plugin reads the handle table, audits the shared space, and open-by-id
+suggests every bound notebook's entities as `recipes:A3`. The walkthrough
+is [docs/obsidian.md](docs/obsidian.md).
 
-Status: spec draft v0.5 — notebooks are native OKF v0.1 bundles. The CLI
+Status: spec draft v0.8 — notebooks are native OKF v0.1 bundles. The CLI
 covers the full surface (`new`, `add-source`, `grade`, `log`, `decide`,
-`pass`, `question`, `claim`, `session`, `show`, `open`, `rename`, `doctor`,
-`index`, `migrate`, `export bag|csl|okf`), plus **beats** — the standing
-layer above notebooks (`flip beat new / thread add / graduate / show`): a
-mission with weighted-triage threads that graduate into notebooks and keep
-cross-notebook coverage memory. `flip migrate` converts v0.3 notebooks in
+`pass`, `question`, `claim`, `session`, `show`, `open`, `resolve`, `rename`,
+`doctor`, `index`, `migrate`, `export bag|csl|okf`), plus **beats** — the
+standing layer above notebooks (`flip beat new / thread add / graduate /
+show`): a mission with weighted-triage threads that graduate into notebooks
+and keep cross-notebook coverage memory — and **workspaces** (`flip ws`,
+`flip import`): many notebooks under one root, bound to handles so
+`recipes:A3` resolves and shared notebooks import without rekeying ids.
+`flip migrate` upgrades older notebooks in
 place. See [docs/wiki-alignment.md](docs/wiki-alignment.md) for how flip
 relates to OKF and OpenWiki, and
 [docs/okf-provenance-profile.md](docs/okf-provenance-profile.md) for flip's

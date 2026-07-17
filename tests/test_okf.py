@@ -13,18 +13,20 @@ from flip.util import append_jsonl, sha256_file
 SHA = "ab" * 32
 
 
-def manifest_md(visibility: str, trail: bool) -> str:
+def manifest_md(visibility: str, trail: bool, uid: str = "", origin: str = "") -> str:
     return (
         "---\n"
         'okf_version: "0.1"\n'
         'flip: "0.4"\n'
         "slug: demo\n"
-        "title: Demo notebook\n"
+        + (f"uid: {uid}\n" if uid else "")
+        + "title: Demo notebook\n"
         "kind: scout\n"
         "status: active\n"
         "created: 2026-07-01\n"
         "updated: 2026-07-10\n"
-        f"visibility: {visibility}\n"
+        + (f"origin: {origin}\n" if origin else "")
+        + f"visibility: {visibility}\n"
         "renders_public: false\n"
         f"source_trail_public: {'true' if trail else 'false'}\n"
         "citation_rule: public-terminus\n"
@@ -34,9 +36,14 @@ def manifest_md(visibility: str, trail: bool) -> str:
     )
 
 
-def make_notebook(root: Path, visibility: str = "public", trail: bool = True) -> Path:
+def make_notebook(
+    root: Path, visibility: str = "public", trail: bool = True,
+    uid: str = "", origin: str = "",
+) -> Path:
     root.mkdir(parents=True, exist_ok=True)
-    (root / "index.md").write_text(manifest_md(visibility, trail), encoding="utf-8")
+    (root / "index.md").write_text(
+        manifest_md(visibility, trail, uid=uid, origin=origin), encoding="utf-8"
+    )
     (root / "notebook.md").write_text(
         "---\ntype: Notebook\ndescription: Demo\n---\n\n# Reporter's notebook — Demo\n",
         encoding="utf-8",
@@ -401,6 +408,61 @@ def test_state_file_names_the_notebook(tmp_path):
     assert state["notebook"] == "demo"
     assert state["tool"].startswith("flip ")
     assert state["generated_at"]
+
+
+# -- uid / origin travel and import round-trip --------------------------------
+
+
+def test_export_carries_uid_and_origin(tmp_path):
+    # identity and provenance live in the root frontmatter, so they ship with
+    # every export — even a stripped one, where lineage matters most (SPEC §17)
+    nb = make_notebook(
+        tmp_path / "nb", trail=False,
+        uid="nb-7k3m9p2x", origin="/shared/demo (imported 2026-07-01)",
+    )
+    dest = export_okf(nb, tmp_path / "bundle")
+    fm = pages.read_page(dest / "index.md").fm
+    assert fm["uid"] == "nb-7k3m9p2x"
+    assert fm["origin"] == "/shared/demo (imported 2026-07-01)"
+
+
+def test_export_never_ships_workspace_toml(tmp_path):
+    # handles are importer-owned petnames bound in .flip/workspace.toml; like
+    # the rest of .flip/, the table never leaves the machine (SPEC §18)
+    nb = make_notebook(tmp_path / "nb", trail=True)
+    (nb / ".flip" / "workspace.toml").write_text(
+        '[workspace]\nversion = "0.1"\n\n[notebooks]\ndemo = "."\n', encoding="utf-8"
+    )
+    dest = export_okf(nb, tmp_path / "bundle")
+    assert not (dest / ".flip").exists()
+    assert [p for p in dest.rglob("workspace.toml")] == []
+
+
+def test_export_import_reexport_preserves_uid(tmp_path):
+    # A shared bundle keeps its lineage across the fence: export → import into
+    # another workspace → re-export, uid identical at every hop (SPEC §17:
+    # import never rekeys; only origin is refreshed to record the new hop).
+    from flip.importer import import_bundle
+
+    nb = make_notebook(tmp_path / "nb", trail=True, uid="nb-7k3m9p2x")
+    bundle = export_okf(nb, tmp_path / "bundle")
+    assert pages.read_page(bundle / "index.md").fm["uid"] == "nb-7k3m9p2x"
+
+    ws = tmp_path / "other-vault"
+    (ws / ".flip").mkdir(parents=True)
+    (ws / ".flip" / "workspace.toml").write_text(
+        '[workspace]\nversion = "0.1"\n\n[notebooks]\n', encoding="utf-8"
+    )
+    result = import_bundle(ws, bundle)
+    assert result["uid"] == "nb-7k3m9p2x"
+    copy = ws / result["path"]
+    fm = pages.read_page(copy / "index.md").fm
+    assert fm["uid"] == "nb-7k3m9p2x"
+    assert str(bundle) in fm["origin"]  # provenance records where the copy came from
+    assert not (copy / STATE_FILE).exists()  # the export marker labels, never travels
+
+    reexport = export_okf(copy, tmp_path / "reexport")
+    assert pages.read_page(reexport / "index.md").fm["uid"] == "nb-7k3m9p2x"
 
 
 # -- announce ----------------------------------------------------------------

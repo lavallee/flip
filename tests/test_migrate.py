@@ -1,4 +1,4 @@
-"""Tests for flip.migrate: v0.3 ledgers/notebook.toml → v0.4 pages/index.md."""
+"""Tests for flip.migrate: v0.3 ledgers → pages, and the 0.5 profile pass."""
 
 from __future__ import annotations
 
@@ -7,9 +7,14 @@ from pathlib import Path
 import pytest
 
 from flip import pages
-from flip.manifest import load_manifest
+from flip.manifest import FLIP_PROFILE_VERSION, load_manifest
 from flip.migrate import migrate
-from flip.util import is_notebook_root, next_id, today, write_jsonl
+from flip.util import UID_RE, is_notebook_root, next_id, today, write_jsonl
+
+# What the profile pass reports on a v0.3 chain: the notebook has never had a
+# uid, and v0.3 manifests carry no links.beat with '#'.
+PROFILE_COUNTS = {"uid_added": 1, "beat_link_rewritten": 0,
+                  "profile": FLIP_PROFILE_VERSION}
 
 NOTEBOOK_TOML = """\
 slug = "demo"
@@ -126,7 +131,7 @@ def test_migrate_counts_and_notebook_toml_gone(tmp_path):
     root = make_v03(tmp_path)
     summary = migrate(root)
     assert summary == {"sources": 3, "claims": 1, "decisions": 1, "questions": 2,
-                       "sessions": 1, "already_migrated": 0}
+                       "sessions": 1, "already_migrated": 0, **PROFILE_COUNTS}
     assert not (root / "notebook.toml").exists()
     assert is_notebook_root(root)
 
@@ -320,10 +325,10 @@ def test_migrated_ids_are_never_reused(tmp_path):
 # -- refusals and resilience ---------------------------------------------------
 
 
-def test_migrate_refuses_v04_notebook(tmp_path):
+def test_migrate_refuses_already_current_notebook(tmp_path):
     root = make_v03(tmp_path)
     migrate(root)
-    with pytest.raises(SystemExit, match="already"):
+    with pytest.raises(SystemExit, match="already at the current profile"):
         migrate(root)
 
 
@@ -376,7 +381,7 @@ def test_migrate_empty_ledgers_still_migrates_manifest(tmp_path):
     (root / "notebook.toml").write_text('slug = "bare"\nkind = "ledger"\n', encoding="utf-8")
     summary = migrate(root)
     assert summary == {"sources": 0, "claims": 0, "decisions": 0, "questions": 0,
-                       "sessions": 0, "already_migrated": 0}
+                       "sessions": 0, "already_migrated": 0, **PROFILE_COUNTS}
     assert is_notebook_root(root)
     assert load_manifest(root).slug == "bare"
     assert not (root / "notebook.toml").exists()
@@ -387,17 +392,20 @@ def test_migrate_resumes_after_partial_run(tmp_path):
     # deleted, notebook.toml still present — the re-run finishes the rest
     root = make_v03(tmp_path)
     full = {"sources": 3, "claims": 1, "decisions": 1, "questions": 2,
-            "sessions": 1, "already_migrated": 0}
+            "sessions": 1, "already_migrated": 0, **PROFILE_COUNTS}
     first = migrate(root)
     assert first == full
+    uid = load_manifest(root).uid  # minted once; a re-run must not re-mint it
     # rebuild a half-migrated state: restore notebook.toml and one ledger
     (root / "notebook.toml").write_text(NOTEBOOK_TOML, encoding="utf-8")
     write_jsonl(root / "log" / "decisions.jsonl",
                 [{**DECISION_ROWS[0], "id": "D2", "decision": "Second pass"}])
     second = migrate(root)
     assert second == {"sources": 0, "claims": 0, "decisions": 1, "questions": 0,
-                      "sessions": 0, "already_migrated": 0}
+                      "sessions": 0, "already_migrated": 0, "uid_added": 0,
+                      "beat_link_rewritten": 0, "profile": FLIP_PROFILE_VERSION}
     assert not (root / "notebook.toml").exists()
+    assert load_manifest(root).uid == uid  # identity survives the resume
     assert pages.find_by_id(root, "D2") is not None
     # the first run's pages are untouched
     assert pages.find_by_id(root, "D1") is not None
@@ -421,7 +429,8 @@ def test_migrate_resume_skips_rows_whose_pages_exist(tmp_path):
     summary = migrate(root)
 
     assert summary == {"sources": 0, "claims": 0, "decisions": 1, "questions": 0,
-                       "sessions": 0, "already_migrated": 7}
+                       "sessions": 0, "already_migrated": 7, "uid_added": 0,
+                       "beat_link_rewritten": 0, "profile": FLIP_PROFILE_VERSION}
     # no duplicated pages, no -2 slugs, no duplicate ids
     for dup in ("vendor-study-3.md", "conversion-is-42-higher-2.md",
                 "vendor-claims-only-2.md"):
@@ -431,6 +440,113 @@ def test_migrate_resume_skips_rows_whose_pages_exist(tmp_path):
     assert len([i for i in ids if i == "D1"]) == 1
     assert pages.find_by_id(root, "D2") is not None
     assert not (root / "notebook.toml").exists()
+
+
+# -- the 0.5 profile pass ------------------------------------------------------
+
+
+def make_v04(tmp_path: Path, *, uid: str = "", links: dict | None = None,
+             extra_fm: dict | None = None) -> Path:
+    """A page-shaped notebook whose manifest still declares flip '0.4' —
+    what a live 0.4 notebook looks like before its first 0.9 command."""
+    root = tmp_path / "orchard-survey"
+    root.mkdir()
+    fm: dict = {
+        "okf_version": "0.1", "flip": "0.4", "slug": "orchard-survey",
+        "title": "Orchard survey", "kind": "scout", "status": "active",
+        "created": "2026-07-01", "updated": "2026-07-01",
+        "visibility": "internal", "renders_public": False,
+        "source_trail_public": False, "citation_rule": "public-terminus",
+    }
+    if uid:
+        fm["uid"] = uid
+    if links:
+        fm["links"] = links
+    fm.update(extra_fm or {})
+    pages.write_page(root / "index.md", fm, "# Orchard survey\n")
+    return root
+
+
+def test_profile_pass_adds_uid_and_stamps_version(tmp_path):
+    root = make_v04(tmp_path)
+    summary = migrate(root)
+    assert summary == PROFILE_COUNTS
+    m = load_manifest(root)
+    assert UID_RE.match(m.uid)
+    assert pages.read_page(root / "index.md").fm["flip"] == FLIP_PROFILE_VERSION
+    assert m.updated == today()  # migration is a mutation
+
+
+def test_profile_pass_never_remints_an_existing_uid(tmp_path):
+    root = make_v04(tmp_path, uid="nb-7k3m9p2x")
+    summary = migrate(root)
+    assert summary == {"uid_added": 0, "beat_link_rewritten": 0,
+                       "profile": FLIP_PROFILE_VERSION}
+    assert load_manifest(root).uid == "nb-7k3m9p2x"
+
+
+def test_profile_pass_rewrites_only_the_beat_link(tmp_path):
+    root = make_v04(tmp_path, links={"beat": "county#TH2",
+                                     "corpus": "corpus://field-notes#frag"})
+    summary = migrate(root)
+    assert summary["beat_link_rewritten"] == 1
+    m = load_manifest(root)
+    assert m.links["beat"] == "county:TH2"
+    assert m.links["corpus"] == "corpus://field-notes#frag"  # foreign '#' kept
+
+
+def test_profile_pass_leaves_canonical_beat_link_alone(tmp_path):
+    root = make_v04(tmp_path, links={"beat": "county:TH2"})
+    summary = migrate(root)
+    assert summary["beat_link_rewritten"] == 0
+    assert load_manifest(root).links["beat"] == "county:TH2"
+
+
+def test_profile_pass_leaves_malformed_beat_link_alone(tmp_path):
+    # nothing before the '#': not a rewritable "<slug>#<TH#>" — kept for
+    # doctor to flag, while the rest of the upgrade still lands
+    root = make_v04(tmp_path, links={"beat": "#TH2"})
+    summary = migrate(root)
+    assert summary == PROFILE_COUNTS  # uid minted, nothing rewritten
+    assert load_manifest(root).links["beat"] == "#TH2"
+
+
+def test_profile_pass_preserves_foreign_frontmatter(tmp_path):
+    root = make_v04(tmp_path, extra_fm={"description": "hand-added prose",
+                                        "gardening": {"season": "spring"}})
+    migrate(root)
+    fm = pages.read_page(root / "index.md").fm
+    assert fm["description"] == "hand-added prose"
+    assert fm["gardening"] == {"season": "spring"}
+
+
+def test_migrate_restamps_declared_04_even_with_uid(tmp_path):
+    # uid present and links canonical, but the manifest still says flip
+    # '0.4' — not current: migrate restamps instead of refusing, and only
+    # the second run is the refusal
+    root = make_v04(tmp_path, uid="nb-7k3m9p2x", links={"beat": "county:TH2"})
+    summary = migrate(root)
+    assert summary == {"uid_added": 0, "beat_link_rewritten": 0,
+                       "profile": FLIP_PROFILE_VERSION}
+    assert pages.read_page(root / "index.md").fm["flip"] == FLIP_PROFILE_VERSION
+    with pytest.raises(SystemExit, match="already at the current profile"):
+        migrate(root)
+
+
+def test_migrate_refuses_freshly_scaffolded_notebook(tmp_path):
+    from flip.scaffold import create_notebook
+
+    root = create_notebook(tmp_path / "fresh", "fresh", "scout")
+    with pytest.raises(SystemExit, match="already at the current profile"):
+        migrate(root)
+
+
+def test_v03_chain_ends_at_current_profile(tmp_path):
+    root = make_v03(tmp_path)
+    migrate(root)
+    fm = pages.read_page(root / "index.md").fm
+    assert fm["flip"] == FLIP_PROFILE_VERSION
+    assert UID_RE.match(fm["uid"])
 
 
 def test_migrate_question_event_extras_fold_onto_the_page(tmp_path):

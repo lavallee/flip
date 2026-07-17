@@ -1,9 +1,11 @@
-"""flip obsidian — prepare a notebook (or beat) to open cleanly as a vault.
+"""flip obsidian — prepare a notebook, beat, or workspace to open as a vault.
 
 Obsidian is the reference human client for flip (SPEC §12): frontmatter is
-the Properties panel, `aliases` make [[A3]]-style id links resolve, and the
-relative markdown links flip writes light up the graph view. Two things
-vanilla Obsidian gets wrong out of the box, this module fixes:
+the Properties panel, `aliases` feed the [[ autocomplete (typing [[A3
+suggests the page — they do not make a raw [[A3]] resolve; Obsidian only
+resolves paths and filenames), and the relative markdown links flip writes
+light up the graph view. Two things vanilla Obsidian gets wrong out of the
+box, this module fixes:
 
 - **Link authoring.** New Obsidian installs write wikilinks with shortest
   paths; flip writes relative markdown links (SPEC §9). Merge-writing
@@ -28,7 +30,7 @@ from importlib import resources
 from pathlib import Path
 
 from .beat import is_beat_root
-from .util import is_notebook_root
+from .util import is_notebook_root, is_workspace_root
 
 OBSIDIAN_DIR = ".obsidian"
 PLUGIN_ID = "flip-notebook"
@@ -40,18 +42,20 @@ APP_SETTINGS = {"useMarkdownLinks": True, "newLinkFormat": "relative"}
 
 
 def prepare_vault(root: Path, with_plugin: bool = True) -> list[str]:
-    """Prepare `root` (a notebook or beat root) as an Obsidian vault.
+    """Prepare `root` (a notebook, beat, or workspace root) as an Obsidian vault.
 
     Merge-writes `.obsidian/app.json`, installs the packaged flip plugin,
-    and enables it in `.obsidian/community-plugins.json`. Returns the list
-    of actions taken — empty when the vault was already prepared.
+    and enables it in `.obsidian/community-plugins.json`. At a workspace
+    root (SPEC §18) the plugin reads `.flip/workspace.toml` to find the
+    bound notebooks. Returns the list of actions taken — empty when the
+    vault was already prepared.
     """
     root = Path(root)
-    if not (is_notebook_root(root) or is_beat_root(root)):
+    if not (is_notebook_root(root) or is_beat_root(root) or is_workspace_root(root)):
         raise SystemExit(
-            f"{root} is not a flip notebook or beat root (no index.md with flip/"
-            "flip_beat frontmatter); run this at a root, or `flip new <slug>` / "
-            "`flip beat new <slug>` to create one"
+            f"{root} is not a flip notebook, beat, or workspace root (no index.md "
+            "with flip/flip_beat frontmatter and no .flip/workspace.toml); run this "
+            "at a root, or `flip new <slug>` / `flip ws init` to create one"
         )
     obsidian = root / OBSIDIAN_DIR
     actions: list[str] = []

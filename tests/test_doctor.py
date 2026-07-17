@@ -10,13 +10,15 @@ import json
 from pathlib import Path
 
 from flip import pages
-from flip.doctor import Finding, run_doctor
-from flip.util import append_jsonl, today
+from flip.doctor import Finding, run_doctor, run_workspace_doctor
+from flip.manifest import load_manifest
+from flip.util import UID_RE, append_jsonl, today
+from flip.workspace import load_workspace
 
 MANIFEST_MD = """\
 ---
 okf_version: "0.1"
-flip: "0.4"
+flip: "{flip}"
 slug: test
 kind: {kind}
 status: {status}
@@ -69,12 +71,14 @@ def make_notebook(
     status: str = "active",
     extra_fm: str = "",
     profile: bool = True,
+    flip_version: str = "0.4",
     **profile_kw,
 ) -> Path:
     root = tmp_path / "nb"
     root.mkdir(exist_ok=True)
     (root / "index.md").write_text(
-        MANIFEST_MD.format(kind=kind, status=status, extra=extra_fm), encoding="utf-8"
+        MANIFEST_MD.format(kind=kind, status=status, extra=extra_fm, flip=flip_version),
+        encoding="utf-8",
     )
     (root / "notebook.md").write_text(NOTEBOOK_MD, encoding="utf-8")
     if profile:
@@ -738,3 +742,341 @@ def test_beat_link_missing_thread_warns(tmp_path):
 def test_no_links_beat_no_beat_checks(tmp_path):
     root = make_notebook(tmp_path)
     assert "broken-beat-link" not in codes(run_doctor(root))
+
+
+# --- ref separator deprecation (SPEC §9: '#' → ':', reads removed in 0.10) -------
+
+
+def test_beat_link_colon_is_canonical_and_silent(tmp_path):
+    root = make_beat_with_notebook(tmp_path, link="county:TH1")
+    found = codes(run_doctor(root))
+    assert "broken-beat-link" not in found
+    assert "deprecated-ref-separator" not in found
+
+
+def test_beat_link_hash_warns_deprecated(tmp_path):
+    root = make_beat_with_notebook(tmp_path, link="county#TH1")
+    warns = [f for f in run_doctor(root) if f.code == "deprecated-ref-separator"]
+    assert warns and warns[0].level == "WARN"
+    assert "flip migrate" in warns[0].message
+    assert "0.10" in warns[0].message
+    # the link still resolves through the fallback parse
+    assert "broken-beat-link" not in codes(run_doctor(root))
+
+
+def test_beat_link_colon_missing_thread_still_warns(tmp_path):
+    root = make_beat_with_notebook(tmp_path, link="county:TH9")
+    broken = [f for f in run_doctor(root) if f.code == "broken-beat-link"]
+    assert broken and "TH9" in broken[0].message
+
+
+# --- missing-alias wording (aliases are autocomplete, not resolution) -------------
+
+
+def test_missing_alias_explains_autocomplete_not_resolution(tmp_path):
+    root = make_notebook(tmp_path)
+    pages.write_page(
+        root / "questions" / "unaliased.md",
+        {"type": "Question", "id": "Q1", "aliases": ["something-else"], "status": "open"},
+        "why?\n",
+    )
+    found = [f for f in run_doctor(root) if f.code == "missing-alias"]
+    assert found
+    assert "autocomplete" in found[0].message
+    assert "add aliases: [Q1]" in found[0].message
+
+
+# --- missing-uid, gated on the declared profile version (SPEC §4) -----------------
+
+
+def test_missing_uid_fires_when_manifest_declares_05(tmp_path):
+    root = make_notebook(tmp_path, flip_version="0.5")
+    found = [f for f in run_doctor(root) if f.code == "missing-uid"]
+    assert found and found[0].level == "WARN"
+    assert "flip migrate" in found[0].message
+    assert found[0].path == "index.md"
+
+
+def test_missing_uid_quiet_on_unmigrated_04(tmp_path):
+    root = make_notebook(tmp_path, flip_version="0.4")
+    assert "missing-uid" not in codes(run_doctor(root))
+
+
+def test_no_missing_uid_when_uid_present(tmp_path):
+    root = make_notebook(tmp_path, flip_version="0.5", extra_fm="uid: nb-7k3m9p2x\n")
+    assert "missing-uid" not in codes(run_doctor(root))
+
+
+# --- workspace mode (SPEC §18) -----------------------------------------------------
+
+WS_NB_MD = """\
+---
+okf_version: "0.1"
+flip: "0.5"
+slug: {slug}
+{extra}kind: ledger
+status: active
+created: 2026-07-01
+updated: 2026-07-09
+---
+# {slug}
+"""
+
+
+def make_workspace(tmp_path: Path) -> Path:
+    ws_root = tmp_path / "ws"
+    ws_root.mkdir(exist_ok=True)
+    return ws_root
+
+
+def ws_notebook(ws_root: Path, rel: str, slug: str | None = None, uid: str = "") -> Path:
+    """A minimal bindable notebook at ws_root/rel."""
+    root = ws_root / rel
+    root.mkdir(parents=True, exist_ok=True)
+    extra = f"uid: {uid}\n" if uid else ""
+    (root / "index.md").write_text(
+        WS_NB_MD.format(slug=slug or rel, extra=extra), encoding="utf-8"
+    )
+    return root
+
+
+def question(root: Path, qid: str, aliases: list[str] | None = None, stem: str | None = None):
+    return pages.write_page(
+        root / "questions" / f"{stem or qid.lower()}.md",
+        {"type": "Question", "id": qid,
+         "aliases": aliases if aliases is not None else [qid], "status": "open"},
+        "why?\n",
+    )
+
+
+def write_table(ws_root: Path, notebooks: dict[str, str], version: str = "0.1") -> None:
+    lines = [f'[workspace]\nversion = "{version}"\n\n[notebooks]\n']
+    lines += [f'{h} = "{p}"\n' for h, p in notebooks.items()]
+    (ws_root / ".flip").mkdir(parents=True, exist_ok=True)
+    (ws_root / ".flip" / "workspace.toml").write_text("".join(lines), encoding="utf-8")
+
+
+def test_healthy_workspace_has_no_findings(tmp_path):
+    ws = make_workspace(tmp_path)
+    recipes = ws_notebook(ws, "recipes", uid="nb-r2k9m3p7")
+    gardening = ws_notebook(ws, "gardening", uid="nb-g2k9m3p7")
+    question(recipes, "Q1", aliases=["Q1", "recipes:Q1"])
+    question(gardening, "Q2", aliases=["Q2", "gardening:Q2"], stem="soil-ph")
+    write_table(ws, {"recipes": "recipes", "gardening": "gardening"})
+    assert run_workspace_doctor(ws) == []
+
+
+def test_bad_workspace_file_is_error(tmp_path):
+    ws = make_workspace(tmp_path)
+    (ws / ".flip").mkdir()
+    (ws / ".flip" / "workspace.toml").write_text("not [ toml\n", encoding="utf-8")
+    findings = run_workspace_doctor(ws)
+    assert codes(findings, "ERROR") == ["bad-workspace-file"]
+    assert findings[0].path == ".flip/workspace.toml"
+
+
+def test_duplicate_handle_is_bad_workspace_file(tmp_path):
+    # duplicate TOML keys are a parse error, so a duplicated handle surfaces
+    # as bad-workspace-file with tomllib's line-anchored message
+    ws = make_workspace(tmp_path)
+    (ws / ".flip").mkdir()
+    (ws / ".flip" / "workspace.toml").write_text(
+        '[workspace]\nversion = "0.1"\n\n[notebooks]\n'
+        'recipes = "recipes"\nrecipes = "other"\n',
+        encoding="utf-8",
+    )
+    findings = run_workspace_doctor(ws)
+    assert codes(findings, "ERROR") == ["bad-workspace-file"]
+
+
+def test_invalid_handle_is_handle_syntax_error(tmp_path):
+    ws = make_workspace(tmp_path)
+    ws_notebook(ws, "recipes")
+    write_table(ws, {"Recipes": "recipes"})
+    found = [f for f in run_workspace_doctor(ws) if f.code == "handle-syntax"]
+    assert found and found[0].level == "ERROR"
+    assert "'Recipes'" in found[0].message
+
+
+def test_dangling_entry_when_path_missing(tmp_path):
+    ws = make_workspace(tmp_path)
+    write_table(ws, {"recipes": "recipes"})
+    found = [f for f in run_workspace_doctor(ws) if f.code == "dangling-workspace-entry"]
+    assert found and found[0].level == "ERROR"
+    assert "does not exist" in found[0].message
+    assert "flip ws rm recipes" in found[0].message
+
+
+def test_dangling_entry_when_not_a_notebook(tmp_path):
+    ws = make_workspace(tmp_path)
+    (ws / "plain").mkdir()
+    (ws / "plain" / "index.md").write_text("# just a directory\n", encoding="utf-8")
+    write_table(ws, {"plain": "plain"})
+    found = [f for f in run_workspace_doctor(ws) if f.code == "dangling-workspace-entry"]
+    assert found and "not a notebook root" in found[0].message
+
+
+def test_duplicate_uid_is_single_warn_listing_handles(tmp_path):
+    ws = make_workspace(tmp_path)
+    ws_notebook(ws, "recipes", uid="nb-x2k9m3p7")
+    ws_notebook(ws, "gardening", uid="nb-x2k9m3p7")
+    write_table(ws, {"recipes": "recipes", "gardening": "gardening"})
+    found = [f for f in run_workspace_doctor(ws) if f.code == "duplicate-uid"]
+    assert len(found) == 1 and found[0].level == "WARN"
+    assert "recipes" in found[0].message and "gardening" in found[0].message
+    assert "nb-x2k9m3p7" in found[0].message
+
+
+def test_missing_uid_warn_with_ws_relative_path(tmp_path):
+    ws = make_workspace(tmp_path)
+    ws_notebook(ws, "recipes")  # no uid
+    write_table(ws, {"recipes": "recipes"})
+    found = [f for f in run_workspace_doctor(ws) if f.code == "missing-uid"]
+    assert found and found[0].level == "WARN"
+    assert found[0].path == "recipes/index.md"
+    assert "--fix" in found[0].message
+
+
+def test_unregistered_notebook_warn(tmp_path):
+    ws = make_workspace(tmp_path)
+    ws_notebook(ws, "field-notes", uid="nb-f2k9m3p7")
+    write_table(ws, {})
+    found = [f for f in run_workspace_doctor(ws) if f.code == "unregistered-notebook"]
+    assert found and found[0].level == "WARN"
+    assert found[0].path == "field-notes"
+    assert "flip ws add field-notes" in found[0].message
+
+
+def test_ambiguous_id_is_one_finding_with_capped_examples(tmp_path):
+    ws = make_workspace(tmp_path)
+    recipes = ws_notebook(ws, "recipes", uid="nb-r2k9m3p7")
+    gardening = ws_notebook(ws, "gardening", uid="nb-g2k9m3p7")
+    for i in range(1, 8):  # Q1..Q7 live in both notebooks
+        question(recipes, f"Q{i}", stem=f"q{i}-recipes")
+        question(gardening, f"Q{i}", stem=f"q{i}-gardening")
+    write_table(ws, {"recipes": "recipes", "gardening": "gardening"})
+    found = [f for f in run_workspace_doctor(ws) if f.code == "ambiguous-id"]
+    assert len(found) == 1 and found[0].level == "WARN"
+    assert "7 id(s)" in found[0].message
+    assert "Q1 (gardening, recipes)" in found[0].message
+    assert "Q6" not in found[0].message  # examples capped at 5
+    assert "+2 more" in found[0].message
+
+
+def test_slug_collision_is_one_aggregated_finding(tmp_path):
+    ws = make_workspace(tmp_path)
+    recipes = ws_notebook(ws, "recipes", uid="nb-r2k9m3p7")
+    gardening = ws_notebook(ws, "gardening", uid="nb-g2k9m3p7")
+    question(recipes, "Q1", stem="harvest-plan")
+    question(gardening, "Q2", stem="harvest-plan")
+    write_table(ws, {"recipes": "recipes", "gardening": "gardening"})
+    found = [f for f in run_workspace_doctor(ws) if f.code == "slug-collision"]
+    assert len(found) == 1 and found[0].level == "WARN"
+    assert "harvest-plan (gardening, recipes)" in found[0].message
+
+
+def test_stale_alias_flags_wrong_handle_for_own_id(tmp_path):
+    ws = make_workspace(tmp_path)
+    recipes = ws_notebook(ws, "recipes", uid="nb-r2k9m3p7")
+    # pantry:Q1 predates a rename; gardening:Q9 names a different id → foreign, kept
+    question(recipes, "Q1", aliases=["Q1", "recipes:Q1", "pantry:Q1", "gardening:Q9"])
+    write_table(ws, {"recipes": "recipes"})
+    found = [f for f in run_workspace_doctor(ws) if f.code == "stale-alias"]
+    assert len(found) == 1 and found[0].level == "WARN"
+    assert "pantry:Q1" in found[0].message
+    assert found[0].path == "recipes/questions/q1.md"
+
+
+def test_stale_alias_ignores_nested_workspace_handles(tmp_path):
+    # The same notebook bound by an outer AND an inner (nested) workspace
+    # under different handles: each table's doctor must treat the other
+    # table's handle as legitimate, not stale — stripping it would break the
+    # other workspace's autocomplete and ping-pong under --fix forever.
+    outer = make_workspace(tmp_path)
+    nb = ws_notebook(outer, "inner/shared", slug="shared", uid="nb-s2k9m3p7")
+    inner = outer / "inner"
+    question(nb, "Q1", aliases=["Q1", "shared:Q1", "outershared:Q1", "pantry:Q1"])
+    write_table(outer, {"outershared": "inner/shared"})
+    write_table(inner, {"shared": "shared"})
+
+    outer_stale = [f for f in run_workspace_doctor(outer) if f.code == "stale-alias"]
+    assert len(outer_stale) == 1
+    assert "pantry:Q1" in outer_stale[0].message  # truly stale: still flagged
+    assert "shared:Q1" not in outer_stale[0].message  # the inner table's handle
+
+    inner_stale = [f for f in run_workspace_doctor(inner) if f.code == "stale-alias"]
+    assert len(inner_stale) == 1
+    assert "pantry:Q1" in inner_stale[0].message
+    assert "outershared:Q1" not in inner_stale[0].message  # the outer table's handle
+
+
+def test_fix_does_not_ping_pong_across_nested_workspaces(tmp_path):
+    outer = make_workspace(tmp_path)
+    nb = ws_notebook(outer, "inner/shared", slug="shared", uid="nb-s2k9m3p7")
+    inner = outer / "inner"
+    question(nb, "Q1", aliases=["Q1", "shared:Q1", "outershared:Q1"])
+    write_table(outer, {"outershared": "inner/shared"})
+    write_table(inner, {"shared": "shared"})
+    assert run_workspace_doctor(outer, fix=True) == []
+    assert run_workspace_doctor(inner, fix=True) == []
+    page = pages.read_page(nb / "questions" / "q1.md")
+    assert page.fm["aliases"] == ["Q1", "shared:Q1", "outershared:Q1"]
+
+
+# --- workspace --fix ---------------------------------------------------------------
+
+
+def test_fix_binds_unregistered_notebook_with_suffix(tmp_path):
+    ws = make_workspace(tmp_path)
+    ws_notebook(ws, "recipes", uid="nb-r2k9m3p7")
+    ws_notebook(ws, "orchard", slug="recipes", uid="nb-c2k9m3p7")  # slug collides
+    write_table(ws, {"recipes": "recipes"})
+    findings = run_workspace_doctor(ws, fix=True)
+    unreg = [f for f in findings if f.code == "unregistered-notebook"]
+    assert unreg and "recipes-2" in unreg[0].message
+    assert load_workspace(ws).notebooks["recipes-2"] == "orchard"
+
+
+def test_fix_backfills_uid_and_qualifies_aliases(tmp_path):
+    ws = make_workspace(tmp_path)
+    recipes = ws_notebook(ws, "recipes")  # no uid
+    question(recipes, "Q1", aliases=["Q1", "old:Q1"])  # stale alias from a rename
+    write_table(ws, {"recipes": "recipes"})
+    findings = run_workspace_doctor(ws, fix=True)
+    assert "missing-uid" in codes(findings)
+    assert "stale-alias" in codes(findings)
+    assert UID_RE.match(load_manifest(recipes).uid)
+    page = pages.read_page(recipes / "questions" / "q1.md")
+    assert page.fm["aliases"] == ["Q1", "recipes:Q1"]
+
+
+def test_fix_is_idempotent(tmp_path):
+    ws = make_workspace(tmp_path)
+    recipes = ws_notebook(ws, "recipes")  # no uid
+    question(recipes, "Q1", aliases=["Q1", "old:Q1"])
+    ws_notebook(ws, "orchard", slug="orchard-survey", uid="nb-c2k9m3p7")
+    write_table(ws, {"recipes": "recipes"})
+    assert run_workspace_doctor(ws, fix=True) != []
+    watched = [
+        ws / ".flip" / "workspace.toml",
+        recipes / "index.md",
+        recipes / "questions" / "q1.md",
+        ws / "orchard" / "index.md",
+    ]
+    snapshot = [p.read_bytes() for p in watched]
+    assert run_workspace_doctor(ws, fix=True) == []
+    assert [p.read_bytes() for p in watched] == snapshot
+
+
+def test_fix_never_rewrites_a_table_with_invalid_handles(tmp_path):
+    # binding fixes write workspace.toml; a handle-syntax ERROR blocks that
+    ws = make_workspace(tmp_path)
+    ws_notebook(ws, "recipes", uid="nb-r2k9m3p7")
+    ws_notebook(ws, "orchard", slug="orchard-survey", uid="nb-c2k9m3p7")
+    write_table(ws, {"Recipes": "recipes"})
+    before = (ws / ".flip" / "workspace.toml").read_bytes()
+    findings = run_workspace_doctor(ws, fix=True)
+    assert "handle-syntax" in codes(findings, "ERROR")
+    unreg = [f for f in findings if f.code == "unregistered-notebook"]
+    assert unreg and "flip ws add orchard" in unreg[0].message  # suggestion, not bound
+    assert (ws / ".flip" / "workspace.toml").read_bytes() == before
