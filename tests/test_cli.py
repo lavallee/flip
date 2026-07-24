@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
+from flip import pages
 from flip.cli import main
 
 
@@ -42,7 +43,7 @@ def test_new_creates_notebook(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     index = (tmp_path / "demo" / "index.md").read_text(encoding="utf-8")
     assert index.startswith("---\n")
-    assert "flip: '0.5'" in index and "slug: demo" in index
+    assert "flip: '0.6'" in index and "slug: demo" in index
     assert "uid: nb-" in index  # every new notebook gets a stable uid (SPEC §4)
     md = (tmp_path / "demo" / "notebook.md").read_text(encoding="utf-8")
     assert "# Reporter's notebook — Demo run" in md
@@ -584,6 +585,134 @@ def test_migrate_refuses_v04_and_non_notebooks(tmp_path, monkeypatch):
     result = invoke(["migrate"])
     assert result.exit_code == 1
     assert "not a flip notebook" in result.output
+
+
+# ---------------------------------------------------------------- claim source / verify / repose
+
+
+def _seed_claim(root: Path, monkeypatch) -> None:
+    monkeypatch.chdir(root)
+    payload = root.parent / "src1.txt"
+    payload.write_text("primary evidence\n", encoding="utf-8")
+    assert invoke(["add-source", str(payload)]).exit_code == 0  # F1
+    assert invoke(["grade", "F1", "--grade", "B", "--independence", "original"]).exit_code == 0
+    assert invoke(["claim", "add", "the finding holds", "--load-bearing"]).exit_code == 0  # C1
+
+
+def test_claim_source_add_rm_wiring(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    _seed_claim(root, monkeypatch)
+    added = invoke(["claim", "source", "add", "C1", "F1"])
+    assert added.exit_code == 0, added.output
+    assert "linked F1" in added.output and "corroboration: 1" in added.output
+    removed = invoke(["claim", "source", "rm", "C1", "F1"])
+    assert removed.exit_code == 0, removed.output
+    assert "unlinked F1" in removed.output and "corroboration: 0" in removed.output
+
+
+def test_claim_source_add_unknown_id_refused(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    _seed_claim(root, monkeypatch)
+    result = invoke(["claim", "source", "add", "C1", "ZZ9"])
+    assert result.exit_code == 1
+    assert "unknown source id(s) ZZ9" in result.output
+
+
+def test_claim_verify_and_gate(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")  # scout: min_independent 1
+    _seed_claim(root, monkeypatch)  # C1 has no sources → below the bar
+    refused = invoke(["claim", "status", "C1", "verified"])
+    assert refused.exit_code == 1
+    assert "flip claim verify C1" in refused.output  # refusal names the verify path
+    rec = invoke(["claim", "verify", "C1", "--method", "adversarial", "--note", "skeptic pass"])
+    assert rec.exit_code == 0, rec.output
+    assert "verified via adversarial" in rec.output
+    ok = invoke(["claim", "status", "C1", "verified"])
+    assert ok.exit_code == 0, ok.output
+    assert "C1 → verified" in ok.output
+
+
+def test_question_repose_wiring(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    assert invoke(["question", "add", "who?"]).exit_code == 0
+    result = invoke(["question", "repose", "Q1", "who, exactly?"])
+    assert result.exit_code == 0, result.output
+    assert "Q1 re-posed" in result.output
+    page = pages.read_page(root / "questions" / "who.md")
+    assert page.fm["formulations"][0]["text"] == "who?"
+    assert page.body.lstrip("\n").startswith("who, exactly?")
+
+
+# ---------------------------------------------------------------- root anchoring / attribution (Lane D)
+
+
+def test_mutation_from_inside_claims_dir_lands_correctly(tmp_path, monkeypatch):
+    # the runs-under-the-wrong-directory corruption class: a write from inside
+    # claims/ must anchor on the notebook root, not CWD.
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    assert invoke(["question", "add", "seed?"]).exit_code == 0
+    claims_dir = root / "claims"
+    claims_dir.mkdir(exist_ok=True)
+    monkeypatch.chdir(claims_dir)
+    result = invoke(["question", "add", "from inside claims?"])
+    assert result.exit_code == 0, result.output
+    # the page lands under root/questions/, never under root/claims/questions/
+    assert (root / "questions" / "from-inside-claims.md").is_file()
+    assert not (claims_dir / "questions").exists()
+
+
+def test_notebook_pin_lets_command_run_from_outside(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(tmp_path)  # outside any notebook
+    result = invoke(["--notebook", str(root), "question", "add", "pinned?"])
+    assert result.exit_code == 0, result.output
+    assert (root / "questions" / "pinned.md").is_file()
+
+
+def test_flip_notebook_env_pins_root(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("FLIP_NOTEBOOK", str(root))
+    result = invoke(["question", "add", "env pinned?"])
+    assert result.exit_code == 0, result.output
+    assert (root / "questions" / "env-pinned.md").is_file()
+
+
+def test_notebook_pin_disagreement_refuses(tmp_path, monkeypatch):
+    a = make_notebook(tmp_path / "a", slug="a")
+    b = make_notebook(tmp_path / "b", slug="b")
+    monkeypatch.chdir(a)  # CWD walk-up resolves to a…
+    result = invoke(["--notebook", str(b), "question", "add", "which?"])  # …pin says b
+    assert result.exit_code == 1
+    assert "refusing to act" in result.output
+    assert not (a / "questions").exists() and not (b / "questions").exists()
+
+
+def test_notebook_pin_not_a_notebook_refuses(tmp_path, monkeypatch):
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    result = invoke(["--notebook", str(plain), "question", "add", "x?"])
+    assert result.exit_code == 1
+    assert "not a flip notebook root" in result.output
+
+
+def test_actor_flag_overrides_env(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    monkeypatch.setenv("FLIP_ACTOR", "human:env")
+    assert invoke(["--actor", "agent:flag", "question", "add", "who?"]).exit_code == 0
+    page = pages.read_page(root / "questions" / "who.md")
+    assert page.fm["actor"] == "agent:flag"  # --actor wins over FLIP_ACTOR
+
+
+def test_actor_falls_back_to_env_without_flag(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    monkeypatch.setenv("FLIP_ACTOR", "human:env")
+    assert invoke(["question", "add", "who?"]).exit_code == 0
+    assert pages.read_page(root / "questions" / "who.md").fm["actor"] == "human:env"
 
 
 # ---------------------------------------------------------------- misc

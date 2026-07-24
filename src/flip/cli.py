@@ -39,12 +39,24 @@ from . import (
     views,
     workspace as workspace_mod,
 )
-from .util import find_notebook_root, find_workspace_root, require_notebook_root
+from .util import (
+    find_notebook_root,
+    find_workspace_root,
+    require_notebook_root,
+    set_cli_overrides,
+)
 
 
 @click.group(name="flip")
 @click.version_option(package_name="flip-notebook")
-def main() -> None:
+@click.option("--notebook", "notebook_pin", default=None, envvar="FLIP_NOTEBOOK",
+              type=click.Path(path_type=Path),
+              help="Pin the notebook root (env: FLIP_NOTEBOOK) instead of walking up "
+                   "from the current directory; refuses if the two disagree.")
+@click.option("--actor", "actor", default=None,
+              help="Attribution for this command, overriding FLIP_ACTOR "
+                   "(e.g. agent:claude, human:jane).")
+def main(notebook_pin: Path | None, actor: str | None) -> None:
     """Reporter's notebooks: plain-file research corpora for humans and agents.
 
     A notebook is one directory and a conformant OKF knowledge bundle: the
@@ -54,10 +66,11 @@ def main() -> None:
     decisions/, questions/, sessions/) — ids like A3/C7 resolve via
     `flip open`. Event history is append-only JSONL under log/ and sources/.
     Start with `flip new <slug> --kind <profile>`; run every other command
-    from anywhere inside the notebook (flip walks up to find the root).
-    `flip show` is the hot view, `flip doctor` the lint. Read commands
-    accept --json for machine consumption.
+    from anywhere inside the notebook (flip walks up to find the root, or pin
+    it with --notebook/FLIP_NOTEBOOK). `flip show` is the hot view, `flip
+    doctor` the lint. Read commands accept --json for machine consumption.
     """
+    set_cli_overrides(notebook_pin, actor)
 
 
 # ---------------------------------------------------------------- new
@@ -398,6 +411,25 @@ def question_answer(qid: str, note: str | None) -> None:
     click.echo(f"{qid} answered")
 
 
+@question.command("repose")
+@click.argument("qid", metavar="ID")
+@click.argument("text")
+def question_repose(qid: str, text: str) -> None:
+    """Re-pose a question with a sharper formulation (append-only).
+
+    The new text becomes current; the superseded formulation is preserved in
+    the page's `formulations:` history and a dated "Re-posed" body section, and
+    a question-repose event lands in the log. The id, slug, and status stay —
+    nothing is overwritten, so the full journey survives.
+    """
+    if not re.fullmatch(r"Q\d+", qid):
+        raise SystemExit(f"'{qid}' is not a question id (expected Q<number>, e.g. Q2); "
+                         "`flip question list` shows them")
+    page = ledgers.repose_question(require_notebook_root(), qid, text)
+    click.echo(f"{qid} re-posed · {page.fm.get('description', '')} · "
+               f"{len(page.fm.get('formulations') or [])} prior formulation(s) kept")
+
+
 @question.command("list")
 @click.option("--json", "as_json", is_flag=True, help="Emit the rows as JSON.")
 def question_list(as_json: bool) -> None:
@@ -482,6 +514,69 @@ def claim_list(status: str | None, as_json: bool) -> None:
         srcs = ", ".join(str(s) for s in r.get("sources", [])) or "none"
         click.echo(f"{r.get('id', '?')} · {r.get('status', '?')}{flag} · "
                    f"{r.get('description', '')} · sources: {srcs}")
+
+
+@claim.group("source")
+def claim_source() -> None:
+    """Link or unlink backing sources on a claim after the fact.
+
+    Both regenerate the claim's # Citations block and recompute its
+    independent_corroboration — the post-hoc fix for a claim asserted before
+    its sources were captured. Ungraded sources link but never count toward
+    the verification bar.
+    """
+
+
+@claim_source.command("add")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.argument("source_ids", nargs=-1, required=True, metavar="SOURCE_ID...")
+def claim_source_add(claim_id: str, source_ids: tuple[str, ...]) -> None:
+    """Link one or more source ids to a claim. Unknown ids are refused."""
+    page, added, warnings = claims.add_claim_sources(
+        require_notebook_root(), claim_id, list(source_ids)
+    )
+    click.echo(f"{page.id} · linked {', '.join(added)} · sources: "
+               f"{', '.join(page.fm.get('sources') or []) or 'none'} · "
+               f"corroboration: {page.fm.get('independent_corroboration', 0)}")
+    for sid in warnings:
+        click.echo(f"warning: {sid} is still graded '?' — ungraded sources never count "
+                   f"toward the bar; judge it with `flip grade {sid}`", err=True)
+
+
+@claim_source.command("rm")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.argument("source_id", metavar="SOURCE_ID")
+def claim_source_rm(claim_id: str, source_id: str) -> None:
+    """Unlink a source id from a claim. Refuses if the claim doesn't cite it."""
+    page = claims.remove_claim_source(require_notebook_root(), claim_id, source_id)
+    click.echo(f"{page.id} · unlinked {source_id} · sources: "
+               f"{', '.join(page.fm.get('sources') or []) or 'none'} · "
+               f"corroboration: {page.fm.get('independent_corroboration', 0)}")
+
+
+@claim.command("verify")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.option("--method", required=True, type=click.Choice(claims.VERIFICATION_METHODS),
+              help="adversarial (skeptic pass) · independent-sources (records "
+                   "corroboration reasoning) · recomputation (re-derive the result).")
+@click.option("--against", multiple=True, metavar="REF",
+              help="Evidence/ref consulted during the check (repeatable), e.g. --against A7.")
+@click.option("--note", default=None, help="What the check found (recorded on the page).")
+def claim_verify(claim_id: str, method: str, against: tuple[str, ...],
+                 note: str | None) -> None:
+    """Record a verification on a claim (append-only frontmatter record).
+
+    An adversarial or recomputation record lets `flip claim status <C#>
+    verified` pass even below the corroboration bar; independent-sources only
+    documents the corroboration reasoning and never satisfies the gate alone.
+    """
+    page = claims.verify_claim(require_notebook_root(), claim_id, method,
+                               against=list(against), note=note)
+    click.echo(f"{page.id} · verified via {method} · "
+               f"{len(page.fm.get('verifications') or [])} verification(s) on record")
+    if method == "independent-sources":
+        click.echo("note: independent-sources records the reasoning but does not satisfy "
+                   "the verified gate alone — the recomputed source count does", err=True)
 
 
 # ---------------------------------------------------------------- sessions
