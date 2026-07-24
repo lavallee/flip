@@ -11,6 +11,7 @@ output without scraping.
 
 from __future__ import annotations
 
+import difflib
 import json
 import re
 from dataclasses import asdict
@@ -47,7 +48,97 @@ from .util import (
 )
 
 
-@click.group(name="flip")
+class SuggestGroup(click.Group):
+    """A group that answers an unknown subcommand — or a bare argument handed
+    to a noun group (`flip question "text…"`, `flip claim C1 …`) — with a
+    nearest-leaf *suggestion* and the subcommand list, never auto-execution
+    (Lane E). Applied to every flip group so the hint is uniform."""
+
+    def resolve_command(self, ctx, args):
+        if args:
+            name = args[0]
+            if not name.startswith("-") and self.get_command(ctx, name) is None:
+                self._suggest(ctx, name)
+        return super().resolve_command(ctx, args)
+
+    def _suggest(self, ctx, name: str) -> None:
+        names = sorted(self.list_commands(ctx))
+        near = difflib.get_close_matches(name, names, n=1, cutoff=0.6)
+        path = ctx.command_path  # e.g. "flip question"
+        if near:
+            guess = f"did you mean `{path} {near[0]}`? "
+        elif "add" in names:
+            guess = f'did you mean `{path} add "{name}"`? '
+        else:
+            guess = ""
+        raise click.UsageError(
+            f"no such subcommand '{name}' under `{path}` — {guess}"
+            f"(subcommands: {', '.join(names)}; full command map: `flip cli`)",
+            ctx=ctx,
+        )
+
+
+# --- flip cli: the compact command map, generated from the Click tree (Lane E) ---
+
+
+def _arg_metavar(param: click.Argument) -> str:
+    mv = param.metavar or param.name.upper()
+    if param.nargs == -1 and "..." not in mv:
+        mv += "..."
+    return mv
+
+
+def _long_opt(param: click.Option) -> str:
+    return next((o for o in param.opts if o.startswith("--")), param.opts[0])
+
+
+def _purpose(cmd: click.Command) -> str:
+    """The one-line purpose: explicit short_help, else the docstring's first line."""
+    if cmd.short_help:
+        return cmd.short_help
+    return (cmd.help or "").strip().split("\n", 1)[0]
+
+
+def _leaf_commands(group: click.Group, prefix: tuple[str, ...] = ()) -> list:
+    """(path, command) for every leaf under `group`, group paths first,
+    sorted at each level — walked from the live tree so the map can't drift."""
+    out = []
+    for name in sorted(group.commands):
+        sub = group.commands[name]
+        path = (*prefix, name)
+        if isinstance(sub, click.Group):
+            out.extend(_leaf_commands(sub, path))
+        else:
+            out.append((path, sub))
+    return out
+
+
+def _command_display(path: tuple[str, ...], cmd: click.Command) -> str:
+    parts = ["flip", *path]
+    parts += [f"<{_arg_metavar(p)}>" for p in cmd.params if isinstance(p, click.Argument)]
+    return " ".join(parts)
+
+
+def _global_options(group: click.Group) -> list[str]:
+    return [_long_opt(p) for p in group.params if isinstance(p, click.Option)]
+
+
+def _leaf_json(path: tuple[str, ...], cmd: click.Command) -> dict:
+    return {
+        "command": " ".join(["flip", *path]),
+        "group": " ".join(["flip", *path[:-1]]) if len(path) > 1 else "flip",
+        "name": path[-1],
+        "purpose": _purpose(cmd),
+        "arguments": [_arg_metavar(p) for p in cmd.params if isinstance(p, click.Argument)],
+        "options": [
+            {"name": _long_opt(p), "required": bool(p.required)}
+            for p in cmd.params
+            if isinstance(p, click.Option)
+        ],
+    }
+
+
+@click.group(name="flip", cls=SuggestGroup)
 @click.version_option(package_name="flip-notebook")
 @click.option("--notebook", "notebook_pin", default=None, envvar="FLIP_NOTEBOOK",
               type=click.Path(path_type=Path),
@@ -71,6 +162,45 @@ def main(notebook_pin: Path | None, actor: str | None) -> None:
     doctor` the lint. Read commands accept --json for machine consumption.
     """
     set_cli_overrides(notebook_pin, actor)
+
+
+# ---------------------------------------------------------------- cli map
+
+
+@main.command("cli")
+@click.option("--json", "as_json", is_flag=True, help="Emit the command map as JSON.")
+@click.pass_context
+def cli_map(ctx: click.Context, as_json: bool) -> None:
+    """Print a compact map of every command: group path, one-line purpose, key
+    flags — generated from the live CLI tree so it can't drift from the code.
+
+    The discoverability shortcut for agents: one read instead of walking
+    `--help` per group. Attribution is the global `--actor` flag or
+    `FLIP_ACTOR` env — there is no other actor flag.
+    """
+    root = ctx.find_root().command
+    leaves = _leaf_commands(root)
+    global_opts = _global_options(root)
+    if as_json:
+        click.echo(json.dumps(
+            {
+                "global_options": global_opts,
+                "commands": [_leaf_json(path, cmd) for path, cmd in leaves],
+            },
+            ensure_ascii=False, indent=2,
+        ))
+        return
+    click.echo(f"flip — command map (global options: {', '.join(global_opts)})")
+    click.echo("attribution: the --actor flag or FLIP_ACTOR env — there is no other actor flag")
+    click.echo("")
+    width = max((len(_command_display(p, c)) for p, c in leaves), default=0)
+    for path, cmd in leaves:
+        disp = _command_display(path, cmd)
+        flags = [_long_opt(p) for p in cmd.params if isinstance(p, click.Option)]
+        line = f"{disp:<{width}}  {_purpose(cmd)}"
+        if flags:
+            line += f"  [{' '.join(flags)}]"
+        click.echo(line)
 
 
 # ---------------------------------------------------------------- new
@@ -157,7 +287,7 @@ def add_source(target: str, kind: str | None, via: str | None, note: str | None)
 # ---------------------------------------------------------------- config
 
 
-@main.group()
+@main.group(cls=SuggestGroup)
 def config() -> None:
     """Manage the integration config ($FLIP_HOME/config.toml, default ~/.flip)."""
 
@@ -321,7 +451,7 @@ def grade(source_id: str, grade: str | None, independence: str | None,
                f"{page.fm.get('independence', '?')} · {page.fm.get('freshness', '?')}")
 
 
-@main.group()
+@main.group(cls=SuggestGroup)
 def source() -> None:
     """Inspect captured sources (references/ pages) without reading files."""
 
@@ -396,7 +526,7 @@ def pass_(text: str, reason: str, url: str | None) -> None:
     click.echo(f"passed {row['ts']} · {row['reason']}")
 
 
-@main.group()
+@main.group(cls=SuggestGroup)
 def question() -> None:
     """Track questions as pages (questions/<slug>.md, ids Q#).
 
@@ -470,7 +600,7 @@ def question_list(as_json: bool) -> None:
 # ---------------------------------------------------------------- claims
 
 
-@main.group()
+@main.group(cls=SuggestGroup)
 def claim() -> None:
     """Claims as pages (claims/<slug>.md, ids C#): assertions the work relies on.
 
@@ -534,7 +664,7 @@ def claim_list(status: str | None, as_json: bool) -> None:
                    f"{r.get('description', '')} · sources: {srcs}")
 
 
-@claim.group("source")
+@claim.group("source", cls=SuggestGroup)
 def claim_source() -> None:
     """Link or unlink backing sources on a claim after the fact.
 
@@ -600,7 +730,7 @@ def claim_verify(claim_id: str, method: str, against: tuple[str, ...],
 # ---------------------------------------------------------------- sessions
 
 
-@main.group()
+@main.group(cls=SuggestGroup)
 def session() -> None:
     """Session pages (sessions/<UTC stamp>-<slug>.md): one per working episode.
 
@@ -748,12 +878,27 @@ def doctor(as_json: bool, workspace_flag: bool, fix: bool) -> None:
                              "run `flip doctor --workspace --fix`")
         findings = doctor_mod.run_doctor(require_notebook_root())
     if as_json:
+        # Each finding carries `expected: true|false` — the same real-vs-
+        # appears-with-use distinction the text output segregates (E3).
         click.echo(json.dumps([asdict(f) for f in findings], ensure_ascii=False, indent=2))
     elif not findings:
         click.echo("ok: no findings")
     else:
-        for f in findings:
+        real = [f for f in findings if not f.expected]
+        expected = [f for f in findings if f.expected]
+        for f in real:
             click.echo(f"{f.level} {f.code} {f.path} — {f.message}")
+        if not real:
+            click.echo("ok: no findings yet")
+        if expected:
+            if real:
+                click.echo("")
+            click.echo(
+                "expected until use (these appear with the work, not problems yet — "
+                "don't re-run doctor for reassurance):"
+            )
+            for f in expected:
+                click.echo(f"  {f.level} {f.code} {f.path} — {f.message}")
     if any(f.level == "ERROR" for f in findings):
         raise SystemExit(1)
 
@@ -800,7 +945,7 @@ def obsidian_cmd(no_plugin: bool) -> None:
 # ---------------------------------------------------------------- workspace
 
 
-@main.group()
+@main.group(cls=SuggestGroup)
 def ws() -> None:
     """Workspaces: many notebooks sharing one vault or repo (SPEC §18).
 
@@ -1007,7 +1152,7 @@ def migrate() -> None:
                "run `flip doctor` to audit the result")
 
 
-@main.group()
+@main.group(cls=SuggestGroup)
 def export() -> None:
     """Interop exports (SPEC §17) — projections; the notebook stays canonical."""
 
@@ -1085,7 +1230,7 @@ def profiles_cmd() -> None:
 # ---------------------------------------------------------------- beat
 
 
-@main.group(name="beat")
+@main.group(name="beat", cls=SuggestGroup)
 def beat() -> None:
     """Beats: the standing-mission layer above notebooks (SPEC §14).
 
@@ -1117,7 +1262,7 @@ def beat_new(slug: str, mission: str, dest: Path | None) -> None:
     click.echo(f'next: cd {path} && flip beat thread add "<title>" --kind arc|vein')
 
 
-@beat.group("thread")
+@beat.group("thread", cls=SuggestGroup)
 def beat_thread() -> None:
     """Threads: the beat's unit of attention (threads/<slug>.md, ids TH#).
 

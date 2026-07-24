@@ -220,6 +220,9 @@ def test_missing_required_paths_warn_while_active_or_dormant(tmp_path):
         missing = [f for f in run_doctor(root) if f.code == "missing-required"]
         assert {f.path for f in missing} == {"references", "log/passed.jsonl"}, status
         assert all(f.level == "WARN" for f in missing), status
+        # E3: appears-with-use notices are flagged expected so the CLI can
+        # segregate them from real findings.
+        assert all(f.expected for f in missing), status
 
 
 def test_missing_required_paths_error_once_closed(tmp_path):
@@ -231,6 +234,8 @@ def test_missing_required_paths_error_once_closed(tmp_path):
         assert {f.path for f in missing} == {"references", "log/passed.jsonl"}, status
         assert all(f.level == "ERROR" for f in missing), status
         assert all(status in f.message for f in missing), status
+        # once due, these are real ERRORs, never "expected until use"
+        assert not any(f.expected for f in missing), status
 
 
 def test_pursuit_profile_minimums(tmp_path, monkeypatch):

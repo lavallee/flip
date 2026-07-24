@@ -88,14 +88,19 @@ class Finding:
     code: str  # short slug, e.g. "orphan-custody"
     message: str  # one actionable line
     path: str  # path relative to the notebook root
+    # An "appears-with-use" notice — a profile minimum not yet due (WARN while
+    # the notebook is active/dormant). Rendered under a distinct "expected
+    # until use" section so standing notices stop training operators (and
+    # agents re-running doctor for reassurance) to tune the channel out (E3).
+    expected: bool = False
 
 
 def _error(code: str, message: str, path: str) -> Finding:
     return Finding("ERROR", code, message, path)
 
 
-def _warn(code: str, message: str, path: str) -> Finding:
-    return Finding("WARN", code, message, path)
+def _warn(code: str, message: str, path: str, expected: bool = False) -> Finding:
+    return Finding("WARN", code, message, path, expected=expected)
 
 
 def _rel(page: pages.Page, root: Path) -> str:
@@ -404,7 +409,6 @@ def _check_profile(
         )
         return None
     closed = manifest.status in CLOSED_STATUSES
-    make = _error if closed else _warn
     detail = (
         f"required before status '{manifest.status}'"
         if closed
@@ -412,12 +416,13 @@ def _check_profile(
     )
     for rel in profile.requires:
         if not (root / rel).exists():
+            msg = f"profile '{profile.id}' requires {rel} ({detail}); create it"
+            # Not yet closed: this is an appears-with-use notice (expected),
+            # not a real finding — segregated in the CLI's output (E3).
             findings.append(
-                make(
-                    "missing-required",
-                    f"profile '{profile.id}' requires {rel} ({detail}); create it",
-                    rel,
-                )
+                _error("missing-required", msg, rel)
+                if closed
+                else _warn("missing-required", msg, rel, expected=True)
             )
     policy = manifest.policy
     for key, want in profile.forced_policy.items():

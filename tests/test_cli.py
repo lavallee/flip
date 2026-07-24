@@ -781,6 +781,103 @@ def test_ws_show_open_claims_mutually_exclusive(tmp_path, monkeypatch):
     assert "at most one" in result.output
 
 
+# ---------------------------------------------------------------- cli map (Lane E)
+
+
+def _tree_leaves(group, prefix=()):
+    import click
+
+    out = []
+    for name, sub in group.commands.items():
+        path = (*prefix, name)
+        if isinstance(sub, click.Group):
+            out += _tree_leaves(sub, path)
+        else:
+            out.append(" ".join(("flip", *path)))
+    return out
+
+
+def test_cli_map_json_lists_every_leaf():
+    data = json.loads(invoke(["cli", "--json"]).output)
+    got = {c["command"] for c in data["commands"]}
+    assert got == set(_tree_leaves(main))  # generated from the live tree, no drift
+    assert "flip cli" in got  # the map lists itself
+    assert "--actor" in data["global_options"] and "--notebook" in data["global_options"]
+
+
+def test_cli_map_json_captures_flags_and_args():
+    data = json.loads(invoke(["cli", "--json"]).output)
+    by_cmd = {c["command"]: c for c in data["commands"]}
+    verify = by_cmd["flip claim verify"]
+    assert verify["arguments"] == ["CLAIM_ID"]
+    opt_names = {o["name"] for o in verify["options"]}
+    assert {"--method", "--against", "--note"} <= opt_names
+    assert any(o["name"] == "--method" and o["required"] for o in verify["options"])
+
+
+def test_cli_map_text_has_actor_line_and_commands():
+    out = invoke(["cli"]).output
+    assert "there is no other actor flag" in out
+    assert "flip claim verify <CLAIM_ID>" in out
+    assert "flip ws show" in out
+
+
+# ---------------------------------------------------------------- unknown-leaf suggestions
+
+
+def test_unknown_leaf_suggests_add_and_never_executes(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    result = invoke(["question", "who pays?"])
+    assert result.exit_code != 0
+    assert 'did you mean `flip question add "who pays?"`' in result.output
+    assert "full command map: `flip cli`" in result.output
+    assert not (root / "questions").exists()  # suggestion only — nothing ran
+
+
+def test_unknown_leaf_typo_fuzzy_matches(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    result = invoke(["claim", "ad"])
+    assert result.exit_code != 0
+    assert "did you mean `flip claim add`" in result.output
+
+
+def test_unknown_leaf_lists_subcommands_when_no_guess(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    result = invoke(["session", "frobnicate"])
+    assert result.exit_code != 0
+    assert "no such subcommand 'frobnicate'" in result.output
+    assert "subcommands: end, start" in result.output
+
+
+# ---------------------------------------------------------------- doctor: expected vs real (E3)
+
+
+def test_doctor_text_segregates_expected_until_use(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo", kind="scout")
+    monkeypatch.chdir(root)
+    result = invoke(["doctor"])
+    assert result.exit_code == 0
+    out = result.output
+    assert "expected until use" in out
+    # the appears-with-use notices sit under that section, not as top findings
+    idx = out.index("expected until use")
+    assert "missing-required" in out[idx:]
+    assert "missing-required" not in out[:idx]
+
+
+def test_doctor_json_marks_expected(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo", kind="scout")
+    monkeypatch.chdir(root)
+    data = json.loads(invoke(["doctor", "--json"]).output)
+    missing = [f for f in data if f["code"] == "missing-required"]
+    assert missing and all(f["expected"] for f in missing)
+    # everything else in a fresh scout is either absent or a genuine finding
+    assert all("expected" in f for f in data)  # the field is always present
+
+
 # ---------------------------------------------------------------- misc
 
 
