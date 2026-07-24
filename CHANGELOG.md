@@ -6,6 +6,93 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-07-24
+
+Question pursuit made expressible, navigable, and renderable — with zero new
+stores and zero new services (the state machine stays in the agent; flip
+stores artifacts and surfaces state).
+
+### Added
+- **Verification methods** (SPEC §7): claims may carry an append-only
+  `verifications:` list of `{method, by, against?, date, note?}` records.
+  `flip claim verify <C#> --method adversarial|independent-sources|
+  recomputation` writes them. A claim passes the `verified` gate when the
+  corroboration bar is met **or** an `adversarial`/`recomputation` record
+  exists; `independent-sources` documents the reasoning but never satisfies
+  the gate alone. The corroboration bar itself is unchanged — the vocabulary
+  widens the honest paths, it never softens the gate. Doctor's
+  `unaudited-claim` now fires only when a load-bearing claim has neither
+  corroboration nor any verification record.
+- **Post-hoc claim↔source links** (SPEC §7): `flip claim source add|rm <C#>
+  <src-id…>` links or unlinks backing sources after the fact, regenerating the
+  `# Citations` block and recomputing corroboration; unknown ids are refused,
+  ungraded links warned.
+- **Append-only question re-pose** (SPEC §7): `flip question repose <Q#>
+  "<new formulation>"` keeps the id/slug/status, makes the new formulation
+  current, and preserves the superseded text in a `formulations:` history and
+  a dated **Re-posed** body section (plus a `question-repose` log event) — so
+  `flip open Q#` always shows the full journey.
+- **`pursuit` profile** (SPEC §13): one notebook per question under pursuit —
+  scaffolds the primary question as Q1 and `drafts/question-plan.md` (answer
+  shapes before retrieval · prior · holdings · routes + stop rule · dated plan
+  revisions); notebook.md bands the answer (direct / adjacent / unresolved,
+  an honest null being legal) and keeps confidence ≠ coverage ≠ usefulness.
+- **`flip ws show [--open|--claims|--json]`** (SPEC §18): a merged roster
+  across bound notebooks — open questions with re-pose counts, load-bearing
+  claims still below the bar with no gating verification, and each notebook's
+  kind/status/updated-age. A computed view over existing data; `flip ws list`
+  stays the plain binding table.
+- **`flip cli [--json]`**: a compact one-shot map of every command (group
+  path, one-line purpose, key flags), generated from the live Click tree so
+  it can't drift — the discoverability shortcut that replaces per-group
+  `--help` reads.
+- **`flip export json [--out <path>|-]`** (SPEC §17): the **`flip-render/1`**
+  JSON projection — notebook identity, sources, claims (incl. verifications),
+  questions (incl. formulations), decisions, session summaries, and a log
+  tail — for renderers and site generators. Policy-filtered exactly like
+  `export okf`: refuses unless `visibility: public` or `--include-private`,
+  and strips source-trail custody (titles, URLs, capture times, sha256, the
+  work log) to judgment stubs when `source_trail_public` is false. Stable key
+  order and id-sorted entities for diffability.
+- **Global `--notebook <path>` / `FLIP_NOTEBOOK`** pins the notebook root
+  (refusing when the pin disagrees with the working directory), and global
+  **`--actor <who>`** overrides `FLIP_ACTOR` (precedence `--actor` >
+  `FLIP_ACTOR` > detected default). Read-only commands (`doctor`, `profiles`,
+  `obsidian`, `migrate`) now honor the pin too.
+- **Auto-bind on `flip new`** under a workspace root: the fresh notebook binds
+  into the table (slug-derived handle, `-2` on collision) and says so.
+- **Staleness honesty** (SPEC §18): `flip show` and `flip ws show` surface
+  the notebook's updated-age (`active · idle 41d`) — visibility only, no
+  doctor WARN and no auto-transition (status stays a human/agent judgment).
+
+### Changed
+- **flip profile 0.6** (additive over 0.5): claims may carry `verifications`,
+  questions may carry `formulations`, and the `pursuit` kind arrives. Readers
+  accept 0.5 notebooks untouched; `flip migrate` treats 0.5 → 0.6 as a
+  version-only bump (no page moves), and still accepts un-migrated notebooks.
+- **Root-anchored writes**: every mutating command writes relative to the
+  resolved notebook root, never the current directory.
+- **Doctor output separates expectations from findings** (E3): appears-with-
+  use notices (profile minimums not yet due) render under a distinct
+  "expected until use" section apart from real WARN/ERROR; `flip doctor
+  --json` exposes the same distinction as an `expected: true|false` field.
+- **Unknown-leaf suggestions**: a group invoked with an unknown subcommand or
+  a bare argument (`flip question "text…"`, `flip claim C1 …`) now errors with
+  a nearest-leaf suggestion (`did you mean \`flip question add "text…"\`?`) and
+  the subcommand list — a suggestion, never auto-execution.
+- **Skills + AGENTS.md**: every packaged `notebook-*` skill and AGENTS.md gain
+  a copy-pasteable verb→leaf command map (consistent with `flip cli`), a loud
+  "attribution is `--actor` / `FLIP_ACTOR`, there is no other actor flag"
+  line, and a "doctor prints expected-until-use notes; don't re-run for
+  reassurance" note. `notebook-create` documents `--kind pursuit`;
+  `notebook-audit` documents the verification methods.
+
+### Removed
+- **`#` cross-notebook ref reads** (SPEC §9): the pre-0.5 `handle#id` form no
+  longer resolves — it fails the ref grammar like any other malformed
+  reference. Writers already emit only `:`; `flip migrate` still rewrites
+  stored `#` refs (e.g. `links.beat`) and doctor still flags them.
+
 ## [0.9.0] — 2026-07-16
 
 ### Added

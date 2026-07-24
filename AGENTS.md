@@ -120,12 +120,51 @@ sources to the claim or upgrade one to grade A via `flip grade`
 
 The rest of the surface: `flip source list` (every source at a glance:
 `F1 · A/original/fresh · districts.csv · references/district-enrollment-table.md`),
-`flip question list` / `flip question answer Q1 --note "..."`,
-`flip session start|end` (working-episode pages under `sessions/`),
-`flip profiles` (available kinds), `flip index` (per-user notebook registry),
-`flip migrate` (v0.3 → v0.4 in place),
-`flip export bag|csl|okf` (BagIt / CSL JSON / policy-filtered public bundle),
-`flip show --claims|--stale`, and `--json` on every read command.
+`flip question list` / `flip question answer Q1 --note "..."` /
+`flip question repose Q1 "<sharper wording>"` (append-only; the journey survives),
+`flip claim verify C7 --method adversarial|recomputation` (a recorded check
+that also clears the `verified` gate), `flip session start|end`
+(working-episode pages under `sessions/`), `flip profiles` (available kinds,
+incl. `pursuit`), `flip index` (per-user notebook registry),
+`flip migrate` (v0.3 → pages, then to the current profile in place),
+`flip export bag|csl|okf|json` (BagIt / CSL JSON / policy-filtered public
+bundle / the `flip-render/1` JSON projection), `flip ws show` (the merged
+workspace roster), `flip show --claims|--stale`, and `--json` on every read
+command.
+
+## Command map
+
+`flip cli` prints a compact, always-current map of every command (group path,
+one-line purpose, key flags) — generated from the CLI tree, so it never drifts;
+`flip cli --json` is the machine form. One read instead of walking `--help` per
+group. The leaves you reach for most:
+
+| to do this | run |
+|---|---|
+| start a notebook | `flip new <slug> --kind <profile>` (kinds: `flip profiles`) |
+| capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
+| grade a source | `flip grade <id> --grade A\|B\|C --independence … --freshness …` |
+| assert a claim | `flip claim add "<text>" --source <id> [--load-bearing]` |
+| link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
+| record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
+| move a claim's status | `flip claim status <C#> <status>` |
+| questions | `flip question add\|repose\|answer\|list` |
+| decisions / dead ends | `flip decide …` · `flip pass …` |
+| log / sessions | `flip log "<text>"` · `flip session start\|end` |
+| views | `flip show [--claims\|--stale] [--json]` · `flip ws show [--open\|--claims] [--json]` |
+| resolve an id | `flip open <ref>` · `flip resolve <ref> --json` |
+| lint | `flip doctor [--json]` · `flip doctor --workspace [--fix]` |
+| render / export | `flip export json [--out -] [--include-private]` · `flip export bag\|csl\|okf` |
+
+**Attribution is the `--actor` flag or the `FLIP_ACTOR` env var — there is no
+other actor flag.** Precedence: `--actor` > `FLIP_ACTOR` > detected default.
+(`--notebook` / `FLIP_NOTEBOOK` pins the notebook root the same way, refusing
+if it disagrees with the directory you're in.)
+
+**`flip doctor` prints "expected until use" notes** — profile files that appear
+with the work, listed apart from real findings, hardening into ERRORs only at
+done/published/archived. They are not problems; don't re-run doctor for
+reassurance.
 
 ## The contract — lineage rules you MUST honor (SPEC §6)
 

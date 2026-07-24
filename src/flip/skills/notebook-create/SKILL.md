@@ -8,6 +8,34 @@ description: Start a new flip notebook — invoke when research begins and there
 Interview, pick a profile, scaffold, seed the tip. A notebook exists to hold
 one piece of research; don't create it until you can say what that piece is.
 
+## Command map (verbs → leaves)
+
+`flip cli` prints the full, always-current map; the leaves you reach for most:
+
+| to do this | run |
+|---|---|
+| start a notebook | `flip new <slug> --kind <profile>` |
+| capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
+| grade a source | `flip grade <id> --grade A\|B\|C --independence … --freshness …` |
+| assert a claim | `flip claim add "<text>" --source <id> [--load-bearing]` |
+| link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
+| record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
+| move a claim's status | `flip claim status <C#> <status>` |
+| questions | `flip question add\|repose\|answer\|list` |
+| decisions / dead ends | `flip decide …` · `flip pass …` |
+| log / sessions | `flip log "<text>"` · `flip session start\|end` |
+| views | `flip show [--claims\|--stale] [--json]` · `flip ws show [--open\|--claims] [--json]` |
+| resolve an id | `flip open <ref>` · `flip resolve <ref> --json` |
+| lint | `flip doctor [--json]` · `flip doctor --workspace [--fix]` |
+
+**Attribution is the `--actor` flag or the `FLIP_ACTOR` env var — there is no
+other actor flag.** Precedence: `--actor` > `FLIP_ACTOR` > detected default.
+(`--notebook` / `FLIP_NOTEBOOK` pins the notebook root the same way.)
+
+**`flip doctor` prints "expected until use" notes** for profile files that
+appear with the work — they harden into ERRORs only at done/published/
+archived. They are not problems; don't re-run doctor for reassurance.
+
 ## Checklist
 
 1. **Interview.** Establish, in one line each: where the question came from
@@ -16,8 +44,10 @@ one piece of research; don't create it until you can say what that piece is.
 2. **Pick the profile.** Run `flip profiles` and choose the lightest kind
    that fits: `ledger` (source spine only), `scout` (screen fast, kill or
    graduate), `research-review` (headed for publication), `engagement`
-   (client-confidential), `data-investigation` (dataset-first). When unsure,
-   start `scout` — graduating later beats hauling empty ceremony.
+   (client-confidential), `data-investigation` (dataset-first), `pursuit`
+   (one question under pursuit — scaffolds `drafts/question-plan.md` and the
+   primary question as Q1, for a banded answer backed by verified claims).
+   When unsure, start `scout` — graduating later beats hauling empty ceremony.
 3. **Scaffold.**
    ```bash
    flip new <slug> --kind <profile> --title "<human title>"
