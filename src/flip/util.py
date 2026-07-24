@@ -53,9 +53,10 @@ UID_RE = re.compile(r"^nb-[0-9bcdfghjkmnpqrstvwxyz]{8}$")
 # always a TOML bare key and reads unambiguously before ':' in a ref.
 HANDLE_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 
-# Cross-notebook reference grammar (SPEC §9): "A3" or "handle:A3".
-# '#' is a deprecated synonym for ':' (removed in 0.10).
-REF_RE = re.compile(r"^(?:(?P<handle>[a-z][a-z0-9-]*)(?P<sep>[:#]))?(?P<id>[A-Z]+\d+)$")
+# Cross-notebook reference grammar (SPEC §9): "A3" or "handle:A3". The pre-0.5
+# '#' synonym is gone — '#' reads were removed in flip 0.10 (stored '#' refs
+# are still rewritten by `flip migrate`).
+REF_RE = re.compile(r"^(?:(?P<handle>[a-z][a-z0-9-]*):)?(?P<id>[A-Z]+\d+)$")
 
 
 def new_uid(rng: random.Random | None = None) -> str:
@@ -64,12 +65,12 @@ def new_uid(rng: random.Random | None = None) -> str:
     return "nb-" + "".join(pick(UID_ALPHABET) for _ in range(8))
 
 
-def parse_ref(ref: str) -> tuple[str | None, str, bool]:
-    """Parse an entity reference into (handle, id, used_deprecated_hash).
+def parse_ref(ref: str) -> tuple[str | None, str]:
+    """Parse an entity reference into (handle, id).
 
-    "A3" -> (None, "A3", False); "recipes:A3" -> ("recipes", "A3", False);
-    "recipes#A3" -> ("recipes", "A3", True). Anything else exits with the
-    grammar in the message.
+    "A3" -> (None, "A3"); "recipes:A3" -> ("recipes", "A3"). The pre-0.5
+    "recipes#A3" form no longer reads (removed in flip 0.10) — it, and
+    anything else off the grammar, exits with the grammar in the message.
     """
     m = REF_RE.match(ref or "")
     if not m:
@@ -78,7 +79,7 @@ def parse_ref(ref: str) -> tuple[str | None, str, bool]:
             "qualified form like recipes:A3 (handle = lowercase letters, "
             "digits, hyphens; id = PREFIX + number)"
         )
-    return m.group("handle"), m.group("id"), m.group("sep") == "#"
+    return m.group("handle"), m.group("id")
 
 
 def format_ref(handle: str | None, entity_id: str) -> str:

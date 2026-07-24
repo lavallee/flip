@@ -5,12 +5,12 @@ notebook; `handle:id` resolves through the nearest workspace table; unknown
 handles and ids are loud diagnostics, never guesses. The single sanctioned
 extension: a bare id used under a workspace root (outside any notebook)
 resolves iff exactly one bound notebook carries it — ambiguity lists the
-qualified forms to use instead.
+qualified forms to use instead. The pre-0.5 '#' separator no longer reads
+(removed in flip 0.10).
 """
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -66,15 +66,10 @@ def _find_in_notebook(ref: str, entity_id: str, handle: str | None, nb_root: Pat
 
 
 def resolve_ref(ref: str, start: Path | None = None) -> Resolved:
-    """Resolve "A3" / "recipes:A3" (deprecated "recipes#A3", with a stderr
-    note) from `start` (default cwd) to the entity page."""
-    handle, entity_id, deprecated = parse_ref(ref)
-    if deprecated:
-        print(
-            f"note: '{ref}' uses the deprecated '#' separator; use "
-            f"'{format_ref(handle, entity_id)}' ('#' reads are removed in flip 0.10)",
-            file=sys.stderr,
-        )
+    """Resolve "A3" / "recipes:A3" from `start` (default cwd) to the entity
+    page. The pre-0.5 "recipes#A3" form no longer reads (removed in flip
+    0.10) — parse_ref rejects it with the current grammar."""
+    handle, entity_id = parse_ref(ref)
 
     if handle is not None:
         ws_root = require_workspace_root(start)

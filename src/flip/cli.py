@@ -944,7 +944,8 @@ def migrate() -> None:
     into the root index.md frontmatter and every source/claim/decision/
     question/session becomes an entity page, preserving ids and fields.
     v0.4 notebooks: the manifest gains a uid and links.beat moves to the
-    canonical ':' separator ('#' reads are deprecated, removed in 0.10).
+    canonical ':' separator (stored '#' refs are still rewritten, though
+    '#' reads were removed in 0.10).
     Resumable if interrupted; run `flip doctor` afterwards.
     """
     cwd = Path.cwd().resolve()

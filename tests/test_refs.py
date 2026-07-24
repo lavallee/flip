@@ -16,12 +16,11 @@ from flip.util import UID_ALPHABET, UID_RE, format_ref, new_uid, parse_ref
 @pytest.mark.parametrize(
     ("ref", "expected"),
     [
-        ("A3", (None, "A3", False)),
-        ("TH12", (None, "TH12", False)),
-        ("recipes:A3", ("recipes", "A3", False)),
-        ("field-notes:C7", ("field-notes", "C7", False)),
-        ("r2:Q1", ("r2", "Q1", False)),
-        ("recipes#A3", ("recipes", "A3", True)),  # deprecated synonym, flagged
+        ("A3", (None, "A3")),
+        ("TH12", (None, "TH12")),
+        ("recipes:A3", ("recipes", "A3")),
+        ("field-notes:C7", ("field-notes", "C7")),
+        ("r2:Q1", ("r2", "Q1")),
     ],
 )
 def test_parse_ref_accepts(ref, expected):
@@ -42,6 +41,7 @@ def test_parse_ref_accepts(ref, expected):
         "recipes::A3",  # double separator
         "2cool:A3",  # handles start with a letter
         "recipes:A3 ",  # trailing junk
+        "recipes#A3",  # '#' reads removed in 0.10 — no longer a ref
     ],
 )
 def test_parse_ref_rejects_with_grammar_hint(ref):
@@ -53,7 +53,7 @@ def test_format_ref_round_trips():
     assert format_ref(None, "A3") == "A3"
     assert format_ref("recipes", "A3") == "recipes:A3"
     for ref in ("A3", "recipes:A3"):
-        handle, entity_id, _ = parse_ref(ref)
+        handle, entity_id = parse_ref(ref)
         assert format_ref(handle, entity_id) == ref
 
 

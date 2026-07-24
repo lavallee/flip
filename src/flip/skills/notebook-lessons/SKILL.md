@@ -32,7 +32,7 @@ analysis; this is about how the work went).
    notebook should include next time).
 4. **Feed the compound loop.** If a beat or a standing skill system exists
    above this notebook, propose the top 1–3 lessons upward — cross-notebook
-   references use `<slug>#<id>`.
+   references use `<handle>:<id>` (the `#` form was removed in 0.10).
 5. **Close out.** Set the final `status` in the root `index.md` frontmatter
    (only that key; the body is a generated listing),
    `flip log "lessons distilled; notebook <done|published|archived>"`, and
