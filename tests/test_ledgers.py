@@ -328,6 +328,19 @@ def test_repose_list_shows_current_formulation_only(root: Path):
     assert row["text"] == "who, exactly?"  # the journey stays on the page, not the list
 
 
+def test_repose_recovers_prior_text_when_body_leads_with_a_section(root: Path):
+    # A foreign edit can leave a question body opening directly on a '##'
+    # section; the prior formulation then lives only in the description and
+    # must land in the history — never an empty record.
+    asked = ledgers.add_question(root, "who funded it?")
+    page = pages.read_page(asked.path)
+    pages.write_page(page.path, page.fm, "## Answer\n\npending\n")
+    got = ledgers.repose_question(root, "Q1", "who really funded it?")
+    page = pages.read_page(got.path)
+    assert [f["text"] for f in page.fm["formulations"]] == ["who funded it?"]
+    assert "who funded it?" in page.body  # the Re-posed section carries it too
+
+
 def test_repose_unknown_question_raises(root: Path):
     ledgers.add_question(root, "one?")
     with pytest.raises(SystemExit, match=r"no question 'Q9'.*known: Q1"):

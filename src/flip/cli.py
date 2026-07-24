@@ -1218,12 +1218,27 @@ def export_json_cmd(out: str | None, include_private: bool) -> None:
     source-trail custody (URLs, capture times, fixity, the work log) to
     judgment stubs when source_trail_public is false.
     """
-    data = export_mod.export_json(require_notebook_root(), include_private=include_private)
+    root = require_notebook_root()
+    data = export_mod.export_json(root, include_private=include_private)
     text = json.dumps(data, ensure_ascii=False, indent=2)
     if out in (None, "-"):
         click.echo(text)
     else:
-        Path(out).write_text(text + "\n", encoding="utf-8")
+        dest = Path(out).expanduser().resolve()
+        root_resolved = root.resolve()
+        if dest.is_relative_to(root_resolved) and not dest.is_relative_to(
+            root_resolved / "renders"
+        ):
+            raise SystemExit(
+                f"refusing to write inside the notebook ({out}): a render "
+                "projection is a derived artifact, not evidence — use "
+                "renders/<target>/ or a path outside the bundle (SPEC §11)"
+            )
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(text + "\n", encoding="utf-8")
+        except OSError as exc:
+            raise SystemExit(f"cannot write {out}: {exc}") from exc
         click.echo(f"wrote {export_mod.RENDER_CONTRACT} projection to {out}")
 
 

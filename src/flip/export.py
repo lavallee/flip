@@ -256,9 +256,12 @@ def _source_projection(page: pages.Page, prov: dict[str, list[dict]], full_trail
     ships only with the full trail — the 0.4 lesson: anything derived from
     withheld data is withheld data (SPEC §17)."""
     fm = page.fm
+    sid = fm.get("id") or page.slug
     out: dict = {
-        "id": fm.get("id") or page.slug,
-        "slug": page.slug,
+        "id": sid,
+        # A source slug is derived from its title, so a withheld title would
+        # round-trip through it — the slug is custody too (SPEC §17).
+        "slug": page.slug if full_trail else str(sid),
         "kind": str(fm.get("kind", "")),
         "grade": str(fm.get("grade", "?")),
         "independence": str(fm.get("independence", "")),
@@ -384,7 +387,13 @@ def export_json(root: Path, include_private: bool = False) -> dict:
          if str(p.fm.get("type", "")) == "Decision"),
         key=lambda d: _id_num(d["id"]),
     )
-    sessions = [_session_projection(p) for p in pages.iter_pages(root, "sessions")]
+    # Session pages are the work log in entity form — their goals, and the
+    # goal-derived filename slugs, are custody like log_tail (SPEC §17).
+    sessions = (
+        [_session_projection(p) for p in pages.iter_pages(root, "sessions")]
+        if full_trail
+        else []
+    )
 
     # The work log is custody: withheld unless the full trail ships (SPEC §17).
     log_tail: list[dict] = []

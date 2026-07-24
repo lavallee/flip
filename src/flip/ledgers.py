@@ -223,6 +223,11 @@ def repose_question(root: Path, qid: str, new_text: str) -> pages.Page:
     lines = page.body.split("\n")
     cut = next((i for i, ln in enumerate(lines) if ln.startswith("## ")), None)
     old_text = ("\n".join(lines if cut is None else lines[:cut])).strip()
+    # A body may open directly on a '##' section (an answered or foreign-
+    # edited page); the description still holds the prior formulation, and
+    # it is about to be overwritten — capture it, never record ''.
+    if not old_text:
+        old_text = str(page.fm.get("description", ""))
     tail = "" if cut is None else "\n".join(lines[cut:]).strip("\n")
 
     formulations = pages.as_list(page.fm.get("formulations"))

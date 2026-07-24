@@ -503,7 +503,7 @@ def test_export_json_notebook_identity_and_contract(tmp_path):
 
 
 def test_export_json_projects_claims_questions_with_history(tmp_path):
-    data = export_json(make_render_notebook(tmp_path / "nb"))
+    data = export_json(make_render_notebook(tmp_path / "nb", trail_public=True))
     claim = data["claims"][0]
     assert claim["id"] == "C1" and claim["text"] == "key claim"
     assert claim["load_bearing"] is True and claim["sources"] == ["A1"]
@@ -547,6 +547,38 @@ def test_export_json_stripped_trail_withholds_custody(tmp_path):
     # but claims/questions — the notebook's judgments — still ship
     assert data["claims"][0]["id"] == "C1"
     assert data["questions"][0]["id"] == "Q1"
+
+
+def test_export_json_stripped_trail_stubs_title_derived_source_slug(tmp_path):
+    # A source slug is generated from its title: withholding the title while
+    # shipping the slug would leak it (the 0.4 derived-from-withheld lesson).
+    root = make_render_notebook(tmp_path / "nb", trail_public=False)
+    pages.write_page(
+        root / "references" / "secret-merger-memo.md",
+        {"type": "Source", "id": "A2", "aliases": ["A2"],
+         "title": "Secret merger memo", "grade": "B",
+         "independence": "derivative", "freshness": "dated", "kind": "web"},
+        "# Secret merger memo\n",
+    )
+    data = export_json(root)
+    a2 = next(s for s in data["sources"] if s["id"] == "A2")
+    assert a2["slug"] == "A2"  # stubbed to the id
+    assert "secret-merger-memo" not in json.dumps(data)
+    # with the full trail, the real slug ships
+    make_render_notebook(tmp_path / "nb", trail_public=True)
+    full = export_json(root)
+    a2 = next(s for s in full["sources"] if s["id"] == "A2")
+    assert a2["slug"] == "secret-merger-memo"
+
+
+def test_export_json_stripped_trail_withholds_sessions(tmp_path):
+    # session pages are the work log in entity form — goals and goal-derived
+    # filename slugs are custody, withheld exactly like log_tail
+    root = make_render_notebook(tmp_path / "nb", trail_public=False)
+    assert export_json(root)["sessions"] == []
+    make_render_notebook(tmp_path / "nb", trail_public=True)
+    sessions = export_json(root)["sessions"]
+    assert sessions and sessions[0]["goal"] == "scan the landscape"
 
 
 def test_export_json_is_deterministic(tmp_path):

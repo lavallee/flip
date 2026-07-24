@@ -529,6 +529,20 @@ def test_export_json_cli_stdout_file_and_policy(tmp_path, monkeypatch):
     assert file_data == data
 
 
+def test_export_json_out_refuses_notebook_interior_allows_renders(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    # inside the evidentiary tree: refused (a render is derived, not evidence)
+    refused = invoke(["export", "json", "--include-private", "--out", "references/leak.json"])
+    assert refused.exit_code != 0
+    assert "refusing to write inside the notebook" in refused.output
+    assert not (root / "references" / "leak.json").exists()
+    # renders/ is the sanctioned in-notebook home; parents are created
+    ok = invoke(["export", "json", "--include-private", "--out", "renders/site/data.json"])
+    assert ok.exit_code == 0, ok.output
+    assert json.loads((root / "renders" / "site" / "data.json").read_text(encoding="utf-8"))
+
+
 def test_export_bag_writes_bag_and_refuses_existing_dest(tmp_path, monkeypatch):
     root = make_notebook(tmp_path / "demo")
     monkeypatch.chdir(root)
