@@ -40,7 +40,7 @@ from . import (
     workspace as workspace_mod,
 )
 from .util import (
-    find_notebook_root,
+    find_notebook_root_pinned,
     find_workspace_root,
     require_notebook_root,
     set_cli_overrides,
@@ -96,7 +96,25 @@ def new(slug: str, kind: str, title: str, visibility: str | None, dest: Path | N
     dest = dest if dest is not None else Path.cwd() / slug
     path = scaffold.create_notebook(dest, slug, kind, title=title, visibility=visibility)
     click.echo(f"created {kind} notebook '{slug}' at {path}")
+    _autobind_new_notebook(path, slug)
     click.echo(f'next: cd {path} && flip log "started" — see `flip --help` for the toolkit')
+
+
+def _autobind_new_notebook(path: Path, slug: str) -> None:
+    """C2: a notebook created under a workspace root auto-binds into the table
+    (slug-derived handle, -2 on collision) and says so — census found rich
+    notebooks left unregistered. Binding failures never fail `flip new`."""
+    ws_root = find_workspace_root(path.resolve().parent)
+    if ws_root is None:
+        return
+    try:
+        ws = workspace_mod.load_workspace(ws_root)
+        handle = workspace_mod.default_handle(slug, set(ws.notebooks))
+        bound, rel = workspace_mod.ws_add(ws_root, path, handle)
+    except SystemExit as e:
+        click.echo(f"note: not auto-bound into the workspace ({e})", err=True)
+        return
+    click.echo(f"bound into workspace as '{bound}' → {rel} (`flip ws list`)")
 
 
 # ---------------------------------------------------------------- sources
@@ -720,7 +738,7 @@ def doctor(as_json: bool, workspace_flag: bool, fix: bool) -> None:
     the shared space instead (SPEC §18): duplicate uids, unbound notebooks,
     ids and slugs ambiguous across notebooks.
     """
-    nb_root = find_notebook_root()
+    nb_root = find_notebook_root_pinned()
     if workspace_flag or (nb_root is None and find_workspace_root() is not None):
         ws_root = workspace_mod.require_workspace_root()
         findings = doctor_mod.run_workspace_doctor(ws_root, fix=fix)
@@ -756,7 +774,7 @@ def obsidian_cmd(no_plugin: bool) -> None:
     settings survive; a second run changes nothing. Walkthrough:
     docs/obsidian.md.
     """
-    root = find_notebook_root() or beat_mod.find_beat_root()
+    root = find_notebook_root_pinned() or beat_mod.find_beat_root()
     if root is None:
         raise SystemExit(
             "not inside a flip notebook or beat (no index.md with flip/flip_beat "
@@ -828,6 +846,29 @@ def ws_list(as_json: bool) -> None:
         if r.get("status") != "ok":
             line += f" [{r['status']}]"
         click.echo(line)
+
+
+@ws.command("show")
+@click.option("--open", "open_flag", is_flag=True,
+              help="Only the open questions across bound notebooks (with re-pose counts).")
+@click.option("--claims", "claims_flag", is_flag=True,
+              help="Only the load-bearing claims still needing work across bound notebooks.")
+@click.option("--json", "as_json", is_flag=True, help="Emit the roster as JSON.")
+def ws_show_cmd(open_flag: bool, claims_flag: bool, as_json: bool) -> None:
+    """Merged roster across bound notebooks: open questions (with re-pose
+    counts), load-bearing claims needing work, and each notebook's
+    kind/status/updated-age.
+
+    A computed view over existing data — no new ledger (`flip ws list` stays
+    the plain binding table). `--open`/`--claims` narrow to one lane.
+    """
+    if open_flag and claims_flag:
+        raise SystemExit("pass at most one of --open/--claims")
+    out = views.ws_show(
+        workspace_mod.require_workspace_root(),
+        open_only=open_flag, claims_only=claims_flag, as_data=as_json,
+    )
+    click.echo(json.dumps(out, ensure_ascii=False, indent=2) if as_json else out)
 
 
 @ws.command("add")
@@ -954,7 +995,7 @@ def migrate() -> None:
     )
     if root is None:
         # No v0.3 root above us: let migrate explain (already-v0.4 vs not a notebook).
-        root = find_notebook_root() or cwd
+        root = find_notebook_root_pinned() or cwd
     counts = migrate_mod.migrate(root)
     summary = ", ".join(
         f"{n} {name.replace('_', ' ')}"
@@ -1027,7 +1068,7 @@ def profiles_cmd() -> None:
     Shows the profiles shipped with flip plus any notebook-local overrides
     under .flip/profiles/ when run inside a notebook.
     """
-    root = find_notebook_root()
+    root = find_notebook_root_pinned()
     shipped = profiles_mod.list_profiles()
     local_dir = root / ".flip" / "profiles" if root else None
     local = (sorted(p.name.removesuffix(".toml") for p in local_dir.glob("*.toml"))

@@ -715,6 +715,72 @@ def test_actor_falls_back_to_env_without_flag(tmp_path, monkeypatch):
     assert pages.read_page(root / "questions" / "who.md").fm["actor"] == "human:env"
 
 
+# ---------------------------------------------------------------- ws show / auto-bind
+
+
+def test_new_under_workspace_autobinds(tmp_path, monkeypatch):
+    from flip.workspace import load_workspace
+
+    ws = tmp_path / "vault"
+    ws.mkdir()
+    monkeypatch.chdir(ws)
+    assert invoke(["ws", "init"]).exit_code == 0
+    result = invoke(["new", "recipes", "--kind", "scout"])
+    assert result.exit_code == 0, result.output
+    assert "bound into workspace as 'recipes'" in result.output
+    assert load_workspace(ws).notebooks == {"recipes": "recipes"}
+
+
+def test_new_under_workspace_suffixes_handle_collision(tmp_path, monkeypatch):
+    from flip.workspace import load_workspace
+
+    ws = tmp_path / "vault"
+    ws.mkdir()
+    monkeypatch.chdir(ws)
+    invoke(["ws", "init"])
+    invoke(["new", "recipes", "--kind", "scout"])  # binds 'recipes'
+    # a second notebook whose slug also derives 'recipes' gets 'recipes-2'
+    result = invoke(["new", "recipes", "--kind", "scout", "--dest", str(ws / "more" / "recipes")])
+    assert result.exit_code == 0, result.output
+    assert "bound into workspace as 'recipes-2'" in result.output
+    assert load_workspace(ws).notebooks["recipes-2"] == "more/recipes"
+
+
+def test_new_outside_workspace_does_not_bind(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    result = invoke(["new", "solo", "--kind", "scout"])
+    assert result.exit_code == 0, result.output
+    assert "bound into workspace" not in result.output
+
+
+def test_ws_show_cli_text_and_json(tmp_path, monkeypatch):
+    ws = tmp_path / "vault"
+    ws.mkdir()
+    monkeypatch.chdir(ws)
+    invoke(["ws", "init"])
+    invoke(["new", "recipes", "--kind", "scout"])
+    monkeypatch.chdir(ws / "recipes")
+    assert invoke(["question", "add", "who pays?"]).exit_code == 0
+    monkeypatch.chdir(ws)
+    text = invoke(["ws", "show"])
+    assert text.exit_code == 0, text.output
+    assert "recipes · scout · active" in text.output
+    assert "OPEN QUESTIONS (1)" in text.output
+    data = json.loads(invoke(["ws", "show", "--json"]).output)
+    assert data["notebooks"][0]["handle"] == "recipes"
+    assert data["notebooks"][0]["open_questions"][0]["id"] == "Q1"
+
+
+def test_ws_show_open_claims_mutually_exclusive(tmp_path, monkeypatch):
+    ws = tmp_path / "vault"
+    ws.mkdir()
+    monkeypatch.chdir(ws)
+    invoke(["ws", "init"])
+    result = invoke(["ws", "show", "--open", "--claims"])
+    assert result.exit_code != 0
+    assert "at most one" in result.output
+
+
 # ---------------------------------------------------------------- misc
 
 

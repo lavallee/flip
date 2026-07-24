@@ -22,10 +22,10 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import pages
+from . import claims, pages
 from .manifest import Manifest, load_manifest, save_manifest
 from .profiles import Profile, load_profile
-from .util import age_months, read_jsonl
+from .util import age_months, idle_days, read_jsonl
 
 # Claim status enum (SPEC §7), in display order.
 CLAIM_STATUS_ORDER = (
@@ -200,19 +200,21 @@ def hot_view(root: Path, as_data: bool = False) -> str | dict:
     recent = _read(root, LOG_JSONL)[-RECENT_LOG_COUNT:]
     session = _latest_session(root)
     dated = _stale_sources(_source_rows(root), profile.freshness_months)
+    idle = idle_days(m.updated)
     if as_data:
         return {
             "slug": m.slug,
             "kind": m.kind,
             "status": m.status,
             "updated": m.updated,
+            "idle_days": idle,
             "open_questions": questions,
             "claims_needing_work": claims,
             "recent_log": recent,
             "latest_session": session,
             "dated_sources": len(dated),
         }
-    lines = [" · ".join([m.slug, m.kind, m.status, m.updated])]
+    lines = [" · ".join([m.slug, m.kind, m.status + _idle_suffix(idle), m.updated])]
     if questions:
         lines += ["", "OPEN QUESTIONS"]
         lines += [f"  {q['id']} · {_trunc(q['text'])}" for q in questions]
@@ -283,6 +285,175 @@ def stale_view(root: Path, as_data: bool = False) -> str | dict:
     if not lines:
         return "nothing stale"
     return "\n".join(lines).rstrip()
+
+
+# --- workspace roster (SPEC §18) ---------------------------------------------
+
+
+def _idle_suffix(idle: int | None) -> str:
+    """" · idle 41d" when the notebook has aged, "" when fresh or undated."""
+    return f" · idle {idle}d" if idle else ""
+
+
+def _current_question_text(page: pages.Page) -> str:
+    """The current formulation of a question: the body's lead prose up to the
+    first '## ' section (a dated Re-posed block or ## Answer), else the
+    description. A re-posed question shows its current wording, not its whole
+    journey — the journey stays on the page (mirrors ledgers._question_text)."""
+    body = page.body
+    if body.lstrip().startswith("## "):
+        return str(page.fm.get("description", ""))
+    head = body.split("\n## ", 1)[0].strip()
+    return head or str(page.fm.get("description", ""))
+
+
+def _open_questions_roster(root: Path) -> list[dict]:
+    """Open questions with their re-pose count (len of the formulations
+    history), id order — the roster view's per-notebook question list."""
+    out = []
+    for page in _pages(root, "questions"):
+        if str(page.fm.get("type", "")) != "Question":
+            continue
+        if str(page.fm.get("status", "open")) == "answered":
+            continue
+        out.append(
+            {
+                "id": page.id,
+                "text": _current_question_text(page),
+                "repose_count": len(pages.as_list(page.fm.get("formulations"))),
+            }
+        )
+    out.sort(key=lambda q: _id_num(q["id"]))
+    return out
+
+
+def _load_bearing_needing_work(root: Path) -> list[dict]:
+    """Load-bearing claims whose verification bar is unmet AND that carry no
+    gating (adversarial/recomputation) verification — the same condition that
+    would block `flip claim status … verified` (SPEC §7, A2). Terminal
+    statuses (retracted/superseded/false-positive) are out; this is the
+    roster's "still needs work" list. Recomputed, never trusting the stored
+    corroboration count."""
+    m = load_manifest(root)
+    profile = _profile_or_default(m, root)
+    source_fms = _source_rows(root)  # dicts carrying id/grade/independence
+    out = []
+    for c in _claim_rows(root):
+        if not c.get("load_bearing"):
+            continue
+        status = str(c.get("status", "asserted"))
+        if status in ("retracted", "superseded", "false-positive"):
+            continue
+        source_ids = [str(s) for s in pages.as_list(c.get("sources"))]
+        corroboration = claims.corroboration_count(source_fms, source_ids)
+        linked = claims._linked_fms(source_fms, source_ids)
+        has_grade_a = any(fm.get("grade") == "A" for fm in linked)
+        bar_met = corroboration >= profile.claim_min_independent or (
+            profile.claim_grade_a_suffices and has_grade_a
+        )
+        if bar_met or claims.has_gating_verification(c):
+            continue
+        out.append(
+            {
+                "id": c.get("id"),
+                "description": str(c.get("description", "")),
+                "status": status,
+                "corroboration": corroboration,
+            }
+        )
+    out.sort(key=lambda c: _id_num(str(c["id"])))
+    return out
+
+
+def ws_show(
+    ws_root: Path,
+    open_only: bool = False,
+    claims_only: bool = False,
+    as_data: bool = False,
+) -> str | dict:
+    """The merged workspace roster (SPEC §18): across every bound notebook,
+    its kind/status/updated-age plus its open questions (with re-pose counts)
+    and load-bearing claims still needing work. A view over existing data — no
+    new ledger. `--open`/`--claims` narrow to one lane; broken bindings
+    (missing / not-a-notebook) are listed but carry no roster.
+    """
+    from . import workspace
+
+    rows = workspace.ws_rows(ws_root)
+    notebooks: list[dict] = []
+    for row in rows:
+        nb: dict = {
+            "handle": row["handle"],
+            "path": row["path"],
+            "slug": row.get("slug", ""),
+            "title": row.get("title", ""),
+            "binding": row.get("status", "ok"),
+        }
+        if row.get("status") == "ok":
+            m = load_manifest(ws_root / row["path"])
+            nb_root = ws_root / row["path"]
+            nb.update(
+                kind=m.kind,
+                status=m.status,
+                updated=m.updated,
+                idle_days=idle_days(m.updated),
+                open_questions=_open_questions_roster(nb_root),
+                claims_needing_work=_load_bearing_needing_work(nb_root),
+            )
+        else:
+            nb.update(
+                kind="", status="", updated="", idle_days=None,
+                open_questions=[], claims_needing_work=[],
+            )
+        notebooks.append(nb)
+    data = {"workspace_root": str(ws_root), "notebooks": notebooks}
+    if as_data:
+        return data
+    return _render_ws_show(data, open_only=open_only, claims_only=claims_only)
+
+
+def _ws_header(nb: dict) -> str:
+    if nb["binding"] != "ok":
+        return f"{nb['handle']} · [{nb['binding']}] · {nb['path']}"
+    return " · ".join(
+        [nb["handle"], nb["kind"], nb["status"] + _idle_suffix(nb["idle_days"])]
+    )
+
+
+def _render_ws_show(data: dict, open_only: bool, claims_only: bool) -> str:
+    show_q = not claims_only
+    show_c = not open_only
+    nbs = data["notebooks"]
+    lines = [data["workspace_root"], f"{len(nbs)} notebook(s) bound"]
+    for nb in nbs:
+        lines += ["", _ws_header(nb)]
+        if nb["binding"] != "ok":
+            continue
+        shown = False
+        if show_q and nb["open_questions"]:
+            lines.append(f"  OPEN QUESTIONS ({len(nb['open_questions'])})")
+            for q in nb["open_questions"]:
+                rep = f" (re-posed {q['repose_count']}×)" if q["repose_count"] else ""
+                lines.append(f"    {q['id']} · {_trunc(q['text'])}{rep}")
+            shown = True
+        if show_c and nb["claims_needing_work"]:
+            lines.append(f"  CLAIMS NEEDING WORK ({len(nb['claims_needing_work'])})")
+            for c in nb["claims_needing_work"]:
+                lines.append(
+                    f"    {c['id']} · {c['status']} · corroboration "
+                    f"{c['corroboration']} · {_trunc(c['description'])}"
+                )
+            shown = True
+        if not shown:
+            what = (
+                "open questions"
+                if claims_only
+                else "load-bearing claims needing work"
+                if open_only
+                else "open questions or load-bearing claims needing work"
+            )
+            lines.append(f"  (no {what})")
+    return "\n".join(lines)
 
 
 # --- generated at-rest views (SPEC §10) --------------------------------------

@@ -137,6 +137,24 @@ def age_months(date_str: object, today_date) -> int | None:
     return months
 
 
+def idle_days(updated: object, today_date=None) -> int | None:
+    """Whole days between an `updated` date ("2026-06-01", "2026-06", "2026")
+    and today (UTC), or None when it doesn't parse. Backs the `idle Nd`
+    staleness hint in `flip show` / `flip ws show` (SPEC §18) — visibility,
+    not a gate: status stays a human/agent judgment (no auto-transition)."""
+    m = _LEDGER_DATE_RE.match(str(updated or ""))
+    if not m:
+        return None
+    year, month, day = int(m.group(1)), int(m.group(2) or 1), int(m.group(3) or 1)
+    if today_date is None:
+        today_date = datetime.now(timezone.utc).date()
+    try:
+        then = datetime(year, month, day, tzinfo=timezone.utc).date()
+    except ValueError:
+        return None
+    return max((today_date - then).days, 0)
+
+
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -274,6 +292,19 @@ def require_notebook_root(start: Path | None = None) -> Path:
     if root is None:
         raise SystemExit(_NO_NOTEBOOK_MSG)
     return root
+
+
+def find_notebook_root_pinned(start: Path | None = None) -> Path | None:
+    """find_notebook_root, honoring the --notebook/FLIP_NOTEBOOK pin.
+
+    For read-only, workspace-aware commands (doctor, profiles, obsidian,
+    migrate) that must tolerate "no notebook here": with no pin it walks up
+    from `start`/cwd and may return None; with a pin set it returns the
+    validated pinned root, still refusing loudly when a set pin and a CWD
+    notebook disagree (via _resolve_pinned_root)."""
+    if _NOTEBOOK_PIN is None:
+        return find_notebook_root(start)
+    return _resolve_pinned_root()
 
 
 def is_workspace_root(directory: Path) -> bool:
