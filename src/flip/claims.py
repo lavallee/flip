@@ -41,6 +41,14 @@ STATUSES = (
 # Grades that count as a recorded judgment; "?" is custody, not judgment.
 JUDGED_GRADES = ("A", "B", "C")
 
+# Verification methods a claim can carry (SPEC §7, A2). The vocabulary widens
+# the ways a claim earns `verified`, but the corroboration bar itself is
+# unchanged: `independent-sources` records the corroboration *reasoning* and
+# never satisfies the gate by itself; only `adversarial` and `recomputation`
+# — the two below — clear the gate on their own.
+VERIFICATION_METHODS = ("adversarial", "independent-sources", "recomputation")
+GATING_VERIFICATION_METHODS = ("adversarial", "recomputation")
+
 CITATIONS_HEADING = "# Citations"
 
 # Frontmatter description is a one-line OKF summary; the body holds the full text.
@@ -70,12 +78,33 @@ def corroboration_count(source_fms: list[dict], source_ids: list[str]) -> int:
     )
 
 
+def has_gating_verification(fm: dict) -> bool:
+    """True when a claim's frontmatter records at least one verification whose
+    method clears the `verified` gate on its own (adversarial/recomputation).
+    Shared by set_claim_status's gate and doctor's under-verified check."""
+    return any(
+        str(v.get("method")) in GATING_VERIFICATION_METHODS
+        for v in pages.as_list(fm.get("verifications"))
+    )
+
+
 def _source_pages_by_id(root: Path) -> dict[str, pages.Page]:
     return {p.id: p for p in pages.iter_pages(root, "references") if p.id}
 
 
 def _claim_pages(root: Path) -> list[pages.Page]:
     return pages.iter_pages(root, "claims")
+
+
+def _find_claim(root: Path, claim_id: str) -> pages.Page:
+    """The claims/ page carrying `claim_id`, or an actionable refusal."""
+    page = next((p for p in _claim_pages(root) if p.id == claim_id), None)
+    if page is None:
+        known = ", ".join(p.id for p in _claim_pages(root) if p.id) or "none yet"
+        raise SystemExit(
+            f"no claim '{claim_id}' in claims/ (known: {known}); add it with `flip claim add`"
+        )
+    return page
 
 
 def _description(text: str) -> str:
@@ -193,12 +222,7 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
     root = util.require_notebook_root(root)
     if status not in STATUSES:
         raise SystemExit(f"invalid claim status '{status}' (one of: {', '.join(STATUSES)})")
-    page = next((p for p in _claim_pages(root) if p.id == claim_id), None)
-    if page is None:
-        known = ", ".join(p.id for p in _claim_pages(root) if p.id) or "none yet"
-        raise SystemExit(
-            f"no claim '{claim_id}' in claims/ (known: {known}); add it with `flip claim add`"
-        )
+    page = _find_claim(root, claim_id)
     source_ids = [str(s) for s in pages.as_list(page.fm.get("sources"))]
     src_by_id = _source_pages_by_id(root)
     source_fms = [p.fm for p in src_by_id.values()]
@@ -207,10 +231,12 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
         profile = profiles.load_profile(manifest.load_manifest(root).kind, root)
         linked = _linked_fms(source_fms, source_ids)
         has_grade_a = any(fm.get("grade") == "A" for fm in linked)
-        met = corroboration >= profile.claim_min_independent or (
+        bar_met = corroboration >= profile.claim_min_independent or (
             profile.claim_grade_a_suffices and has_grade_a
         )
-        if not met:
+        # A2: the gate passes on the corroboration bar OR a recorded adversarial/
+        # recomputation verification — the two paths the refusal names.
+        if not (bar_met or has_gating_verification(page.fm)):
             msg = (
                 f"cannot verify {claim_id}: {corroboration} independent original source(s) "
                 f"of {profile.claim_min_independent} required"
@@ -231,6 +257,10 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
                     f"; {', '.join(ungraded)} still graded '?' and ungraded sources "
                     "never corroborate — judge them with `flip grade` first"
                 )
+            msg += (
+                f"; or record a skeptic/recompute pass with `flip claim verify {claim_id} "
+                "--method adversarial|recomputation`"
+            )
             raise SystemExit(msg)
     supports, citation_lines = _citations(src_by_id, source_ids)
     page.fm["status"] = status
@@ -241,6 +271,114 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
     manifest.touch_updated(root)
     _regenerate_views(root)
     return pages.Page(path=page.path, fm=page.fm, body=body)
+
+
+def _write_sources(root: Path, page: pages.Page, source_ids: list[str]) -> pages.Page:
+    """Persist a claim's new `sources:` list: regenerate supports + the
+    `# Citations` block against current source slugs and recompute
+    independent_corroboration. Prose above the citations round-trips (SPEC §6.6)."""
+    ids = [str(s) for s in source_ids]
+    src_by_id = _source_pages_by_id(root)
+    supports, citation_lines = _citations(src_by_id, ids)
+    page.fm["sources"] = ids
+    page.fm["supports"] = supports
+    page.fm["independent_corroboration"] = corroboration_count(
+        [p.fm for p in src_by_id.values()], ids
+    )
+    body = _replace_citations(page.body, citation_lines)
+    pages.write_page(page.path, page.fm, body)
+    manifest.touch_updated(root)
+    _regenerate_views(root)
+    return pages.Page(path=page.path, fm=page.fm, body=body)
+
+
+def add_claim_sources(
+    root: Path, claim_id: str, source_ids: list[str]
+) -> tuple[pages.Page, list[str], list[str]]:
+    """Link one or more source ids to a claim (A1): append to `sources:`,
+    regenerate the `# Citations` block, recompute corroboration.
+
+    Unknown ids — no references/ page carries them — are refused before any
+    write; this is the post-hoc linker, not a place to invent dangling cites.
+    Returns (page, newly-added ids, warnings) where warnings name any linked
+    source still graded "?" (ungraded sources never count toward the bar,
+    D12/§5.4). Refuses when every given id is already linked.
+    """
+    root = util.require_notebook_root(root)
+    ids = [str(s) for s in pages.as_list(source_ids)]
+    if not ids:
+        raise SystemExit("no source ids given; pass at least one references/ id, e.g. A3")
+    page = _find_claim(root, claim_id)
+    src_by_id = _source_pages_by_id(root)
+    unknown = [s for s in dict.fromkeys(ids) if s not in src_by_id]
+    if unknown:
+        known = ", ".join(sorted(src_by_id)) or "none captured yet"
+        raise SystemExit(
+            f"unknown source id(s) {', '.join(unknown)}: no references/ page carries them "
+            f"(known: {known}); capture the source with `flip add-source` first"
+        )
+    current = [str(s) for s in pages.as_list(page.fm.get("sources"))]
+    added = [s for s in dict.fromkeys(ids) if s not in current]
+    if not added:
+        raise SystemExit(
+            f"claim {claim_id} already cites {', '.join(dict.fromkeys(ids))}; nothing to add"
+        )
+    updated = _write_sources(root, page, current + added)
+    warnings = [s for s in added if src_by_id[s].fm.get("grade") not in JUDGED_GRADES]
+    return updated, added, warnings
+
+
+def remove_claim_source(root: Path, claim_id: str, source_id: str) -> pages.Page:
+    """Unlink a source id from a claim (A1): drop it from `sources:`, regenerate
+    the `# Citations` block, recompute corroboration. Refuses when the claim
+    does not cite that id."""
+    root = util.require_notebook_root(root)
+    sid = str(source_id)
+    page = _find_claim(root, claim_id)
+    current = [str(s) for s in pages.as_list(page.fm.get("sources"))]
+    if sid not in current:
+        raise SystemExit(
+            f"claim {claim_id} does not cite {sid} (sources: {', '.join(current) or 'none'})"
+        )
+    return _write_sources(root, page, [s for s in current if s != sid])
+
+
+def verify_claim(
+    root: Path,
+    claim_id: str,
+    method: str,
+    against: list[str] | None = None,
+    note: str | None = None,
+) -> pages.Page:
+    """Record a verification on a claim (A2): append a {method, by, against,
+    date, note} record to the `verifications:` frontmatter list. Append-only —
+    records are added, never edited — and never touches sources or corroboration.
+
+    `adversarial` and `recomputation` clear the `verified` gate on their own
+    (see set_claim_status); `independent-sources` records the corroboration
+    reasoning but never substitutes for the recomputed source count.
+    """
+    root = util.require_notebook_root(root)
+    if method not in VERIFICATION_METHODS:
+        raise SystemExit(
+            f"invalid verification method '{method}' "
+            f"(one of: {', '.join(VERIFICATION_METHODS)})"
+        )
+    page = _find_claim(root, claim_id)
+    record: dict = {"method": method, "by": util.detect_actor()}
+    refs = [str(a) for a in pages.as_list(against)]
+    if refs:
+        record["against"] = refs
+    record["date"] = util.today()
+    if note:
+        record["note"] = note
+    records = pages.as_list(page.fm.get("verifications"))
+    records.append(record)
+    page.fm["verifications"] = records
+    pages.write_page(page.path, page.fm, page.body)
+    manifest.touch_updated(root)
+    _regenerate_views(root)
+    return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 
 def _id_sort_key(fm: dict) -> tuple:

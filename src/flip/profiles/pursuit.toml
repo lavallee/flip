@@ -1,0 +1,5 @@
+id = "pursuit"
+description = "One question under pursuit: a plan artifact, a banded answer, and verification-gated claims."
+sections = ["tip", "frame", "answer", "assessment", "gaps", "handoff"]
+requires = ["questions", "claims", "drafts/question-plan.md", "log"]
+claim_min_independent = 2

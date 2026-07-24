@@ -134,6 +134,33 @@ def test_every_shipped_profile_scaffolds(tmp_path):
         assert sorted(p.name for p in dest.iterdir()) == ["index.md", "notebook.md"]
 
 
+def test_pursuit_scaffold_seeds_question_and_plan(tmp_path, monkeypatch):
+    monkeypatch.setenv("FLIP_ACTOR", "agent:test")
+    dest = create_notebook(tmp_path / "nb", "orchard-yield", "pursuit",
+                           title="What drives orchard yield?")
+    # the primary question is seeded as Q1
+    q = pages.find_by_id(dest, "Q1")
+    assert q is not None and q.fm["type"] == "Question"
+    assert q.fm["description"] == "What drives orchard yield?"
+    # the plan artifact exists with the settled skeleton
+    plan = (dest / "drafts" / "question-plan.md").read_text(encoding="utf-8")
+    assert plan.startswith("# Question plan — What drives orchard yield?")
+    for heading in ("Answer shapes (before any retrieval)", "Prior",
+                    "What we already hold", "Routes", "Plan revision"):
+        assert heading in plan
+
+
+def test_pursuit_notebook_md_has_banded_sections(tmp_path):
+    dest = create_notebook(tmp_path / "nb", "q", "pursuit")
+    body = pages.read_page(dest / "notebook.md").body
+    profile = load_profile("pursuit")
+    headings = [line for line in body.splitlines() if line.startswith("## ")]
+    assert headings == [f"## {SECTIONS[s]['heading']}" for s in profile.sections]
+    for heading in ("The tip", "Frame", "Answer", "Assessment",
+                    "Gaps & self-critique", "Handoff"):
+        assert f"## {heading}" in body
+
+
 def test_notebook_local_profile_override_not_consulted(tmp_path):
     # a notebook-local profile only applies with a notebook_root, which
     # create_notebook does not have (the notebook doesn't exist yet) — so the

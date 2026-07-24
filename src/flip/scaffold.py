@@ -24,6 +24,62 @@ from .util import ROOT_FILE, new_uid, today
 
 NOTEBOOK_MD = "notebook.md"
 
+# The pursuit plan skeleton (Lane B): prose with dated headings — the agent's
+# judgment stays in prose, never in schema. `{name}`/`{date}` fill at scaffold.
+QUESTION_PLAN = """\
+# Question plan — {name}
+
+> The plan is prose with dated headings. Fill each section; replace or keep the
+> prompts as a guide. Judgment stays here, in prose, not in structured fields.
+
+## Answer shapes (before any retrieval)
+
+> Enumerate the plausible shapes the answer could take — plural, written down
+> before you look. For each: what would make it the true one?
+
+## Prior
+
+> The starting belief and how strongly it is held, stated before evidence.
+
+## What we already hold
+
+> Survey the corpus first (recall before acquire): what is already captured or
+> known that bears on this question?
+
+## Routes
+
+> Fast/decent route (the cheap first pass) · slow/good fallback (if the fast
+> route underdelivers) · stop rule (what "enough" looks like) · routing
+> prediction (which route you expect to win, and why).
+
+## Plan revision — {date} · after holdings survey
+
+> What the corpus actually held, and how it moved the plan.
+
+## Plan revision — {date} · after external evidence
+
+> What acquisition changed.
+
+## Plan revision — {date} · stop decision
+
+> Why you stopped here; what remains open.
+
+## Plan revision — {date} · what this taught the router
+
+> The transferable lesson for the next question.
+"""
+
+
+def _seed_pursuit(root: Path, name: str) -> None:
+    """Seed a `pursuit` notebook past the bare scaffold (Lane B): the primary
+    question as Q1, and drafts/question-plan.md with the settled skeleton."""
+    from . import ledgers  # local import: ledgers imports views, scaffold does too
+
+    ledgers.add_question(root, name)  # allocates Q1, writes questions/<slug>.md
+    plan = root / "drafts" / "question-plan.md"
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text(QUESTION_PLAN.format(name=name, date=today()), encoding="utf-8")
+
 
 def _notebook_md_body(name: str, profile: Profile) -> str:
     """Render the notebook.md body: a title line, then one stub per profile
@@ -79,5 +135,7 @@ def create_notebook(
         {"type": "Notebook", "description": name},
         _notebook_md_body(name, profile),
     )
+    if kind == "pursuit":
+        _seed_pursuit(dest, name)
     views.regenerate(dest)
     return dest
