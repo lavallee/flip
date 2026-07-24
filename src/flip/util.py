@@ -20,6 +20,25 @@ from pathlib import Path
 
 ROOT_FILE = "index.md"
 
+# CLI-scoped overrides, set once per invocation by the `flip` group callback
+# (set_cli_overrides) and consulted by detect_actor / require_notebook_root.
+# They default to None so library and test call sites that never run the group
+# callback see plain env/CWD behavior. --notebook pins the notebook root
+# (with FLIP_NOTEBOOK as its env fallback); --actor pins attribution ahead of
+# FLIP_ACTOR (SPEC §8).
+_NOTEBOOK_PIN: Path | None = None
+_ACTOR_OVERRIDE: str | None = None
+
+
+def set_cli_overrides(notebook: str | Path | None = None, actor: str | None = None) -> None:
+    """Record the global --notebook/--actor pins for one CLI invocation.
+
+    The `flip` group callback calls this exactly once, so every command resets
+    both to the current invocation's values — no state leaks between runs."""
+    global _NOTEBOOK_PIN, _ACTOR_OVERRIDE
+    _NOTEBOOK_PIN = Path(notebook) if notebook else None
+    _ACTOR_OVERRIDE = actor or None
+
 # Workspace marker: a vault/repo root that binds notebooks to handles (SPEC §18).
 WORKSPACE_FILE = Path(".flip") / "workspace.toml"
 
@@ -34,9 +53,10 @@ UID_RE = re.compile(r"^nb-[0-9bcdfghjkmnpqrstvwxyz]{8}$")
 # always a TOML bare key and reads unambiguously before ':' in a ref.
 HANDLE_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 
-# Cross-notebook reference grammar (SPEC §9): "A3" or "handle:A3".
-# '#' is a deprecated synonym for ':' (removed in 0.10).
-REF_RE = re.compile(r"^(?:(?P<handle>[a-z][a-z0-9-]*)(?P<sep>[:#]))?(?P<id>[A-Z]+\d+)$")
+# Cross-notebook reference grammar (SPEC §9): "A3" or "handle:A3". The pre-0.5
+# '#' synonym is gone — '#' reads were removed in flip 0.10 (stored '#' refs
+# are still rewritten by `flip migrate`).
+REF_RE = re.compile(r"^(?:(?P<handle>[a-z][a-z0-9-]*):)?(?P<id>[A-Z]+\d+)$")
 
 
 def new_uid(rng: random.Random | None = None) -> str:
@@ -45,12 +65,12 @@ def new_uid(rng: random.Random | None = None) -> str:
     return "nb-" + "".join(pick(UID_ALPHABET) for _ in range(8))
 
 
-def parse_ref(ref: str) -> tuple[str | None, str, bool]:
-    """Parse an entity reference into (handle, id, used_deprecated_hash).
+def parse_ref(ref: str) -> tuple[str | None, str]:
+    """Parse an entity reference into (handle, id).
 
-    "A3" -> (None, "A3", False); "recipes:A3" -> ("recipes", "A3", False);
-    "recipes#A3" -> ("recipes", "A3", True). Anything else exits with the
-    grammar in the message.
+    "A3" -> (None, "A3"); "recipes:A3" -> ("recipes", "A3"). The pre-0.5
+    "recipes#A3" form no longer reads (removed in flip 0.10) — it, and
+    anything else off the grammar, exits with the grammar in the message.
     """
     m = REF_RE.match(ref or "")
     if not m:
@@ -59,7 +79,7 @@ def parse_ref(ref: str) -> tuple[str | None, str, bool]:
             "qualified form like recipes:A3 (handle = lowercase letters, "
             "digits, hyphens; id = PREFIX + number)"
         )
-    return m.group("handle"), m.group("id"), m.group("sep") == "#"
+    return m.group("handle"), m.group("id")
 
 
 def format_ref(handle: str | None, entity_id: str) -> str:
@@ -117,6 +137,24 @@ def age_months(date_str: object, today_date) -> int | None:
     return months
 
 
+def idle_days(updated: object, today_date=None) -> int | None:
+    """Whole days between an `updated` date ("2026-06-01", "2026-06", "2026")
+    and today (UTC), or None when it doesn't parse. Backs the `idle Nd`
+    staleness hint in `flip show` / `flip ws show` (SPEC §18) — visibility,
+    not a gate: status stays a human/agent judgment (no auto-transition)."""
+    m = _LEDGER_DATE_RE.match(str(updated or ""))
+    if not m:
+        return None
+    year, month, day = int(m.group(1)), int(m.group(2) or 1), int(m.group(3) or 1)
+    if today_date is None:
+        today_date = datetime.now(timezone.utc).date()
+    try:
+        then = datetime(year, month, day, tzinfo=timezone.utc).date()
+    except ValueError:
+        return None
+    return max((today_date - then).days, 0)
+
+
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -162,6 +200,8 @@ def detect_actor() -> str:
 
     Returns strings like "human:marc-lavallee" or "agent:claude" (SPEC §8).
     """
+    if _ACTOR_OVERRIDE:  # --actor wins over FLIP_ACTOR (SPEC §8 precedence)
+        return _ACTOR_OVERRIDE
     explicit = os.environ.get("FLIP_ACTOR")
     if explicit:
         return explicit
@@ -207,15 +247,64 @@ def find_notebook_root(start: Path | None = None) -> Path | None:
     return None
 
 
+_NO_NOTEBOOK_MSG = (
+    "not inside a flip notebook (no index.md with flip manifest frontmatter "
+    "found here or above); run `flip new <slug>` to create one, or "
+    "`flip migrate` inside a v0.3 notebook"
+)
+
+
+def _resolve_pinned_root() -> Path:
+    """Resolve the notebook root for a CLI command, honoring the --notebook/
+    FLIP_NOTEBOOK pin. Every write then anchors on the resolved root, never on
+    CWD. When a pin and a CWD walk-up both resolve to *different* roots the
+    command refuses loudly: a mismatch means it would otherwise write into a
+    notebook the operator did not mean (the runs-under-the-wrong-directory
+    corruption class, SPEC §15)."""
+    cwd_root = find_notebook_root()
+    if _NOTEBOOK_PIN is None:
+        if cwd_root is None:
+            raise SystemExit(_NO_NOTEBOOK_MSG)
+        return cwd_root
+    pin = _NOTEBOOK_PIN.expanduser().resolve()
+    if not is_notebook_root(pin):
+        raise SystemExit(
+            f"--notebook/FLIP_NOTEBOOK points at {pin}, which is not a flip notebook "
+            "root (no index.md with flip manifest frontmatter); pin the notebook's "
+            "top directory"
+        )
+    if cwd_root is not None and cwd_root != pin:
+        raise SystemExit(
+            f"refusing to act: --notebook/FLIP_NOTEBOOK pins {pin} but the current "
+            f"directory is inside a different notebook ({cwd_root}); cd out of that "
+            "notebook or drop the pin so the two agree"
+        )
+    return pin
+
+
 def require_notebook_root(start: Path | None = None) -> Path:
+    # A CLI entry point (start is None) consults the --notebook/FLIP_NOTEBOOK
+    # pin; a library caller passing an already-resolved root just walks up from
+    # it (idempotent — returns the root itself) and never triggers pin logic.
+    if start is None:
+        return _resolve_pinned_root()
     root = find_notebook_root(start)
     if root is None:
-        raise SystemExit(
-            "not inside a flip notebook (no index.md with flip manifest frontmatter "
-            "found here or above); run `flip new <slug>` to create one, or "
-            "`flip migrate` inside a v0.3 notebook"
-        )
+        raise SystemExit(_NO_NOTEBOOK_MSG)
     return root
+
+
+def find_notebook_root_pinned(start: Path | None = None) -> Path | None:
+    """find_notebook_root, honoring the --notebook/FLIP_NOTEBOOK pin.
+
+    For read-only, workspace-aware commands (doctor, profiles, obsidian,
+    migrate) that must tolerate "no notebook here": with no pin it walks up
+    from `start`/cwd and may return None; with a pin set it returns the
+    validated pinned root, still refusing loudly when a set pin and a CWD
+    notebook disagree (via _resolve_pinned_root)."""
+    if _NOTEBOOK_PIN is None:
+        return find_notebook_root(start)
+    return _resolve_pinned_root()
 
 
 def is_workspace_root(directory: Path) -> bool:

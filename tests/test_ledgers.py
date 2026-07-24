@@ -265,6 +265,94 @@ def test_answer_question_twice_raises(root: Path):
         ledgers.answer_question(root, "Q1")
 
 
+# --- repose (append-only re-pose) --------------------------------------------
+
+
+def test_repose_keeps_id_slug_status_and_updates_current_text(root: Path):
+    asked = ledgers.add_question(root, "who funded it?")
+    got = ledgers.repose_question(root, "Q1", "who funded it, and through what vehicle?")
+    page = pages.read_page(got.path)
+    assert page.id == "Q1"  # id never changes
+    assert page.path == asked.path  # slug (filename) never changes
+    assert page.fm["status"] == "open"  # status untouched
+    assert page.fm["description"] == "who funded it, and through what vehicle?"
+    # the new formulation is the body's lead text
+    assert page.body.lstrip("\n").startswith("who funded it, and through what vehicle?")
+
+
+def test_repose_preserves_old_text_verbatim_in_history_and_body(root: Path):
+    ledgers.add_question(root, "who funded it?")
+    got = ledgers.repose_question(root, "Q1", "who really funded it?")
+    page = pages.read_page(got.path)
+    # frontmatter history: the superseded formulation, verbatim, dated, attributed
+    hist = page.fm["formulations"]
+    assert hist == [{"text": "who funded it?", "date": util.today(), "actor": "human:test"}]
+    # body: a dated Re-posed section carrying the old text verbatim
+    assert f"## Re-posed {util.today()}" in page.body
+    assert "who funded it?" in page.body
+
+
+def test_repose_is_append_only_across_multiple_reposes(root: Path):
+    ledgers.add_question(root, "v1?")
+    ledgers.repose_question(root, "Q1", "v2?")
+    got = ledgers.repose_question(root, "Q1", "v3?")
+    page = pages.read_page(got.path)
+    assert [f["text"] for f in page.fm["formulations"]] == ["v1?", "v2?"]
+    # every prior formulation survives in the body; nothing overwritten
+    for text in ("v1?", "v2?", "v3?"):
+        assert text in page.body
+    assert page.body.count("## Re-posed") == 2
+
+
+def test_repose_logs_question_repose_event(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.repose_question(root, "Q1", "who exactly?")
+    events = _lines(root / "log" / "log.jsonl")
+    repose = [e for e in events if e["text"].startswith("question-repose Q1")]
+    assert repose and repose[0]["actor"] == "human:test"
+
+
+def test_repose_preserves_answer_section(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.answer_question(root, "Q1", note="the foundation")
+    got = ledgers.repose_question(root, "Q1", "who, precisely?")
+    page = pages.read_page(got.path)
+    assert "## Answer\nthe foundation" in page.body  # answer survives the re-pose
+    assert page.fm["formulations"][0]["text"] == "who?"
+
+
+def test_repose_list_shows_current_formulation_only(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.repose_question(root, "Q1", "who, exactly?")
+    row = ledgers.list_questions(root)[0]
+    assert row["text"] == "who, exactly?"  # the journey stays on the page, not the list
+
+
+def test_repose_recovers_prior_text_when_body_leads_with_a_section(root: Path):
+    # A foreign edit can leave a question body opening directly on a '##'
+    # section; the prior formulation then lives only in the description and
+    # must land in the history — never an empty record.
+    asked = ledgers.add_question(root, "who funded it?")
+    page = pages.read_page(asked.path)
+    pages.write_page(page.path, page.fm, "## Answer\n\npending\n")
+    got = ledgers.repose_question(root, "Q1", "who really funded it?")
+    page = pages.read_page(got.path)
+    assert [f["text"] for f in page.fm["formulations"]] == ["who funded it?"]
+    assert "who funded it?" in page.body  # the Re-posed section carries it too
+
+
+def test_repose_unknown_question_raises(root: Path):
+    ledgers.add_question(root, "one?")
+    with pytest.raises(SystemExit, match=r"no question 'Q9'.*known: Q1"):
+        ledgers.repose_question(root, "Q9", "x?")
+
+
+def test_repose_empty_text_raises(root: Path):
+    ledgers.add_question(root, "one?")
+    with pytest.raises(SystemExit, match="empty new formulation"):
+        ledgers.repose_question(root, "Q1", "   ")
+
+
 def test_open_questions_excludes_answered(root: Path):
     ledgers.add_question(root, "one?")
     ledgers.add_question(root, "two?")

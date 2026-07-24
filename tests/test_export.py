@@ -1,14 +1,16 @@
-"""Tests for flip.export: BagIt bags, CSL-JSON mapping from source pages."""
+"""Tests for flip.export: BagIt bags, CSL-JSON mapping from source pages, and
+the flip-render/1 JSON projection (Lane F)."""
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
 import pytest
 
 from flip import pages
-from flip.export import export_bag, export_csl
+from flip.export import RENDER_CONTRACT, export_bag, export_csl, export_json
 from flip.util import sha256_file, today
 
 MANIFEST_MD = """\
@@ -402,3 +404,191 @@ def test_export_csl_bad_page_is_actionable(tmp_path):
     )
     with pytest.raises(SystemExit, match="broken.md"):
         export_csl(root)
+
+
+# -- export_json (flip-render/1) -----------------------------------------------
+
+
+def make_render_notebook(root: Path, visibility="public", trail_public=False) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "index.md").write_text(
+        "---\n"
+        'okf_version: "0.1"\n'
+        'flip: "0.6"\n'
+        "slug: demo\n"
+        "uid: nb-abcd0000\n"
+        "title: Demo\n"
+        "kind: research-review\n"
+        "status: active\n"
+        "created: 2026-07-01\n"
+        "updated: 2026-07-02\n"
+        f"visibility: {visibility}\n"
+        f"source_trail_public: {'true' if trail_public else 'false'}\n"
+        "---\n# Demo\n",
+        encoding="utf-8",
+    )
+    pages.write_page(
+        root / "references" / "a1.md",
+        {"type": "Source", "id": "A1", "aliases": ["A1"], "title": "Secret Filing",
+         "resource": "https://example.org/a1", "local": "sources/raw/A1.html",
+         "grade": "A", "independence": "original", "freshness": "fresh", "kind": "web"},
+        "# Secret Filing\n",
+    )
+    prov = root / "sources" / "_provenance.jsonl"
+    prov.parent.mkdir(parents=True, exist_ok=True)
+    prov.write_text(
+        json.dumps({"source_id": "A1", "local_path": "sources/raw/A1.html",
+                    "sha256": "deadbeef", "ts": "2026-07-01T10:00:00Z", "tool": "flip-fetch"})
+        + "\n",
+        encoding="utf-8",
+    )
+    pages.write_page(
+        root / "claims" / "c1.md",
+        {"type": "Claim", "id": "C1", "aliases": ["C1"], "description": "key claim",
+         "status": "verified", "load_bearing": True, "sources": ["A1"],
+         "independent_corroboration": 1,
+         "verifications": [{"method": "adversarial", "by": "agent:x", "date": "2026-07-02"}]},
+        "key claim\n",
+    )
+    pages.write_page(
+        root / "questions" / "q1.md",
+        {"type": "Question", "id": "Q1", "aliases": ["Q1"], "description": "who pays now?",
+         "status": "open",
+         "formulations": [{"text": "who pays?", "date": "2026-07-01", "actor": "human:t"}]},
+        "who pays now?\n",
+    )
+    pages.write_page(
+        root / "decisions" / "d1.md",
+        {"type": "Decision", "id": "D1", "aliases": ["D1"], "description": "start with Essex",
+         "question": "which county first?", "alternatives_rejected": ["start with Bergen"]},
+        "body\n",
+    )
+    pages.write_page(
+        root / "sessions" / "2026-07-01T1000-scan.md",
+        {"type": "Work Session", "actor": "agent:x", "model": "m",
+         "started": "2026-07-01T10:00:00Z", "ended": "2026-07-01T11:00:00Z"},
+        "## Goal\nscan the landscape\n\n## Prompt\n",
+    )
+    log = root / "log" / "log.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(
+        json.dumps({"ts": "2026-07-01T10:00:00Z", "text": "started", "actor": "agent:x"}) + "\n",
+        encoding="utf-8",
+    )
+    return root
+
+
+def test_export_json_refuses_non_public(tmp_path):
+    root = make_render_notebook(tmp_path / "nb", visibility="internal")
+    with pytest.raises(SystemExit, match="visibility is 'internal'"):
+        export_json(root)
+
+
+def test_export_json_include_private_overrides_visibility(tmp_path):
+    root = make_render_notebook(tmp_path / "nb", visibility="internal")
+    data = export_json(root, include_private=True)
+    assert data["contract"] == RENDER_CONTRACT
+    assert data["source_trail_public"] is True  # include_private ⇒ full trail
+
+
+def test_export_json_notebook_identity_and_contract(tmp_path):
+    data = export_json(make_render_notebook(tmp_path / "nb"))
+    assert data["contract"] == "flip-render/1"
+    assert "generated" in data
+    assert data["notebook"] == {
+        "uid": "nb-abcd0000", "slug": "demo", "title": "Demo",
+        "kind": "research-review", "status": "active",
+        "created": "2026-07-01", "updated": "2026-07-02", "visibility": "public",
+    }
+
+
+def test_export_json_projects_claims_questions_with_history(tmp_path):
+    data = export_json(make_render_notebook(tmp_path / "nb", trail_public=True))
+    claim = data["claims"][0]
+    assert claim["id"] == "C1" and claim["text"] == "key claim"
+    assert claim["load_bearing"] is True and claim["sources"] == ["A1"]
+    assert claim["corroboration"] == 1  # recomputed: A1 is grade-A original
+    assert claim["verifications"][0]["method"] == "adversarial"
+    q = data["questions"][0]
+    assert q["id"] == "Q1" and q["formulations"][0]["text"] == "who pays?"
+    d = data["decisions"][0]
+    assert d["id"] == "D1" and d["alternatives_rejected"] == ["start with Bergen"]
+    s = data["sessions"][0]
+    assert s["actor"] == "agent:x" and s["goal"] == "scan the landscape"
+    assert s["ended"] == "2026-07-01T11:00:00Z"
+
+
+def test_export_json_full_trail_carries_custody(tmp_path):
+    root = make_render_notebook(tmp_path / "nb", trail_public=True)
+    data = export_json(root)
+    assert data["source_trail_public"] is True
+    src = data["sources"][0]
+    assert src["id"] == "A1"
+    assert src["title"] == "Secret Filing"
+    assert src["canonical_url"] == "https://example.org/a1"
+    assert src["sha256"] == "deadbeef"
+    assert src["captured_at"] == "2026-07-01T10:00:00Z"
+    # the work log ships with the full trail
+    assert [e["text"] for e in data["log_tail"]] == ["started"]
+
+
+def test_export_json_stripped_trail_withholds_custody(tmp_path):
+    # public notebook, source_trail_public: false — judgment ships, custody does not
+    root = make_render_notebook(tmp_path / "nb", trail_public=False)
+    data = export_json(root)
+    assert data["source_trail_public"] is False
+    src = data["sources"][0]
+    assert src["grade"] == "A" and src["independence"] == "original"
+    assert src["freshness"] == "fresh" and src["kind"] == "web"
+    for withheld in ("title", "canonical_url", "sha256", "captured_at"):
+        assert withheld not in src, withheld
+    # derived-from-withheld: the work log is withheld too (0.4 lesson)
+    assert data["log_tail"] == []
+    # but claims/questions — the notebook's judgments — still ship
+    assert data["claims"][0]["id"] == "C1"
+    assert data["questions"][0]["id"] == "Q1"
+
+
+def test_export_json_stripped_trail_stubs_title_derived_source_slug(tmp_path):
+    # A source slug is generated from its title: withholding the title while
+    # shipping the slug would leak it (the 0.4 derived-from-withheld lesson).
+    root = make_render_notebook(tmp_path / "nb", trail_public=False)
+    pages.write_page(
+        root / "references" / "secret-merger-memo.md",
+        {"type": "Source", "id": "A2", "aliases": ["A2"],
+         "title": "Secret merger memo", "grade": "B",
+         "independence": "derivative", "freshness": "dated", "kind": "web"},
+        "# Secret merger memo\n",
+    )
+    data = export_json(root)
+    a2 = next(s for s in data["sources"] if s["id"] == "A2")
+    assert a2["slug"] == "A2"  # stubbed to the id
+    assert "secret-merger-memo" not in json.dumps(data)
+    # with the full trail, the real slug ships
+    make_render_notebook(tmp_path / "nb", trail_public=True)
+    full = export_json(root)
+    a2 = next(s for s in full["sources"] if s["id"] == "A2")
+    assert a2["slug"] == "secret-merger-memo"
+
+
+def test_export_json_stripped_trail_withholds_sessions(tmp_path):
+    # session pages are the work log in entity form — goals and goal-derived
+    # filename slugs are custody, withheld exactly like log_tail
+    root = make_render_notebook(tmp_path / "nb", trail_public=False)
+    assert export_json(root)["sessions"] == []
+    make_render_notebook(tmp_path / "nb", trail_public=True)
+    sessions = export_json(root)["sessions"]
+    assert sessions and sessions[0]["goal"] == "scan the landscape"
+
+
+def test_export_json_is_deterministic(tmp_path):
+    root = make_render_notebook(tmp_path / "nb", trail_public=True)
+    a = export_json(root)
+    b = export_json(root)
+    a.pop("generated"), b.pop("generated")  # the one intentionally-varying field
+    assert json.dumps(a, sort_keys=False) == json.dumps(b, sort_keys=False)
+
+
+def test_export_json_requires_notebook(tmp_path):
+    with pytest.raises(SystemExit, match="not a flip notebook"):
+        export_json(tmp_path)

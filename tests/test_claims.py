@@ -387,3 +387,119 @@ def test_add_claim_outside_notebook_writes_nothing(tmp_path: Path):
 def test_set_claim_status_outside_notebook_raises(tmp_path: Path):
     with pytest.raises(SystemExit, match="not inside a flip notebook"):
         claims.set_claim_status(tmp_path, "C1", "retracted")
+
+
+# --- post-hoc source links (A1) ----------------------------------------------
+
+
+def test_source_add_links_and_recomputes(sourced: Path):
+    claims.add_claim(sourced, "x", ["A1"])  # 1 original → corroboration 1
+    page, added, warnings = claims.add_claim_sources(sourced, "C1", ["A3"])
+    assert added == ["A3"]
+    assert warnings == []
+    assert page.fm["sources"] == ["A1", "A3"]
+    assert page.fm["independent_corroboration"] == 2  # A1 + A3 both judged original
+    assert page.fm["supports"] == ["/references/orig-b", "/references/orig-c"]
+    on_disk = pages.read_page(page.path)
+    assert "[2] [orig C](../references/orig-c.md)" in on_disk.body  # citations regenerated
+    assert on_disk.fm["independent_corroboration"] == 2
+
+
+def test_source_add_refuses_unknown_id(sourced: Path):
+    claims.add_claim(sourced, "x", ["A1"])
+    with pytest.raises(SystemExit, match=r"unknown source id\(s\) ZZ9"):
+        claims.add_claim_sources(sourced, "C1", ["ZZ9"])
+    assert claim_page(sourced, "C1").fm["sources"] == ["A1"]  # nothing written
+
+
+def test_source_add_warns_on_ungraded(sourced: Path):
+    claims.add_claim(sourced, "x", ["A1"])
+    page, added, warnings = claims.add_claim_sources(sourced, "C1", ["A4"])
+    assert added == ["A4"]
+    assert warnings == ["A4"]  # A4 is graded "?" — links, but never counts
+    assert page.fm["independent_corroboration"] == 1  # still just A1
+
+
+def test_source_add_refuses_when_all_already_linked(sourced: Path):
+    claims.add_claim(sourced, "x", ["A1"])
+    with pytest.raises(SystemExit, match="already cites A1"):
+        claims.add_claim_sources(sourced, "C1", ["A1"])
+
+
+def test_source_rm_unlinks_and_recomputes(sourced: Path):
+    claims.add_claim(sourced, "x", ["A1", "A3"])
+    page = claims.remove_claim_source(sourced, "C1", "A1")
+    assert page.fm["sources"] == ["A3"]
+    assert page.fm["independent_corroboration"] == 1
+    assert page.fm["supports"] == ["/references/orig-c"]
+    assert "orig-b.md" not in pages.read_page(page.path).body
+
+
+def test_source_rm_refuses_uncited(sourced: Path):
+    claims.add_claim(sourced, "x", ["A1"])
+    with pytest.raises(SystemExit, match="does not cite A3"):
+        claims.remove_claim_source(sourced, "C1", "A3")
+
+
+def test_source_ops_unknown_claim_raises(sourced: Path):
+    with pytest.raises(SystemExit, match=r"no claim 'C9'"):
+        claims.add_claim_sources(sourced, "C9", ["A1"])
+
+
+# --- verification records (A2) -----------------------------------------------
+
+
+def test_verify_records_appended(sourced: Path):
+    claims.add_claim(sourced, "x", ["A1"])
+    page = claims.verify_claim(sourced, "C1", "adversarial",
+                               against=["A1", "A3"], note="skeptic pass")
+    rec = page.fm["verifications"][0]
+    assert rec["method"] == "adversarial"
+    assert rec["by"] == "agent:test"
+    assert rec["against"] == ["A1", "A3"]
+    assert rec["date"] == util.today()
+    assert rec["note"] == "skeptic pass"
+    assert pages.read_page(page.path).fm["verifications"] == page.fm["verifications"]
+
+
+def test_verify_is_append_only(sourced: Path):
+    claims.add_claim(sourced, "x", ["A1"])
+    claims.verify_claim(sourced, "C1", "adversarial")
+    page = claims.verify_claim(sourced, "C1", "recomputation")
+    assert [v["method"] for v in page.fm["verifications"]] == ["adversarial", "recomputation"]
+
+
+def test_verify_invalid_method_raises(sourced: Path):
+    claims.add_claim(sourced, "x", ["A1"])
+    with pytest.raises(SystemExit, match="invalid verification method"):
+        claims.verify_claim(sourced, "C1", "vibes")
+
+
+def test_verified_gate_passes_on_adversarial_record(sourced: Path):
+    # A4 is ungraded → 0 corroboration; scout needs 1. An adversarial record
+    # clears the gate on its own (A2).
+    claims.add_claim(sourced, "x", ["A4"], load_bearing=True)
+    with pytest.raises(SystemExit):
+        claims.set_claim_status(sourced, "C1", "verified")
+    claims.verify_claim(sourced, "C1", "adversarial", note="sought disconfirming, found none")
+    page = claims.set_claim_status(sourced, "C1", "verified")
+    assert page.fm["status"] == "verified"
+    assert page.fm["independent_corroboration"] == 0  # gate passed without corroboration
+
+
+def test_verified_gate_refusal_names_both_paths(sourced: Path):
+    claims.add_claim(sourced, "x", ["A4"], load_bearing=True)
+    with pytest.raises(SystemExit) as ei:
+        claims.set_claim_status(sourced, "C1", "verified")
+    msg = str(ei.value)
+    assert "independent original source(s)" in msg  # the corroboration path
+    assert "flip claim verify C1" in msg and "adversarial" in msg  # the verification path
+
+
+def test_independent_sources_record_does_not_satisfy_gate(sourced: Path):
+    # independent-sources records the corroboration reasoning but is not a
+    # gating method — only the recomputed source count is.
+    claims.add_claim(sourced, "x", ["A4"], load_bearing=True)
+    claims.verify_claim(sourced, "C1", "independent-sources", note="argued 2 lines up")
+    with pytest.raises(SystemExit, match="cannot verify C1"):
+        claims.set_claim_status(sourced, "C1", "verified")

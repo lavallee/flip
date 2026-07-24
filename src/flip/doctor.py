@@ -32,7 +32,7 @@ from pathlib import Path
 from . import pages, workspace
 from .beat import find_beat_root, load_beat
 from .claims import STATUSES as CLAIM_STATUSES  # claim status enum (SPEC §7)
-from .claims import corroboration_count
+from .claims import corroboration_count, has_gating_verification
 from .manifest import STATUSES, VISIBILITIES, Manifest, load_manifest, save_manifest
 from .profiles import SECTIONS, Profile, list_profiles, load_profile
 
@@ -88,14 +88,19 @@ class Finding:
     code: str  # short slug, e.g. "orphan-custody"
     message: str  # one actionable line
     path: str  # path relative to the notebook root
+    # An "appears-with-use" notice — a profile minimum not yet due (WARN while
+    # the notebook is active/dormant). Rendered under a distinct "expected
+    # until use" section so standing notices stop training operators (and
+    # agents re-running doctor for reassurance) to tune the channel out (E3).
+    expected: bool = False
 
 
 def _error(code: str, message: str, path: str) -> Finding:
     return Finding("ERROR", code, message, path)
 
 
-def _warn(code: str, message: str, path: str) -> Finding:
-    return Finding("WARN", code, message, path)
+def _warn(code: str, message: str, path: str, expected: bool = False) -> Finding:
+    return Finding("WARN", code, message, path, expected=expected)
 
 
 def _rel(page: pages.Page, root: Path) -> str:
@@ -404,7 +409,6 @@ def _check_profile(
         )
         return None
     closed = manifest.status in CLOSED_STATUSES
-    make = _error if closed else _warn
     detail = (
         f"required before status '{manifest.status}'"
         if closed
@@ -412,12 +416,13 @@ def _check_profile(
     )
     for rel in profile.requires:
         if not (root / rel).exists():
+            msg = f"profile '{profile.id}' requires {rel} ({detail}); create it"
+            # Not yet closed: this is an appears-with-use notice (expected),
+            # not a real finding — segregated in the CLI's output (E3).
             findings.append(
-                make(
-                    "missing-required",
-                    f"profile '{profile.id}' requires {rel} ({detail}); create it",
-                    rel,
-                )
+                _error("missing-required", msg, rel)
+                if closed
+                else _warn("missing-required", msg, rel, expected=True)
             )
     policy = manifest.policy
     for key, want in profile.forced_policy.items():
@@ -859,22 +864,16 @@ def _check_claims(
             )
         if not page.fm.get("load_bearing"):
             continue
-        if status == "asserted":
-            findings.append(
-                _warn(
-                    "unaudited-claim",
-                    f"load-bearing claim {cid} is still 'asserted'; "
-                    "verify it or set status needs-2nd",
-                    rel,
-                )
-            )
-        elif status == "verified" and profile is not None:
+        if status == "verified" and profile is not None:
             # Recompute the bar with the shared helper (claims.corroboration_count:
             # deduped ids, judged + original only); never trust the stored count.
+            # An adversarial/recomputation verification clears the gate too (A2).
             linked = [by_id[s] for s in dict.fromkeys(claim_sources) if s in by_id]
             has_grade_a = any(fm.get("grade") == "A" for fm in linked)
-            ok = corroboration >= profile.claim_min_independent or (
-                profile.claim_grade_a_suffices and has_grade_a
+            ok = (
+                corroboration >= profile.claim_min_independent
+                or (profile.claim_grade_a_suffices and has_grade_a)
+                or has_gating_verification(page.fm)
             )
             if not ok:
                 suffix = " or one grade-A primary" if profile.claim_grade_a_suffices else ""
@@ -883,8 +882,25 @@ def _check_claims(
                         "under-verified",
                         f"claim {cid} is 'verified' with {corroboration} independent "
                         f"source(s); profile '{profile.id}' needs "
-                        f"{profile.claim_min_independent}{suffix} — add corroboration "
-                        "or set status needs-2nd",
+                        f"{profile.claim_min_independent}{suffix} — add corroboration, "
+                        f"record an adversarial/recomputation check (`flip claim verify "
+                        f"{cid} --method adversarial`), or set status needs-2nd",
                         rel,
                     )
                 )
+        elif status == "asserted" and corroboration == 0 and not pages.as_list(
+            page.fm.get("verifications")
+        ):
+            # A2: fire only when a load-bearing claim has *neither* corroboration
+            # *nor* any verification record — ending the permanently-unsatisfiable
+            # nag. Some corroboration or any recorded check silences it.
+            findings.append(
+                _warn(
+                    "unaudited-claim",
+                    f"load-bearing claim {cid} is 'asserted' with no corroboration or "
+                    f"verification; link independent sources (`flip claim source add "
+                    f"{cid} <src>`), record a check (`flip claim verify {cid} --method "
+                    "adversarial`), or set status needs-2nd",
+                    rel,
+                )
+            )

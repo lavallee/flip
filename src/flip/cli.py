@@ -11,6 +11,7 @@ output without scraping.
 
 from __future__ import annotations
 
+import difflib
 import json
 import re
 from dataclasses import asdict
@@ -39,12 +40,114 @@ from . import (
     views,
     workspace as workspace_mod,
 )
-from .util import find_notebook_root, find_workspace_root, require_notebook_root
+from .util import (
+    find_notebook_root_pinned,
+    find_workspace_root,
+    require_notebook_root,
+    set_cli_overrides,
+)
 
 
-@click.group(name="flip")
+class SuggestGroup(click.Group):
+    """A group that answers an unknown subcommand — or a bare argument handed
+    to a noun group (`flip question "text…"`, `flip claim C1 …`) — with a
+    nearest-leaf *suggestion* and the subcommand list, never auto-execution
+    (Lane E). Applied to every flip group so the hint is uniform."""
+
+    def resolve_command(self, ctx, args):
+        if args:
+            name = args[0]
+            if not name.startswith("-") and self.get_command(ctx, name) is None:
+                self._suggest(ctx, name)
+        return super().resolve_command(ctx, args)
+
+    def _suggest(self, ctx, name: str) -> None:
+        names = sorted(self.list_commands(ctx))
+        near = difflib.get_close_matches(name, names, n=1, cutoff=0.6)
+        path = ctx.command_path  # e.g. "flip question"
+        if near:
+            guess = f"did you mean `{path} {near[0]}`? "
+        elif "add" in names:
+            guess = f'did you mean `{path} add "{name}"`? '
+        else:
+            guess = ""
+        raise click.UsageError(
+            f"no such subcommand '{name}' under `{path}` — {guess}"
+            f"(subcommands: {', '.join(names)}; full command map: `flip cli`)",
+            ctx=ctx,
+        )
+
+
+# --- flip cli: the compact command map, generated from the Click tree (Lane E) ---
+
+
+def _arg_metavar(param: click.Argument) -> str:
+    mv = param.metavar or param.name.upper()
+    if param.nargs == -1 and "..." not in mv:
+        mv += "..."
+    return mv
+
+
+def _long_opt(param: click.Option) -> str:
+    return next((o for o in param.opts if o.startswith("--")), param.opts[0])
+
+
+def _purpose(cmd: click.Command) -> str:
+    """The one-line purpose: explicit short_help, else the docstring's first line."""
+    if cmd.short_help:
+        return cmd.short_help
+    return (cmd.help or "").strip().split("\n", 1)[0]
+
+
+def _leaf_commands(group: click.Group, prefix: tuple[str, ...] = ()) -> list:
+    """(path, command) for every leaf under `group`, group paths first,
+    sorted at each level — walked from the live tree so the map can't drift."""
+    out = []
+    for name in sorted(group.commands):
+        sub = group.commands[name]
+        path = (*prefix, name)
+        if isinstance(sub, click.Group):
+            out.extend(_leaf_commands(sub, path))
+        else:
+            out.append((path, sub))
+    return out
+
+
+def _command_display(path: tuple[str, ...], cmd: click.Command) -> str:
+    parts = ["flip", *path]
+    parts += [f"<{_arg_metavar(p)}>" for p in cmd.params if isinstance(p, click.Argument)]
+    return " ".join(parts)
+
+
+def _global_options(group: click.Group) -> list[str]:
+    return [_long_opt(p) for p in group.params if isinstance(p, click.Option)]
+
+
+def _leaf_json(path: tuple[str, ...], cmd: click.Command) -> dict:
+    return {
+        "command": " ".join(["flip", *path]),
+        "group": " ".join(["flip", *path[:-1]]) if len(path) > 1 else "flip",
+        "name": path[-1],
+        "purpose": _purpose(cmd),
+        "arguments": [_arg_metavar(p) for p in cmd.params if isinstance(p, click.Argument)],
+        "options": [
+            {"name": _long_opt(p), "required": bool(p.required)}
+            for p in cmd.params
+            if isinstance(p, click.Option)
+        ],
+    }
+
+
+@click.group(name="flip", cls=SuggestGroup)
 @click.version_option(package_name="flip-notebook")
-def main() -> None:
+@click.option("--notebook", "notebook_pin", default=None, envvar="FLIP_NOTEBOOK",
+              type=click.Path(path_type=Path),
+              help="Pin the notebook root (env: FLIP_NOTEBOOK) instead of walking up "
+                   "from the current directory; refuses if the two disagree.")
+@click.option("--actor", "actor", default=None,
+              help="Attribution for this command, overriding FLIP_ACTOR "
+                   "(e.g. agent:claude, human:jane).")
+def main(notebook_pin: Path | None, actor: str | None) -> None:
     """Reporter's notebooks: plain-file research corpora for humans and agents.
 
     A notebook is one directory and a conformant OKF knowledge bundle: the
@@ -54,10 +157,50 @@ def main() -> None:
     decisions/, questions/, sessions/) — ids like A3/C7 resolve via
     `flip open`. Event history is append-only JSONL under log/ and sources/.
     Start with `flip new <slug> --kind <profile>`; run every other command
-    from anywhere inside the notebook (flip walks up to find the root).
-    `flip show` is the hot view, `flip doctor` the lint. Read commands
-    accept --json for machine consumption.
+    from anywhere inside the notebook (flip walks up to find the root, or pin
+    it with --notebook/FLIP_NOTEBOOK). `flip show` is the hot view, `flip
+    doctor` the lint. Read commands accept --json for machine consumption.
     """
+    set_cli_overrides(notebook_pin, actor)
+
+
+# ---------------------------------------------------------------- cli map
+
+
+@main.command("cli")
+@click.option("--json", "as_json", is_flag=True, help="Emit the command map as JSON.")
+@click.pass_context
+def cli_map(ctx: click.Context, as_json: bool) -> None:
+    """Print a compact map of every command: group path, one-line purpose, key
+    flags — generated from the live CLI tree so it can't drift from the code.
+
+    The discoverability shortcut for agents: one read instead of walking
+    `--help` per group. Attribution is the global `--actor` flag or
+    `FLIP_ACTOR` env — there is no other actor flag.
+    """
+    root = ctx.find_root().command
+    leaves = _leaf_commands(root)
+    global_opts = _global_options(root)
+    if as_json:
+        click.echo(json.dumps(
+            {
+                "global_options": global_opts,
+                "commands": [_leaf_json(path, cmd) for path, cmd in leaves],
+            },
+            ensure_ascii=False, indent=2,
+        ))
+        return
+    click.echo(f"flip — command map (global options: {', '.join(global_opts)})")
+    click.echo("attribution: the --actor flag or FLIP_ACTOR env — there is no other actor flag")
+    click.echo("")
+    width = max((len(_command_display(p, c)) for p, c in leaves), default=0)
+    for path, cmd in leaves:
+        disp = _command_display(path, cmd)
+        flags = [_long_opt(p) for p in cmd.params if isinstance(p, click.Option)]
+        line = f"{disp:<{width}}  {_purpose(cmd)}"
+        if flags:
+            line += f"  [{' '.join(flags)}]"
+        click.echo(line)
 
 
 # ---------------------------------------------------------------- new
@@ -83,7 +226,25 @@ def new(slug: str, kind: str, title: str, visibility: str | None, dest: Path | N
     dest = dest if dest is not None else Path.cwd() / slug
     path = scaffold.create_notebook(dest, slug, kind, title=title, visibility=visibility)
     click.echo(f"created {kind} notebook '{slug}' at {path}")
+    _autobind_new_notebook(path, slug)
     click.echo(f'next: cd {path} && flip log "started" — see `flip --help` for the toolkit')
+
+
+def _autobind_new_notebook(path: Path, slug: str) -> None:
+    """C2: a notebook created under a workspace root auto-binds into the table
+    (slug-derived handle, -2 on collision) and says so — census found rich
+    notebooks left unregistered. Binding failures never fail `flip new`."""
+    ws_root = find_workspace_root(path.resolve().parent)
+    if ws_root is None:
+        return
+    try:
+        ws = workspace_mod.load_workspace(ws_root)
+        handle = workspace_mod.default_handle(slug, set(ws.notebooks))
+        bound, rel = workspace_mod.ws_add(ws_root, path, handle)
+    except SystemExit as e:
+        click.echo(f"note: not auto-bound into the workspace ({e})", err=True)
+        return
+    click.echo(f"bound into workspace as '{bound}' → {rel} (`flip ws list`)")
 
 
 # ---------------------------------------------------------------- sources
@@ -126,7 +287,7 @@ def add_source(target: str, kind: str | None, via: str | None, note: str | None)
 # ---------------------------------------------------------------- config
 
 
-@main.group()
+@main.group(cls=SuggestGroup)
 def config() -> None:
     """Manage the integration config ($FLIP_HOME/config.toml, default ~/.flip)."""
 
@@ -290,7 +451,7 @@ def grade(source_id: str, grade: str | None, independence: str | None,
                f"{page.fm.get('independence', '?')} · {page.fm.get('freshness', '?')}")
 
 
-@main.group()
+@main.group(cls=SuggestGroup)
 def source() -> None:
     """Inspect captured sources (references/ pages) without reading files."""
 
@@ -365,7 +526,7 @@ def pass_(text: str, reason: str, url: str | None) -> None:
     click.echo(f"passed {row['ts']} · {row['reason']}")
 
 
-@main.group()
+@main.group(cls=SuggestGroup)
 def question() -> None:
     """Track questions as pages (questions/<slug>.md, ids Q#).
 
@@ -398,6 +559,25 @@ def question_answer(qid: str, note: str | None) -> None:
     click.echo(f"{qid} answered")
 
 
+@question.command("repose")
+@click.argument("qid", metavar="ID")
+@click.argument("text")
+def question_repose(qid: str, text: str) -> None:
+    """Re-pose a question with a sharper formulation (append-only).
+
+    The new text becomes current; the superseded formulation is preserved in
+    the page's `formulations:` history and a dated "Re-posed" body section, and
+    a question-repose event lands in the log. The id, slug, and status stay —
+    nothing is overwritten, so the full journey survives.
+    """
+    if not re.fullmatch(r"Q\d+", qid):
+        raise SystemExit(f"'{qid}' is not a question id (expected Q<number>, e.g. Q2); "
+                         "`flip question list` shows them")
+    page = ledgers.repose_question(require_notebook_root(), qid, text)
+    click.echo(f"{qid} re-posed · {page.fm.get('description', '')} · "
+               f"{len(page.fm.get('formulations') or [])} prior formulation(s) kept")
+
+
 @question.command("list")
 @click.option("--json", "as_json", is_flag=True, help="Emit the rows as JSON.")
 def question_list(as_json: bool) -> None:
@@ -420,7 +600,7 @@ def question_list(as_json: bool) -> None:
 # ---------------------------------------------------------------- claims
 
 
-@main.group()
+@main.group(cls=SuggestGroup)
 def claim() -> None:
     """Claims as pages (claims/<slug>.md, ids C#): assertions the work relies on.
 
@@ -484,10 +664,73 @@ def claim_list(status: str | None, as_json: bool) -> None:
                    f"{r.get('description', '')} · sources: {srcs}")
 
 
+@claim.group("source", cls=SuggestGroup)
+def claim_source() -> None:
+    """Link or unlink backing sources on a claim after the fact.
+
+    Both regenerate the claim's # Citations block and recompute its
+    independent_corroboration — the post-hoc fix for a claim asserted before
+    its sources were captured. Ungraded sources link but never count toward
+    the verification bar.
+    """
+
+
+@claim_source.command("add")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.argument("source_ids", nargs=-1, required=True, metavar="SOURCE_ID...")
+def claim_source_add(claim_id: str, source_ids: tuple[str, ...]) -> None:
+    """Link one or more source ids to a claim. Unknown ids are refused."""
+    page, added, warnings = claims.add_claim_sources(
+        require_notebook_root(), claim_id, list(source_ids)
+    )
+    click.echo(f"{page.id} · linked {', '.join(added)} · sources: "
+               f"{', '.join(page.fm.get('sources') or []) or 'none'} · "
+               f"corroboration: {page.fm.get('independent_corroboration', 0)}")
+    for sid in warnings:
+        click.echo(f"warning: {sid} is still graded '?' — ungraded sources never count "
+                   f"toward the bar; judge it with `flip grade {sid}`", err=True)
+
+
+@claim_source.command("rm")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.argument("source_id", metavar="SOURCE_ID")
+def claim_source_rm(claim_id: str, source_id: str) -> None:
+    """Unlink a source id from a claim. Refuses if the claim doesn't cite it."""
+    page = claims.remove_claim_source(require_notebook_root(), claim_id, source_id)
+    click.echo(f"{page.id} · unlinked {source_id} · sources: "
+               f"{', '.join(page.fm.get('sources') or []) or 'none'} · "
+               f"corroboration: {page.fm.get('independent_corroboration', 0)}")
+
+
+@claim.command("verify")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.option("--method", required=True, type=click.Choice(claims.VERIFICATION_METHODS),
+              help="adversarial (skeptic pass) · independent-sources (records "
+                   "corroboration reasoning) · recomputation (re-derive the result).")
+@click.option("--against", multiple=True, metavar="REF",
+              help="Evidence/ref consulted during the check (repeatable), e.g. --against A7.")
+@click.option("--note", default=None, help="What the check found (recorded on the page).")
+def claim_verify(claim_id: str, method: str, against: tuple[str, ...],
+                 note: str | None) -> None:
+    """Record a verification on a claim (append-only frontmatter record).
+
+    An adversarial or recomputation record lets `flip claim status <C#>
+    verified` pass even below the corroboration bar; independent-sources only
+    documents the corroboration reasoning and never satisfies the gate alone.
+    """
+    page = claims.verify_claim(require_notebook_root(), claim_id, method,
+                               against=list(against), note=note)
+    click.echo(f"{page.id} · verified via {method} · "
+               f"{len(page.fm.get('verifications') or [])} verification(s) on record")
+    if method == "independent-sources":
+        click.echo("note: independent-sources records the reasoning but does not satisfy "
+                   "the verified gate alone — the recomputed source count does", err=True)
+
+
 # ---------------------------------------------------------------- sessions
 
 
-@main.group()
+@main.group(cls=SuggestGroup)
 def session() -> None:
     """Session pages (sessions/<UTC stamp>-<slug>.md): one per working episode.
 
@@ -625,7 +868,7 @@ def doctor(as_json: bool, workspace_flag: bool, fix: bool) -> None:
     the shared space instead (SPEC §18): duplicate uids, unbound notebooks,
     ids and slugs ambiguous across notebooks.
     """
-    nb_root = find_notebook_root()
+    nb_root = find_notebook_root_pinned()
     if workspace_flag or (nb_root is None and find_workspace_root() is not None):
         ws_root = workspace_mod.require_workspace_root()
         findings = doctor_mod.run_workspace_doctor(ws_root, fix=fix)
@@ -635,12 +878,27 @@ def doctor(as_json: bool, workspace_flag: bool, fix: bool) -> None:
                              "run `flip doctor --workspace --fix`")
         findings = doctor_mod.run_doctor(require_notebook_root())
     if as_json:
+        # Each finding carries `expected: true|false` — the same real-vs-
+        # appears-with-use distinction the text output segregates (E3).
         click.echo(json.dumps([asdict(f) for f in findings], ensure_ascii=False, indent=2))
     elif not findings:
         click.echo("ok: no findings")
     else:
-        for f in findings:
+        real = [f for f in findings if not f.expected]
+        expected = [f for f in findings if f.expected]
+        for f in real:
             click.echo(f"{f.level} {f.code} {f.path} — {f.message}")
+        if not real:
+            click.echo("ok: no findings yet")
+        if expected:
+            if real:
+                click.echo("")
+            click.echo(
+                "expected until use (these appear with the work, not problems yet — "
+                "don't re-run doctor for reassurance):"
+            )
+            for f in expected:
+                click.echo(f"  {f.level} {f.code} {f.path} — {f.message}")
     if any(f.level == "ERROR" for f in findings):
         raise SystemExit(1)
 
@@ -661,7 +919,7 @@ def obsidian_cmd(no_plugin: bool) -> None:
     settings survive; a second run changes nothing. Walkthrough:
     docs/obsidian.md.
     """
-    root = find_notebook_root() or beat_mod.find_beat_root()
+    root = find_notebook_root_pinned() or beat_mod.find_beat_root()
     if root is None:
         raise SystemExit(
             "not inside a flip notebook or beat (no index.md with flip/flip_beat "
@@ -687,7 +945,7 @@ def obsidian_cmd(no_plugin: bool) -> None:
 # ---------------------------------------------------------------- workspace
 
 
-@main.group()
+@main.group(cls=SuggestGroup)
 def ws() -> None:
     """Workspaces: many notebooks sharing one vault or repo (SPEC §18).
 
@@ -733,6 +991,29 @@ def ws_list(as_json: bool) -> None:
         if r.get("status") != "ok":
             line += f" [{r['status']}]"
         click.echo(line)
+
+
+@ws.command("show")
+@click.option("--open", "open_flag", is_flag=True,
+              help="Only the open questions across bound notebooks (with re-pose counts).")
+@click.option("--claims", "claims_flag", is_flag=True,
+              help="Only the load-bearing claims still needing work across bound notebooks.")
+@click.option("--json", "as_json", is_flag=True, help="Emit the roster as JSON.")
+def ws_show_cmd(open_flag: bool, claims_flag: bool, as_json: bool) -> None:
+    """Merged roster across bound notebooks: open questions (with re-pose
+    counts), load-bearing claims needing work, and each notebook's
+    kind/status/updated-age.
+
+    A computed view over existing data — no new ledger (`flip ws list` stays
+    the plain binding table). `--open`/`--claims` narrow to one lane.
+    """
+    if open_flag and claims_flag:
+        raise SystemExit("pass at most one of --open/--claims")
+    out = views.ws_show(
+        workspace_mod.require_workspace_root(),
+        open_only=open_flag, claims_only=claims_flag, as_data=as_json,
+    )
+    click.echo(json.dumps(out, ensure_ascii=False, indent=2) if as_json else out)
 
 
 @ws.command("add")
@@ -849,7 +1130,8 @@ def migrate() -> None:
     into the root index.md frontmatter and every source/claim/decision/
     question/session becomes an entity page, preserving ids and fields.
     v0.4 notebooks: the manifest gains a uid and links.beat moves to the
-    canonical ':' separator ('#' reads are deprecated, removed in 0.10).
+    canonical ':' separator (stored '#' refs are still rewritten, though
+    '#' reads were removed in 0.10).
     Resumable if interrupted; run `flip doctor` afterwards.
     """
     cwd = Path.cwd().resolve()
@@ -858,7 +1140,7 @@ def migrate() -> None:
     )
     if root is None:
         # No v0.3 root above us: let migrate explain (already-v0.4 vs not a notebook).
-        root = find_notebook_root() or cwd
+        root = find_notebook_root_pinned() or cwd
     counts = migrate_mod.migrate(root)
     summary = ", ".join(
         f"{n} {name.replace('_', ' ')}"
@@ -870,7 +1152,7 @@ def migrate() -> None:
                "run `flip doctor` to audit the result")
 
 
-@main.group()
+@main.group(cls=SuggestGroup)
 def export() -> None:
     """Interop exports (SPEC §17) — projections; the notebook stays canonical."""
 
@@ -921,6 +1203,45 @@ def export_okf(dest: Path, include_private: bool, announce: Path | None) -> None
     click.echo(f"OKF bundle written to {path}")
 
 
+@export.command("json")
+@click.option("--out", default=None,
+              help="Write the JSON here (path), or '-' for stdout [default: stdout].")
+@click.option("--include-private", is_flag=True,
+              help="Emit despite a non-public visibility policy, with the full source trail.")
+def export_json_cmd(out: str | None, include_private: bool) -> None:
+    """Emit the flip-render/1 JSON projection for renderers and site generators.
+
+    One stable, versioned, deterministic view of the notebook (identity,
+    sources, claims incl. verifications, questions incl. formulations,
+    decisions, session summaries, log tail). Policy-filtered like `export okf`:
+    refuses unless visibility is public or --include-private, and strips
+    source-trail custody (URLs, capture times, fixity, the work log) to
+    judgment stubs when source_trail_public is false.
+    """
+    root = require_notebook_root()
+    data = export_mod.export_json(root, include_private=include_private)
+    text = json.dumps(data, ensure_ascii=False, indent=2)
+    if out in (None, "-"):
+        click.echo(text)
+    else:
+        dest = Path(out).expanduser().resolve()
+        root_resolved = root.resolve()
+        if dest.is_relative_to(root_resolved) and not dest.is_relative_to(
+            root_resolved / "renders"
+        ):
+            raise SystemExit(
+                f"refusing to write inside the notebook ({out}): a render "
+                "projection is a derived artifact, not evidence — use "
+                "renders/<target>/ or a path outside the bundle (SPEC §11)"
+            )
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(text + "\n", encoding="utf-8")
+        except OSError as exc:
+            raise SystemExit(f"cannot write {out}: {exc}") from exc
+        click.echo(f"wrote {export_mod.RENDER_CONTRACT} projection to {out}")
+
+
 # ---------------------------------------------------------------- profiles
 
 
@@ -931,7 +1252,7 @@ def profiles_cmd() -> None:
     Shows the profiles shipped with flip plus any notebook-local overrides
     under .flip/profiles/ when run inside a notebook.
     """
-    root = find_notebook_root()
+    root = find_notebook_root_pinned()
     shipped = profiles_mod.list_profiles()
     local_dir = root / ".flip" / "profiles" if root else None
     local = (sorted(p.name.removesuffix(".toml") for p in local_dir.glob("*.toml"))
@@ -948,7 +1269,7 @@ def profiles_cmd() -> None:
 # ---------------------------------------------------------------- beat
 
 
-@main.group(name="beat")
+@main.group(name="beat", cls=SuggestGroup)
 def beat() -> None:
     """Beats: the standing-mission layer above notebooks (SPEC §14).
 
@@ -980,7 +1301,7 @@ def beat_new(slug: str, mission: str, dest: Path | None) -> None:
     click.echo(f'next: cd {path} && flip beat thread add "<title>" --kind arc|vein')
 
 
-@beat.group("thread")
+@beat.group("thread", cls=SuggestGroup)
 def beat_thread() -> None:
     """Threads: the beat's unit of attention (threads/<slug>.md, ids TH#).
 

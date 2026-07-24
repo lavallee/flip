@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.8 · 2026-07-16
+**Status:** draft v0.10 · 2026-07-24
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -354,10 +354,30 @@ tooling — doctor flags drift. `sources` holds ids (machine-stable);
 the human/agent-readable edge list. Fine-grained span anchoring may use W3C
 Web Annotation selectors; optional.
 
+**Verification methods** (`verifications:`) widen the honest ways a claim
+earns `verified` without softening the bar. The key is an append-only list of
+records — records are added, never edited — each `{method, by, against?,
+date, note?}` where `method` is `adversarial` (a skeptic pass that sought
+disconfirming evidence), `independent-sources` (documents the corroboration
+reasoning), or `recomputation` (the result re-derived independently). A claim
+passes the `verified` gate when **either** the profile's corroboration bar is
+met **or** at least one `adversarial`/`recomputation` record exists;
+`independent-sources` records the reasoning but never satisfies the gate
+alone (the recomputed count does). `flip claim verify <C#> --method …` writes
+them; doctor's `unaudited-claim` fires only when a load-bearing claim has
+neither corroboration nor any verification record. OKF consumers
+preserve-and-ignore.
+
 Decisions and questions follow the same shape: `decisions/<slug>.md`
 (`type: Decision` — `question`, decision text, why, `alternatives_rejected`)
 and `questions/<slug>.md` (`type: Question` — `status: open | answered`,
-answered pages keep their history in git).
+answered pages keep their history in git). **Questions are re-posed
+append-only**: `flip question repose <Q#> "<new formulation>"` keeps the id,
+slug, and status; the new formulation becomes the current description and body
+lead, while the superseded text is preserved in a `formulations:` history list
+(`{text, date, actor}`) and a dated **Re-posed** body section, and a
+`question-repose` event lands in the log — so `flip open Q#` always shows the
+full journey.
 
 ## 8. Logs — events, sessions, views
 
@@ -405,10 +425,11 @@ answered pages keep their history in git).
   never guesses. One sanctioned extension: a bare id used under a workspace
   root but outside any notebook resolves iff exactly one bound notebook
   carries it — ambiguity is an error listing the qualified forms to use.
-- **`#` as the ref separator is deprecated** (the pre-0.5 form,
-  `<notebook-slug>#<id>`): readers still accept `handle#id` with a warning;
-  writers emit only `:`; `flip migrate` rewrites stored `#` refs. `#` reads
-  are removed in flip 0.10.
+- **`#` as the ref separator is removed** (the pre-0.5 form,
+  `<notebook-slug>#<id>`): as of flip 0.10 `handle#id` no longer resolves —
+  it fails the ref grammar like any other malformed reference. Writers emit
+  only `:`; `flip migrate` still rewrites stored `#` refs (e.g. `links.beat`),
+  and doctor flags a stored `#` so it gets migrated.
 - Binding a notebook also adds **qualified aliases** (`recipes:A3`) to its
   entity pages, right after the bare id, so workspace-wide autocomplete can
   disambiguate (§18). Same honesty rule as above: aliases suggest, they
@@ -465,6 +486,7 @@ Everything else is optional everywhere.
 | `research-review` | question-organized survey → publishable | claims/ · sessions/ · drafts/ · full custody · workflow journal |
 | `engagement` | confidential client work | research-review + `client-confidential` policy + citation rule enforced + HANDOFF.md |
 | `data-investigation` | dataset-first reporting | derived/_derivations.jsonl · ingest scripts · frozen data contracts |
+| `pursuit` | one question under pursuit | questions/ · claims/ · drafts/question-plan.md · log/; scaffolds the primary question as Q1 and a dated **question plan** (answer shapes before retrieval · prior · holdings · routes + stop rule · plan revisions); notebook.md bands the answer (direct / adjacent / unresolved) |
 
 Profiles are data (TOML shipped with flip; notebook-local `.flip/profiles/`
 overrides), selected by `kind` in the manifest. Profile minimums are
@@ -472,9 +494,11 @@ overrides), selected by `kind` in the manifest. Profile minimums are
 while status is `active`/`dormant` and ERROR once `done`/`published`/
 `archived`. The notebook.md **section menu** (scaffolded by kind, sections
 graduate to their own files when they outgrow a heading): *the tip · frame ·
-what the data can/can't say · hypotheses & falsifiers · sources & provenance
-· priors ledger · decisions · what's not in the piece · workflow notes ·
-gaps & self-critique · handoff*. Conventions that earned their place:
+answer (banded honestly: direct / adjacent / unresolved — an honest null is a
+legal answer) · assessment (confidence ≠ coverage ≠ usefulness, never
+collapsed) · what the data can/can't say · hypotheses & falsifiers · sources &
+provenance · priors ledger · decisions · what's not in the piece · workflow
+notes · gaps & self-critique · handoff*. Conventions that earned their place:
 hypotheses set before looking, each with a named falsifier and a
 "what survived" audit; dated log entries newest-first recording walls and
 pivots; a working thesis rewritten as evidence lands, version-marked.
@@ -522,8 +546,9 @@ missing score reads as 0.5; ranking never mutates pages.
 --kind scout` creates a notebook (scaffolded per §13) under `notebooks/`,
 stamps the thread `status: active` + `notebook: <slug>`, links the notebook
 manifest back (`links: {beat: "<beat-slug>:TH3"}` — the canonical `:`
-separator; pre-0.5 `#` links are still read, with a doctor WARN, until 0.10;
-`flip migrate` rewrites them), and appends a coverage event. Kill decisions are first-class too: `flip beat thread drop TH3
+separator; the pre-0.5 `#` form no longer resolves as of 0.10, though doctor
+still flags a stored `#` and `flip migrate` rewrites it), and appends a
+coverage event. Kill decisions are first-class too: `flip beat thread drop TH3
 --reason …` records why in the page and the coverage ledger — negative
 coverage prevents re-scouting dead angles.
 
@@ -542,9 +567,19 @@ the library**. Fetchers are pluggable externals. Dependencies: click, PyYAML
 (reading human/editor-authored frontmatter faithfully outweighs dependency
 purity; flip's own writer emits a deterministic strict subset).
 
+Two global options precede any subcommand: `--notebook <path>` (env
+`FLIP_NOTEBOOK`) pins the notebook root instead of walking up from the current
+directory — refusing loudly if the pin and the directory disagree — and
+`--actor <who>` sets attribution for the command, overriding `FLIP_ACTOR`
+(precedence: `--actor` > `FLIP_ACTOR` > detected default). There is no other
+actor flag.
+
 ```text
+flip cli [--json]                    # compact map of every command (group path,
+                                     #   purpose, key flags), generated from the tree
 flip config init                     # write a starter config.toml (bundled flip-fetch web lane)
-flip new <slug> --kind <profile>     # scaffold manifest + notebook.md
+flip new <slug> --kind <profile>     # scaffold manifest + notebook.md (auto-binds
+                                     #   under a workspace root)
 flip add-source <url|doi|file|->     # capture: fetch/copy → raw/, hash, provenance,
                                      #   open a references/ page at grade "?" (--via <variant>)
 flip find "<question>"               # research: list candidate leads (--capture <n>)
@@ -561,6 +596,7 @@ flip resolve <ref> [--json]          # same resolution with provenance: id, hand
                                      #   path, notebook root/slug, uid, title (§9)
 flip rename <id> <new-slug>          # move a page + rewrite links notebook-wide
 flip ws init|list|add|rename|rm      # workspace table: bind handles to notebooks (§18)
+flip ws show [--open|--claims|--json] # merged roster across bound notebooks (§18)
 flip import <src> [--as <handle>]    # bring a shared notebook / okf export / bag
             [--into <dir>]           #   into the workspace under a handle you own;
             [--update <handle>]      #   --update = replace-if-uid-matches (§17)
@@ -572,8 +608,11 @@ flip doctor --workspace [--fix]      # lint the shared space instead (§18); --f
 flip index                           # per-user registry (~/.flip/index.jsonl)
 flip migrate                         # v0.3 ledgers → pages; 0.4 → 0.5 (mint uid,
                                      #   links.beat '#' → ':')
-flip export bag|csl|okf|ro-crate     # projections (§17)
+flip export bag|csl|okf|json|ro-crate # projections (§17); json = flip-render/1
 ```
+
+`flip claim verify <C#> --method …` records a verification (§7);
+`flip question repose <Q#> "<text>"` re-poses append-only (§7).
 
 ### Integration roles (pluggable externals)
 
@@ -675,6 +714,19 @@ documentation, or portable skills.
   OpenWiki-style `<!-- FLIP:START/END -->` marker block into a host repo's
   AGENTS.md. Never write into an `openwiki/` directory — coexist beside it;
   OpenWiki documents the code, flip documents the investigation.
+- **`flip export json [--out <path>|-]`** — the **`flip-render/1`** JSON
+  projection: one stable, versioned, deterministic view of the notebook
+  (identity; sources; claims incl. `verifications`; questions incl.
+  `formulations`; decisions; session summaries; a log tail) for renderers and
+  site generators. A *projection*, not an API — renderers get stable ids
+  (`C7`, `A3`) to anchor and link back, and detect staleness by comparing a
+  render's recorded `uid`+`updated` against the live notebook. Policy-filtered
+  exactly like `export okf`: refuses unless `visibility: public` or
+  `--include-private`; when `source_trail_public` is false, custody detail
+  (titles, URLs, capture times, sha256 fixity, the whole work log) is withheld
+  to judgment stubs (grade / independence / freshness) — anything derived from
+  withheld data is withheld data. Deterministic key order and id-sorted
+  entities make it diffable; only `generated` varies.
 - **BagIt** bag for cold archival (`flip export bag`).
 - **CSL JSON** from references for citation managers (`flip export csl`).
 - **RO-Crate** envelope, **W3C Web Annotation** anchors: future projections.
@@ -752,6 +804,13 @@ key, always unambiguous before the `:` in a ref (§9).
   structurally (a beat slug is not a workspace handle).
 - `flip ws list [--json]` — the bound rows: handle, path, slug, uid,
   title, status (`ok` / `missing` / `not-a-notebook`).
+- `flip ws show [--open | --claims] [--json]` — the merged **roster** (a
+  computed view over existing data, no new ledger): across every bound
+  notebook, its kind/status/updated-age plus its open questions (with
+  re-pose counts) and load-bearing claims still below the bar with no
+  gating verification. `--open`/`--claims` narrow to one lane. `ws list`
+  stays the plain binding table; `flip new` under the workspace root
+  auto-binds the fresh notebook (slug-derived handle, `-2` on collision).
 
 **Alias maintenance.** Every bind, rename, unbind, and import keeps entity
 pages' `aliases` honest: the bare id always present, the qualified

@@ -325,7 +325,7 @@ def test_graduate_end_to_end(tmp_path):
 
 def test_graduate_beat_link_uses_canonical_separator(tmp_path):
     # links.beat is written as "<beat-slug>:<TH#>" — the SPEC §9 ref grammar;
-    # '#' is the deprecated form readers still accept until 0.10
+    # the pre-0.5 '#' form no longer reads (removed in 0.10)
     from flip.manifest import load_manifest
 
     root = make_beat(tmp_path)
@@ -333,7 +333,7 @@ def test_graduate_beat_link_uses_canonical_separator(tmp_path):
     nb = beat.graduate(root, "TH1", "bus-scout")
     link = load_manifest(nb).links["beat"]
     assert "#" not in link
-    assert util.parse_ref(link) == ("county", "TH1", False)  # not the deprecated form
+    assert util.parse_ref(link) == ("county", "TH1")  # canonical ':' form
 
 
 def test_graduate_refusals(tmp_path):

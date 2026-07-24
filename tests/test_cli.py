@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
+from flip import pages
 from flip.cli import main
 
 
@@ -42,7 +43,7 @@ def test_new_creates_notebook(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     index = (tmp_path / "demo" / "index.md").read_text(encoding="utf-8")
     assert index.startswith("---\n")
-    assert "flip: '0.5'" in index and "slug: demo" in index
+    assert "flip: '0.6'" in index and "slug: demo" in index
     assert "uid: nb-" in index  # every new notebook gets a stable uid (SPEC §4)
     md = (tmp_path / "demo" / "notebook.md").read_text(encoding="utf-8")
     assert "# Reporter's notebook — Demo run" in md
@@ -510,6 +511,38 @@ def test_export_csl_stdout_and_file(tmp_path, monkeypatch):
     assert json.loads(out.read_text(encoding="utf-8")) == items
 
 
+def test_export_json_cli_stdout_file_and_policy(tmp_path, monkeypatch):
+    # default visibility (internal) refuses; --include-private overrides
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    refused = invoke(["export", "json"])
+    assert refused.exit_code != 0
+    assert "visibility is 'internal'" in refused.output
+    data = json.loads(invoke(["export", "json", "--include-private"]).output)
+    assert data["contract"] == "flip-render/1"
+    out = tmp_path / "render.json"
+    result = invoke(["export", "json", "--include-private", "--out", str(out)])
+    assert result.exit_code == 0
+    assert "flip-render/1" in result.output
+    file_data = json.loads(out.read_text(encoding="utf-8"))
+    file_data.pop("generated"), data.pop("generated")
+    assert file_data == data
+
+
+def test_export_json_out_refuses_notebook_interior_allows_renders(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    # inside the evidentiary tree: refused (a render is derived, not evidence)
+    refused = invoke(["export", "json", "--include-private", "--out", "references/leak.json"])
+    assert refused.exit_code != 0
+    assert "refusing to write inside the notebook" in refused.output
+    assert not (root / "references" / "leak.json").exists()
+    # renders/ is the sanctioned in-notebook home; parents are created
+    ok = invoke(["export", "json", "--include-private", "--out", "renders/site/data.json"])
+    assert ok.exit_code == 0, ok.output
+    assert json.loads((root / "renders" / "site" / "data.json").read_text(encoding="utf-8"))
+
+
 def test_export_bag_writes_bag_and_refuses_existing_dest(tmp_path, monkeypatch):
     root = make_notebook(tmp_path / "demo")
     monkeypatch.chdir(root)
@@ -584,6 +617,297 @@ def test_migrate_refuses_v04_and_non_notebooks(tmp_path, monkeypatch):
     result = invoke(["migrate"])
     assert result.exit_code == 1
     assert "not a flip notebook" in result.output
+
+
+# ---------------------------------------------------------------- claim source / verify / repose
+
+
+def _seed_claim(root: Path, monkeypatch) -> None:
+    monkeypatch.chdir(root)
+    payload = root.parent / "src1.txt"
+    payload.write_text("primary evidence\n", encoding="utf-8")
+    assert invoke(["add-source", str(payload)]).exit_code == 0  # F1
+    assert invoke(["grade", "F1", "--grade", "B", "--independence", "original"]).exit_code == 0
+    assert invoke(["claim", "add", "the finding holds", "--load-bearing"]).exit_code == 0  # C1
+
+
+def test_claim_source_add_rm_wiring(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    _seed_claim(root, monkeypatch)
+    added = invoke(["claim", "source", "add", "C1", "F1"])
+    assert added.exit_code == 0, added.output
+    assert "linked F1" in added.output and "corroboration: 1" in added.output
+    removed = invoke(["claim", "source", "rm", "C1", "F1"])
+    assert removed.exit_code == 0, removed.output
+    assert "unlinked F1" in removed.output and "corroboration: 0" in removed.output
+
+
+def test_claim_source_add_unknown_id_refused(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    _seed_claim(root, monkeypatch)
+    result = invoke(["claim", "source", "add", "C1", "ZZ9"])
+    assert result.exit_code == 1
+    assert "unknown source id(s) ZZ9" in result.output
+
+
+def test_claim_verify_and_gate(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")  # scout: min_independent 1
+    _seed_claim(root, monkeypatch)  # C1 has no sources → below the bar
+    refused = invoke(["claim", "status", "C1", "verified"])
+    assert refused.exit_code == 1
+    assert "flip claim verify C1" in refused.output  # refusal names the verify path
+    rec = invoke(["claim", "verify", "C1", "--method", "adversarial", "--note", "skeptic pass"])
+    assert rec.exit_code == 0, rec.output
+    assert "verified via adversarial" in rec.output
+    ok = invoke(["claim", "status", "C1", "verified"])
+    assert ok.exit_code == 0, ok.output
+    assert "C1 → verified" in ok.output
+
+
+def test_question_repose_wiring(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    assert invoke(["question", "add", "who?"]).exit_code == 0
+    result = invoke(["question", "repose", "Q1", "who, exactly?"])
+    assert result.exit_code == 0, result.output
+    assert "Q1 re-posed" in result.output
+    page = pages.read_page(root / "questions" / "who.md")
+    assert page.fm["formulations"][0]["text"] == "who?"
+    assert page.body.lstrip("\n").startswith("who, exactly?")
+
+
+# ---------------------------------------------------------------- root anchoring / attribution (Lane D)
+
+
+def test_mutation_from_inside_claims_dir_lands_correctly(tmp_path, monkeypatch):
+    # the runs-under-the-wrong-directory corruption class: a write from inside
+    # claims/ must anchor on the notebook root, not CWD.
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    assert invoke(["question", "add", "seed?"]).exit_code == 0
+    claims_dir = root / "claims"
+    claims_dir.mkdir(exist_ok=True)
+    monkeypatch.chdir(claims_dir)
+    result = invoke(["question", "add", "from inside claims?"])
+    assert result.exit_code == 0, result.output
+    # the page lands under root/questions/, never under root/claims/questions/
+    assert (root / "questions" / "from-inside-claims.md").is_file()
+    assert not (claims_dir / "questions").exists()
+
+
+def test_notebook_pin_lets_command_run_from_outside(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(tmp_path)  # outside any notebook
+    result = invoke(["--notebook", str(root), "question", "add", "pinned?"])
+    assert result.exit_code == 0, result.output
+    assert (root / "questions" / "pinned.md").is_file()
+
+
+def test_flip_notebook_env_pins_root(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("FLIP_NOTEBOOK", str(root))
+    result = invoke(["question", "add", "env pinned?"])
+    assert result.exit_code == 0, result.output
+    assert (root / "questions" / "env-pinned.md").is_file()
+
+
+def test_notebook_pin_disagreement_refuses(tmp_path, monkeypatch):
+    a = make_notebook(tmp_path / "a", slug="a")
+    b = make_notebook(tmp_path / "b", slug="b")
+    monkeypatch.chdir(a)  # CWD walk-up resolves to a…
+    result = invoke(["--notebook", str(b), "question", "add", "which?"])  # …pin says b
+    assert result.exit_code == 1
+    assert "refusing to act" in result.output
+    assert not (a / "questions").exists() and not (b / "questions").exists()
+
+
+def test_notebook_pin_not_a_notebook_refuses(tmp_path, monkeypatch):
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    result = invoke(["--notebook", str(plain), "question", "add", "x?"])
+    assert result.exit_code == 1
+    assert "not a flip notebook root" in result.output
+
+
+def test_actor_flag_overrides_env(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    monkeypatch.setenv("FLIP_ACTOR", "human:env")
+    assert invoke(["--actor", "agent:flag", "question", "add", "who?"]).exit_code == 0
+    page = pages.read_page(root / "questions" / "who.md")
+    assert page.fm["actor"] == "agent:flag"  # --actor wins over FLIP_ACTOR
+
+
+def test_actor_falls_back_to_env_without_flag(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    monkeypatch.setenv("FLIP_ACTOR", "human:env")
+    assert invoke(["question", "add", "who?"]).exit_code == 0
+    assert pages.read_page(root / "questions" / "who.md").fm["actor"] == "human:env"
+
+
+# ---------------------------------------------------------------- ws show / auto-bind
+
+
+def test_new_under_workspace_autobinds(tmp_path, monkeypatch):
+    from flip.workspace import load_workspace
+
+    ws = tmp_path / "vault"
+    ws.mkdir()
+    monkeypatch.chdir(ws)
+    assert invoke(["ws", "init"]).exit_code == 0
+    result = invoke(["new", "recipes", "--kind", "scout"])
+    assert result.exit_code == 0, result.output
+    assert "bound into workspace as 'recipes'" in result.output
+    assert load_workspace(ws).notebooks == {"recipes": "recipes"}
+
+
+def test_new_under_workspace_suffixes_handle_collision(tmp_path, monkeypatch):
+    from flip.workspace import load_workspace
+
+    ws = tmp_path / "vault"
+    ws.mkdir()
+    monkeypatch.chdir(ws)
+    invoke(["ws", "init"])
+    invoke(["new", "recipes", "--kind", "scout"])  # binds 'recipes'
+    # a second notebook whose slug also derives 'recipes' gets 'recipes-2'
+    result = invoke(["new", "recipes", "--kind", "scout", "--dest", str(ws / "more" / "recipes")])
+    assert result.exit_code == 0, result.output
+    assert "bound into workspace as 'recipes-2'" in result.output
+    assert load_workspace(ws).notebooks["recipes-2"] == "more/recipes"
+
+
+def test_new_outside_workspace_does_not_bind(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    result = invoke(["new", "solo", "--kind", "scout"])
+    assert result.exit_code == 0, result.output
+    assert "bound into workspace" not in result.output
+
+
+def test_ws_show_cli_text_and_json(tmp_path, monkeypatch):
+    ws = tmp_path / "vault"
+    ws.mkdir()
+    monkeypatch.chdir(ws)
+    invoke(["ws", "init"])
+    invoke(["new", "recipes", "--kind", "scout"])
+    monkeypatch.chdir(ws / "recipes")
+    assert invoke(["question", "add", "who pays?"]).exit_code == 0
+    monkeypatch.chdir(ws)
+    text = invoke(["ws", "show"])
+    assert text.exit_code == 0, text.output
+    assert "recipes · scout · active" in text.output
+    assert "OPEN QUESTIONS (1)" in text.output
+    data = json.loads(invoke(["ws", "show", "--json"]).output)
+    assert data["notebooks"][0]["handle"] == "recipes"
+    assert data["notebooks"][0]["open_questions"][0]["id"] == "Q1"
+
+
+def test_ws_show_open_claims_mutually_exclusive(tmp_path, monkeypatch):
+    ws = tmp_path / "vault"
+    ws.mkdir()
+    monkeypatch.chdir(ws)
+    invoke(["ws", "init"])
+    result = invoke(["ws", "show", "--open", "--claims"])
+    assert result.exit_code != 0
+    assert "at most one" in result.output
+
+
+# ---------------------------------------------------------------- cli map (Lane E)
+
+
+def _tree_leaves(group, prefix=()):
+    import click
+
+    out = []
+    for name, sub in group.commands.items():
+        path = (*prefix, name)
+        if isinstance(sub, click.Group):
+            out += _tree_leaves(sub, path)
+        else:
+            out.append(" ".join(("flip", *path)))
+    return out
+
+
+def test_cli_map_json_lists_every_leaf():
+    data = json.loads(invoke(["cli", "--json"]).output)
+    got = {c["command"] for c in data["commands"]}
+    assert got == set(_tree_leaves(main))  # generated from the live tree, no drift
+    assert "flip cli" in got  # the map lists itself
+    assert "--actor" in data["global_options"] and "--notebook" in data["global_options"]
+
+
+def test_cli_map_json_captures_flags_and_args():
+    data = json.loads(invoke(["cli", "--json"]).output)
+    by_cmd = {c["command"]: c for c in data["commands"]}
+    verify = by_cmd["flip claim verify"]
+    assert verify["arguments"] == ["CLAIM_ID"]
+    opt_names = {o["name"] for o in verify["options"]}
+    assert {"--method", "--against", "--note"} <= opt_names
+    assert any(o["name"] == "--method" and o["required"] for o in verify["options"])
+
+
+def test_cli_map_text_has_actor_line_and_commands():
+    out = invoke(["cli"]).output
+    assert "there is no other actor flag" in out
+    assert "flip claim verify <CLAIM_ID>" in out
+    assert "flip ws show" in out
+
+
+# ---------------------------------------------------------------- unknown-leaf suggestions
+
+
+def test_unknown_leaf_suggests_add_and_never_executes(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    result = invoke(["question", "who pays?"])
+    assert result.exit_code != 0
+    assert 'did you mean `flip question add "who pays?"`' in result.output
+    assert "full command map: `flip cli`" in result.output
+    assert not (root / "questions").exists()  # suggestion only — nothing ran
+
+
+def test_unknown_leaf_typo_fuzzy_matches(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    result = invoke(["claim", "ad"])
+    assert result.exit_code != 0
+    assert "did you mean `flip claim add`" in result.output
+
+
+def test_unknown_leaf_lists_subcommands_when_no_guess(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    result = invoke(["session", "frobnicate"])
+    assert result.exit_code != 0
+    assert "no such subcommand 'frobnicate'" in result.output
+    assert "subcommands: end, start" in result.output
+
+
+# ---------------------------------------------------------------- doctor: expected vs real (E3)
+
+
+def test_doctor_text_segregates_expected_until_use(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo", kind="scout")
+    monkeypatch.chdir(root)
+    result = invoke(["doctor"])
+    assert result.exit_code == 0
+    out = result.output
+    assert "expected until use" in out
+    # the appears-with-use notices sit under that section, not as top findings
+    idx = out.index("expected until use")
+    assert "missing-required" in out[idx:]
+    assert "missing-required" not in out[:idx]
+
+
+def test_doctor_json_marks_expected(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo", kind="scout")
+    monkeypatch.chdir(root)
+    data = json.loads(invoke(["doctor", "--json"]).output)
+    missing = [f for f in data if f["code"] == "missing-required"]
+    assert missing and all(f["expected"] for f in missing)
+    # everything else in a fresh scout is either absent or a genuine finding
+    assert all("expected" in f for f in data)  # the field is always present
 
 
 # ---------------------------------------------------------------- misc

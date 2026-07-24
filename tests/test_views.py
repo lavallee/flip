@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 
 from flip import ledgers, pages, views
-from flip.views import claims_view, hot_view, regenerate, stale_view
+from flip.util import idle_days
+from flip.views import claims_view, hot_view, regenerate, stale_view, ws_show
 
 MANIFEST_MD = """\
 ---
@@ -93,9 +94,22 @@ def source_page(
 def test_hot_view_empty_notebook_is_just_the_manifest_line(tmp_path):
     root = make_notebook(tmp_path)
     text = hot_view(root)
-    assert text == "test · scout · active · 2026-07-09"
+    # updated 2026-07-09 is in the past, so the line carries an idle age (C3);
+    # computed from idle_days so the assertion holds on any run date.
+    idle = idle_days("2026-07-09")
+    status = "active" + (f" · idle {idle}d" if idle else "")
+    assert text == f"test · scout · {status} · 2026-07-09"
     assert "OPEN QUESTIONS" not in text
     assert "RECENT LOG" not in text
+
+
+def test_hot_view_surfaces_idle_age(tmp_path):
+    # C3: staleness honesty — the manifest line shows how long since `updated`,
+    # visibility only (no doctor WARN, no auto-transition).
+    root = make_notebook(tmp_path)
+    text = hot_view(root)
+    assert f"idle {idle_days('2026-07-09')}d" in text
+    assert hot_view(root, as_data=True)["idle_days"] == idle_days("2026-07-09")
 
 
 def test_hot_view_shows_open_questions_and_hides_answered(tmp_path):
@@ -445,3 +459,142 @@ def test_regenerate_exists_for_core_module_hooks():
     # sources/claims call views.regenerate via a defensive getattr; make sure
     # the hook they look for is the public callable this module exports.
     assert callable(getattr(views, "regenerate"))
+
+
+# --- ws_show: the merged workspace roster (SPEC §18) ----------------------------
+
+from flip.workspace import ws_init, load_workspace, save_workspace  # noqa: E402
+
+
+def _ws_nb(root: Path, slug: str, kind: str = "scout", updated: str = "2026-06-01") -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "index.md").write_text(
+        "---\n"
+        'okf_version: "0.1"\n'
+        'flip: "0.6"\n'
+        f"slug: {slug}\n"
+        f"kind: {kind}\n"
+        "status: active\n"
+        "created: 2026-05-01\n"
+        f"updated: {updated}\n"
+        "---\n"
+        f"# {slug}\n",
+        encoding="utf-8",
+    )
+    return root
+
+
+def _roster_ws(tmp_path: Path) -> Path:
+    ws = tmp_path / "vault"
+    _ws_nb(ws / "recipes", "recipes", updated="2026-06-01")
+    _ws_nb(ws / "garden", "garden", kind="pursuit", updated="2020-01-01")
+    # recipes: one open question re-posed once, one load-bearing claim needing work
+    pages.write_page(
+        ws / "recipes" / "questions" / "q1.md",
+        {"type": "Question", "id": "Q1", "aliases": ["Q1"], "description": "who pays now?",
+         "status": "open",
+         "formulations": [{"text": "who pays?", "date": "2026-06-01", "actor": "human:t"}]},
+        "who pays now?\n\n## Re-posed 2026-06-02\n\nwho pays?\n",
+    )
+    pages.write_page(
+        ws / "recipes" / "claims" / "c1.md",
+        {"type": "Claim", "id": "C1", "aliases": ["C1"], "description": "key claim",
+         "status": "asserted", "load_bearing": True, "sources": [],
+         "independent_corroboration": 0},
+        "key claim\n",
+    )
+    ws_init(ws)
+    return ws
+
+
+def test_ws_show_roster_text(tmp_path):
+    ws = _roster_ws(tmp_path)
+    text = ws_show(ws)
+    assert "2 notebook(s) bound" in text
+    assert f"recipes · scout · active · idle {idle_days('2026-06-01')}d" in text
+    assert "OPEN QUESTIONS (1)" in text
+    assert "Q1 · who pays now? (re-posed 1×)" in text
+    assert "CLAIMS NEEDING WORK (1)" in text
+    assert "C1 · asserted · corroboration 0 · key claim" in text
+    # the empty notebook says so, both lanes named
+    assert "garden · pursuit · active" in text
+    assert "(no open questions or load-bearing claims needing work)" in text
+
+
+def test_ws_show_roster_as_data(tmp_path):
+    ws = _roster_ws(tmp_path)
+    data = ws_show(ws, as_data=True)
+    by_handle = {nb["handle"]: nb for nb in data["notebooks"]}
+    assert set(by_handle) == {"recipes", "garden"}
+    recipes = by_handle["recipes"]
+    assert recipes["kind"] == "scout" and recipes["status"] == "active"
+    assert recipes["idle_days"] == idle_days("2026-06-01")
+    assert recipes["open_questions"][0] == {
+        "id": "Q1", "text": "who pays now?", "repose_count": 1
+    }
+    assert recipes["claims_needing_work"][0]["id"] == "C1"
+    assert recipes["claims_needing_work"][0]["corroboration"] == 0
+    assert by_handle["garden"]["open_questions"] == []
+    assert by_handle["garden"]["claims_needing_work"] == []
+
+
+def test_ws_show_open_and_claims_flags_narrow(tmp_path):
+    ws = _roster_ws(tmp_path)
+    only_q = ws_show(ws, open_only=True)
+    assert "OPEN QUESTIONS (1)" in only_q
+    assert "CLAIMS NEEDING WORK" not in only_q
+    only_c = ws_show(ws, claims_only=True)
+    assert "CLAIMS NEEDING WORK (1)" in only_c
+    assert "OPEN QUESTIONS" not in only_c
+
+
+def test_ws_show_flags_broken_binding(tmp_path):
+    ws = _roster_ws(tmp_path)
+    w = load_workspace(ws)
+    w.notebooks["ghost"] = "gone"
+    save_workspace(w)
+    data = ws_show(ws, as_data=True)
+    ghost = next(nb for nb in data["notebooks"] if nb["handle"] == "ghost")
+    assert ghost["binding"] == "missing"
+    assert ghost["open_questions"] == [] and ghost["claims_needing_work"] == []
+    assert "ghost · [missing] · gone" in ws_show(ws)
+
+
+def test_ws_show_claim_meeting_bar_not_listed(tmp_path):
+    # a load-bearing claim that clears the corroboration bar is NOT "needing work"
+    ws = tmp_path / "vault"
+    _ws_nb(ws / "recipes", "recipes")
+    for sid in ("A1", "A2"):
+        pages.write_page(
+            ws / "recipes" / "references" / f"{sid.lower()}.md",
+            {"type": "Source", "id": sid, "aliases": [sid], "title": sid,
+             "grade": "A", "independence": "original", "freshness": "fresh"},
+            f"# {sid}\n",
+        )
+    pages.write_page(
+        ws / "recipes" / "claims" / "c1.md",
+        {"type": "Claim", "id": "C1", "aliases": ["C1"], "description": "solid",
+         "status": "verified", "load_bearing": True, "sources": ["A1", "A2"],
+         "independent_corroboration": 2},
+        "solid\n",
+    )
+    ws_init(ws)
+    data = ws_show(ws, as_data=True)
+    assert data["notebooks"][0]["claims_needing_work"] == []
+
+
+def test_ws_show_gating_verification_clears_needs_work(tmp_path):
+    # an adversarial verification clears the "needs work" flag even below the bar
+    ws = tmp_path / "vault"
+    _ws_nb(ws / "recipes", "recipes")
+    pages.write_page(
+        ws / "recipes" / "claims" / "c1.md",
+        {"type": "Claim", "id": "C1", "aliases": ["C1"], "description": "checked",
+         "status": "asserted", "load_bearing": True, "sources": [],
+         "independent_corroboration": 0,
+         "verifications": [{"method": "adversarial", "by": "agent:x", "date": "2026-06-01"}]},
+        "checked\n",
+    )
+    ws_init(ws)
+    data = ws_show(ws, as_data=True)
+    assert data["notebooks"][0]["claims_needing_work"] == []

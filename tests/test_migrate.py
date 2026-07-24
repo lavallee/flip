@@ -533,6 +533,24 @@ def test_migrate_restamps_declared_04_even_with_uid(tmp_path):
         migrate(root)
 
 
+def test_migrate_0_5_to_0_6_is_version_only_bump(tmp_path):
+    # a live 0.5 notebook (uid present, links canonical) migrates to 0.6 as a
+    # pure version bump — no page moves, keys are additive — then refuses.
+    root = make_v04(tmp_path, uid="nb-7k3m9p2x")
+    index = root / "index.md"
+    index.write_text(
+        index.read_text(encoding="utf-8").replace('flip: "0.4"', 'flip: "0.5"'),
+        encoding="utf-8",
+    )
+    summary = migrate(root)
+    assert summary == {"uid_added": 0, "beat_link_rewritten": 0,
+                       "profile": FLIP_PROFILE_VERSION}
+    assert pages.read_page(root / "index.md").fm["flip"] == FLIP_PROFILE_VERSION
+    assert load_manifest(root).uid == "nb-7k3m9p2x"  # identity untouched
+    with pytest.raises(SystemExit, match="already at the current profile"):
+        migrate(root)
+
+
 def test_migrate_refuses_freshly_scaffolded_notebook(tmp_path):
     from flip.scaffold import create_notebook
 

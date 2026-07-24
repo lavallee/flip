@@ -192,13 +192,78 @@ def answer_question(root: Path, qid: str, note: str | None = None) -> pages.Page
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
+def repose_question(root: Path, qid: str, new_text: str) -> pages.Page:
+    """Re-pose a question with a fresh formulation (A3), append-only.
+
+    The id, slug, and status stay. The new formulation becomes the current
+    description and the body's lead text; the superseded formulation is
+    appended both to a `formulations:` history list in frontmatter
+    ({text, date, actor}) and to a dated "Re-posed" section in the body, and a
+    `question-repose` event lands in log/log.jsonl. Nothing is overwritten —
+    `flip open Q#` always shows the full journey. Returns the Page.
+    """
+    root = util.require_notebook_root(root)
+    new_text = _require_text(new_text, "new formulation")
+    page = pages.find_by_id(root, qid)
+    if page is None:
+        known = sorted(
+            (p.id for p in pages.iter_pages(root, "questions") if p.id),
+            key=lambda s: (len(s), s),
+        )
+        hint = (
+            f"known: {', '.join(known)}"
+            if known
+            else 'none recorded yet; add one with `flip question add "<text>"`'
+        )
+        raise SystemExit(f"no question '{qid}' in questions/ ({hint})")
+
+    # The current formulation is the body's lead text — everything up to the
+    # first '##' section (prior Re-posed blocks, ## Answer). That tail is
+    # preserved verbatim below the newest Re-posed section.
+    lines = page.body.split("\n")
+    cut = next((i for i, ln in enumerate(lines) if ln.startswith("## ")), None)
+    old_text = ("\n".join(lines if cut is None else lines[:cut])).strip()
+    # A body may open directly on a '##' section (an answered or foreign-
+    # edited page); the description still holds the prior formulation, and
+    # it is about to be overwritten — capture it, never record ''.
+    if not old_text:
+        old_text = str(page.fm.get("description", ""))
+    tail = "" if cut is None else "\n".join(lines[cut:]).strip("\n")
+
+    formulations = pages.as_list(page.fm.get("formulations"))
+    formulations.append(
+        {"text": old_text, "date": util.today(), "actor": util.detect_actor()}
+    )
+    page.fm["formulations"] = formulations
+    page.fm["description"] = _description(new_text)
+
+    parts = [new_text.strip(), f"## Re-posed {util.today()}\n\n{old_text}"]
+    if tail:
+        parts.append(tail)
+    body = "\n\n".join(parts) + "\n"
+    pages.write_page(page.path, page.fm, body)
+    util.append_jsonl(
+        root / LOG,
+        {
+            "ts": util.utc_now(),
+            "text": f'question-repose {qid}: "{_description(new_text)}"',
+            "actor": util.detect_actor(),
+        },
+    )
+    _finish(root)
+    return pages.Page(path=page.path, fm=page.fm, body=body)
+
+
 def _question_text(page: pages.Page) -> str:
-    """The question text: the body up to any ## Answer, else the description."""
+    """The current question text: the body's lead prose, up to the first '##'
+    section (## Answer, or a dated ## Re-posed block from a re-pose), else the
+    description. So a re-posed question lists its current formulation, not its
+    whole journey — the journey stays on the page."""
     body = page.body
-    if body.startswith("## Answer"):
-        body = ""
-    body = body.split("\n## Answer", 1)[0].strip()
-    return body or str(page.fm.get("description", ""))
+    if body.lstrip().startswith("## "):
+        return str(page.fm.get("description", ""))
+    head = body.split("\n## ", 1)[0].strip()
+    return head or str(page.fm.get("description", ""))
 
 
 def _id_num(entity_id: str) -> int:

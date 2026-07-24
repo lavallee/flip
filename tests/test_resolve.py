@@ -3,8 +3,8 @@
 Bare ids must keep resolving exactly as `flip open` always has inside a
 notebook; qualified `handle:id` refs resolve through the nearest workspace
 table from anywhere under the workspace root; every miss is a loud,
-actionable diagnostic — never a guess (SPEC §9). The deprecated '#'
-separator still reads, with a stderr note, until 0.10.
+actionable diagnostic — never a guess (SPEC §9). The pre-0.5 '#' separator
+no longer reads (removed in 0.10).
 """
 
 from __future__ import annotations
@@ -172,18 +172,16 @@ def test_unknown_handle_in_empty_workspace_says_none_bound(tmp_path):
         resolve_ref("recipes:A3", start=ws)
 
 
-# --- '#' deprecation window -------------------------------------------------------
+# --- '#' reads removed in 0.10 ----------------------------------------------------
 
 
-def test_hash_synonym_resolves_with_stderr_note(tmp_path, capsys):
+def test_hash_synonym_no_longer_reads(tmp_path):
     ws = make_ws(tmp_path, "recipes")
-    page_path = add_page(ws / "recipes", "A3")
-    r = resolve_ref("recipes#A3", start=ws)
-    assert r.path == page_path and r.handle == "recipes"
-    err = capsys.readouterr().err
-    assert "deprecated '#'" in err
-    assert "recipes:A3" in err  # names the form to use instead
-    assert "0.10" in err  # and when '#' reads go away
+    add_page(ws / "recipes", "A3")
+    # '#' reads were removed in 0.10: the ref no longer parses as handle#id,
+    # so it fails the grammar rather than resolving.
+    with pytest.raises(SystemExit, match="invalid reference"):
+        resolve_ref("recipes#A3", start=ws)
 
 
 def test_colon_ref_prints_no_note(tmp_path, capsys):

@@ -32,8 +32,9 @@ not improve pickup or auditability are removed.
 - Bind and validate the skills on multiple harnesses through Spindle.
 - Gather interoperability feedback on the draft OKF provenance vocabulary and
   keep exports aligned with the upstream format.
-- Define narrow integration contracts for tools such as Artoo and Ergo while
-  preserving canonical ownership.
+- Define narrow integration contracts for renderers and downstream consumers
+  (via the `flip-render/1` JSON projection) while preserving canonical
+  ownership.
 
 *Graduation:* a non-Flip consumer can honor the lineage profile and a bound
 agent follows it in a real notebook without bespoke prompting. *Kill:* avoid

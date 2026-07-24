@@ -21,7 +21,11 @@ from .util import ROOT_FILE, today
 
 VISIBILITIES = ("private", "internal", "client-confidential", "public")
 STATUSES = ("active", "dormant", "done", "published", "archived")
-FLIP_PROFILE_VERSION = "0.5"
+# 0.6 adds additive keys only — claims may carry `verifications`, questions
+# may carry `formulations`, and the `pursuit` kind arrives — so readers accept
+# 0.5 notebooks untouched and `flip migrate` treats 0.5 → 0.6 as a version-only
+# bump (no page moves). uid gating stays at 0.5+.
+FLIP_PROFILE_VERSION = "0.6"
 
 # SPEC §3: slugs are filesystem- and cite-safe. Validated at create/save so a
 # bad slug never reaches disk (it names files and every <slug>:<id> cross-ref).

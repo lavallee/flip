@@ -132,11 +132,13 @@ plugin reads the handle table, audits the shared space, and open-by-id
 suggests every bound notebook's entities as `recipes:A3`. The walkthrough
 is [docs/obsidian.md](docs/obsidian.md).
 
-Status: spec draft v0.8 — notebooks are native OKF v0.1 bundles. The CLI
-covers the full surface (`new`, `add-source`, `grade`, `log`, `decide`,
-`pass`, `question`, `claim`, `session`, `show`, `open`, `resolve`, `rename`,
-`doctor`, `index`, `migrate`, `export bag|csl|okf`), plus **beats** — the
-standing layer above notebooks (`flip beat new / thread add / graduate /
+Status: spec draft v0.10 — notebooks are native OKF v0.1 bundles. The CLI
+covers the full surface (`cli`, `new`, `add-source`, `grade`, `log`, `decide`,
+`pass`, `question` (incl. `repose`), `claim` (incl. `verify` / `source add`),
+`session`, `show`, `open`, `resolve`, `rename`, `doctor`, `index`, `migrate`,
+`export bag|csl|okf|json`), **workspaces** (`flip ws init / list / add /
+rename / rm / show`) that bind many notebooks under one root, plus **beats** —
+the standing layer above notebooks (`flip beat new / thread add / graduate /
 show`): a mission with weighted-triage threads that graduate into notebooks
 and keep cross-notebook coverage memory — and **workspaces** (`flip ws`,
 `flip import`): many notebooks under one root, bound to handles so

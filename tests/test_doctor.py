@@ -220,6 +220,9 @@ def test_missing_required_paths_warn_while_active_or_dormant(tmp_path):
         missing = [f for f in run_doctor(root) if f.code == "missing-required"]
         assert {f.path for f in missing} == {"references", "log/passed.jsonl"}, status
         assert all(f.level == "WARN" for f in missing), status
+        # E3: appears-with-use notices are flagged expected so the CLI can
+        # segregate them from real findings.
+        assert all(f.expected for f in missing), status
 
 
 def test_missing_required_paths_error_once_closed(tmp_path):
@@ -231,6 +234,32 @@ def test_missing_required_paths_error_once_closed(tmp_path):
         assert {f.path for f in missing} == {"references", "log/passed.jsonl"}, status
         assert all(f.level == "ERROR" for f in missing), status
         assert all(status in f.message for f in missing), status
+        # once due, these are real ERRORs, never "expected until use"
+        assert not any(f.expected for f in missing), status
+
+
+def test_pursuit_profile_minimums(tmp_path, monkeypatch):
+    # Lane B: the shipped pursuit profile requires questions/, claims/,
+    # drafts/question-plan.md, log — WARN while active (D13), ERROR once done.
+    from flip.manifest import save_manifest
+    from flip.scaffold import create_notebook
+
+    monkeypatch.setenv("FLIP_ACTOR", "agent:test")
+    root = create_notebook(tmp_path / "q", "q", "pursuit", title="the question")
+    required = {"questions", "claims", "drafts/question-plan.md", "log"}
+    findings = run_doctor(root)
+    missing = [f for f in findings if f.code == "missing-required"]
+    # questions/ and drafts/question-plan.md are seeded; claims/ and log appear
+    # with use — those are the only ones outstanding, and only at WARN.
+    assert {f.path for f in missing} <= required
+    assert all(f.level == "WARN" for f in missing)
+    assert not codes(findings, "ERROR")
+
+    m = load_manifest(root)
+    m.status = "done"
+    save_manifest(root, m)
+    missing_done = [f for f in run_doctor(root) if f.code == "missing-required"]
+    assert missing_done and all(f.level == "ERROR" for f in missing_done)
 
 
 def test_forced_policy_mismatch_is_error(tmp_path):
@@ -585,6 +614,19 @@ def test_under_verified_ignores_ungraded_sources(tmp_path):
     assert "under-verified" in codes(run_doctor(root), "ERROR")
 
 
+def test_under_verified_cleared_by_adversarial_record(tmp_path):
+    # A2: a recorded adversarial/recomputation check clears the verified gate
+    # even below the corroboration bar — the doctor mirror of set_claim_status.
+    root = make_notebook(tmp_path, min_independent=2)
+    source_page(root, "A1", grade="B", independence="republisher")  # 0 original
+    path = claim_page(root, "C1", status="verified", load_bearing=True, sources=["A1"])
+    page = pages.read_page(path)
+    page.fm["verifications"] = [{"method": "adversarial", "by": "agent:test",
+                                 "date": today()}]
+    pages.write_page(path, page.fm, page.body)
+    assert "under-verified" not in codes(run_doctor(root))
+
+
 def test_load_bearing_asserted_claim_is_warn(tmp_path):
     root = make_notebook(tmp_path)
     claim_page(root, "C1", status="asserted", load_bearing=True)
@@ -595,6 +637,26 @@ def test_load_bearing_asserted_claim_is_warn(tmp_path):
 def test_non_load_bearing_asserted_claim_is_fine(tmp_path):
     root = make_notebook(tmp_path)
     claim_page(root, "C1", status="asserted", load_bearing=False)
+    assert "unaudited-claim" not in codes(run_doctor(root))
+
+
+def test_asserted_claim_with_corroboration_is_not_unaudited(tmp_path):
+    # A2: unaudited-claim ends the permanent nag — a load-bearing asserted
+    # claim that has *some* corroboration no longer warns.
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="original")
+    claim_page(root, "C1", status="asserted", load_bearing=True, sources=["A1"])
+    assert "unaudited-claim" not in codes(run_doctor(root))
+
+
+def test_asserted_claim_with_verification_record_is_not_unaudited(tmp_path):
+    # neither corroboration nor a source, but a recorded check silences the nag
+    root = make_notebook(tmp_path)
+    path = claim_page(root, "C1", status="asserted", load_bearing=True)
+    page = pages.read_page(path)
+    page.fm["verifications"] = [{"method": "adversarial", "by": "agent:test",
+                                 "date": today()}]
+    pages.write_page(path, page.fm, page.body)
     assert "unaudited-claim" not in codes(run_doctor(root))
 
 

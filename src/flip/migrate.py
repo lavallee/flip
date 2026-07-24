@@ -9,8 +9,9 @@ source / claim / decision / question / session — preserving every id, every
 recorded field, and the append-only event history (log/log.jsonl,
 log/passed.jsonl, sources/_provenance.jsonl, derived/ are left untouched).
 The second pass brings any manifest to the 0.5 profile: mint the notebook
-uid (SPEC §4) and move links.beat to the canonical ':' separator ('#' reads
-are deprecated, removed in 0.10).
+uid (SPEC §4) and move links.beat to the canonical ':' separator (this
+rewrite of stored '#' refs continues even though '#' reads were removed in
+0.10).
 
 Each ledger's pages are written before that ledger is deleted, and
 notebook.toml is deleted last, so an interrupted migration resumes cleanly:

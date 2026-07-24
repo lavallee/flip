@@ -16,7 +16,7 @@ from pathlib import Path
 # Each section is a heading plus a one-line prompt the author writes under —
 # prompts render as blockquotes and are meant to be replaced, not answered.
 SECTION_ORDER = [
-    "tip", "frame", "explore", "hypotheses", "sources",
+    "tip", "frame", "answer", "assessment", "explore", "hypotheses", "sources",
     "priors", "decisions", "omissions", "workflow", "gaps", "handoff",
 ]
 
@@ -29,6 +29,18 @@ SECTIONS: dict[str, dict[str, str]] = {
         "heading": "Frame",
         "prompt": "Decision the reader should be able to make · headline claim (state it "
         "before building) · counter-narrative to rule out · audience and their prior knowledge.",
+    },
+    "answer": {
+        "heading": "Answer",
+        "prompt": "Band the answer honestly: direct (the question as posed) · adjacent "
+        "(a nearby question the evidence does support) · unresolved (with the coverage "
+        "you did reach). An honest null — unresolved, coverage recorded — is a legal answer.",
+    },
+    "assessment": {
+        "heading": "Assessment",
+        "prompt": "Confidence, coverage, and usefulness are three different things — never "
+        "collapse them. How sure · how much of the question-space you reached · what a "
+        "reader can actually do with it.",
     },
     "explore": {
         "heading": "What the data can and can't say",
