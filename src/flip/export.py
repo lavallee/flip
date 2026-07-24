@@ -8,12 +8,20 @@ references/ to CSL-JSON items for citation managers.
 
 from __future__ import annotations
 
+import re
 import shutil
 import sys
 from pathlib import Path
 
+from . import claims as claims_mod
 from . import pages
-from .util import ROOT_FILE, is_notebook_root, sha256_file, today
+from .manifest import load_manifest
+from .util import ROOT_FILE, is_notebook_root, read_jsonl, sha256_file, today, utc_now
+
+# The stable JSON projection contract (SPEC §17, Lane F). Bump only on a
+# breaking shape change; renderers key off this string.
+RENDER_CONTRACT = "flip-render/1"
+LOG_TAIL = 20
 
 # Directory names excluded from bag payloads: repo/tooling internals and
 # derived renders are not evidentiary content (SPEC §11, §16).
@@ -209,3 +217,201 @@ def export_okf(
     from .okf import export_okf as _export_okf
 
     return _export_okf(root, dest, include_private=include_private, announce=announce)
+
+
+# --- the JSON render contract (SPEC §17, Lane F) ---------------------------------
+
+
+def _provenance_index(root: Path) -> dict[str, list[dict]]:
+    """source_id → capture events, chronological (ledger) order. A corrupt
+    ledger yields nothing here — doctor pinpoints the line."""
+    events: dict[str, list[dict]] = {}
+    try:
+        rows = read_jsonl(root / "sources" / "_provenance.jsonl")
+    except ValueError:
+        return {}
+    for ev in rows:
+        sid = ev.get("source_id")
+        if sid:
+            events.setdefault(str(sid), []).append(ev)
+    return events
+
+
+def _capture_event(fm: dict, prov: dict[str, list[dict]]) -> dict:
+    """The provenance event describing the file `local` points at (multi-file
+    captures log one event per file), else the most recent; {} when none."""
+    events = prov.get(str(fm.get("id"))) or []
+    if not events:
+        return {}
+    local = str(fm.get("local") or "")
+    return next(
+        (e for e in reversed(events) if str(e.get("local_path") or "") == local),
+        events[-1],
+    )
+
+
+def _source_projection(page: pages.Page, prov: dict[str, list[dict]], full_trail: bool) -> dict:
+    """One source as a render node. Judgment (grade/independence/freshness/
+    kind) always ships; custody (title, canonical_url, captured_at, sha256)
+    ships only with the full trail — the 0.4 lesson: anything derived from
+    withheld data is withheld data (SPEC §17)."""
+    fm = page.fm
+    out: dict = {
+        "id": fm.get("id") or page.slug,
+        "slug": page.slug,
+        "kind": str(fm.get("kind", "")),
+        "grade": str(fm.get("grade", "?")),
+        "independence": str(fm.get("independence", "")),
+        "freshness": str(fm.get("freshness", "")),
+    }
+    if full_trail:
+        ev = _capture_event(fm, prov)
+        out["title"] = str(fm.get("title", ""))
+        out["canonical_url"] = str(fm.get("resource") or fm.get("url") or "")
+        out["captured_at"] = str(ev.get("ts", ""))
+        out["sha256"] = str(ev.get("sha256", ""))
+    return out
+
+
+def _claim_projection(page: pages.Page, source_fms: list[dict]) -> dict:
+    fm = page.fm
+    source_ids = [str(s) for s in pages.as_list(fm.get("sources"))]
+    return {
+        "id": fm.get("id") or page.slug,
+        "slug": page.slug,
+        "text": str(fm.get("description", "")),
+        "status": str(fm.get("status", "")),
+        "load_bearing": bool(fm.get("load_bearing", False)),
+        "sources": source_ids,
+        "corroboration": claims_mod.corroboration_count(source_fms, source_ids),
+        "verifications": [dict(v) for v in pages.as_list(fm.get("verifications"))],
+    }
+
+
+def _question_projection(page: pages.Page) -> dict:
+    fm = page.fm
+    return {
+        "id": fm.get("id") or page.slug,
+        "slug": page.slug,
+        "text": str(fm.get("description", "")),
+        "status": str(fm.get("status", "open")),
+        "formulations": [dict(f) for f in pages.as_list(fm.get("formulations"))],
+    }
+
+
+def _decision_projection(page: pages.Page) -> dict:
+    fm = page.fm
+    return {
+        "id": fm.get("id") or page.slug,
+        "slug": page.slug,
+        "text": str(fm.get("description", "")),
+        "question": str(fm.get("question", "")),
+        "alternatives_rejected": [str(a) for a in pages.as_list(fm.get("alternatives_rejected"))],
+    }
+
+
+_GOAL_RE = re.compile(r"^##\s+Goal\s*\n(.*?)(?=\n##\s|\Z)", re.S | re.M)
+
+
+def _session_goal(body: str) -> str:
+    m = _GOAL_RE.search(body)
+    return " ".join(m.group(1).split()) if m else ""
+
+
+def _session_projection(page: pages.Page) -> dict:
+    fm = page.fm
+    return {
+        "id": page.slug,  # sessions have no compact id scheme (SPEC §8)
+        "actor": str(fm.get("actor", "")),
+        "model": str(fm.get("model", "")),
+        "started": str(fm.get("started", "")),
+        "ended": str(fm.get("ended", "")),
+        "goal": _session_goal(page.body),
+    }
+
+
+def _id_num(entity_id: object) -> tuple:
+    s = str(entity_id or "")
+    head = s.rstrip("0123456789")
+    tail = s[len(head):]
+    return (head, int(tail) if tail.isdigit() else 0, s)
+
+
+def export_json(root: Path, include_private: bool = False) -> dict:
+    """The `flip-render/1` JSON projection for renderers and site generators
+    (SPEC §17, Lane F): stable ids, deterministic order (id-sorted entities,
+    stable key order), one changing field (`generated`).
+
+    Policy-filtered exactly like `export okf`: refuses unless visibility is
+    public or `include_private`; without the full source trail
+    (`source_trail_public: false` and not include_private) custody detail —
+    titles, URLs, capture times, fixity, the whole work log — is withheld,
+    while judgment (grade/independence/freshness) and the claims/questions the
+    notebook stands on still ship.
+    """
+    root = _require_notebook(root)
+    m = load_manifest(root)
+    visibility = m.policy.get("visibility", "internal")
+    if visibility != "public" and not include_private:
+        raise SystemExit(
+            f"notebook visibility is '{visibility}'; the JSON render is a projection for "
+            "outside consumption — set visibility: public in the root index.md or pass "
+            "--include-private"
+        )
+    full_trail = include_private or bool(m.policy.get("source_trail_public", False))
+
+    source_pages = [p for p in pages.iter_pages(root, "references")
+                    if str(p.fm.get("type", "")) == "Source"]
+    source_fms = [p.fm for p in source_pages]
+    prov = _provenance_index(root) if full_trail else {}
+
+    sources = sorted(
+        (_source_projection(p, prov, full_trail) for p in source_pages),
+        key=lambda s: _id_num(s["id"]),
+    )
+    claims = sorted(
+        (_claim_projection(p, source_fms) for p in pages.iter_pages(root, "claims")
+         if str(p.fm.get("type", "")) == "Claim"),
+        key=lambda c: _id_num(c["id"]),
+    )
+    questions = sorted(
+        (_question_projection(p) for p in pages.iter_pages(root, "questions")
+         if str(p.fm.get("type", "")) == "Question"),
+        key=lambda q: _id_num(q["id"]),
+    )
+    decisions = sorted(
+        (_decision_projection(p) for p in pages.iter_pages(root, "decisions")
+         if str(p.fm.get("type", "")) == "Decision"),
+        key=lambda d: _id_num(d["id"]),
+    )
+    sessions = [_session_projection(p) for p in pages.iter_pages(root, "sessions")]
+
+    # The work log is custody: withheld unless the full trail ships (SPEC §17).
+    log_tail: list[dict] = []
+    if full_trail:
+        try:
+            log_tail = read_jsonl(root / "log" / "log.jsonl")[-LOG_TAIL:]
+        except ValueError:
+            log_tail = []
+
+    return {
+        "contract": RENDER_CONTRACT,
+        "generated": utc_now(),
+        "source_trail_public": full_trail,
+        "notebook": {
+            "uid": m.uid,
+            "slug": m.slug,
+            "title": m.title,
+            "kind": m.kind,
+            "status": m.status,
+            "created": m.created,
+            "updated": m.updated,
+            "visibility": visibility,
+        },
+        "sources": sources,
+        "claims": claims,
+        "questions": questions,
+        "decisions": decisions,
+        "sessions": sessions,
+        "log_tail": log_tail,
+    }

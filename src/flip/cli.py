@@ -1203,6 +1203,30 @@ def export_okf(dest: Path, include_private: bool, announce: Path | None) -> None
     click.echo(f"OKF bundle written to {path}")
 
 
+@export.command("json")
+@click.option("--out", default=None,
+              help="Write the JSON here (path), or '-' for stdout [default: stdout].")
+@click.option("--include-private", is_flag=True,
+              help="Emit despite a non-public visibility policy, with the full source trail.")
+def export_json_cmd(out: str | None, include_private: bool) -> None:
+    """Emit the flip-render/1 JSON projection for renderers and site generators.
+
+    One stable, versioned, deterministic view of the notebook (identity,
+    sources, claims incl. verifications, questions incl. formulations,
+    decisions, session summaries, log tail). Policy-filtered like `export okf`:
+    refuses unless visibility is public or --include-private, and strips
+    source-trail custody (URLs, capture times, fixity, the work log) to
+    judgment stubs when source_trail_public is false.
+    """
+    data = export_mod.export_json(require_notebook_root(), include_private=include_private)
+    text = json.dumps(data, ensure_ascii=False, indent=2)
+    if out in (None, "-"):
+        click.echo(text)
+    else:
+        Path(out).write_text(text + "\n", encoding="utf-8")
+        click.echo(f"wrote {export_mod.RENDER_CONTRACT} projection to {out}")
+
+
 # ---------------------------------------------------------------- profiles
 
 

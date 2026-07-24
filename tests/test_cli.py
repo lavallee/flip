@@ -511,6 +511,24 @@ def test_export_csl_stdout_and_file(tmp_path, monkeypatch):
     assert json.loads(out.read_text(encoding="utf-8")) == items
 
 
+def test_export_json_cli_stdout_file_and_policy(tmp_path, monkeypatch):
+    # default visibility (internal) refuses; --include-private overrides
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    refused = invoke(["export", "json"])
+    assert refused.exit_code != 0
+    assert "visibility is 'internal'" in refused.output
+    data = json.loads(invoke(["export", "json", "--include-private"]).output)
+    assert data["contract"] == "flip-render/1"
+    out = tmp_path / "render.json"
+    result = invoke(["export", "json", "--include-private", "--out", str(out)])
+    assert result.exit_code == 0
+    assert "flip-render/1" in result.output
+    file_data = json.loads(out.read_text(encoding="utf-8"))
+    file_data.pop("generated"), data.pop("generated")
+    assert file_data == data
+
+
 def test_export_bag_writes_bag_and_refuses_existing_dest(tmp_path, monkeypatch):
     root = make_notebook(tmp_path / "demo")
     monkeypatch.chdir(root)
