@@ -6,6 +6,18 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.1] — 2026-07-25
+
+### Fixed
+- `flip resolve` / `flip open` crashed (`ws_root` None) when invoked with the
+  `--notebook`/`FLIP_NOTEBOOK` pin from outside the notebook; resolution now
+  anchors on the pinned root like every other command (SPEC §15).
+
+### Changed
+- `flip claim add` still accepts dangling citations (SPEC §6.1 — legal, and
+  `flip doctor` counts them) but now notes uncaptured source ids at assert
+  time, so a typo'd id no longer rides silently to the next doctor run.
+
 ## [0.10.0] — 2026-07-24
 
 Question pursuit made expressible, navigable, and renderable — with zero new
