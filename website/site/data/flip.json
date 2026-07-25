@@ -1,7 +1,7 @@
 {
-  "generated": "2026-07-25T11:36:38+00:00",
-  "version": "0.10.1",
-  "revision": "43b5801",
+  "generated": "2026-07-25T16:39:27+00:00",
+  "version": "0.11.0",
+  "revision": "aed3295",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",
@@ -10,8 +10,8 @@
   "license": "MIT",
   "package": "flip-notebook",
   "tests": 697,
-  "spec_status": "draft v0.10 \u00b7 2026-07-24",
-  "spec_lines": 852,
+  "spec_status": "draft v0.11 \u00b7 2026-07-25",
+  "spec_lines": 870,
   "skills": [
     "notebook-audit",
     "notebook-create",

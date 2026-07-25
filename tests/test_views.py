@@ -592,7 +592,7 @@ def test_ws_show_gating_verification_clears_needs_work(tmp_path):
         {"type": "Claim", "id": "C1", "aliases": ["C1"], "description": "checked",
          "status": "asserted", "load_bearing": True, "sources": [],
          "independent_corroboration": 0,
-         "verifications": [{"method": "adversarial", "by": "agent:x", "date": "2026-06-01"}]},
+         "verified": [{"method": "adversarial", "by": "agent:x", "at": "2026-06-01T00:00:00Z"}]},
         "checked\n",
     )
     ws_init(ws)

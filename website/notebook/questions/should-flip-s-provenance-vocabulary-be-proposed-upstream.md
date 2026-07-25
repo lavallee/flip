@@ -5,8 +5,9 @@ aliases:
 - Q1
 description: Should flip's provenance vocabulary be proposed upstream as an OKF profile?
 status: open
-timestamp: '2026-07-25T00:55:01Z'
-actor: human:marc
+generated:
+  by: human:marc
+  at: '2026-07-25T00:55:01Z'
 ---
 
 Should flip's provenance vocabulary be proposed upstream as an OKF profile?

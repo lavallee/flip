@@ -5,7 +5,7 @@ corpora created and maintained by any mix of humans and agents.
 
 A flip notebook **is an
 [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
-(OKF v0.1) knowledge bundle at rest**: a directory of markdown pages with
+(OKF v0.2) knowledge bundle at rest**: a directory of markdown pages with
 YAML frontmatter, an `index.md` root, and a generated `log.md`. Any OKF
 consumer can browse one; any markdown editor can edit one. What flip adds is
 an **extension profile for lineage** — the discipline the LLM-wiki pattern
@@ -132,7 +132,7 @@ plugin reads the handle table, audits the shared space, and open-by-id
 suggests every bound notebook's entities as `recipes:A3`. The walkthrough
 is [docs/obsidian.md](docs/obsidian.md).
 
-Status: spec draft v0.10 — notebooks are native OKF v0.1 bundles. The CLI
+Status: spec draft v0.11 — notebooks are native OKF v0.2 bundles. The CLI
 covers the full surface (`cli`, `new`, `add-source`, `grade`, `log`, `decide`,
 `pass`, `question` (incl. `repose`), `claim` (incl. `verify` / `source add`),
 `session`, `show`, `open`, `resolve`, `rename`, `doctor`, `index`, `migrate`,

@@ -3,8 +3,9 @@
 One markdown page per working episode, named `<UTC stamp>-<slug>.md`
 (util.stamp_slug has minute precision, so filenames sort chronologically).
 Sessions are entity pages like any other: YAML frontmatter (`type: Work
-Session`, `actor`, `model`, `tools`, `started`, `ended`) written and read
-through the pages layer, body owned by whoever ran the session.
+Session`, `generated: {by, at}`, `model`, `tools`, `started`, `ended`)
+written and read through the pages layer, body owned by whoever ran the
+session.
 
 `end_session` sets `ended` in the FRONTMATTER (current-state metadata any
 OKF consumer can read) and appends the summary to the body; foreign
@@ -51,7 +52,7 @@ def start_session(
             f"session file already exists: {path}; "
             "pick a different slug (one session per slug per minute)"
         )
-    fm: dict = {"type": "Work Session", "actor": util.detect_actor()}
+    fm: dict = {"type": "Work Session", "generated": util.generated_now()}
     if model:
         fm["model"] = str(model)
     if tools:

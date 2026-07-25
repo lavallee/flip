@@ -163,7 +163,7 @@ def load_beat(root: Path) -> Beat:
 
 
 def beat_frontmatter(b: Beat) -> dict:
-    fm: dict = {"okf_version": "0.1", "flip_beat": FLIP_BEAT_VERSION, "slug": b.slug}
+    fm: dict = {"okf_version": "0.2", "flip_beat": FLIP_BEAT_VERSION, "slug": b.slug}
     if b.mission:
         fm["mission"] = b.mission
     fm["status"] = b.status
@@ -331,8 +331,7 @@ def add_thread(
     }
     if scores:
         fm["scores"] = scores
-    fm["timestamp"] = util.utc_now()
-    fm["actor"] = util.detect_actor()
+    fm["generated"] = util.generated_now()
     body = (note or "").strip() or title
     directory = root / THREADS_DIR
     slug = pages.unique_slug(directory, pages.slugify(title, fallback="thread"))

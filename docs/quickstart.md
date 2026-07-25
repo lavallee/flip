@@ -3,7 +3,7 @@
 flip keeps research honest: every source you rely on is captured locally and
 hashed, every judgment about source quality is recorded, every load-bearing
 claim is linked to sources and gated before it can be called verified, and
-the whole trail is plain files in git. The notebook is a conformant OKF v0.1
+the whole trail is plain files in git. The notebook is a conformant OKF v0.2
 knowledge bundle — any markdown tool can browse and edit it.
 
 ## Install
@@ -138,8 +138,9 @@ $EDITOR $(flip open F1)      # paths are absolute, so this works from any subdir
 ```
 
 When a slug deserves a better name, `flip rename` is the only sanctioned
-way — it moves the page and rewrites every markdown link and `supports` path
-notebook-wide, while the id (and every `[F1]` cite) stays put:
+way — it moves the page and rewrites every markdown link and
+`sources[].resource` path notebook-wide, while the id (and every `[F1]`
+cite) stays put:
 
 ```bash
 flip rename F1 district-enrollment-table

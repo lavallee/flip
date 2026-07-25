@@ -1,11 +1,13 @@
 """Claims as entity pages — claims/<slug>.md (SPEC §7).
 
 Each claim is one markdown page: frontmatter carries what a machine needs
-(id, status, load_bearing, source ids, computed corroboration), the body
-carries the full assertion, any caveat notes, and a generated `# Citations`
-edge list. Ids are never reused: retracted and superseded claims keep their
-pages, and allocation (pages.allocate_id) also counts ids that only survive
-in the ledgers or the .flip/ids reservation file.
+(id, status, load_bearing, OKF v0.2 `sources` entries, computed
+corroboration), the body carries the full assertion — footnote-marked per
+the OKF per-claim attribution idiom — any caveat notes, and a generated
+block of footnote definitions whose relative links keep the citation edges
+visible to link-graph tools. Ids are never reused: retracted and superseded
+claims keep their pages, and allocation (pages.allocate_id) also counts ids
+that only survive in the ledgers or the .flip/ids reservation file.
 
 `independent_corroboration` is computed, never hand-set: the count of a
 claim's listed source ids (deduped) whose references/ page is JUDGED — grade
@@ -16,9 +18,12 @@ evolve. `corroboration_count` is the one shared implementation; doctor's
 under-verified check uses it too.
 
 Ownership on a claim page (SPEC §6.6): flip owns the frontmatter keys it
-writes plus the `# Citations` section of the body (regenerated on status
-changes so links track source slugs); everything else — foreign frontmatter,
-prose above the citations — round-trips untouched.
+writes plus two generated body parts — the footnote-marker cluster ending
+the lead paragraph and the footnote-definition lines (both regenerated on
+status/source changes so links track source slugs; labels are always
+id-shaped, `[^A3]`, so hand-authored footnotes are never touched).
+Everything else — foreign frontmatter, the prose itself — round-trips
+untouched.
 """
 
 from __future__ import annotations
@@ -49,10 +54,26 @@ JUDGED_GRADES = ("A", "B", "C")
 VERIFICATION_METHODS = ("adversarial", "independent-sources", "recomputation")
 GATING_VERIFICATION_METHODS = ("adversarial", "recomputation")
 
-CITATIONS_HEADING = "# Citations"
+# Generated attribution, OKF v0.2 style: footnote labels are the claim's
+# source ids. Both patterns are id-shaped on purpose — flip only ever edits
+# markers/definitions it could have written itself.
+_FOOT_DEF_RE = re.compile(r"^\[\^[A-Z]+\d+\]: .*$\n?", re.M)
+_MARKER_TAIL_RE = re.compile(r"(?:\s*\[\^[A-Z]+\d+\])+\s*$")
 
 # Frontmatter description is a one-line OKF summary; the body holds the full text.
 _DESCRIPTION_MAX = 160
+
+
+def source_ids(fm: dict) -> list[str]:
+    """A claim's cited source ids, in order. Entries are OKF v0.2 `sources`
+    maps ({id, resource, title}); bare strings (hand edits, pre-0.7 pages)
+    are tolerated as ids. The one accessor every reader goes through."""
+    out: list[str] = []
+    for entry in pages.as_list(fm.get("sources")):
+        sid = str(entry.get("id", "")) if isinstance(entry, dict) else str(entry)
+        if sid.strip():
+            out.append(sid.strip())
+    return out
 
 
 def _linked_fms(source_fms: list[dict], source_ids: list[str]) -> list[dict]:
@@ -79,12 +100,13 @@ def corroboration_count(source_fms: list[dict], source_ids: list[str]) -> int:
 
 
 def has_gating_verification(fm: dict) -> bool:
-    """True when a claim's frontmatter records at least one verification whose
+    """True when a claim's `verified:` list (OKF v0.2 §5.2 events, each
+    {by, at} plus flip's `method` extension key) records at least one whose
     method clears the `verified` gate on its own (adversarial/recomputation).
     Shared by set_claim_status's gate and doctor's under-verified check."""
     return any(
-        str(v.get("method")) in GATING_VERIFICATION_METHODS
-        for v in pages.as_list(fm.get("verifications"))
+        isinstance(v, dict) and str(v.get("method")) in GATING_VERIFICATION_METHODS
+        for v in pages.as_list(fm.get("verified"))
     )
 
 
@@ -113,43 +135,47 @@ def _description(text: str) -> str:
     return text[: _DESCRIPTION_MAX - 1].rstrip() + "…"
 
 
-def _citations(
-    src_by_id: dict[str, pages.Page], source_ids: list[str]
-) -> tuple[list[str], list[str]]:
-    """(supports, citation lines) for a claim's sources, deduped, in order.
+def _attribution(
+    src_by_id: dict[str, pages.Page], cited: list[str]
+) -> tuple[list[dict], list[str]]:
+    """(OKF `sources` entries, footnote-definition lines) for a claim's cited
+    ids, deduped, in order.
 
-    Resolvable ids become bundle paths (`/references/<slug>`) and relative
-    markdown links; unresolvable ids are cited as plain text — dangling is
-    legal (SPEC §6.1), doctor counts them.
+    Resolvable ids get a followable bundle-absolute `resource`, the page
+    title, and a relative-linked definition; dangling ids keep just the id
+    and a plain-text definition — dangling is legal (SPEC §6.1), doctor
+    counts them.
     """
-    supports: list[str] = []
-    lines: list[str] = []
-    for n, sid in enumerate(dict.fromkeys(str(s) for s in source_ids), 1):
+    entries: list[dict] = []
+    defs: list[str] = []
+    for sid in dict.fromkeys(str(s) for s in cited):
         page = src_by_id.get(sid)
+        entry: dict = {"id": sid}
         if page is None:
-            lines.append(f"[{n}] {sid}")
+            defs.append(f"[^{sid}]: {sid} (not captured)")
         else:
-            supports.append(f"/references/{page.slug}")
-            label = str(page.fm.get("title") or sid)
-            lines.append(f"[{n}] [{label}](../references/{page.slug}.md)")
-    return supports, lines
+            entry["resource"] = f"/references/{page.slug}.md"
+            title = str(page.fm.get("title") or "")
+            if title:
+                entry["title"] = title
+            defs.append(f"[^{sid}]: [{title or sid}](../references/{page.slug}.md)")
+        entries.append(entry)
+    return entries, defs
 
 
-def _citations_block(lines: list[str]) -> str:
-    return CITATIONS_HEADING + "\n" + "\n".join(lines) + "\n" if lines else ""
-
-
-def _replace_citations(body: str, lines: list[str]) -> str:
-    """Swap the generated `# Citations` section (heading to end of body) for a
-    fresh one; prose above it survives byte-for-byte modulo trailing blanks."""
-    idx = body.find(CITATIONS_HEADING)
-    while idx > 0 and body[idx - 1] != "\n":
-        idx = body.find(CITATIONS_HEADING, idx + 1)
-    head = (body if idx == -1 else body[:idx]).rstrip("\n")
-    block = _citations_block(lines)
-    if not block:
-        return head + "\n" if head else ""
-    return (head + "\n\n" + block) if head else block
+def _apply_attribution(body: str, cited: list[str], defs: list[str]) -> str:
+    """Regenerate the two body parts flip owns — the id-shaped footnote
+    markers ending the lead paragraph and the definition lines — leaving the
+    prose itself untouched (SPEC §6.6)."""
+    text = _FOOT_DEF_RE.sub("", body).strip("\n")
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    head, sep, rest = text.partition("\n\n")
+    head = _MARKER_TAIL_RE.sub("", head.rstrip())
+    head += "".join(f"[^{sid}]" for sid in dict.fromkeys(str(s) for s in cited))
+    text = head + sep + rest if rest else head
+    if defs:
+        text = (text + "\n\n" if text else "") + "\n".join(defs)
+    return text + "\n" if text else ""
 
 
 def _regenerate_views(root: Path) -> None:
@@ -171,10 +197,10 @@ def add_claim(
     text = (text or "").strip()
     if not text:
         raise SystemExit("empty claim text; state the assertion in one sentence")
-    source_ids = [str(s) for s in pages.as_list(sources)]
+    cited = [str(s) for s in pages.as_list(sources)]
     claim_id = pages.allocate_id(root, "C")
     src_by_id = _source_pages_by_id(root)
-    supports, citation_lines = _citations(src_by_id, source_ids)
+    entries, defs = _attribution(src_by_id, cited)
 
     fm: dict = {
         "type": "Claim",
@@ -183,23 +209,22 @@ def add_claim(
         "description": _description(text),
         "status": "asserted",
         "load_bearing": bool(load_bearing),
-        "sources": source_ids,
-        "supports": supports,
+        "sources": entries,
         "independent_corroboration": corroboration_count(
-            [p.fm for p in src_by_id.values()], source_ids
+            [p.fm for p in src_by_id.values()], cited
         ),
         "first_asserted": util.today(),
-        "actor": util.detect_actor(),
+        "generated": util.generated_now(),
     }
     if notes:
         fm["notes"] = notes
 
-    parts = [text]
+    markers = "".join(f"[^{sid}]" for sid in dict.fromkeys(cited))
+    parts = [text + markers]
     if notes:
         parts.append(f"_{notes}_")
-    block = _citations_block(citation_lines)
-    if block:
-        parts.append(block.rstrip("\n"))
+    if defs:
+        parts.append("\n".join(defs))
     body = "\n\n".join(parts) + "\n"
 
     claims_dir = root / "claims"
@@ -212,7 +237,8 @@ def add_claim(
 
 def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
     """Move a claim to a new status, recomputing independent_corroboration and
-    refreshing supports + the `# Citations` block against current source slugs.
+    refreshing the `sources` entries + footnote attribution against current
+    source slugs.
 
     "verified" is gated by the notebook profile's verification bar: at least
     `claim_min_independent` sources with independence == "original", or — when
@@ -223,13 +249,13 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
     if status not in STATUSES:
         raise SystemExit(f"invalid claim status '{status}' (one of: {', '.join(STATUSES)})")
     page = _find_claim(root, claim_id)
-    source_ids = [str(s) for s in pages.as_list(page.fm.get("sources"))]
+    cited = source_ids(page.fm)
     src_by_id = _source_pages_by_id(root)
     source_fms = [p.fm for p in src_by_id.values()]
-    corroboration = corroboration_count(source_fms, source_ids)
+    corroboration = corroboration_count(source_fms, cited)
     if status == "verified":
         profile = profiles.load_profile(manifest.load_manifest(root).kind, root)
-        linked = _linked_fms(source_fms, source_ids)
+        linked = _linked_fms(source_fms, cited)
         has_grade_a = any(fm.get("grade") == "A" for fm in linked)
         bar_met = corroboration >= profile.claim_min_independent or (
             profile.claim_grade_a_suffices and has_grade_a
@@ -244,7 +270,7 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
             if profile.claim_grade_a_suffices:
                 msg += " and no grade-A source among its sources"
             msg += (
-                f" (sources: {', '.join(source_ids) or 'none'}); add independent original "
+                f" (sources: {', '.join(cited) or 'none'}); add independent original "
                 "sources to the claim"
             )
             if profile.claim_grade_a_suffices:
@@ -262,30 +288,31 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
                 "--method adversarial|recomputation`"
             )
             raise SystemExit(msg)
-    supports, citation_lines = _citations(src_by_id, source_ids)
+    entries, defs = _attribution(src_by_id, cited)
     page.fm["status"] = status
     page.fm["independent_corroboration"] = corroboration
-    page.fm["supports"] = supports
-    body = _replace_citations(page.body, citation_lines)
+    page.fm["sources"] = entries
+    page.fm.pop("supports", None)  # pre-0.7 key; the entries carry the paths now
+    body = _apply_attribution(page.body, cited, defs)
     pages.write_page(page.path, page.fm, body)
     manifest.touch_updated(root)
     _regenerate_views(root)
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
-def _write_sources(root: Path, page: pages.Page, source_ids: list[str]) -> pages.Page:
-    """Persist a claim's new `sources:` list: regenerate supports + the
-    `# Citations` block against current source slugs and recompute
-    independent_corroboration. Prose above the citations round-trips (SPEC §6.6)."""
-    ids = [str(s) for s in source_ids]
+def _write_sources(root: Path, page: pages.Page, cited: list[str]) -> pages.Page:
+    """Persist a claim's new cited-source list: regenerate the OKF `sources`
+    entries + footnote attribution against current source slugs and recompute
+    independent_corroboration. The prose round-trips (SPEC §6.6)."""
+    ids = [str(s) for s in cited]
     src_by_id = _source_pages_by_id(root)
-    supports, citation_lines = _citations(src_by_id, ids)
-    page.fm["sources"] = ids
-    page.fm["supports"] = supports
+    entries, defs = _attribution(src_by_id, ids)
+    page.fm["sources"] = entries
+    page.fm.pop("supports", None)
     page.fm["independent_corroboration"] = corroboration_count(
         [p.fm for p in src_by_id.values()], ids
     )
-    body = _replace_citations(page.body, citation_lines)
+    body = _apply_attribution(page.body, ids, defs)
     pages.write_page(page.path, page.fm, body)
     manifest.touch_updated(root)
     _regenerate_views(root)
@@ -293,10 +320,10 @@ def _write_sources(root: Path, page: pages.Page, source_ids: list[str]) -> pages
 
 
 def add_claim_sources(
-    root: Path, claim_id: str, source_ids: list[str]
+    root: Path, claim_id: str, new_ids: list[str]
 ) -> tuple[pages.Page, list[str], list[str]]:
     """Link one or more source ids to a claim (A1): append to `sources:`,
-    regenerate the `# Citations` block, recompute corroboration.
+    regenerate the footnote attribution, recompute corroboration.
 
     Unknown ids — no references/ page carries them — are refused before any
     write; this is the post-hoc linker, not a place to invent dangling cites.
@@ -305,7 +332,7 @@ def add_claim_sources(
     D12/§5.4). Refuses when every given id is already linked.
     """
     root = util.require_notebook_root(root)
-    ids = [str(s) for s in pages.as_list(source_ids)]
+    ids = [str(s) for s in pages.as_list(new_ids)]
     if not ids:
         raise SystemExit("no source ids given; pass at least one references/ id, e.g. A3")
     page = _find_claim(root, claim_id)
@@ -317,7 +344,7 @@ def add_claim_sources(
             f"unknown source id(s) {', '.join(unknown)}: no references/ page carries them "
             f"(known: {known}); capture the source with `flip add-source` first"
         )
-    current = [str(s) for s in pages.as_list(page.fm.get("sources"))]
+    current = source_ids(page.fm)
     added = [s for s in dict.fromkeys(ids) if s not in current]
     if not added:
         raise SystemExit(
@@ -330,12 +357,12 @@ def add_claim_sources(
 
 def remove_claim_source(root: Path, claim_id: str, source_id: str) -> pages.Page:
     """Unlink a source id from a claim (A1): drop it from `sources:`, regenerate
-    the `# Citations` block, recompute corroboration. Refuses when the claim
+    the footnote attribution, recompute corroboration. Refuses when the claim
     does not cite that id."""
     root = util.require_notebook_root(root)
     sid = str(source_id)
     page = _find_claim(root, claim_id)
-    current = [str(s) for s in pages.as_list(page.fm.get("sources"))]
+    current = source_ids(page.fm)
     if sid not in current:
         raise SystemExit(
             f"claim {claim_id} does not cite {sid} (sources: {', '.join(current) or 'none'})"
@@ -350,9 +377,11 @@ def verify_claim(
     against: list[str] | None = None,
     note: str | None = None,
 ) -> pages.Page:
-    """Record a verification on a claim (A2): append a {method, by, against,
-    date, note} record to the `verifications:` frontmatter list. Append-only —
-    records are added, never edited — and never touches sources or corroboration.
+    """Record a verification on a claim (A2): append a {by, at, method,
+    against, note} event to the `verified:` frontmatter list — OKF v0.2 §5.2
+    verification events (by/at drive consumer trust tiers), with flip's
+    method/against/note riding along as extension keys. Append-only — records
+    are added, never edited — and never touches sources or corroboration.
 
     `adversarial` and `recomputation` clear the `verified` gate on their own
     (see set_claim_status); `independent-sources` records the corroboration
@@ -365,16 +394,15 @@ def verify_claim(
             f"(one of: {', '.join(VERIFICATION_METHODS)})"
         )
     page = _find_claim(root, claim_id)
-    record: dict = {"method": method, "by": util.detect_actor()}
+    record: dict = {"by": util.detect_actor(), "at": util.utc_now(), "method": method}
     refs = [str(a) for a in pages.as_list(against)]
     if refs:
         record["against"] = refs
-    record["date"] = util.today()
     if note:
         record["note"] = note
-    records = pages.as_list(page.fm.get("verifications"))
+    records = pages.as_list(page.fm.get("verified"))
     records.append(record)
-    page.fm["verifications"] = records
+    page.fm["verified"] = records
     pages.write_page(page.path, page.fm, page.body)
     manifest.touch_updated(root)
     _regenerate_views(root)

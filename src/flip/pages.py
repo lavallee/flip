@@ -204,6 +204,18 @@ def as_list(value) -> list:
     return [value]
 
 
+def generated_by(fm: dict) -> str:
+    """The actor from an OKF `generated: {by, at}` mapping, else ""."""
+    g = fm.get("generated")
+    return str(g.get("by", "")) if isinstance(g, dict) else ""
+
+
+def generated_at(fm: dict) -> str:
+    """The timestamp from an OKF `generated: {by, at}` mapping, else ""."""
+    g = fm.get("generated")
+    return str(g.get("at", "")) if isinstance(g, dict) else ""
+
+
 def find_by_id(root: Path, entity_id: str) -> Page | None:
     """Resolve a compact id ([A3], [C7], [H1]…) to its page via frontmatter
     scan. Prefix routes to the right directory; falls back to scanning all

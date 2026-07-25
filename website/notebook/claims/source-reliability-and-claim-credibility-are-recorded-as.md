@@ -8,15 +8,15 @@ description: Source reliability and claim credibility are recorded as two separa
 status: needs-2nd
 load_bearing: false
 sources:
-- F1
-supports:
-- /references/flip-spec
+- id: F1
+  resource: /references/flip-spec.md
+  title: SPEC.md
 independent_corroboration: 0
 first_asserted: '2026-07-25'
-actor: human:marc
+generated:
+  by: human:marc
 ---
 
-Source reliability and claim credibility are recorded as two separate judgments, after Admiralty source-grading practice
+Source reliability and claim credibility are recorded as two separate judgments, after Admiralty source-grading practice[^F1]
 
-# Citations
-[1] [SPEC.md](../references/flip-spec.md)
+[^F1]: [SPEC.md](../references/flip-spec.md)

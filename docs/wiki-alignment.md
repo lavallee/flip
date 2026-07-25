@@ -1,6 +1,7 @@
 # flip and the LLM-wiki pattern — OKF and OpenWiki alignment
 
-**Status:** design note, updated for spec v0.4. Explains how a flip notebook
+**Status:** design note, updated for spec v0.4; OKF references updated to
+v0.2 (2026-07-25). Explains how a flip notebook
 relates to OKF and repo wikis, and what `flip export okf` does now that the
 notebook itself is a bundle.
 
@@ -10,18 +11,18 @@ Karpathy's LLM-wiki framing ([gist, 2026-04][karpathy]) is three layers: raw
 sources dropped immutably in `raw/`, an LLM-compiled interlinked markdown wiki,
 and a conventions doc — all in git, "a persistent, compounding artifact"
 instead of RAG rediscovering knowledge from scratch per question. Google's
-[Open Knowledge Format (OKF) v0.1][okf-spec] (June 2026) formalizes the wiki
-layer: a **bundle** is a directory of markdown **concepts** with YAML
+[Open Knowledge Format (OKF)][okf-spec] (June 2026, now v0.2) formalizes the
+wiki layer: a **bundle** is a directory of markdown **concepts** with YAML
 frontmatter (`type` is the only required field), reserved `index.md`/`log.md`
-files, untyped links, `# Citations` blocks, and consumers that must tolerate
-anything they don't understand. [LangChain's OpenWiki][openwiki] is the same
+files, untyped links, frontmatter `sources` with footnote attribution, and
+consumers that must tolerate anything they don't understand. [LangChain's OpenWiki][openwiki] is the same
 idea pointed at codebases: an agent generates and incrementally maintains
 `openwiki/` in your repo.
 
 Through v0.3, flip sat *beside* this pattern and projected into it: the
 notebook was JSONL ledgers, and `flip export okf` transformed them into a
 bundle. **As of v0.4 the notebook is a citizen, not an export surface: a
-flip notebook is a conformant OKF v0.1 bundle at rest.** Every source,
+flip notebook is a conformant OKF v0.2 bundle at rest.** Every source,
 claim, decision, question, and session is an OKF concept page; the manifest
 lives in the bundle root's `index.md` frontmatter (the one index OKF allows
 frontmatter on); `log.md` is the reserved update log; `sources/raw/` and the
@@ -31,8 +32,9 @@ visualizer, a catalog, another agent — can browse a live notebook directly.
 
 ## flip as an OKF extension profile
 
-What flip adds is what OKF v0.1 deliberately leaves open: a provenance
-scheme. The difference is what the layers are *for*:
+What flip adds is what OKF deliberately leaves open — v0.2 records
+provenance *signals* (`sources`, `generated`, `verified`) but refuses to
+store judgments: custody, grading, and corroboration gates. The difference is what the layers are *for*:
 
 | | LLM wiki / OKF bundle | flip notebook |
 |---|---|---|
@@ -44,8 +46,9 @@ SPEC §6 states the profile as eight lineage rules — capture before cite,
 judgment separate from capture, status-carrying claims, logged generation,
 append-only events with regenerated views, unknown-key preservation,
 attribution everywhere, renders never edited — plus an extension vocabulary
-(`id`, `aliases`, `grade`, `independence`, `freshness`, `status`, `sources`,
-`supports`, `actor`, …) layered on OKF's base keys. Everything conformant:
+(`id`, `aliases`, `grade`, `independence`, `freshness`, `local`,
+`load_bearing`, `independent_corroboration`, `method` on `verified` events,
+…) layered on OKF's base keys. Everything conformant:
 
 - **`references/` as the custody layer.** The OKF spec blesses `references/`
   as the home for external material mirrored as first-class concepts; flip's
@@ -53,16 +56,18 @@ attribution everywhere, renders never edited — plus an extension vocabulary
   judgment (`grade`/`independence`/`freshness`) as extension frontmatter.
   Consumers MUST preserve unknown keys, so lineage survives round-trips
   through stock tooling.
-- **Claims with machine edges and human citations.** `sources: [A3]` (stable
-  ids) and `supports: [/references/<slug>]` (bundle paths) in frontmatter;
-  a numbered `# Citations` block in the body. Dangling citations are legal
+- **Claims with machine edges and human citations.** OKF v0.2 `sources`
+  entries (`{id, resource, title}`) in frontmatter; footnote markers keyed
+  to `sources[].id` in the body, with generated definition lines whose
+  relative links keep graph tools lit. Dangling citations are legal
   in OKF ("broken links may represent not-yet-written knowledge") — flip
   keeps them legal but `flip doctor` counts them.
 - **Untyped links, typed frontmatter.** OKF links are deliberately untyped;
   epistemics ("corroborated by", "contradicts") live in prose and extension
   frontmatter lists. The W3C Holon CG is exploring formal-semantics profiles
-  for exactly this layer; OKF v0.1 has no provenance scheme and flip has a
-  worked one, so proposing flip's vocabulary upstream as a candidate OKF
+  for exactly this layer; OKF v0.2 records provenance signals but leaves
+  judgment (custody, grading, corroboration gates) to profiles, and flip has
+  a worked one — proposing flip's vocabulary upstream as a candidate OKF
   provenance profile is an open question the spec tracks (SPEC §19).
 - **Generated views where OKF expects them.** `index.md` listing bodies and
   `log.md` regenerate deterministically from pages and ledgers on every

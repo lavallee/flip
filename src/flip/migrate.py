@@ -1,6 +1,6 @@
 """In-place upgrades to the current flip profile (SPEC §15).
 
-Two passes, dispatched by what's on disk. A v0.3 notebook keeps its identity
+Three passes, dispatched by what's on disk. A v0.3 notebook keeps its identity
 in notebook.toml and its entities in JSONL ledgers (sources/ledger.jsonl,
 analysis/claims.jsonl, log/decisions.jsonl, log/questions.jsonl) plus session
 files under log/sessions/; the first pass converts all of that to the page
@@ -8,10 +8,13 @@ shape — manifest frontmatter in the root index.md, one entity page per
 source / claim / decision / question / session — preserving every id, every
 recorded field, and the append-only event history (log/log.jsonl,
 log/passed.jsonl, sources/_provenance.jsonl, derived/ are left untouched).
-The second pass brings any manifest to the 0.5 profile: mint the notebook
-uid (SPEC §4) and move links.beat to the canonical ':' separator (this
-rewrite of stored '#' refs continues even though '#' reads were removed in
-0.10).
+The OKF v0.2 page pass (profile 0.7) rewrites entity pages in place:
+timestamp/actor fold into `generated: {by, at}`, claims trade flat source
+ids + `supports` + the `# Citations` block for OKF `sources` entries +
+footnote attribution, and `verifications` records become `verified` events.
+The profile pass brings any manifest current: mint the notebook uid (SPEC
+§4) and move links.beat to the canonical ':' separator (this rewrite of
+stored '#' refs continues even though '#' reads were removed in 0.10).
 
 Each ledger's pages are written before that ledger is deleted, and
 notebook.toml is deleted last, so an interrupted migration resumes cleanly:
@@ -23,6 +26,7 @@ current notebook is a refusal, not a no-op, so scripted callers notice.
 
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
 
@@ -163,27 +167,24 @@ _CLAIM_CONSUMED = (
 )
 
 
-def _citations(src_by_id: dict[str, pages.Page], source_ids: list[str]) -> tuple[list[str], list[str]]:
-    """(supports, citation lines), deduped, matching claims.add_claim's shape.
-    Unresolvable ids are cited as plain text — dangling is legal (SPEC §6.1)."""
-    supports: list[str] = []
-    lines: list[str] = []
-    for n, sid in enumerate(dict.fromkeys(str(s) for s in source_ids), 1):
-        page = src_by_id.get(sid)
-        if page is None:
-            lines.append(f"[{n}] {sid}")
-        else:
-            supports.append(f"/references/{page.slug}")
-            label = str(page.fm.get("title") or sid)
-            lines.append(f"[{n}] [{label}](../references/{page.slug}.md)")
-    return supports, lines
+def _generated_from(actor: object, ts: object) -> dict | None:
+    """A best-effort OKF `generated` mapping from legacy actor/timestamp
+    values; None when neither survives. Ledger rows always carried an actor,
+    so `by` is present in practice — a ts-only mapping is still emitted
+    rather than dropping the date on the floor."""
+    g: dict = {}
+    if actor:
+        g["by"] = str(actor)
+    if ts:
+        g["at"] = str(ts)
+    return g or None
 
 
 def _write_claim_page(root: Path, row: dict, src_by_id: dict[str, pages.Page]) -> pages.Page:
     cid = str(row["id"])
     text = str(row.get("text") or "").strip() or cid
     source_ids = [str(s) for s in row.get("sources") or []]
-    supports, citation_lines = _citations(src_by_id, source_ids)
+    entries, defs = claims._attribution(src_by_id, source_ids)
     notes = str(row.get("notes") or "")
     fm: dict = {
         "type": "Claim",
@@ -192,24 +193,25 @@ def _write_claim_page(root: Path, row: dict, src_by_id: dict[str, pages.Page]) -
         "description": _description(text),
         "status": str(row.get("status") or "asserted"),
         "load_bearing": bool(row.get("load_bearing")),
-        "sources": source_ids,
-        "supports": supports,
+        "sources": entries,
         # stored for consumers, recomputed here so it tracks the new pages
         "independent_corroboration": claims.corroboration_count(
             [p.fm for p in src_by_id.values()], source_ids
         ),
         "first_asserted": str(row.get("first_asserted") or today()),
     }
-    if row.get("actor"):
-        fm["actor"] = str(row["actor"])
+    generated = _generated_from(row.get("actor"), None)
+    if generated:
+        fm["generated"] = generated
     if notes:
         fm["notes"] = notes
     fm.update({k: v for k, v in row.items() if k not in _CLAIM_CONSUMED})
-    parts = [text]
+    markers = "".join(f"[^{sid}]" for sid in dict.fromkeys(source_ids))
+    parts = [text + markers]
     if notes:
         parts.append(f"_{notes}_")
-    if citation_lines:
-        parts.append(claims.CITATIONS_HEADING + "\n" + "\n".join(citation_lines))
+    if defs:
+        parts.append("\n".join(defs))
     body = "\n\n".join(parts) + "\n"
     directory = root / "claims"
     slug = pages.unique_slug(directory, pages.slugify(text, fallback=cid.lower()))
@@ -237,10 +239,9 @@ def _write_decision_page(root: Path, row: dict) -> pages.Page:
     }
     if rejected:
         fm["alternatives_rejected"] = rejected
-    if row.get("ts"):
-        fm["timestamp"] = str(row["ts"])
-    if row.get("actor"):
-        fm["actor"] = str(row["actor"])
+    generated = _generated_from(row.get("actor"), row.get("ts"))
+    if generated:
+        fm["generated"] = generated
     fm.update({k: v for k, v in row.items() if k not in _DECISION_CONSUMED})
     paragraphs = [
         f"**Question.** {question}",
@@ -303,10 +304,9 @@ def _write_question_page(root: Path, rec: dict) -> pages.Page:
         "description": _description(text),
         "status": rec["status"],
     }
-    if ask.get("ts"):
-        fm["timestamp"] = str(ask["ts"])
-    if ask.get("actor"):
-        fm["actor"] = str(ask["actor"])
+    generated = _generated_from(ask.get("actor"), ask.get("ts"))
+    if generated:
+        fm["generated"] = generated
     body = text + "\n"
     answer = rec["answer"]
     if rec["status"] == "answered" and answer is not None:
@@ -413,12 +413,13 @@ def _beat_link_fix(links: dict) -> str | None:
 
 
 def _upgrade_profile(root: Path) -> dict:
-    """Bring the manifest at `root` to the 0.5 profile: mint the notebook uid
-    when missing (an existing uid is identity — never re-minted) and move
+    """Bring the manifest at `root` to the current profile: mint the notebook
+    uid when missing (an existing uid is identity — never re-minted) and move
     links.beat to the canonical ':' separator. save_manifest stamps
-    flip: FLIP_PROFILE_VERSION; every other key — foreign frontmatter
-    included — round-trips untouched. Only the beat link is rewritten:
-    '#' anywhere else in links is somebody's URL fragment, not ours.
+    flip: FLIP_PROFILE_VERSION and okf_version 0.2; every other key — foreign
+    frontmatter included — round-trips untouched. Only the beat link is
+    rewritten: '#' anywhere else in links is somebody's URL fragment, not
+    ours.
     """
     m = manifest.load_manifest(root)
     counts = {"uid_added": 0, "beat_link_rewritten": 0,
@@ -437,6 +438,90 @@ def _upgrade_profile(root: Path) -> dict:
     return counts
 
 
+# --- OKF v0.2 page layout (profile 0.7) ------------------------------------
+
+# The generated `# Citations` section of a pre-0.7 claim body: heading to end
+# of body, matching what the old generator owned.
+_CITATIONS_SECTION_RE = re.compile(r"(?:^|\n)# Citations\n.*\Z", re.S)
+
+# Entity directories rewritten in place. references/ first, so claim
+# attribution resolves against final source pages.
+_PAGE_DIRS = ("references", "claims", "decisions", "questions", "sessions", "threads")
+
+
+def _upgrade_claim_fm(fm: dict, body: str, src_by_id: dict[str, pages.Page]) -> tuple[dict, str, bool]:
+    """One claim's pre-0.7 shape → OKF v0.2: flat `sources` ids become
+    entries, `supports` is dropped (the entries carry the paths), the
+    `# Citations` body section becomes footnote attribution, and
+    `verifications` records ({method, by, against, date, note}) become
+    `verified` events ({by, at, method, …})."""
+    changed = False
+    flat = any(not isinstance(e, dict) for e in pages.as_list(fm.get("sources")))
+    if flat or "supports" in fm or _CITATIONS_SECTION_RE.search(body):
+        cited = claims.source_ids(fm)
+        entries, defs = claims._attribution(src_by_id, cited)
+        fm["sources"] = entries
+        fm.pop("supports", None)
+        body = _CITATIONS_SECTION_RE.sub("", body)
+        body = claims._apply_attribution(body, cited, defs)
+        changed = True
+    legacy = fm.pop("verifications", None)
+    if legacy is not None:
+        records = pages.as_list(fm.get("verified"))
+        for v in pages.as_list(legacy):
+            if not isinstance(v, dict):
+                continue
+            rec: dict = {"by": str(v.get("by", ""))}
+            if v.get("date"):
+                rec["at"] = str(v["date"])
+            if v.get("method"):
+                rec["method"] = str(v["method"])
+            against = [str(a) for a in pages.as_list(v.get("against"))]
+            if against:
+                rec["against"] = against
+            if v.get("note"):
+                rec["note"] = str(v["note"])
+            records.append(rec)
+        fm["verified"] = records
+        changed = True
+    return fm, body, changed
+
+
+def _upgrade_pages_okf02(root: Path) -> dict:
+    """Rewrite entity pages in place to the OKF v0.2 layout (profile 0.7):
+    flat `timestamp`/`actor` fold into `generated: {by, at}` on every page,
+    and claims get the full shape change (_upgrade_claim_fm). Idempotent —
+    an already-0.7 page is untouched. Foreign keys round-trip (SPEC §6.6)."""
+    count = 0
+    src_by_id = {p.id: p for p in pages.iter_pages(root, "references") if p.id}
+    for dirname in _PAGE_DIRS:
+        directory = root / dirname
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.glob("*.md")):
+            if path.name in pages.RESERVED or path.name.startswith("_"):
+                continue
+            page = pages.read_page(path)
+            fm, body, changed = dict(page.fm), page.body, False
+            ts = fm.pop("timestamp", None)
+            actor = fm.pop("actor", None)
+            if ts is not None or actor is not None:
+                g = fm.get("generated") if isinstance(fm.get("generated"), dict) else {}
+                if actor and "by" not in g:
+                    g["by"] = str(actor)
+                if ts and "at" not in g:
+                    g["at"] = str(ts)
+                fm["generated"] = g
+                changed = True
+            if dirname == "claims" and str(fm.get("type", "")) == "Claim":
+                fm, body, claim_changed = _upgrade_claim_fm(fm, body, src_by_id)
+                changed = changed or claim_changed
+            if changed:
+                pages.write_page(path, fm, body)
+                count += 1
+    return {"pages_okf02": count}
+
+
 # --- the migration --------------------------------------------------------
 
 
@@ -444,18 +529,22 @@ def migrate(root: Path) -> dict:
     """Upgrade the notebook at `root` to the current profile, in place.
 
     A v0.3 notebook (notebook.toml present) runs the full ledger→pages
-    conversion, then the profile pass; a page-shaped notebook gets the
-    profile pass alone. An already-current notebook is a refusal. Returns a
-    summary dict: {"uid_added": n, "beat_link_rewritten": n, "profile":
-    FLIP_PROFILE_VERSION}, plus — on the v0.3 path — per-entity counts
-    {"sources": n, "claims": n, "decisions": n, "questions": n,
-    "sessions": n, "already_migrated": n}; the last counts ledger rows
-    skipped because a page with their id already exists (a resumed run).
+    conversion, then the OKF v0.2 page pass and the profile pass; a
+    page-shaped notebook gets the page pass (timestamp/actor → generated,
+    claims to sources entries + footnote attribution, verifications →
+    verified) and the profile pass. An already-current notebook is a
+    refusal. Returns a summary dict: {"uid_added": n, "beat_link_rewritten":
+    n, "pages_okf02": n, "profile": FLIP_PROFILE_VERSION}, plus — on the
+    v0.3 path — per-entity counts {"sources": n, "claims": n, "decisions":
+    n, "questions": n, "sessions": n, "already_migrated": n}; the last
+    counts ledger rows skipped because a page with their id already exists
+    (a resumed run).
     """
     root = Path(root)
     toml_path = root / NOTEBOOK_TOML
     if toml_path.is_file():
         counts = _migrate_v03(root, toml_path)
+        counts.update(_upgrade_pages_okf02(root))  # idempotent belt-and-suspenders
         counts.update(_upgrade_profile(root))
         return counts
     if not is_notebook_root(root):
@@ -470,7 +559,10 @@ def migrate(root: Path) -> dict:
             f"{root} is already at the current profile (flip "
             f"{manifest.FLIP_PROFILE_VERSION}, uid {m.uid}); nothing to migrate"
         )
-    return _upgrade_profile(root)
+    counts = _upgrade_pages_okf02(root)
+    counts.update(_upgrade_profile(root))
+    _regenerate_views(root)
+    return counts
 
 
 def _migrate_v03(root: Path, toml_path: Path) -> dict:

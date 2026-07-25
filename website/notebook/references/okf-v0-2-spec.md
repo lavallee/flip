@@ -1,0 +1,20 @@
+---
+type: Source
+id: A2
+aliases:
+- A2
+title: raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/main/okf/SPEC.md
+description: Open Knowledge Format (OKF) v0.2 specification, captured from the knowledge-catalog
+  repo main branch
+resource: https://raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/main/okf/SPEC.md
+local: sources/raw/A2/capture.txt
+grade: A
+independence: original
+freshness: fresh
+status: captured
+actor: agent:claude
+---
+
+# raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/main/okf/SPEC.md
+
+Open Knowledge Format (OKF) v0.2 specification, captured from the knowledge-catalog repo main branch

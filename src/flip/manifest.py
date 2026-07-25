@@ -21,11 +21,12 @@ from .util import ROOT_FILE, today
 
 VISIBILITIES = ("private", "internal", "client-confidential", "public")
 STATUSES = ("active", "dormant", "done", "published", "archived")
-# 0.6 adds additive keys only — claims may carry `verifications`, questions
-# may carry `formulations`, and the `pursuit` kind arrives — so readers accept
-# 0.5 notebooks untouched and `flip migrate` treats 0.5 → 0.6 as a version-only
-# bump (no page moves). uid gating stays at 0.5+.
-FLIP_PROFILE_VERSION = "0.6"
+# 0.7 is the OKF v0.2 layout (design-okf-0.2): pages carry `generated: {by,
+# at}` instead of flat timestamp/actor, claims carry OKF `sources` entries +
+# footnote attribution instead of supports + a `# Citations` block, and
+# verification records live in `verified:` ({by, at, method, …}). `flip
+# migrate` rewrites 0.4–0.6 notebooks in place. uid gating stays at 0.5+.
+FLIP_PROFILE_VERSION = "0.7"
 
 # SPEC §3: slugs are filesystem- and cite-safe. Validated at create/save so a
 # bad slug never reaches disk (it names files and every <slug>:<id> cross-ref).
@@ -134,7 +135,7 @@ def load_manifest(root: Path) -> Manifest:
 
 
 def manifest_frontmatter(m: Manifest) -> dict:
-    fm: dict = {"okf_version": "0.1", "flip": FLIP_PROFILE_VERSION, "slug": m.slug}
+    fm: dict = {"okf_version": "0.2", "flip": FLIP_PROFILE_VERSION, "slug": m.slug}
     if m.uid:
         fm["uid"] = m.uid
     if m.title:

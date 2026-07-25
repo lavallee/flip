@@ -149,10 +149,10 @@ def claim_page(
         "description": f"claim {cid}",
         "status": status,
         "load_bearing": load_bearing,
-        "sources": sources or [],
+        "sources": [{"id": sid} for sid in (sources or [])],
         "independent_corroboration": corroboration,
         "first_asserted": "2026-07-09",
-        "actor": "human:test",
+        "generated": {"by": "human:test", "at": "2026-07-09T14:31:02Z"},
     }
     return pages.write_page(
         root / "claims" / f"{cid.lower()}-claim.md", fm, body or f"claim {cid}\n"
@@ -621,8 +621,8 @@ def test_under_verified_cleared_by_adversarial_record(tmp_path):
     source_page(root, "A1", grade="B", independence="republisher")  # 0 original
     path = claim_page(root, "C1", status="verified", load_bearing=True, sources=["A1"])
     page = pages.read_page(path)
-    page.fm["verifications"] = [{"method": "adversarial", "by": "agent:test",
-                                 "date": today()}]
+    page.fm["verified"] = [{"method": "adversarial", "by": "agent:test",
+                            "at": f"{today()}T14:31:02Z"}]
     pages.write_page(path, page.fm, page.body)
     assert "under-verified" not in codes(run_doctor(root))
 
@@ -654,8 +654,8 @@ def test_asserted_claim_with_verification_record_is_not_unaudited(tmp_path):
     root = make_notebook(tmp_path)
     path = claim_page(root, "C1", status="asserted", load_bearing=True)
     page = pages.read_page(path)
-    page.fm["verifications"] = [{"method": "adversarial", "by": "agent:test",
-                                 "date": today()}]
+    page.fm["verified"] = [{"method": "adversarial", "by": "agent:test",
+                            "at": f"{today()}T14:31:02Z"}]
     pages.write_page(path, page.fm, page.body)
     assert "unaudited-claim" not in codes(run_doctor(root))
 

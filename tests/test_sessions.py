@@ -51,7 +51,7 @@ def test_start_session_creates_stubbed_page(root: Path):
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{4}-corpus-sweep\.md", path.name)
     page = pages.read_page(path)
     assert page.fm["type"] == "Work Session"
-    assert page.fm["actor"] == "agent:test"
+    assert pages.generated_by(page.fm) == "agent:test"
     assert re.fullmatch(_TS_RE, page.fm["started"])
     assert "model" not in page.fm
     assert "tools" not in page.fm
@@ -98,7 +98,7 @@ def test_end_session_by_path_sets_frontmatter_ended(root: Path):
     assert got == path
     page = pages.read_page(path)
     assert re.fullmatch(_TS_RE, page.fm["ended"])  # ended lives in FRONTMATTER
-    assert page.fm["actor"] == "agent:test"  # existing keys untouched
+    assert pages.generated_by(page.fm) == "agent:test"  # existing keys untouched
     assert re.fullmatch(_TS_RE, page.fm["started"])
     assert page.body.rstrip().endswith("## Summary\nfound the pattern")
     assert "## Goal" in page.body  # stubs survive the rewrite

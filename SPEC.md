@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.10 · 2026-07-24
+**Status:** draft v0.11 · 2026-07-25
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -12,7 +12,7 @@ the trajectory of a piece of research lives in the notebook.
 
 As of v0.4, **a flip notebook is a conformant
 [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
-(OKF v0.1) knowledge bundle at rest** — not an export target. flip is an
+(OKF v0.2) knowledge bundle at rest** — not an export target. flip is an
 *extension profile* of OKF, not a competing format: it adds the provenance
 vocabulary and generation discipline that OKF deliberately leaves open, so
 that LLM-built wikis preserve lineage (§6). Any OKF consumer can browse a
@@ -161,8 +161,8 @@ already looks, and where Obsidian shows it as editable properties.
 
 ```markdown
 ---
-okf_version: "0.1"
-flip: "0.5"                 # flip profile version this notebook conforms to
+okf_version: "0.2"
+flip: "0.7"                 # flip profile version this notebook conforms to
 slug: nj-schools
 uid: nb-7k3m9p2x             # stable machine identity; travels with the bundle
 title: "NJ schools: five years of test-score data"
@@ -308,17 +308,24 @@ flip.
    `index.md` bodies and `log.md` are disposable projections of it.
 6. **Unknown keys survive.** Any tool editing a page preserves frontmatter it
    doesn't understand (OKF's consumer rule, applied to writers).
-7. **Attribution everywhere.** Every event and every entity page records its
-   `actor` (`human:<name>` / `agent:<name>`).
+7. **Attribution everywhere.** Every ledger event records its `actor`, and
+   every entity page records OKF's `generated: {by, at}` (§5.2 of the OKF
+   spec) — who produced the content and when. Actor strings are
+   `human:<name>` / `agent:<name>` / `tool:<name>`; OKF's trust tiers key
+   off the `human:` prefix, which flip's convention matches.
 8. **Renders are never edited.** Fixes flow to the notebook and re-render.
 
-Extension vocabulary summary — flip's frontmatter keys beyond OKF's
-(`type`/`title`/`description`/`resource`/`tags`/`timestamp`): `id`,
-`aliases`, `actor`, `grade`, `independence`, `freshness`, `status`, `local`,
-`sha256` (on export), `date`, `authors`, `publisher`, `load_bearing`,
-`sources`, `supports`, `independent_corroboration`, `first_asserted`,
-`question`, `alternatives_rejected`, `model`, `tools`, `started`, `ended`.
-OKF consumers must preserve and may ignore all of them.
+Extension vocabulary summary — flip's frontmatter keys beyond OKF v0.2's
+(`type`/`title`/`description`/`resource`/`tags`/`sources`/`generated`/
+`verified`/`status`/`stale_after`): `id`, `aliases`, `grade`,
+`independence`, `freshness`, `local`, `sha256` (on export), `date`,
+`authors`, `publisher`, `load_bearing`, `independent_corroboration`,
+`first_asserted`, `question`, `alternatives_rejected`, `model`, `tools`,
+`started`, `ended` — plus extension keys *inside* OKF structures: `method`,
+`against`, and `note` on `verified` events. flip's `status` vocabularies
+(claim and question statuses, notebook lifecycle) extend OKF §5.4's
+advisory `draft|stable|deprecated` values. OKF consumers must preserve and
+may ignore all of them.
 
 ## 7. Claims — `claims/<slug>.md`
 
@@ -330,18 +337,17 @@ aliases: [C7]
 description: "AI retail traffic converts ~42% better than non-AI"
 status: needs-2nd
 load_bearing: true
-sources: [A12]
-supports: [/references/single-vendor-conversion-study]
+sources:
+  - { id: A12, resource: /references/single-vendor-conversion-study.md, title: Single-vendor conversion study }
 independent_corroboration: 1
 first_asserted: 2026-07-09
-actor: agent:claude
+generated: { by: agent:claude, at: 2026-07-09T14:31:02Z }
 ---
-AI retail traffic converts ~42% better than non-AI.
+AI retail traffic converts ~42% better than non-AI.[^A12]
 
 _Single vendor study; seek platform data or a second measurement._
 
-# Citations
-[1] [Single-vendor conversion study](../references/single-vendor-conversion-study.md)
+[^A12]: [Single-vendor conversion study](../references/single-vendor-conversion-study.md)
 ```
 
 `status`: `asserted` → `verified` | `needs-2nd` | `unconfirmed` |
@@ -349,15 +355,23 @@ _Single vendor study; seek platform data or a second measurement._
 with the corroboration its profile demands (default: two independent
 sources or one grade-A primary), counting only judged sources.
 `independent_corroboration` is stored for consumers but recomputed by the
-tooling — doctor flags drift. `sources` holds ids (machine-stable);
-`supports` holds bundle paths (OKF-traversable); the `# Citations` block is
-the human/agent-readable edge list. Fine-grained span anchoring may use W3C
-Web Annotation selectors; optional.
+tooling — doctor flags drift. `sources` is OKF v0.2 §5.1 provenance: one
+entry per cited source, `{id, resource, title?}`, where `id` is the
+machine-stable source id and `resource` the followable bundle-absolute page
+path (a dangling cite — legal, §6.1 — keeps just its `id`). Per-claim
+attribution follows the OKF footnote idiom: the assertion carries `[^A12]`
+markers keyed to `sources[].id`, and the generated definition lines at the
+body's end double as relative links, so link-graph tools (Obsidian) keep
+their edges. Both generated parts are regenerated on status/source changes;
+labels are always id-shaped, so hand-authored footnotes survive.
+Fine-grained span anchoring may use W3C Web Annotation selectors; optional.
 
-**Verification methods** (`verifications:`) widen the honest ways a claim
-earns `verified` without softening the bar. The key is an append-only list of
-records — records are added, never edited — each `{method, by, against?,
-date, note?}` where `method` is `adversarial` (a skeptic pass that sought
+**Verification methods** (`verified:`) widen the honest ways a claim earns
+its status without softening the bar. The key is OKF v0.2 §5.2's
+verification-event list, append-only — records are added, never edited —
+each `{by, at, method, against?, note?}`: `by`/`at` are OKF's (consumers
+derive trust tiers from the `human:` prefix), and `method` is flip's
+extension: `adversarial` (a skeptic pass that sought
 disconfirming evidence), `independent-sources` (documents the corroboration
 reasoning), or `recomputation` (the result re-derived independently). A claim
 passes the `verified` gate when **either** the profile's corroboration bar is
@@ -387,8 +401,9 @@ full journey.
 - **`log/passed.jsonl`** (append-only) — negative evidence: considered and
   rejected, with reason. Prevents rediscovery loops.
 - **`sessions/<stamp>-<slug>.md`** — one entity page per working episode
-  (`type: Work Session`; frontmatter: `actor`, `model`, `tools`, `started`,
-  `ended`): the goal, the prompt (or pointer), key outputs, pointer to the
+  (`type: Work Session`; frontmatter: `generated: {by, at}`, `model`,
+  `tools`, `started`, `ended`): the goal, the prompt (or pointer), key
+  outputs, pointer to the
   raw transcript when kept. LLM synthesis recorded here is a **lead**, grade
   `C`, until promoted through `references/`.
 - Provenance and derivation ledgers stay under `sources/` and `derived/`
@@ -845,7 +860,10 @@ exists above.
   (today it's judgment; should high-score staleness force the question?).
 - **OKF profile standing** — whether flip's extension vocabulary should be
   proposed upstream (the W3C Holon CG is exploring formal-semantics
-  profiles; OKF v0.1 has no provenance scheme, and flip has a worked one).
+  profiles). OKF v0.2 moved toward flip — `sources` with credibility
+  signals, `generated`, `verified` are core now — which sharpens the
+  question: the still-open remainder is custody (local bytes, hashes at
+  capture), explicit grading, corroboration bars, and negative evidence.
 - **Obsidian plugin** — thin metadata surface over `flip … --json` (§12).
 - **OCR/transcript quality provenance**; **corroboration graph** (shared
   upstream origins detected); **migration adapters** for pre-flip notebook

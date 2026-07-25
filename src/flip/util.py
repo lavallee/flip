@@ -115,6 +115,11 @@ def today() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
+def generated_now() -> dict:
+    """OKF v0.2 `generated` mapping: who produced the content, and when."""
+    return {"by": detect_actor(), "at": utc_now()}
+
+
 def stamp_slug() -> str:
     """Timestamp prefix for session/log filenames: 2026-07-10T1431."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M")

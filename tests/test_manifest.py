@@ -155,7 +155,7 @@ def test_manifest_frontmatter_declares_okf_and_flip_versions():
     fm = manifest_frontmatter(Manifest(slug="t"))
     keys = list(fm)
     assert keys[:3] == ["okf_version", "flip", "slug"]  # canonical order, OKF-first
-    assert fm["okf_version"] == "0.1"
+    assert fm["okf_version"] == "0.2"
     assert fm["flip"] == FLIP_PROFILE_VERSION
 
 
