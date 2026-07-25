@@ -6,6 +6,26 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.1] — 2026-07-25
+
+### Added
+- **Kinds answer to what people actually say.** Every kind carries `aka`
+  plain-language phrases; `flip new --kind "literature review"`,
+  `flip kind adopt "due diligence"`, and `flip kind show "deep dive"` all
+  resolve to the canonical kind (the manifest stores the canonical id).
+  `flip kind list` shows the phrases; `--json` exposes them for agents.
+- **notebook-kind-author skill** — interviews a domain expert in their own
+  vocabulary and writes a valid kind file: outputs first, contract
+  requirements each tied to the render that needs them, honest
+  `prospective` flags, scaffold + doctor validation. The seventh packaged
+  skill.
+
+### Fixed
+- Docs and site caught up with 0.12: the support tuple and derived grades
+  in quickstart, internals, the OKF-profile draft, spec.html, start.html;
+  kinds documented on the start page and README; stray sketch-path comment
+  fragments removed from the built-in kind files.
+
 ## [0.12.0] — 2026-07-25
 
 ### Added

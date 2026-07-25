@@ -3,12 +3,10 @@
 # Defends against two failures: cherry-picking (the search and screening were
 # shaped by the conclusion) and staleness (it was true when you last looked).
 # A worked example to fork: one file is a complete kind.
-# genres-sketches/lit-review/genre.toml) — the discipline/slot-stack layer is
-# out of scope for Phase 1 (design-outcome-kinds.md, deferred to Phase 3);
-# its load-bearing defaults are folded straight into the contract below.
 
 id      = "lit-review"
 version = "0.1"
+aka     = ["literature review", "lit review", "systematic review", "evidence review", "review of the literature", "research synthesis"]   # what people actually say; `flip new --kind` accepts these
 summary = """
 A defensible answer to "what does the published record say about X, and how
 do we know we didn't just pick our friends?" A finished review can show its

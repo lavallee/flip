@@ -428,3 +428,44 @@ def test_cli_kind_new_scaffolds_and_prints_next_step(tmp_path, monkeypatch):
     assert path.is_file()
     assert str(path) in result.output
     assert "flip kind show swot-brief" in result.output
+
+
+# --- aka resolution (outcome-mode translation) --------------------------------
+
+
+def test_resolve_kind_id_matches_ids_and_aka_normalized():
+    assert kinds.resolve_kind_id("lit-review") == "lit-review"
+    assert kinds.resolve_kind_id("Literature Review") == "lit-review"
+    assert kinds.resolve_kind_id("systematic_review") == "lit-review"
+    assert kinds.resolve_kind_id("due diligence") == "decision-packet"
+    assert kinds.resolve_kind_id("quick look") == "scout"
+    assert kinds.resolve_kind_id("no such outcome") is None
+    assert kinds.resolve_kind_id("") is None
+
+
+def test_load_kind_accepts_aka_phrases():
+    k = kinds.load_kind("evidence review")
+    assert k.id == "lit-review"
+
+
+def test_load_kind_refusal_mentions_plain_language(tmp_path):
+    with pytest.raises(SystemExit) as exc:
+        kinds.load_kind("interpretive dance")
+    assert "plain-language" in str(exc.value)
+
+
+def test_builtin_kinds_declare_aka():
+    for kid in ("lit-review", "decision-packet"):
+        assert kinds.load_kind(kid).aka, f"{kid} should carry aka phrases"
+
+
+def test_new_cli_canonicalizes_aka(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    from click.testing import CliRunner
+    from flip.cli import main as cli_main
+    result = CliRunner().invoke(cli_main, ["new", "sr", "--kind", "Systematic Review",
+                                           "--title", "t"])
+    assert result.exit_code == 0, result.output
+    assert "created lit-review notebook" in result.output
+    fm = pages.read_page(tmp_path / "sr" / "index.md").fm
+    assert fm["kind"] == "lit-review"

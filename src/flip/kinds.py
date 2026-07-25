@@ -76,6 +76,7 @@ class Kind:
     id: str
     version: str = "0.1"
     summary: str = ""
+    aka: list[str] = field(default_factory=list)  # plain-language names people actually say
     source_path: Path | None = None
     origin: str = "built-in"  # "built-in" | "user" | "notebook" | "profile"
     defaults: dict = field(default_factory=dict)  # manifest keys, e.g. visibility
@@ -153,6 +154,7 @@ def _kind_from_toml(text: str, source_path: Path | None, origin: str) -> Kind:
         id=str(kind_id),
         version=str(data.get("version", "0.1")),
         summary=str(data.get("summary") or "").strip(),
+        aka=[str(a) for a in data.get("aka", []) if str(a).strip()],
         source_path=source_path,
         origin=origin,
         defaults=dict(data.get("defaults") or {}),
@@ -218,6 +220,7 @@ def _load_all(root: Path | None) -> dict[str, Kind]:
             id=pid,
             version="",
             summary=prof.description,
+            aka=list(_PROFILE_AKA.get(pid, ())),
             source_path=None,
             origin="profile",
             defaults={},
@@ -229,6 +232,44 @@ def _load_all(root: Path | None) -> dict[str, Kind]:
     return merged
 
 
+# Plain-language names for the rigor profiles, so outcome-mode statements
+# resolve without anyone learning the vocabulary. Kept deliberately short:
+# every phrase here must be something a person would actually say.
+_PROFILE_AKA = {
+    "ledger": ("source list", "bibliography", "reading list"),
+    "scout": ("quick look", "quick screen", "kick the tires", "scan"),
+    "research-review": ("deep dive", "research report", "publishable review"),
+    "data-investigation": ("data dig", "dataset investigation", "data analysis"),
+    "pursuit": ("answer one question", "one question", "chase this down"),
+}
+
+
+def _normalize(text: str) -> str:
+    return " ".join(str(text or "").lower().replace("-", " ").replace("_", " ").split())
+
+
+def resolve_kind_id(text: str, root: Path | None = None) -> str | None:
+    """The canonical kind id for a stated outcome, or None.
+
+    Matches the id itself, then `aka` phrases, both normalized (case,
+    hyphens, spacing) — "Literature Review", "lit-review", and "lit review"
+    all land on lit-review. Substring guessing is deliberately NOT done
+    here: the agent holding the conversation is the semantic layer; this
+    function only makes stated names land.
+    """
+    kinds = _load_all(root)
+    wanted = _normalize(text)
+    if not wanted:
+        return None
+    for k in kinds.values():
+        if _normalize(k.id) == wanted:
+            return k.id
+    for k in kinds.values():
+        if any(_normalize(a) == wanted for a in k.aka):
+            return k.id
+    return None
+
+
 def list_kinds(root: Path | None = None) -> list[Kind]:
     """Every kind visible from `root` (or just built-ins/user/profiles when
     root is None): built-ins, $FLIP_HOME/kinds/, notebook-local, and today's
@@ -237,12 +278,17 @@ def list_kinds(root: Path | None = None) -> list[Kind]:
 
 
 def load_kind(kind_id: str, root: Path | None = None) -> Kind:
-    """Resolve one kind id, or refuse with the list of known ids."""
+    """Resolve one kind — by id or by any stated `aka` phrase — or refuse
+    with the list of known ids."""
     kinds = _load_all(root)
     if kind_id not in kinds:
+        canonical = resolve_kind_id(kind_id, root)
+        if canonical is not None:
+            return kinds[canonical]
         raise SystemExit(
             f"unknown kind '{kind_id}'; known: {', '.join(sorted(kinds)) or '(none)'} "
-            "(`flip kind list` for details, `flip kind new <id>` to scaffold one)"
+            "(`flip kind list` shows plain-language names too; "
+            "`flip kind new <id>` scaffolds your own)"
         )
     return kinds[kind_id]
 

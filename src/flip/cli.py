@@ -225,6 +225,12 @@ def new(slug: str, kind: str, title: str, visibility: str | None, dest: Path | N
     log/, …) appear lazily as commands need them. Then cd in and start logging.
     """
     dest = dest if dest is not None else Path.cwd() / slug
+    # Outcome-mode translation: "--kind 'literature review'" lands on
+    # lit-review; the manifest always stores the canonical id.
+    from . import kinds as kinds_mod_new
+    canonical = kinds_mod_new.resolve_kind_id(kind)
+    if canonical is not None:
+        kind = canonical
     path = scaffold.create_notebook(dest, slug, kind, title=title, visibility=visibility)
     click.echo(f"created {kind} notebook '{slug}' at {path}")
     _autobind_new_notebook(path, slug)
@@ -1550,7 +1556,8 @@ def kind_list(as_json: bool) -> None:
     if as_json:
         click.echo(json.dumps(
             [
-                {"id": k.id, "origin": k.origin, "version": k.version, "summary": k.summary}
+                {"id": k.id, "origin": k.origin, "version": k.version,
+                 "summary": k.summary, "aka": k.aka}
                 for k in rows
             ],
             ensure_ascii=False, indent=2,
@@ -1563,6 +1570,8 @@ def kind_list(as_json: bool) -> None:
     for k in rows:
         one_line = k.summary.strip().split("\n", 1)[0] if k.summary else "(no summary)"
         click.echo(f"{k.id:<{width}}  {k.origin:<9}  {one_line}")
+        if k.aka:
+            click.echo(f"{'':<{width}}  {'':<9}  aka: {', '.join(k.aka)}")
 
 
 @kind.command("show")

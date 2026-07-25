@@ -77,6 +77,10 @@
         <code>research-review</code> is headed for publication and demands two. You
         can change your mind later — <code>flip migrate</code> upgrades in place.</p>
       <div class="cmd"><code>flip new my-question --kind scout --title "The thing I am trying to find out"</code></div>
+      <p>Kinds answer to what people actually say: <code>--kind "literature
+        review"</code> lands on <code>lit-review</code>, whose doctor knows from day
+        one what a finished review must contain. <code>flip kind list</code> shows
+        them all; open-ended is first-class (<code>scout</code>).</p>
       <div class="cmd"><code>cd my-question</code></div>
       <div id="out-new"></div>
     </li>
@@ -94,10 +98,12 @@
     <li>
       <h3>Read it, then grade it</h3>
       <p>Capture is custody; grading is judgment, and they are deliberately separate
-        acts. Until you grade it the source counts toward nothing at all — which is
-        the point, because a source you have not read should not be able to prop up a
-        claim.</p>
-      <div class="cmd"><code>flip grade F1 --grade A --independence original --notes "why this grade"</code></div>
+        acts. Grading describes the evidence — how independent, what basis, whether
+        the measured quantity is even defined — and the letter grade is derived from
+        the description, never handed out. Until then the source counts toward
+        nothing at all — which is the point, because a source you have not read
+        should not be able to prop up a claim.</p>
+      <div class="cmd"><code>flip grade F1 --independence independent --basis official-record --base-defined --notes "why this reading"</code></div>
       <div id="out-grade"></div>
     </li>
 

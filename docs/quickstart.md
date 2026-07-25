@@ -67,12 +67,13 @@ custody and judgment in the frontmatter, your notes in the body.
 flip grade F1 --independence independent --basis official-record --base-defined \
   --notes "state data, extracted ourselves"
 # F1 · grade A (derived) — the letter is a digest of the evidence description
-# F1 · grade A · original · fresh
+# F1 · grade A (derived) · independent · official-record · base_defined: true
 ```
 
 `A` authoritative primary · `B` official/independent · `C` vendor,
 practitioner, or LLM synthesis. `independence` records whether this is the
-original or downstream of one — republishers don't count as corroboration,
+independent or downstream of another source — derivatives never count as
+corroboration,
 and neither does a source still graded `?` (capture is custody, not
 judgment). `flip source list` shows every source at a glance; any `?`
 line still needs judging.
@@ -85,7 +86,7 @@ flip claim add "District enrollment fell 4.2% since 2021" --source F1 --load-bea
 ```
 
 **Verify** — flip enforces the profile's corroboration bar (default: two
-independent original sources, or one grade-A primary):
+sources recorded `independent`, or one whose derived digest is A):
 
 ```bash
 flip claim status C1 verified

@@ -1,13 +1,13 @@
 # decision-packet — a flip kind: "I am making a decision packet"
 #
-# A worked example to fork: one file is a complete kind.
-# disciplines/genres-sketches/decision-packet/genre.toml) — the retrofit
-# case: pressure-tested against two real runs before this file existed. A
-# packet answers ONE named decision point for ONE named consumer — bounded,
-# priced, and honest about what the material could not tell you.
+# A worked example to fork: one file is a complete kind. Pressure-tested
+# against real runs before this file existed. A packet answers ONE named
+# decision point for ONE named consumer — bounded, priced, and honest about
+# what the material could not tell you.
 
 id      = "decision-packet"
 version = "0.1"
+aka     = ["decision memo", "decision brief", "diligence memo", "due diligence", "vendor comparison", "options memo", "recommendation memo", "buy or build"]   # what people actually say; `flip new --kind` accepts these
 summary = """
 A bounded answer to one decision, for one named consumer, at one named
 decision point — built by walking from the anchor material up to what it

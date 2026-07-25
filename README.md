@@ -62,6 +62,8 @@ then `uv run flip --help`. Python 3.12+; the core is stdlib + click + PyYAML.
 
 ```bash
 flip new nj-schools --kind scout --title "NJ enrollment dip"
+# ...or name the outcome: --kind "literature review" / "decision memo" resolve to
+# kinds whose collection contract the doctor checks from day one (flip kind list)
 cd nj-schools
 flip add-source ./districts.csv --note "district enrollment table"
 # F1 · sources/raw/F1.csv · references/districts.md (grade ?)

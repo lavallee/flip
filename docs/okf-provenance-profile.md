@@ -55,8 +55,9 @@ profiles: [provenance/0.2]
 | addition | on | semantics |
 |---|---|---|
 | `type: Source` concepts in `references/` | source pages | one concept per external artifact the bundle relies on, mirroring OKF's existing `references/` convention |
-| `grade: A\|B\|C\|?` | Source | source reliability: authoritative primary / official-independent / vendor-practitioner-synthesis / not yet judged |
-| `independence: original\|republisher\|derivative\|self-interested` | Source | judged separately from grade (Admiralty-style split) |
+| `support: {basis, n, method, base_defined, vintage}` | Source | the evidence described, not scored: basis (official-record/platform-data/measured/survey/panel/single-operator/synthesis), n **as stated, a string**, and `base_defined` — is the measured quantity itself specified? |
+| `independence: independent\|corroborated\|self-reported\|derivative` | Source | the tuple's spine, judged separately from basis (Admiralty-style split); only `independent` corroborates |
+| `grade: A\|B\|C\|D\|?` | Source | a **derived digest** of the tuple, never authored — a summary, not a store |
 | `freshness: fresh\|dated` | Source | explicit staleness *judgment*, complementing v0.2's mechanical `stale_after` date and `sources[].last_modified` signal |
 | `local`, `sha256`, `retrieved_at`, `captured_with` | Source | custody: the archived copy's bundle-relative path and fixity at capture |
 | `type: Claim` concepts | claim pages | one concept per load-bearing assertion |

@@ -46,11 +46,17 @@ archived. They are not problems; don't re-run doctor for reassurance.
 1. **Interview — two modes.** People start one of two ways; both are
    first-class:
    - **Outcome mode**: they name what they're making ("a lit review", "a
-     decision memo", "a SWOT"). Map the outcome to a kind (`flip kind
-     list`) — the kind brings its collection contract, so the doctor knows
-     from day one what the finished output must contain. Don't make them
-     learn the vocabulary: they said "lit review", you run `--kind
-     lit-review`; if they want to know how it works, show `flip kind show`.
+     decision memo", "due diligence on a vendor"). Translate their words,
+     never make them learn vocabulary: `flip kind list --json` gives every
+     kind's summary AND its `aka` phrases (what people actually say), and
+     `--kind` accepts those phrases directly — `flip new x --kind
+     "systematic review"` lands on lit-review with the canonical id in the
+     manifest. When their statement isn't a listed phrase, YOU are the
+     semantic layer: read the summaries, pick the kind whose *output*
+     matches what they described, and say what you chose in their words
+     ("I'll set this up as a literature review — it'll track what you
+     screened out and why"). No match at all → open mode, or offer to
+     capture their process as its own kind (notebook-kind-author).
    - **Open mode**: they start open-ended. Ask a clarifying question or two
      if useful, but never block on it — the job in open mode is
      regret-minimal capture: custody, judgments at read time, negative
