@@ -51,10 +51,11 @@ archived. They are not problems; don't re-run doctor for reassurance.
      the link
    - every cited source is judged — `flip source list` and grade any `?`
      rows first; an ungraded source corroborates nothing
-   - corroborating sources are independent — not republishers of the same
-     upstream, not `self-interested` parties agreeing with themselves
+   - corroborating sources are recorded `independent` — not derivatives of
+     the same upstream, not `self-reported` parties agreeing with themselves
    - the chain ends at a public, independently verifiable source when
-     `citation_rule = "public-terminus"` — no grade-C (LLM/vendor) terminus
+     `citation_rule = "public-terminus"` — no synthesis-basis (LLM/vendor)
+     terminus
    - freshness: a `dated` source can't carry a present-tense claim
 4. **Record verifications where they apply.** Beyond corroboration, a claim
    earns `verified` through a recorded check — `flip claim verify C7 --method
