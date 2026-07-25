@@ -18,6 +18,7 @@ from . import pages
 from .manifest import load_manifest
 from .util import (
     find_notebook_root,
+    find_notebook_root_pinned,
     find_workspace_root,
     format_ref,
     parse_ref,
@@ -70,6 +71,12 @@ def resolve_ref(ref: str, start: Path | None = None) -> Resolved:
     page. The pre-0.5 "recipes#A3" form no longer reads (removed in flip
     0.10) — parse_ref rejects it with the current grammar."""
     handle, entity_id = parse_ref(ref)
+
+    # A CLI entry point (start is None) honors the --notebook/FLIP_NOTEBOOK
+    # pin: resolution anchors on the pinned root, not the CWD, so `flip
+    # --notebook <path> resolve A3` works from anywhere (SPEC §15).
+    if start is None:
+        start = find_notebook_root_pinned()
 
     if handle is not None:
         ws_root = require_workspace_root(start)

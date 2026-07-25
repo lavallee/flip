@@ -23,6 +23,7 @@ from . import (
     beat as beat_mod,
     claims,
     integrations,
+    pages,
     doctor as doctor_mod,
     export as export_mod,
     importer as importer_mod,
@@ -621,11 +622,19 @@ def claim() -> None:
 def claim_add(text: str, source_ids: tuple[str, ...], load_bearing: bool,
               notes: str | None) -> None:
     """Assert a claim (status "asserted"), allocating the next C#."""
-    page = claims.add_claim(require_notebook_root(), text, list(source_ids),
+    root = require_notebook_root()
+    page = claims.add_claim(root, text, list(source_ids),
                             load_bearing=load_bearing, notes=notes)
     srcs = ", ".join(page.fm.get("sources") or []) or "none"
     click.echo(f"{page.id} asserted · sources: {srcs} · "
                f"corroboration: {page.fm.get('independent_corroboration', 0)}")
+    # Dangling cites are legal (§6.1) — doctor counts them — but say so now
+    # rather than let a typo'd id ride silently until the next doctor run.
+    known = {str(p.fm.get("id")) for p in pages.iter_pages(root, "references")}
+    dangling = [s for s in page.fm.get("sources") or [] if s not in known]
+    if dangling:
+        click.echo(f"note: {', '.join(dangling)} not captured yet — dangling "
+                   "citation(s) until `flip add-source` lands them (doctor counts these)")
 
 
 @claim.command("status")

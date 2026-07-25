@@ -703,6 +703,30 @@ def test_notebook_pin_lets_command_run_from_outside(tmp_path, monkeypatch):
     assert (root / "questions" / "pinned.md").is_file()
 
 
+def test_notebook_pin_resolves_refs_from_outside(tmp_path, monkeypatch):
+    # regression: `flip --notebook <path> resolve A3` crashed (ws_root None)
+    # when run outside the notebook — the pin must anchor resolution too
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    invoke(["question", "add", "resolvable?"])
+    monkeypatch.chdir(tmp_path)  # outside any notebook or workspace
+    result = invoke(["--notebook", str(root), "resolve", "Q1"])
+    assert result.exit_code == 0, result.output
+    assert result.output.strip().endswith("resolvable.md")
+    opened = invoke(["--notebook", str(root), "open", "Q1"])
+    assert opened.exit_code == 0, opened.output
+
+
+def test_claim_add_notes_dangling_source_ids(tmp_path, monkeypatch):
+    # dangling cites stay legal (§6.1) — but the CLI says so at assert time
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    result = invoke(["claim", "add", "cites a ghost", "--source", "A99"])
+    assert result.exit_code == 0, result.output
+    assert "A99 not captured yet" in result.output
+    assert "dangling" in result.output
+
+
 def test_flip_notebook_env_pins_root(tmp_path, monkeypatch):
     root = make_notebook(tmp_path / "demo")
     monkeypatch.chdir(tmp_path)
