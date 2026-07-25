@@ -1,5 +1,5 @@
 window.__FLIP_SPEC__ = {
-  "generated": "2026-07-25T17:11:45+00:00",
+  "generated": "2026-07-25T17:34:40+00:00",
   "sections": [
     {
       "number": "1",

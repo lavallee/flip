@@ -6,6 +6,17 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.1] — 2026-07-25
+
+### Added
+- **Claude Code plugin.** The repository now doubles as a Claude Code
+  plugin (`.claude-plugin/plugin.json`, name `flip-notebook`) exposing the
+  six packaged notebook skills from a top-level `skills/` directory —
+  a byte-for-byte synced copy of `src/flip/skills`, enforced by
+  `tests/test_plugin_skills.py`. Listed in the `lyra-forge` marketplace.
+- `notebook-create` gains a preflight note for agents on machines without
+  the CLI (`uv tool install flip-notebook`).
+
 ## [0.11.0] — 2026-07-25
 
 ### Changed
