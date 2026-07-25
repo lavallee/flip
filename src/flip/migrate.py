@@ -147,9 +147,18 @@ def _write_source_page(root: Path, row: dict) -> pages.Page:
     for key in ("date", "authors", "publisher", "local"):
         if row.get(key) is not None:
             fm[key] = row[key]
-    fm["grade"] = str(row.get("grade") or "?")
-    fm["independence"] = str(row.get("independence") or "original")
-    fm["freshness"] = str(row.get("freshness") or "fresh")
+    # v0.3 rows carry pre-0.8 judgment vocabulary; write the 0.8 model
+    # directly (design D-A/D-C): judged rows map + seed, unjudged rows stay
+    # honestly bare — same rules as _upgrade_support_0_8.
+    old_grade = str(row.get("grade") or "?")
+    old_ind = str(row.get("independence") or "original")
+    fm["grade"] = old_grade if old_grade in ("A", "B", "C", "D") else "?"
+    if not (old_ind == "original" and fm["grade"] == "?"):
+        fm["independence"] = _INDEPENDENCE_MAP.get(old_ind, old_ind)
+        if fm["grade"] in ("A", "B", "C"):
+            fm["support"] = {"seeded": "legacy-grade"}
+        if row.get("freshness"):
+            fm["freshness"] = str(row["freshness"])
     fm["status"] = str(row.get("status") or "captured")
     fm.update({k: v for k, v in row.items() if k not in _SOURCE_CONSUMED})
     directory = root / "references"
@@ -522,6 +531,56 @@ def _upgrade_pages_okf02(root: Path) -> dict:
     return {"pages_okf02": count}
 
 
+# --- support-tuple judgment model (profile 0.8) -----------------------------
+
+# Pre-0.8 → 0.8 independence vocabulary (design D-C).
+_INDEPENDENCE_MAP = {
+    "original": "independent",
+    "republisher": "derivative",
+    "derivative": "derivative",
+    "self-interested": "self-reported",
+}
+
+
+def _upgrade_support_0_8(root: Path) -> dict:
+    """Rewrite reference pages to the 0.8 judgment model, in place.
+
+    A judged page (authored letter A/B/C) maps its independence and gains a
+    `support.seeded: legacy-grade` marker so the derived digest returns the
+    authored letter — every existing bar outcome is preserved byte-for-byte
+    until a real re-grading replaces the seed. An unjudged page (grade "?")
+    drops the decorative capture-time defaults (`independence: original`,
+    default `freshness`) and returns to honest unjudged. Idempotent."""
+    count = 0
+    directory = root / "references"
+    if not directory.is_dir():
+        return {"sources_08": 0}
+    for path in sorted(directory.glob("*.md")):
+        if path.name in pages.RESERVED or path.name.startswith("_"):
+            continue
+        page = pages.read_page(path)
+        fm = dict(page.fm)
+        old_ind = str(fm.get("independence") or "")
+        if old_ind not in _INDEPENDENCE_MAP:
+            continue  # already 0.8 vocabulary (or never judged) — untouched
+        old_grade = str(fm.get("grade") or "?")
+        if old_ind == "original" and old_grade == "?":
+            # Capture-time default, never a judgment: under the 0.8 bar a
+            # mapped "independent" would suddenly corroborate — drop it.
+            fm.pop("independence", None)
+            if str(fm.get("freshness") or "") == "fresh":
+                fm.pop("freshness", None)
+        else:
+            fm["independence"] = _INDEPENDENCE_MAP[old_ind]
+            if old_grade in ("A", "B", "C"):
+                support = fm.get("support") if isinstance(fm.get("support"), dict) else {}
+                support.setdefault("seeded", "legacy-grade")
+                fm["support"] = support
+        pages.write_page(path, fm, page.body)
+        count += 1
+    return {"sources_08": count}
+
+
 # --- the migration --------------------------------------------------------
 
 
@@ -545,6 +604,7 @@ def migrate(root: Path) -> dict:
     if toml_path.is_file():
         counts = _migrate_v03(root, toml_path)
         counts.update(_upgrade_pages_okf02(root))  # idempotent belt-and-suspenders
+        counts.update(_upgrade_support_0_8(root))
         counts.update(_upgrade_profile(root))
         return counts
     if not is_notebook_root(root):
@@ -560,6 +620,7 @@ def migrate(root: Path) -> dict:
             f"{manifest.FLIP_PROFILE_VERSION}, uid {m.uid}); nothing to migrate"
         )
     counts = _upgrade_pages_okf02(root)
+    counts.update(_upgrade_support_0_8(root))
     counts.update(_upgrade_profile(root))
     _regenerate_views(root)
     return counts

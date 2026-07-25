@@ -1,6 +1,6 @@
 ---
 okf_version: '0.2'
-flip: '0.7'
+flip: '0.8'
 slug: notebook
 uid: nb-qy38zvcn
 title: flip site — claims and their sources

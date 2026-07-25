@@ -65,7 +65,8 @@ flip new nj-schools --kind scout --title "NJ enrollment dip"
 cd nj-schools
 flip add-source ./districts.csv --note "district enrollment table"
 # F1 · sources/raw/F1.csv · references/districts.md (grade ?)
-flip grade F1 --grade A --independence original         # judge it after reading
+flip grade F1 --independence independent --basis official-record --base-defined
+# F1 · grade A (derived) — the letter is a digest of the evidence description
 flip claim add "Enrollment fell 4.2% since 2021" --source F1 --load-bearing
 # C1 asserted · sources: F1 · corroboration: 1
 flip claim status C1 verified      # gated: refused until the corroboration bar is met
@@ -132,7 +133,7 @@ plugin reads the handle table, audits the shared space, and open-by-id
 suggests every bound notebook's entities as `recipes:A3`. The walkthrough
 is [docs/obsidian.md](docs/obsidian.md).
 
-Status: spec draft v0.11 — notebooks are native OKF v0.2 bundles. The CLI
+Status: spec draft v0.12 — notebooks are native OKF v0.2 bundles. The CLI
 covers the full surface (`cli`, `new`, `add-source`, `grade`, `log`, `decide`,
 `pass`, `question` (incl. `repose`), `claim` (incl. `verify` / `source add`),
 `session`, `show`, `open`, `resolve`, `rename`, `doctor`, `index`, `migrate`,

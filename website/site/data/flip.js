@@ -1,7 +1,7 @@
 window.__FLIP_META__ = {
-  "generated": "2026-07-25T17:34:40+00:00",
-  "version": "0.11.1",
-  "revision": "116039d",
+  "generated": "2026-07-25T23:04:32+00:00",
+  "version": "0.12.0",
+  "revision": "8f50056",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",
@@ -9,9 +9,9 @@ window.__FLIP_META__ = {
   ],
   "license": "MIT",
   "package": "flip-notebook",
-  "tests": 698,
-  "spec_status": "draft v0.11 \u00b7 2026-07-25",
-  "spec_lines": 870,
+  "tests": 732,
+  "spec_status": "draft v0.12 \u00b7 2026-07-25",
+  "spec_lines": 936,
   "skills": [
     "notebook-audit",
     "notebook-create",
@@ -216,6 +216,14 @@ window.__FLIP_META__ = {
           {
             "name": "--notes",
             "required": false
+          },
+          {
+            "name": "--value",
+            "required": false
+          },
+          {
+            "name": "--unit",
+            "required": false
           }
         ]
       },
@@ -391,7 +399,7 @@ window.__FLIP_META__ = {
         "command": "flip export json",
         "group": "flip export",
         "name": "json",
-        "purpose": "Emit the flip-render/1 JSON projection for renderers and site generators.",
+        "purpose": "Emit the flip-render/1 (or /2) JSON projection for renderers and site generators.",
         "arguments": [],
         "options": [
           {
@@ -400,6 +408,10 @@ window.__FLIP_META__ = {
           },
           {
             "name": "--include-private",
+            "required": false
+          },
+          {
+            "name": "--render-version",
             "required": false
           }
         ]
@@ -450,17 +462,33 @@ window.__FLIP_META__ = {
         "command": "flip grade",
         "group": "flip",
         "name": "grade",
-        "purpose": "Record source-quality judgments on a source's page (SPEC \u00a75.4).",
+        "purpose": "Record the support tuple on a source's page (SPEC \u00a75.4).",
         "arguments": [
           "SOURCE_ID"
         ],
         "options": [
           {
-            "name": "--grade",
+            "name": "--independence",
             "required": false
           },
           {
-            "name": "--independence",
+            "name": "--basis",
+            "required": false
+          },
+          {
+            "name": "--n",
+            "required": false
+          },
+          {
+            "name": "--method",
+            "required": false
+          },
+          {
+            "name": "--vintage",
+            "required": false
+          },
+          {
+            "name": "--base-defined",
             "required": false
           },
           {
@@ -469,6 +497,10 @@ window.__FLIP_META__ = {
           },
           {
             "name": "--notes",
+            "required": false
+          },
+          {
+            "name": "--grade",
             "required": false
           }
         ]
@@ -505,6 +537,59 @@ window.__FLIP_META__ = {
         "options": [
           {
             "name": "--root",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip kind adopt",
+        "group": "flip kind",
+        "name": "adopt",
+        "purpose": "Adopt a kind onto this notebook: set manifest kind, log a",
+        "arguments": [
+          "ID"
+        ],
+        "options": []
+      },
+      {
+        "command": "flip kind list",
+        "group": "flip kind",
+        "name": "list",
+        "purpose": "List every visible kind: built-in, user, notebook-local, and profiles.",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip kind new",
+        "group": "flip kind",
+        "name": "new",
+        "purpose": "Scaffold $FLIP_HOME/kinds/<id>.toml from a commented template.",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--force",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip kind show",
+        "group": "flip kind",
+        "name": "show",
+        "purpose": "Show a kind's contract and workflow \u2014 the doctor-checkable shape.",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--json",
             "required": false
           }
         ]
@@ -593,6 +678,14 @@ window.__FLIP_META__ = {
           {
             "name": "--url",
             "required": false
+          },
+          {
+            "name": "--absent-from",
+            "required": false
+          },
+          {
+            "name": "--surface",
+            "required": false
           }
         ]
       },
@@ -612,7 +705,12 @@ window.__FLIP_META__ = {
         "arguments": [
           "TEXT"
         ],
-        "options": []
+        "options": [
+          {
+            "name": "--resolves-via",
+            "required": false
+          }
+        ]
       },
       {
         "command": "flip question answer",
@@ -766,6 +864,38 @@ window.__FLIP_META__ = {
         "options": [
           {
             "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip source pipeline",
+        "group": "flip source",
+        "name": "pipeline",
+        "purpose": "Classify a source's pipeline liveness \u2014 did the thing that produced it",
+        "arguments": [
+          "SOURCE_ID",
+          "live|dormant|orphaned|transferred:<steward>"
+        ],
+        "options": [
+          {
+            "name": "--evidence",
+            "required": true
+          }
+        ]
+      },
+      {
+        "command": "flip source provenance",
+        "group": "flip source",
+        "name": "provenance",
+        "purpose": "Record where the provenance chain-walk behind this source ended.",
+        "arguments": [
+          "SOURCE_ID",
+          "STATE"
+        ],
+        "options": [
+          {
+            "name": "--note",
             "required": false
           }
         ]

@@ -21,6 +21,7 @@ from .util import ROOT_FILE, is_notebook_root, read_jsonl, sha256_file, today, u
 # The stable JSON projection contract (SPEC §17, Lane F). Bump only on a
 # breaking shape change; renderers key off this string.
 RENDER_CONTRACT = "flip-render/1"
+RENDER_CONTRACT_2 = "flip-render/2"
 LOG_TAIL = 20
 
 # Directory names excluded from bag payloads: repo/tooling internals and
@@ -250,7 +251,8 @@ def _capture_event(fm: dict, prov: dict[str, list[dict]]) -> dict:
     )
 
 
-def _source_projection(page: pages.Page, prov: dict[str, list[dict]], full_trail: bool) -> dict:
+def _source_projection(page: pages.Page, prov: dict[str, list[dict]], full_trail: bool,
+                       render_version: int = 1) -> dict:
     """One source as a render node. Judgment (grade/independence/freshness/
     kind) always ships; custody (title, canonical_url, captured_at, sha256)
     ships only with the full trail — the 0.4 lesson: anything derived from
@@ -267,6 +269,13 @@ def _source_projection(page: pages.Page, prov: dict[str, list[dict]], full_trail
         "independence": str(fm.get("independence", "")),
         "freshness": str(fm.get("freshness", "")),
     }
+    if render_version >= 2:
+        support = fm.get("support")
+        if isinstance(support, dict) and support:
+            out["support"] = dict(support)
+        for key in ("pipeline", "pipeline_evidence", "provenance_state"):
+            if fm.get(key):
+                out[key] = str(fm[key])
     if full_trail:
         ev = _capture_event(fm, prov)
         out["title"] = str(fm.get("title", ""))
@@ -290,10 +299,11 @@ def _verification_projection(record: dict) -> dict:
     return out
 
 
-def _claim_projection(page: pages.Page, source_fms: list[dict]) -> dict:
+def _claim_projection(page: pages.Page, source_fms: list[dict],
+                      render_version: int = 1) -> dict:
     fm = page.fm
     source_ids = claims_mod.source_ids(fm)
-    return {
+    out = {
         "id": fm.get("id") or page.slug,
         "slug": page.slug,
         "text": str(fm.get("description", "")),
@@ -307,6 +317,12 @@ def _claim_projection(page: pages.Page, source_fms: list[dict]) -> dict:
             if isinstance(v, dict)
         ],
     }
+    if render_version >= 2:
+        if fm.get("value") is not None:
+            out["value"] = str(fm.get("value"))
+            if fm.get("unit"):
+                out["unit"] = str(fm.get("unit"))
+    return out
 
 
 def _question_projection(page: pages.Page) -> dict:
@@ -358,10 +374,13 @@ def _id_num(entity_id: object) -> tuple:
     return (head, int(tail) if tail.isdigit() else 0, s)
 
 
-def export_json(root: Path, include_private: bool = False) -> dict:
-    """The `flip-render/1` JSON projection for renderers and site generators
-    (SPEC §17, Lane F): stable ids, deterministic order (id-sorted entities,
-    stable key order), one changing field (`generated`).
+def export_json(root: Path, include_private: bool = False, render_version: int = 1) -> dict:
+    """The `flip-render/1` (default) or `flip-render/2` JSON projection for
+    renderers and site generators (SPEC §17, Lane F): stable ids,
+    deterministic order (id-sorted entities, stable key order), one changing
+    field (`generated`). Version 2 is a superset: sources gain `support`,
+    `pipeline`/`pipeline_evidence`, `provenance_state`; claims gain
+    `value`/`unit`. Version 1 stays byte-stable for existing consumers.
 
     Policy-filtered exactly like `export okf`: refuses unless visibility is
     public or `include_private`; without the full source trail
@@ -387,11 +406,11 @@ def export_json(root: Path, include_private: bool = False) -> dict:
     prov = _provenance_index(root) if full_trail else {}
 
     sources = sorted(
-        (_source_projection(p, prov, full_trail) for p in source_pages),
+        (_source_projection(p, prov, full_trail, render_version) for p in source_pages),
         key=lambda s: _id_num(s["id"]),
     )
     claims = sorted(
-        (_claim_projection(p, source_fms) for p in pages.iter_pages(root, "claims")
+        (_claim_projection(p, source_fms, render_version) for p in pages.iter_pages(root, "claims")
          if str(p.fm.get("type", "")) == "Claim"),
         key=lambda c: _id_num(c["id"]),
     )
@@ -422,7 +441,7 @@ def export_json(root: Path, include_private: bool = False) -> dict:
             log_tail = []
 
     return {
-        "contract": RENDER_CONTRACT,
+        "contract": RENDER_CONTRACT_2 if render_version >= 2 else RENDER_CONTRACT,
         "generated": utc_now(),
         "source_trail_public": full_trail,
         "notebook": {

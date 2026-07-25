@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import claims, pages
+from . import sources as sources_mod
 from .manifest import Manifest, load_manifest, save_manifest
 from .profiles import Profile, load_profile
 from .util import age_months, idle_days, read_jsonl
@@ -113,7 +114,12 @@ def _open_questions(root: Path) -> list[dict]:
         if str(page.fm.get("status", "open")) == "answered":
             continue
         out.append(
-            {"id": page.id, "text": _question_text(page), "ts": pages.generated_at(page.fm)}
+            {
+                "id": page.id,
+                "text": _question_text(page),
+                "ts": pages.generated_at(page.fm),
+                "resolves_via": [str(s) for s in pages.as_list(page.fm.get("resolves_via"))],
+            }
         )
     out.sort(key=lambda q: _id_num(q["id"]))
     return out
@@ -217,7 +223,11 @@ def hot_view(root: Path, as_data: bool = False) -> str | dict:
     lines = [" · ".join([m.slug, m.kind, m.status + _idle_suffix(idle), m.updated])]
     if questions:
         lines += ["", "OPEN QUESTIONS"]
-        lines += [f"  {q['id']} · {_trunc(q['text'])}" for q in questions]
+        lines += [
+            f"  {q['id']} · {_trunc(q['text'])}"
+            + ("" if q.get("resolves_via") else "  [unwatched — no resolves_via surface]")
+            for q in questions
+        ]
     if claims:
         lines += ["", "CLAIMS NEEDING WORK"]
         lines += [f"  {_claim_line(c, with_status=True)}" for c in claims]
@@ -276,7 +286,11 @@ def stale_view(root: Path, as_data: bool = False) -> str | dict:
         lines.append("")
     if questions:
         lines.append("OPEN QUESTIONS")
-        lines += [f"  {q['id']} · {_trunc(q['text'])}" for q in questions]
+        lines += [
+            f"  {q['id']} · {_trunc(q['text'])}"
+            + ("" if q.get("resolves_via") else "  [unwatched — no resolves_via surface]")
+            for q in questions
+        ]
         lines.append("")
     if stuck:
         lines.append("STUCK CLAIMS")
@@ -347,7 +361,7 @@ def _load_bearing_needing_work(root: Path) -> list[dict]:
         source_ids = claims.source_ids(c)
         corroboration = claims.corroboration_count(source_fms, source_ids)
         linked = claims._linked_fms(source_fms, source_ids)
-        has_grade_a = any(fm.get("grade") == "A" for fm in linked)
+        has_grade_a = any(sources_mod.derive_grade(fm) == "A" for fm in linked)
         bar_met = corroboration >= profile.claim_min_independent or (
             profile.claim_grade_a_suffices and has_grade_a
         )

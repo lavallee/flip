@@ -282,21 +282,24 @@ def step_plan() -> list[dict]:
             "act": "Take custody",
             "title": "Grade it, as a separate act",
             "narrative": (
-                "Grading is a recorded judgment by a named actor, after reading. "
-                "Reliability and independence are two axes, never collapsed into "
-                "one score — the practice comes from Admiralty source grading. An "
-                "organised trial run by people who are not us, who measured it "
-                "directly: B for reliability, original for independence."
+                "Grading is a recorded judgment by a named actor, after reading — "
+                "and it describes the evidence rather than scoring it. "
+                "Independence, basis, method: the letter grade is derived from "
+                "the description, never authored. An organised trial run by "
+                "people who are not us, who measured it directly, method stated: "
+                "that derives to B."
             ),
             "spec": "5",
             "commands": [
                 [
                     "grade",
                     "F1",
-                    "--grade",
-                    "B",
                     "--independence",
-                    "original",
+                    "independent",
+                    "--basis",
+                    "panel",
+                    "--method",
+                    "blind community trial, 40 bakers, self-reported rise times",
                     "--notes",
                     "Organised trial we did not run; proofing vessels not standardised.",
                 ]
@@ -368,8 +371,9 @@ def step_plan() -> list[dict]:
             "narrative": (
                 "So we bake. Twelve bakes at four hydration levels, one kitchen, "
                 "one flour lot — data we extracted ourselves, which is what grade "
-                "A means. Capture the file and the notebook owns the bytes; grade "
-                "it and the notebook can rely on them."
+                "A means: independent evidence, measured basis, defined base. "
+                "Capture the file and the notebook owns the bytes; describe the "
+                "evidence and the A derives itself."
             ),
             "spec": "5",
             "commands": [
@@ -382,10 +386,13 @@ def step_plan() -> list[dict]:
                 [
                     "grade",
                     "F2",
-                    "--grade",
-                    "A",
                     "--independence",
-                    "original",
+                    "independent",
+                    "--basis",
+                    "measured",
+                    "--n",
+                    "12 bakes at four hydration levels",
+                    "--base-defined",
                     "--notes",
                     "Data we measured ourselves; one kitchen, one flour lot, 12 bakes.",
                 ],
@@ -729,7 +736,7 @@ ENTITIES = [
         "spec": "5",
         "summary": "An external artifact we captured, and our judgment of it.",
         "judgment": True,
-        "keys": ["type", "id", "aliases", "title", "resource", "local", "grade", "independence", "freshness", "status"],
+        "keys": ["type", "id", "aliases", "title", "resource", "local", "grade", "independence", "support", "status"],
     },
     {
         "type": "Claim",

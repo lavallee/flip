@@ -8,12 +8,14 @@ description: Open Knowledge Format v0.1 specification, Apache-2.0
 resource: https://raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/main/okf/SPEC.md
 local: sources/raw/A1/capture.txt
 grade: B
-independence: original
+independence: independent
 freshness: fresh
 status: captured
 notes: The format's own publisher, Apache-2.0. Independent of flip.
 generated:
   by: human:marc
+support:
+  seeded: legacy-grade
 ---
 
 # raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/main/okf/SPEC.md

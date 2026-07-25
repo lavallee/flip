@@ -16,7 +16,7 @@ didn't capture is a source you don't have.
 |---|---|
 | start a notebook | `flip new <slug> --kind <profile>` |
 | capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
-| grade a source | `flip grade <id> --grade A\|B\|C --independence … --freshness …` |
+| grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--n … --base-defined\|--base-undefined]` — the letter is derived |
 | assert a claim | `flip claim add "<text>" --source <id> [--load-bearing]` |
 | link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
 | record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
@@ -54,14 +54,17 @@ archived. They are not problems; don't re-run doctor for reassurance.
    public contract. Keep site-specific commands in `$FLIP_HOME/config.toml`
    or a separate private integration repository; portable instructions
    should name source kinds and placeholders, not a deployment's tools.
-2. **Chase the original.** Before grading, check whether this is the original
-   or a republisher/derivative. If it republishes, capture the original too
+2. **Chase the original.** Before grading, check whether this evidence is
+   independent or derivative. If it republishes another source, capture that
+   original too
    and grade the republisher accordingly — republishers and derivatives do
    not count toward claim corroboration.
 3. **Read it, then grade it** (grading is a judgment made after reading, not
    a formality at capture):
    ```bash
-   flip grade <id> --grade A|B|C --independence original|republisher|derivative|self-interested \
+   flip grade <id> --independence independent|corroborated|self-reported|derivative \
+     --basis official-record|platform-data|measured|survey|panel|single-operator|synthesis|spoken-management-remarks \
+     [--n "<sample AS STATED, a string>"] [--base-defined|--base-undefined] [--method …] [--vintage YYYY-MM] \
        --freshness fresh|dated --notes "<why this grade>"
    ```
    `A` authoritative primary (gov / peer-reviewed / data extracted

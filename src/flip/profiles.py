@@ -121,7 +121,15 @@ def _profile_from_toml(text: str) -> Profile:
 
 def load_profile(kind: str, notebook_root: Path | None = None) -> Profile:
     """Load a profile by id: notebook-local .flip/profiles/<kind>.toml wins,
-    then the ones shipped with flip."""
+    then the ones shipped with flip.
+
+    Falls back to the kind registry (design-outcome-kinds.md) when neither
+    exists: a real kind adopted via `flip kind adopt` has no profile file of
+    its own, so its file-based contract requirements synthesize a Profile's
+    `requires` — a thin bridge so `flip doctor`'s existing profile-minimums
+    check keeps working for kinds too, without duplicating kind.py's own
+    contract logic (kinds.py owns gap-tiering; this just borrows `requires`).
+    """
     if notebook_root is not None:
         local = notebook_root / ".flip" / "profiles" / f"{kind}.toml"
         if local.is_file():
@@ -130,10 +138,23 @@ def load_profile(kind: str, notebook_root: Path | None = None) -> Profile:
     try:
         return _profile_from_toml(ref.read_text(encoding="utf-8"))
     except FileNotFoundError:
+        pass
+    from . import kinds as kinds_mod  # local: kinds.py imports this module at top level
+
+    try:
+        k = kinds_mod.load_kind(kind, notebook_root)
+    except SystemExit:
         raise SystemExit(
             f"unknown profile kind '{kind}' (no shipped or notebook-local definition); "
             f"shipped: {', '.join(sorted(list_profiles()))}"
         ) from None
+    return Profile(
+        id=k.id,
+        description=k.summary.strip().split("\n", 1)[0] if k.summary else "",
+        sections=[],
+        requires=[r.path for r in k.contract if r.entity == "files" and r.path],
+        freshness_months=int(k.defaults.get("freshness_months", 18)),
+    )
 
 
 def list_profiles() -> list[str]:
