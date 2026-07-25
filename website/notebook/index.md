@@ -20,4 +20,5 @@ citation_rule: public-terminus
 * [Claims](claims/) - 6 claims with status and citations
 * [Decisions](decisions/) - 1 recorded decision
 * [Questions](questions/) - 1 question, 1 open
-* [Update Log](log.md) - 1 logged event, newest first
+* [Sessions](sessions/) - 1 work session
+* [Update Log](log.md) - 2 logged events, newest first

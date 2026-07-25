@@ -1,3 +1,3 @@
 # Questions
 
-* [Q1](should-flip-s-provenance-vocabulary-be-proposed-upstream.md) - Should flip's provenance vocabulary be proposed upstream as an OKF profile?
+* [Q1](should-flip-s-provenance-vocabulary-be-proposed-upstream.md) - Should flip propose custody, grading, and corroboration gates upstream as an OKF provenance profile, now that OKF v0.2 has absorbed sources, generated, and ver…
