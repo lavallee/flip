@@ -155,6 +155,7 @@ def step_plan() -> list[dict]:
     return [
         {
             "id": "new",
+            "say": ("Someone in the baking club swears higher hydration makes sourdough rise faster. Can you actually look into it — properly, with the trail kept?"),
             "act": "Open the notebook",
             "title": "Scaffold a notebook",
             "narrative": (
@@ -177,6 +178,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "session",
+            "say": "",
             "act": "Open the notebook",
             "title": "Log the episode",
             "narrative": (
@@ -208,6 +210,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "question",
+            "say": "",
             "act": "Open the notebook",
             "title": "Write down the question",
             "narrative": (
@@ -228,6 +231,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "capture",
+            "say": ("The King Arthur hydration guide is the obvious place to start — bring it in."),
             "act": "Take custody",
             "title": "Capture a source",
             "narrative": (
@@ -254,6 +258,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "ungraded",
+            "say": "",
             "act": "Take custody",
             "title": "Capture is not judgment",
             "narrative": (
@@ -273,6 +278,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "grade",
+            "say": ("You've read it now — how good is it, actually?"),
             "act": "Take custody",
             "title": "Grade it, as a separate act",
             "narrative": (
@@ -304,6 +310,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "claim",
+            "say": ("So what's the answer so far?"),
             "act": "Make a claim stick",
             "title": "Assert a claim",
             "narrative": (
@@ -333,6 +340,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "refused",
+            "say": ("Good enough for me — mark it confirmed."),
             "act": "Make a claim stick",
             "title": "Try to call it verified",
             "narrative": (
@@ -354,6 +362,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "second",
+            "say": ("Fine. What would it take to actually know?"),
             "act": "Make a claim stick",
             "title": "Go and measure it yourself",
             "narrative": (
@@ -390,6 +399,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "passed",
+            "say": ("What about that forum thread everyone keeps linking?"),
             "act": "Make a claim stick",
             "title": "Record what you rejected",
             "narrative": (
@@ -416,6 +426,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "link",
+            "say": "",
             "act": "Make a claim stick",
             "title": "Link the second source",
             "narrative": (
@@ -434,6 +445,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "verified",
+            "say": ("Try again now."),
             "act": "Make a claim stick",
             "title": "Now it passes",
             "narrative": (
@@ -454,6 +466,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "decide",
+            "say": ("Let's not bother testing rye — white flour only."),
             "act": "Keep the record",
             "title": "Record the fork you resolved",
             "narrative": (
@@ -484,6 +497,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "doctor",
+            "say": ("Anything left hanging before we wrap up?"),
             "act": "Audit and render",
             "title": "Audit the notebook",
             "narrative": (
@@ -503,6 +517,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "show",
+            "say": ("Where do we stand?"),
             "act": "Audit and render",
             "title": "The hot view",
             "narrative": (
@@ -521,6 +536,7 @@ def step_plan() -> list[dict]:
         },
         {
             "id": "export",
+            "say": ("Share it with the group."),
             "act": "Audit and render",
             "title": "Render it somewhere",
             "narrative": (
@@ -658,6 +674,7 @@ def build_flipbook(env_base: dict[str, str]) -> dict:
                 {
                     "n": index,
                     "id": plan["id"],
+                    "say": plan.get("say", ""),
                     "act": plan["act"],
                     "title": plan["title"],
                     "narrative": plan["narrative"],

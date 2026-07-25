@@ -31,13 +31,17 @@
   <header class="fb__lede">
     <p class="section-kicker">The flipbook</p>
     <h1>How a notebook comes together</h1>
-    <p class="lede">Sixteen frames, seventeen real commands. Each one shows what was
-      run, which files it changed, and the record that resulted. The story is a
-      question that starts with somebody else's evidence and ends with a claim that
-      earned the right to call itself verified.</p>
+    <p class="lede">Sixteen frames of a working conversation. You never type these
+      commands — your agent runs them while you ask questions and direct the work the
+      way you normally would, in a tool like Claude Code. Each frame shows what was
+      said, what the agent ran, which files changed, and the record that resulted.
+      The story starts with somebody else's evidence and ends with a claim that
+      earned the right to call itself verified — including the moment the human asks
+      for a shortcut and the system tells the agent no.</p>
     <p class="demo-note" id="fb-vintage">
-      Every frame on this page was produced by running the flip CLI against a scratch
-      notebook when the site was built — no screenshots, no hand-written output. The
+      Every frame on this page was produced by running the real flip CLI against a
+      scratch notebook when the site was built — the same commands an agent runs — no
+      screenshots, no hand-written output. The
       research subject is invented: a fictional baking club and a kitchen log, chosen
       so that no frame could be mistaken for a real finding.
     </p>
@@ -58,6 +62,8 @@
       This page is driven by data generated at build time. If it does not load, the
       commands are all listed in the repository's quickstart.
     </p>
+    <div class="fb__say" id="fb-say"></div>
+    <p class="pane-label">What the agent ran</p>
     <div id="fb-commands"></div>
 
     <div class="fb__panes">
@@ -81,11 +87,13 @@
 
   <section class="prose">
     <h2>What the sixteen frames are meant to show</h2>
-    <p>Not that flip is easy to use — that the rules are <em>enforced</em>. The frame
-      worth pausing on is the refusal. A claim backed by one secondary source asks to
-      be marked verified and the CLI declines, with an exit code, because the profile
-      says a notebook headed for publication needs two independent judged sources or a
-      grade-A primary. Nothing about that is advisory.</p>
+    <p>Not that flip is easy to use — that the rules are <em>enforced</em>, on the
+      agent, no matter what the human asks for. The frame worth pausing on is the
+      refusal: the human says "good enough — mark it confirmed," the agent tries, and
+      the CLI declines with an exit code, because the profile says a notebook headed
+      for publication needs two independent judged sources or a grade-A primary.
+      Nothing about that is advisory, and no amount of agent confidence overrides
+      it.</p>
     <p>The second thing worth noticing is how little of it is flip's doing. What you
       are left with at frame sixteen is a directory of markdown files that any editor
       can open, plus two append-only ledgers. The discipline lives in the format; the

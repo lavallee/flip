@@ -21,6 +21,7 @@
     n: document.getElementById("fb-n"),
     total: document.getElementById("fb-total"),
     title: document.getElementById("fb-title"),
+    say: document.getElementById("fb-say"),
     narrative: document.getElementById("fb-narrative"),
     commands: document.getElementById("fb-commands"),
     tree: document.getElementById("fb-tree"),
@@ -128,6 +129,22 @@
     el.title.textContent = step.title;
     el.narrative.textContent = "";
     el.narrative.appendChild(kit.codeify(step.narrative));
+
+    el.say.textContent = "";
+    if (step.say) {
+      var bubble = document.createElement("div");
+      bubble.className = "bubble";
+      var who = document.createElement("b");
+      who.textContent = "You say";
+      bubble.appendChild(who);
+      bubble.appendChild(document.createTextNode(step.say));
+      el.say.appendChild(bubble);
+    } else {
+      var quiet = document.createElement("p");
+      quiet.className = "unprompted";
+      quiet.textContent = "Nobody asked for this step — the notebook's discipline has the agent do it anyway.";
+      el.say.appendChild(quiet);
+    }
 
     el.commands.textContent = "";
     step.commands.forEach(function (command) {

@@ -691,3 +691,18 @@
 @media (prefers-reduced-motion: reduce) {
   * { transition-duration: 0ms !important; animation-duration: 0ms !important; }
 }
+
+/* flipbook: the human's side of the conversation */
+.fb__say { margin: 0 0 .65rem; }
+.fb__say .bubble {
+  display: inline-block; max-width: 44rem;
+  font-family: var(--font-prose, inherit); font-size: .98rem; line-height: 1.45;
+  background: var(--accent-surface, rgba(0,0,0,.05));
+  border: 1px solid var(--border, #ddd); border-radius: 12px 12px 12px 3px;
+  padding: .55rem .85rem;
+}
+.fb__say .bubble b { font-size: .7rem; letter-spacing: .09em; text-transform: uppercase;
+  display: block; margin-bottom: .15rem; opacity: .65; font-family: var(--font-sans, inherit); }
+.fb__say .unprompted {
+  font-size: .82rem; color: var(--text-muted, #666); font-style: italic;
+}
