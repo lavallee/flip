@@ -32,6 +32,7 @@ import re
 from pathlib import Path
 
 from . import manifest, pages, profiles, util
+from . import sources as sources_mod
 
 STATUSES = (
     "asserted",
@@ -42,9 +43,6 @@ STATUSES = (
     "retracted",
     "superseded",
 )
-
-# Grades that count as a recorded judgment; "?" is custody, not judgment.
-JUDGED_GRADES = ("A", "B", "C")
 
 # Verification methods a claim can carry (SPEC §7, A2). The vocabulary widens
 # the ways a claim earns `verified`, but the corroboration bar itself is
@@ -84,18 +82,19 @@ def _linked_fms(source_fms: list[dict], source_ids: list[str]) -> list[dict]:
 
 
 def corroboration_count(source_fms: list[dict], source_ids: list[str]) -> int:
-    """Independent corroboration for a claim, per SPEC §5.4/§7.
+    """Independent corroboration for a claim, per SPEC §5.4/§7 (design D-A).
 
     Counts the claim's source ids (deduped — listing a source twice never
-    counts twice) whose references/ page is judged (grade A/B/C — a grade-"?"
-    page counts toward nothing, whatever its capture-time defaults say) AND
-    independence == "original". Shared by add_claim/set_claim_status and
-    doctor's under-verified check.
+    counts twice) whose references/ page is judged (support tuple recorded,
+    or a migration seed — an unjudged capture counts toward nothing) AND
+    independence == "independent". `corroborated`/`self-reported`/
+    `derivative` never satisfy the bar. Shared by add_claim/set_claim_status
+    and doctor's under-verified check.
     """
     return sum(
         1
         for fm in _linked_fms(source_fms, source_ids)
-        if fm.get("grade") in JUDGED_GRADES and fm.get("independence") == "original"
+        if sources_mod.judged(fm) and fm.get("independence") == "independent"
     )
 
 
@@ -191,8 +190,15 @@ def add_claim(
     sources: list[str],
     load_bearing: bool = False,
     notes: str | None = None,
+    value: str | None = None,
+    unit: str | None = None,
 ) -> pages.Page:
-    """Add a claim page with status "asserted", allocating the next C#."""
+    """Add a claim page with status "asserted", allocating the next C#.
+
+    A quantitative claim's number travels as data (`value`/`unit`), not only
+    as prose — the format's own export can't fix a free-text number
+    downstream. `value` stays a string (a range or "~42" is a legal value).
+    """
     root = util.require_notebook_root(root)
     text = (text or "").strip()
     if not text:
@@ -216,6 +222,12 @@ def add_claim(
         "first_asserted": util.today(),
         "generated": util.generated_now(),
     }
+    if value is not None:
+        fm["value"] = str(value)
+        if unit:
+            fm["unit"] = str(unit)
+    elif unit:
+        raise SystemExit("--unit given without --value; pass both or neither")
     if notes:
         fm["notes"] = notes
 
@@ -256,7 +268,7 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
     if status == "verified":
         profile = profiles.load_profile(manifest.load_manifest(root).kind, root)
         linked = _linked_fms(source_fms, cited)
-        has_grade_a = any(fm.get("grade") == "A" for fm in linked)
+        has_grade_a = any(sources_mod.derive_grade(fm) == "A" for fm in linked)
         bar_met = corroboration >= profile.claim_min_independent or (
             profile.claim_grade_a_suffices and has_grade_a
         )
@@ -264,7 +276,7 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
         # recomputation verification — the two paths the refusal names.
         if not (bar_met or has_gating_verification(page.fm)):
             msg = (
-                f"cannot verify {claim_id}: {corroboration} independent original source(s) "
+                f"cannot verify {claim_id}: {corroboration} independent source(s) "
                 f"of {profile.claim_min_independent} required"
             )
             if profile.claim_grade_a_suffices:
@@ -276,11 +288,11 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
             if profile.claim_grade_a_suffices:
                 msg += " or upgrade one to grade A via `flip grade`"
             ungraded = [
-                str(fm.get("id")) for fm in linked if fm.get("grade") not in JUDGED_GRADES
+                str(fm.get("id")) for fm in linked if not sources_mod.judged(fm)
             ]
             if ungraded:
                 msg += (
-                    f"; {', '.join(ungraded)} still graded '?' and ungraded sources "
+                    f"; {', '.join(ungraded)} still unjudged and unjudged sources "
                     "never corroborate — judge them with `flip grade` first"
                 )
             msg += (
@@ -351,7 +363,7 @@ def add_claim_sources(
             f"claim {claim_id} already cites {', '.join(dict.fromkeys(ids))}; nothing to add"
         )
     updated = _write_sources(root, page, current + added)
-    warnings = [s for s in added if src_by_id[s].fm.get("grade") not in JUDGED_GRADES]
+    warnings = [s for s in added if not sources_mod.judged(src_by_id[s].fm)]
     return updated, added, warnings
 
 

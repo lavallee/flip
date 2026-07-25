@@ -268,23 +268,49 @@ should know before trusting it.
 wikilink-aware editors while the filename stays readable (§9 on what aliases
 honestly buy).
 
-### 5.4 Source-quality model
+### 5.4 Source-quality model — the support tuple
 
-Two separate judgments, never conflated (after the Admiralty/NATO practice):
+Judgment is a *description of the evidence*, not a letter (v0.8, after the
+principle "a grade is a summary, never a store"). Grading a source records
+the **support tuple** on its page:
 
-**Source reliability** (frontmatter on the source page):
-
-| key | values |
+| key | values / meaning |
 |---|---|
-| `grade` | `A` authoritative primary (gov/peer-reviewed/data we extracted ourselves) · `B` official docs, independent journalism, platform docs · `C` vendor/practitioner/commercial/LLM synthesis · `?` not yet judged |
-| `independence` | `original` · `republisher` · `derivative` · `self-interested` |
+| `independence` | the tuple's spine, required to be judged: `independent` (third party, own collection) · `corroborated` (matches other independent evidence) · `self-reported` (the subject on itself) · `derivative` (republishes another source — a lead, never provenance) |
+| `support.basis` | what kind of evidence: `official-record` · `platform-data` · `measured` · `survey` · `panel` · `single-operator` · `synthesis` (incl. LLM output) · `spoken-management-remarks` (exists only in speech — cross-verify ≥2 independent transcript hosts) |
+| `support.n` | sample/coverage **as stated, a string** — `"5 respondents (85–100 of 110–125)"`. A string because an integer n silently masquerades as the base. |
+| `support.method` | how the evidence was produced, one line |
+| `support.base_defined` | **the first question to ask of any number**: is the measured quantity itself specified (population, metric definition, cuts)? Explicit `false` caps the digest at C. |
+| `support.vintage` | when the underlying data is from (`YYYY[-MM]`) — not when you read it |
 | `freshness` | `fresh` · `dated` (default threshold ~18 months, profile-tunable) |
 
+**`grade` is derived, never authored** — a letter digest recomputed from the
+tuple (doctor flags drift): `A` = independent + strong basis
+(official-record/platform-data/measured), base not recorded undefined ·
+`B` = independent/corroborated with basis and method recorded · `C` = every
+other recorded judgment · `D` = derivative · `?` = unjudged. A pre-0.8
+authored letter survives migration as `support.seeded: legacy-grade` — the
+digest returns it until a real grading replaces the seed (doctor lists
+seeds as expected-until-touched).
+
+**Liveness and provenance state** (optional, evidence-backed):
+
+- `pipeline: live | dormant | orphaned | transferred:<steward>` with a
+  **mandatory `pipeline_evidence` receipt** — an enum alone is not
+  self-evidencing, and `transferred` vs `orphaned` drive opposite consumer
+  behavior. Liveness belongs to the source, not the claim.
+- `provenance_state` — where the chain-walk behind this source ended:
+  `PRIMARY-REACHED · PRIMARY-GATED · PRIMARY-LOST` (archive check recorded)
+  `· PRIMARY-NEVER-PUBLISHED` (the *normal* terminal for commercial data —
+  name the closest public derivative, never silently promote it)
+  `· PRIMARY-EXISTS-PRIVATE · PRIMARY-OPEN` (legal mid-pass; doctor refuses
+  done/published while a load-bearing claim rests on one).
+
 **Claim credibility** lives on the claim (§7). LLM and retrieval-service
-outputs are always grade `C` intermediaries; under `citation_rule:
+outputs are `synthesis`-basis intermediaries; under `citation_rule:
 public-terminus` a load-bearing chain must end at a public, independently
-verifiable source. **Ungraded sources never corroborate:** a source still
-graded `?` counts toward nothing — capture is custody, not judgment.
+verifiable source. **Unjudged sources never corroborate:** capture is
+custody, not judgment.
 
 ## 6. The flip profile — lineage rules for LLM-built wikis
 
@@ -352,8 +378,11 @@ _Single vendor study; seek platform data or a second measurement._
 
 `status`: `asserted` → `verified` | `needs-2nd` | `unconfirmed` |
 `false-positive` | `retracted` | `superseded`. A claim is `verified` only
-with the corroboration its profile demands (default: two independent
-sources or one grade-A primary), counting only judged sources.
+with the corroboration its profile demands (default: two sources whose
+recorded `independence` is `independent`, or one whose derived digest is A),
+counting only judged sources. A quantitative claim SHOULD carry its number
+as data — `value` (a string; ranges and "~42" are legal) and `unit` — so
+the format's own exports can ship it; prose alone can't.
 `independent_corroboration` is stored for consumers but recomputed by the
 tooling — doctor flags drift. `sources` is OKF v0.2 §5.1 provenance: one
 entry per cited source, `{id, resource, title?}`, where `id` is the
@@ -385,7 +414,10 @@ preserve-and-ignore.
 Decisions and questions follow the same shape: `decisions/<slug>.md`
 (`type: Decision` — `question`, decision text, why, `alternatives_rejected`)
 and `questions/<slug>.md` (`type: Question` — `status: open | answered`,
-answered pages keep their history in git). **Questions are re-posed
+answered pages keep their history in git). Questions SHOULD carry
+`resolves_via: [<surface>, …]` — the surfaces that could answer them; an
+open question without a watching surface is a wish, and `flip show` marks
+it `unwatched`. **Questions are re-posed
 append-only**: `flip question repose <Q#> "<new formulation>"` keeps the id,
 slug, and status; the new formulation becomes the current description and body
 lead, while the superseded text is preserved in a `formulations:` history list
@@ -399,7 +431,11 @@ full journey.
   wall Z. `{ts, text, actor}`, one per line. **`log.md`** at the bundle root
   is its generated, newest-first OKF view.
 - **`log/passed.jsonl`** (append-only) — negative evidence: considered and
-  rejected, with reason. Prevents rediscovery loops.
+  rejected, with reason. Prevents rediscovery loops. An absence assertion
+  carries its scope — `absent_from: corpus | named_surfaces | world` — and
+  only `corpus` may be asserted without naming the surfaces checked
+  (`surfaces: [...]`): a true statement about a corpus must not travel as a
+  false statement about the world.
 - **`sessions/<stamp>-<slug>.md`** — one entity page per working episode
   (`type: Work Session`; frontmatter: `generated: {by, at}`, `model`,
   `tools`, `started`, `ended`): the goal, the prompt (or pointer), key

@@ -63,15 +63,48 @@ def log_event(root: Path, text: str) -> dict:
     return row
 
 
-def add_passed(root: Path, text: str, reason: str, url: str | None = None) -> dict:
-    """Append negative evidence — considered and rejected — to log/passed.jsonl."""
+# Where an absence claim is scoped (SPEC §8, design phase 2): only `corpus`
+# may be asserted without naming surfaces — "a true statement about a corpus
+# became a false statement about the world."
+ABSENT_FROM = ("corpus", "named_surfaces", "world")
+
+
+def add_passed(
+    root: Path,
+    text: str,
+    reason: str,
+    url: str | None = None,
+    absent_from: str | None = None,
+    surfaces: list[str] | None = None,
+) -> dict:
+    """Append negative evidence — considered and rejected — to log/passed.jsonl.
+
+    `absent_from` scopes an absence assertion (corpus | named_surfaces |
+    world); anything beyond `corpus` must name the surfaces the desk can
+    show an attempt against.
+    """
     root = util.require_notebook_root(root)
     text = _require_text(text, "text")
     reason = _require_text(reason, "reason")
+    named = [str(s) for s in (surfaces or []) if str(s).strip()]
+    if absent_from is not None:
+        if absent_from not in ABSENT_FROM:
+            raise SystemExit(
+                f"invalid absent_from '{absent_from}' (one of: {', '.join(ABSENT_FROM)})"
+            )
+        if absent_from != "corpus" and not named:
+            raise SystemExit(
+                f"absent_from '{absent_from}' asserts more than this corpus; name the "
+                "surfaces checked (--surface, repeatable) or scope it to 'corpus'"
+            )
     row: dict = {"ts": util.utc_now(), "text": text}
     if url:
         row["url"] = url
     row["reason"] = reason
+    if absent_from:
+        row["absent_from"] = absent_from
+    if named:
+        row["surfaces"] = named
     row["actor"] = util.detect_actor()
     util.append_jsonl(root / PASSED, row)
     _finish(root)
@@ -129,24 +162,30 @@ def add_decision(
 # --- questions (entity pages) --------------------------------------------------
 
 
-def add_question(root: Path, text: str) -> pages.Page:
+def add_question(root: Path, text: str, resolves_via: list[str] | None = None) -> pages.Page:
     """Create questions/<slug>.md with status: open, allocating the next Q#.
 
-    Q#s are allocated over every id in the notebook and reserved in
-    .flip/ids, so ids are never reused even after a question is answered or
-    its page deleted. Returns the Page.
+    `resolves_via` names the surfaces that could answer this question (L17:
+    an open question without a watching surface is a wish, not a plan) —
+    `flip show` marks open questions that lack one. Q#s are allocated over
+    every id in the notebook and reserved in .flip/ids, so ids are never
+    reused even after a question is answered or its page deleted. Returns
+    the Page.
     """
     root = util.require_notebook_root(root)
     text = _require_text(text, "question text")
     qid = pages.allocate_id(root, "Q")
-    fm = {
+    fm: dict = {
         "type": "Question",
         "id": qid,
         "aliases": [qid],
         "description": _description(text),
         "status": "open",
-        "generated": util.generated_now(),
     }
+    vias = [str(s) for s in (resolves_via or []) if str(s).strip()]
+    if vias:
+        fm["resolves_via"] = vias
+    fm["generated"] = util.generated_now()
     directory = root / "questions"
     slug = pages.unique_slug(directory, pages.slugify(text, fallback="question"))
     path = pages.write_page(directory / f"{slug}.md", fm, text + "\n")

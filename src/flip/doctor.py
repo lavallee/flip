@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import pages, workspace
+from . import sources as sources_mod
 from .beat import find_beat_root, load_beat
 from .claims import STATUSES as CLAIM_STATUSES  # claim status enum (SPEC §7)
 from .claims import corroboration_count, has_gating_verification
@@ -129,7 +130,44 @@ def run_doctor(root: Path) -> list[Finding]:
     _check_raw(root, provenance, findings)
     claim_pages = [p for p in by_dir.get("claims", []) if p.fm.get("type") == "Claim"]
     _check_claims(root, claim_pages, source_pages, profile, findings)
+    _check_provenance_open(root, manifest, claim_pages, source_pages, findings)
     return findings
+
+
+def _check_provenance_open(
+    root: Path,
+    manifest: Manifest | None,
+    claim_pages: list[pages.Page],
+    source_pages: list[pages.Page],
+    findings: list[Finding],
+) -> None:
+    """PRIMARY-OPEN is a legitimate mid-pass state, not a shippable one
+    (SPEC §5.5): once the notebook is done/published/archived, a load-bearing
+    claim resting on a source whose chain-walk never reached a terminus is an
+    ERROR; while active it's a WARN so the walk gets finished, not forgotten."""
+    open_sources = {
+        p.id for p in source_pages if str(p.fm.get("provenance_state") or "") == "PRIMARY-OPEN"
+    }
+    if not open_sources:
+        return
+    closed = manifest is not None and manifest.status in CLOSED_STATUSES
+    from .claims import source_ids as claim_source_ids_fn
+
+    for page in claim_pages:
+        if not page.fm.get("load_bearing"):
+            continue
+        resting = sorted(set(claim_source_ids_fn(page.fm)) & open_sources)
+        if not resting:
+            continue
+        rel = _rel(page, root)
+        msg = (
+            f"load-bearing claim {page.id or '?'} rests on {', '.join(resting)} whose "
+            "provenance chain is PRIMARY-OPEN (walk not finished); finish the walk and "
+            f"record a terminal state (`flip source provenance {resting[0]} …`)"
+        )
+        findings.append(
+            _error("provenance-open", msg, rel) if closed else _warn("provenance-open", msg, rel)
+        )
 
 
 def run_workspace_doctor(ws_root: Path, fix: bool = False) -> list[Finding]:
@@ -267,6 +305,10 @@ def run_workspace_doctor(ws_root: Path, fix: bool = False) -> list[Finding]:
     id_owners: dict[str, set[str]] = {}
     stem_owners: dict[str, set[str]] = {}
     stale_by_handle: dict[str, set[str]] = {}
+    # Cross-notebook consistency (L16): the same claim tracked in several
+    # notebooks must not silently sit in different states — three notebooks,
+    # one fact, three states, zero mechanisms was the motivating failure.
+    claim_states: dict[str, dict[str, str]] = {}  # normalized text -> handle -> status
     for handle, nb_root, rel in checked:
         # Handles binding this same notebook in an enclosing or nested
         # workspace table are that table's aliases, not stale ones — stripping
@@ -276,6 +318,12 @@ def run_workspace_doctor(ws_root: Path, fix: bool = False) -> list[Finding]:
             found, _errors = pages.iter_pages_tolerant(nb_root, dirname)
             for page in found:
                 stem_owners.setdefault(page.path.stem, set()).add(handle)
+                if dirname == "claims" and str(page.fm.get("type", "")) == "Claim":
+                    norm = " ".join(str(page.fm.get("description", "")).lower().split())
+                    if norm:
+                        claim_states.setdefault(norm, {})[handle] = str(
+                            page.fm.get("status", "asserted")
+                        )
                 entity_id = page.id
                 if not entity_id:
                     continue
@@ -314,6 +362,30 @@ def run_workspace_doctor(ws_root: Path, fix: bool = False) -> list[Finding]:
                 "ambiguous-id",
                 f"{len(ambiguous)} id(s) live in more than one bound notebook — bare "
                 f"refs there need qualifying (handle:id): {shown}{more}",
+                ".",
+            )
+        )
+    drifted = sorted(
+        (text, states) for text, states in claim_states.items()
+        if len(states) >= 2 and len(set(states.values())) >= 2
+    )
+    for text, states in drifted[:10]:
+        listed = ", ".join(f"{h}: {s}" for h, s in sorted(states.items()))
+        findings.append(
+            _warn(
+                "cross-notebook-drift",
+                f'the claim "{text[:80]}" is tracked in {len(states)} notebooks with '
+                f"diverging statuses ({listed}); reconcile them — supersede or update, "
+                "never leave the corpus disagreeing with itself",
+                ".",
+            )
+        )
+    if len(drifted) > 10:
+        findings.append(
+            _warn(
+                "cross-notebook-drift",
+                f"+{len(drifted) - 10} more claims tracked in multiple notebooks with "
+                "diverging statuses",
                 ".",
             )
         )
@@ -760,10 +832,82 @@ def _check_sources(
         ):
             value = page.fm.get(field)
             if value is not None and value not in valid:
+                if field == "independence" and value in (
+                    "original", "republisher", "self-interested"
+                ):
+                    findings.append(
+                        _warn(
+                            "pre-08-vocabulary",
+                            f"source {sid}: independence '{value}' is pre-0.8 vocabulary; "
+                            "run `flip migrate` to adopt the support-tuple model",
+                            rel,
+                        )
+                    )
+                    continue
                 findings.append(
                     _error(
                         "bad-enum",
                         f"source {sid}: {field} '{value}' invalid (one of: {', '.join(valid)})",
+                        rel,
+                    )
+                )
+        pipeline = page.fm.get("pipeline")
+        if pipeline is not None:
+            ok_pipeline = str(pipeline) in sources_mod.PIPELINES or (
+                str(pipeline).startswith("transferred:") and str(pipeline)[12:].strip()
+            )
+            if not ok_pipeline:
+                findings.append(
+                    _error(
+                        "bad-enum",
+                        f"source {sid}: pipeline '{pipeline}' invalid (one of: "
+                        f"{', '.join(sources_mod.PIPELINES)}, or transferred:<steward>)",
+                        rel,
+                    )
+                )
+            if not str(page.fm.get("pipeline_evidence") or "").strip():
+                findings.append(
+                    _warn(
+                        "enum-without-evidence",
+                        f"source {sid}: pipeline '{pipeline}' has no pipeline_evidence "
+                        "receipt — an enum alone is not self-evidencing; add one with "
+                        f"`flip source pipeline {sid} {pipeline} --evidence …`",
+                        rel,
+                    )
+                )
+        state = page.fm.get("provenance_state")
+        if state is not None and str(state) not in sources_mod.PROVENANCE_STATES:
+            findings.append(
+                _error(
+                    "bad-enum",
+                    f"source {sid}: provenance_state '{state}' invalid (one of: "
+                    f"{', '.join(sources_mod.PROVENANCE_STATES)})",
+                    rel,
+                )
+            )
+        support = page.fm.get("support") if isinstance(page.fm.get("support"), dict) else {}
+        if support.get("seeded") == "legacy-grade":
+            findings.append(
+                _warn(
+                    "seeded-grade",
+                    f"source {sid}: grade {page.fm.get('grade', '?')} is a migration seed "
+                    f"from a pre-0.8 authored letter; re-grade with the support tuple "
+                    f"(`flip grade {sid} --independence … --basis …`) when the work next "
+                    "touches it",
+                    rel,
+                    expected=True,
+                )
+            )
+        elif sources_mod.judged(page.fm):
+            derived = sources_mod.derive_grade(page.fm)
+            stored = str(page.fm.get("grade") or "?")
+            if stored != derived:
+                findings.append(
+                    _warn(
+                        "grade-drift",
+                        f"source {sid}: stored grade {stored} != derived {derived} "
+                        "(grades are digests of the support tuple, never authored); "
+                        f"re-run `flip grade {sid}` with any tuple field to refresh",
                         rel,
                     )
                 )
@@ -886,7 +1030,7 @@ def _check_claims(
             # deduped ids, judged + original only); never trust the stored count.
             # An adversarial/recomputation verification clears the gate too (A2).
             linked = [by_id[s] for s in dict.fromkeys(claim_sources) if s in by_id]
-            has_grade_a = any(fm.get("grade") == "A" for fm in linked)
+            has_grade_a = any(sources_mod.derive_grade(fm) == "A" for fm in linked)
             ok = (
                 corroboration >= profile.claim_min_independent
                 or (profile.claim_grade_a_suffices and has_grade_a)

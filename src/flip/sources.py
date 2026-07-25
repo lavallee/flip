@@ -33,9 +33,79 @@ from .util import (
     utc_now,
 )
 
-GRADES = ("A", "B", "C", "?")
-INDEPENDENCE = ("original", "republisher", "derivative", "self-interested")
+GRADES = ("A", "B", "C", "D", "?")
+INDEPENDENCE = ("independent", "corroborated", "self-reported", "derivative")
 FRESHNESS = ("fresh", "dated")
+
+# The support tuple (SPEC §5.4, design D-A): evidence *description*, authored
+# as the act of judgment; the letter grade is derived from it, never stored
+# as an opinion of its own. `independence` is the tuple's spine and keeps its
+# own top-level frontmatter key (continuity with pre-0.8 pages).
+BASES = (
+    "official-record",
+    "platform-data",
+    "measured",
+    "survey",
+    "panel",
+    "single-operator",
+    "synthesis",
+    "spoken-management-remarks",
+)
+_STRONG_BASES = ("official-record", "platform-data", "measured")
+
+# Provenance terminal states (SPEC §5.5, design D-B): where the chain-walk
+# behind this source ended. Optional; doctor gates done/published on OPEN.
+PROVENANCE_STATES = (
+    "PRIMARY-REACHED",
+    "PRIMARY-GATED",
+    "PRIMARY-LOST",
+    "PRIMARY-NEVER-PUBLISHED",
+    "PRIMARY-EXISTS-PRIVATE",
+    "PRIMARY-OPEN",
+)
+
+
+def _support(fm: dict) -> dict:
+    value = fm.get("support")
+    return value if isinstance(value, dict) else {}
+
+
+def judged(fm: dict) -> bool:
+    """True when a judgment is recorded: `independence` present (the tuple's
+    spine), or a migration seed standing in for a pre-0.8 authored letter."""
+    return bool(fm.get("independence")) or _support(fm).get("seeded") == "legacy-grade"
+
+
+def derive_grade(fm: dict) -> str:
+    """The letter digest of a source's support tuple — a summary, never a
+    store (design D-A). Deterministic and recomputable; doctor flags drift.
+
+    A: independent + strong basis (official-record/platform-data/measured),
+       with `base_defined` not recorded false.
+    B: independent/corroborated with basis and method recorded.
+    C: every other recorded judgment (self-reported, synthesis-grade bases,
+       undefined base on a quantitative source).
+    D: derivative — a lead, never provenance.
+    ?: unjudged. A `support.seeded: legacy-grade` marker returns the stored
+       pre-0.8 letter until a real grading replaces it.
+    """
+    support = _support(fm)
+    if support.get("seeded") == "legacy-grade":
+        stored = str(fm.get("grade") or "?")
+        return stored if stored in GRADES else "?"
+    independence = str(fm.get("independence") or "")
+    if not independence:
+        return "?"
+    if independence == "derivative":
+        return "D"
+    if support.get("base_defined") is False:
+        return "C"
+    basis = str(support.get("basis") or "")
+    if independence == "independent" and basis in _STRONG_BASES:
+        return "A"
+    if independence in ("independent", "corroborated") and basis and support.get("method"):
+        return "B"
+    return "C"
 
 # SPEC §9 naming rules: P papers · A articles/web · F files/datasets/documents ·
 # T talks/transcripts · S when unkinded/unknown. D is reserved for decisions —
@@ -174,7 +244,25 @@ def add_source(
             "builtin:copy", None, "copy", "copy", origin,
         )
     else:
-        run = integrations.run_capture(resolved, root, source_id, target)
+        try:
+            run = integrations.run_capture(resolved, root, source_id, target)
+        except SystemExit as exc:
+            # A failed acquisition is a finding, not just an error (L5): the
+            # attempt lands in the ledger — "searched, gone" is distinguishable
+            # from "did not look" — then the refusal propagates unchanged.
+            append_jsonl(
+                root / "sources" / "_provenance.jsonl",
+                {
+                    "ts": utc_now(),
+                    "source_id": source_id,
+                    "url": target,
+                    "status": "failed",
+                    "error": str(exc),
+                    "actor": detect_actor(),
+                    **({"note": note} if note else {}),
+                },
+            )
+            raise
         files, tool, tool_version = run.files, run.tool, run.tool_version
         capture_kind, strategy, url, envelope = "config", run.strategy, target, run.envelope
 
@@ -229,10 +317,11 @@ def add_source(
         {
             "local": largest.relative_to(root).as_posix(),
             "grade": "?",
-            "independence": "original",
-            "freshness": "fresh",
+            # No independence/freshness at capture: those are judgment keys
+            # and capture confers nothing (SPEC §5.4). `flip grade` writes
+            # them as the act of judgment.
             "status": "captured",
-            "actor": actor,
+            "generated": {"by": actor, "at": utc_now()},
         }
     )
 
@@ -259,6 +348,71 @@ def source_pages(root: Path) -> list[pages.Page]:
     return pages.iter_pages(root, "references")
 
 
+# Pipeline liveness values; `transferred:<steward>` is the prefixed form.
+PIPELINES = ("live", "dormant", "orphaned")
+
+
+def _find_source_page(root: Path, source_id: str) -> pages.Page:
+    page = next((p for p in source_pages(root) if p.id == source_id), None)
+    if page is None:
+        known = ", ".join(p.id for p in source_pages(root) if p.id) or "none yet"
+        raise SystemExit(
+            f"unknown source id '{source_id}' in references/ (have: {known}) — "
+            "run `flip add-source` first"
+        )
+    return page
+
+
+def set_pipeline(root: Path, source_id: str, pipeline: str, evidence: str) -> pages.Page:
+    """Record a source's pipeline liveness — staleness *classification*, not
+    just age. `live | dormant | orphaned | transferred:<steward>`, and the
+    evidence receipt is mandatory: an enum alone is not self-evidencing (the
+    error four independent consumers repeated). Liveness belongs to the
+    source, not the claim."""
+    root = require_notebook_root(root)
+    ok = pipeline in PIPELINES or (
+        pipeline.startswith("transferred:") and pipeline.split(":", 1)[1].strip()
+    )
+    if not ok:
+        raise SystemExit(
+            f"invalid pipeline '{pipeline}' (one of: {', '.join(PIPELINES)}, "
+            "or transferred:<steward>)"
+        )
+    evidence = (evidence or "").strip()
+    if not evidence:
+        raise SystemExit(
+            "pipeline needs --evidence with a one-line receipt (no enum without evidence)"
+        )
+    page = _find_source_page(root, source_id)
+    page.fm["pipeline"] = pipeline
+    page.fm["pipeline_evidence"] = evidence
+    pages.write_page(page.path, page.fm, page.body)
+    manifest.touch_updated(root)
+    _regenerate_views(root)
+    return pages.Page(path=page.path, fm=page.fm, body=page.body)
+
+
+def set_provenance_state(
+    root: Path, source_id: str, state: str, note: str | None = None
+) -> pages.Page:
+    """Record where the provenance chain-walk behind a source ended (SPEC
+    §5.5, design D-B). PRIMARY-OPEN is a legitimate mid-pass state, but the
+    doctor refuses done/published while a load-bearing claim rests on one."""
+    root = require_notebook_root(root)
+    if state not in PROVENANCE_STATES:
+        raise SystemExit(
+            f"invalid provenance state '{state}' (one of: {', '.join(PROVENANCE_STATES)})"
+        )
+    page = _find_source_page(root, source_id)
+    page.fm["provenance_state"] = state
+    if note:
+        page.fm["provenance_note"] = note
+    pages.write_page(page.path, page.fm, page.body)
+    manifest.touch_updated(root)
+    _regenerate_views(root)
+    return pages.Page(path=page.path, fm=page.fm, body=page.body)
+
+
 def list_sources(root: Path) -> list[dict]:
     """All sources as frontmatter dicts (+ slug and root-relative path), in id
     order. Read-only (backs `flip source list`)."""
@@ -273,21 +427,28 @@ def list_sources(root: Path) -> list[dict]:
 def grade_source(
     root: Path,
     source_id: str,
-    grade: str | None = None,
     independence: str | None = None,
+    basis: str | None = None,
+    n: str | None = None,
+    method: str | None = None,
+    vintage: str | None = None,
+    base_defined: bool | None = None,
     freshness: str | None = None,
     notes: str | None = None,
 ) -> pages.Page:
-    """Record source-quality judgments on an existing page; returns the page.
+    """Record the support tuple on an existing page; returns the page.
 
-    Touches only the keys flip owns here (grade/independence/freshness/notes);
-    everything else on the page — foreign frontmatter, the prose body — round-
-    trips untouched (SPEC §6.6), so an Obsidian-authored page survives.
+    This IS the act of judgment (design D-A): independence is the tuple's
+    spine and is required on first grading; basis/n/method/vintage/
+    base_defined describe the evidence; the letter `grade` is (re)derived —
+    never authored — and a migration seed is cleared by a real grading.
+    Touches only the keys flip owns here; everything else round-trips
+    untouched (SPEC §6.6), so an Obsidian-authored page survives.
     """
     root = require_notebook_root(root)
     for name, value, allowed in (
-        ("grade", grade, GRADES),
         ("independence", independence, INDEPENDENCE),
+        ("basis", basis, BASES),
         ("freshness", freshness, FRESHNESS),
     ):
         if value is not None and value not in allowed:
@@ -299,10 +460,28 @@ def grade_source(
             f"unknown source id '{source_id}' in references/ (have: {known}) — "
             "run `flip add-source` first"
         )
-    updates = {"grade": grade, "independence": independence, "freshness": freshness, "notes": notes}
-    for key, value in updates.items():
+    if independence is None and not page.fm.get("independence"):
+        raise SystemExit(
+            f"{source_id} is unjudged and no --independence given; independence is the "
+            f"judgment's spine (one of: {', '.join(INDEPENDENCE)})"
+        )
+    support = dict(_support(page.fm))
+    support.pop("seeded", None)  # a real grading replaces any migration seed
+    for key, value in (
+        ("basis", basis), ("n", n), ("method", method),
+        ("vintage", vintage), ("base_defined", base_defined),
+    ):
         if value is not None:
-            page.fm[key] = value
+            support[key] = value
+    if support:
+        page.fm["support"] = support
+    if independence is not None:
+        page.fm["independence"] = independence
+    if freshness is not None:
+        page.fm["freshness"] = freshness
+    if notes is not None:
+        page.fm["notes"] = notes
+    page.fm["grade"] = derive_grade(page.fm)
     pages.write_page(page.path, page.fm, page.body)
     manifest.touch_updated(root)
     _regenerate_views(root)

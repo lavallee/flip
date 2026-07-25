@@ -24,9 +24,13 @@ STATUSES = ("active", "dormant", "done", "published", "archived")
 # 0.7 is the OKF v0.2 layout (design-okf-0.2): pages carry `generated: {by,
 # at}` instead of flat timestamp/actor, claims carry OKF `sources` entries +
 # footnote attribution instead of supports + a `# Citations` block, and
-# verification records live in `verified:` ({by, at, method, …}). `flip
-# migrate` rewrites 0.4–0.6 notebooks in place. uid gating stays at 0.5+.
-FLIP_PROFILE_VERSION = "0.7"
+# verification records live in `verified:` ({by, at, method, …}).
+# 0.8 is the support-tuple judgment model (design-outcome-kinds D-A/D-C):
+# independence vocabulary independent|corroborated|self-reported|derivative,
+# `support:` tuple as the judgment store, letter grades derived (a pre-0.8
+# authored letter survives as a `support.seeded` digest until re-graded).
+# `flip migrate` rewrites 0.4–0.7 notebooks in place. uid gating stays 0.5+.
+FLIP_PROFILE_VERSION = "0.8"
 
 # SPEC §3: slugs are filesystem- and cite-safe. Validated at create/save so a
 # bad slug never reaches disk (it names files and every <slug>:<id> cross-ref).

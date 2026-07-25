@@ -281,8 +281,9 @@ def add_source(target: str, kind: str | None, via: str | None, note: str | None)
     page = sources.add_source(root, target, kind=kind, note=note, via=via)
     rel = page.path.relative_to(root).as_posix()
     click.echo(f"{page.id} · {page.fm.get('local', '')} · {rel} (grade ?)")
-    click.echo(f"judge it: flip grade {page.id} --grade A|B|C "
-               f"--independence original|republisher|derivative|self-interested")
+    click.echo(f"judge it after reading: flip grade {page.id} "
+               f"--independence independent|corroborated|self-reported|derivative "
+               f"--basis … [--n … --base-defined|--base-undefined]")
 
 
 # ---------------------------------------------------------------- config
@@ -426,30 +427,63 @@ def recall(query: str, via: str | None, record: bool, as_json: bool) -> None:
 
 @main.command()
 @click.argument("source_id", metavar="SOURCE_ID")
-@click.option("--grade", default=None, type=click.Choice(sources.GRADES),
-              help="Reliability: A authoritative primary · B official/independent · "
-                   "C vendor/synthesis · ? unjudged.")
 @click.option("--independence", default=None, type=click.Choice(sources.INDEPENDENCE),
-              help="Is this the original, or downstream of one?")
+              help="The judgment's spine: independent (third party, own collection) · "
+                   "corroborated · self-reported (the subject on itself) · "
+                   "derivative (republishes another source — a lead, never provenance).")
+@click.option("--basis", default=None, type=click.Choice(sources.BASES),
+              help="What kind of evidence this is (official-record, platform-data, "
+                   "measured, survey, panel, single-operator, synthesis, "
+                   "spoken-management-remarks).")
+@click.option("--n", default=None, metavar="TEXT",
+              help='Sample/coverage AS STATED, a string — e.g. "5 respondents (85-100 of '
+                   '110-125)". Strings keep an n from masquerading as the base.')
+@click.option("--method", default=None, help="How the evidence was produced, one line.")
+@click.option("--vintage", default=None, metavar="YYYY[-MM]",
+              help="When the underlying data is from (not when you read it).")
+@click.option("--base-defined/--base-undefined", "base_defined", default=None,
+              help="Is the measured quantity itself specified? The first question "
+                   "to ask of any number. Explicit --base-undefined caps the digest at C.")
 @click.option("--freshness", default=None, type=click.Choice(sources.FRESHNESS),
               help="fresh, or dated past the profile threshold.")
-@click.option("--notes", default=None, help="Judgment notes (why this grade).")
-def grade(source_id: str, grade: str | None, independence: str | None,
-          freshness: str | None, notes: str | None) -> None:
-    """Record source-quality judgments on a source's page (SPEC §5.4).
+@click.option("--notes", default=None, help="Judgment notes (why this reading).")
+@click.option("--grade", "legacy_grade", default=None, hidden=True)
+def grade(source_id: str, independence: str | None, basis: str | None, n: str | None,
+          method: str | None, vintage: str | None, base_defined: bool | None,
+          freshness: str | None, notes: str | None, legacy_grade: str | None) -> None:
+    """Record the support tuple on a source's page (SPEC §5.4).
 
-    Use after actually reading a source; grading gates claim verification.
-    Only the judgment keys change — the rest of the page round-trips.
-    At least one option is required.
+    Use after actually reading a source; the tuple gates claim verification
+    and the letter grade is DERIVED from it, never authored. Only the
+    judgment keys change — the rest of the page round-trips.
     """
-    if grade is None and independence is None and freshness is None and notes is None:
+    if legacy_grade is not None:
         raise SystemExit(
-            "nothing to record; pass at least one of --grade/--independence/--freshness/--notes"
+            "grades are derived now, not authored (design D-A): describe the evidence "
+            "with --independence/--basis/--n/--method/--vintage/--base-defined and the "
+            "letter follows; `flip source list` shows the derived digest"
         )
-    page = sources.grade_source(require_notebook_root(), source_id, grade=grade,
-                                independence=independence, freshness=freshness, notes=notes)
-    click.echo(f"{page.id} · grade {page.fm.get('grade', '?')} · "
-               f"{page.fm.get('independence', '?')} · {page.fm.get('freshness', '?')}")
+    if all(v is None for v in (independence, basis, n, method, vintage,
+                               base_defined, freshness, notes)):
+        raise SystemExit(
+            "nothing to record; describe the evidence — at least one of "
+            "--independence/--basis/--n/--method/--vintage/--base-defined"
+            "/--freshness/--notes"
+        )
+    page = sources.grade_source(require_notebook_root(), source_id,
+                                independence=independence, basis=basis, n=n,
+                                method=method, vintage=vintage,
+                                base_defined=base_defined,
+                                freshness=freshness, notes=notes)
+    support = page.fm.get("support") or {}
+    bits = [f"{page.id} · grade {page.fm.get('grade', '?')} (derived)",
+            str(page.fm.get("independence", "?"))]
+    if support.get("basis"):
+        bits.append(str(support["basis"]))
+    if support.get("base_defined") is not None:
+        bits.append(f"base_defined: {str(support['base_defined']).lower()}")
+    bits.append(str(page.fm.get("freshness", "")) or "freshness unset")
+    click.echo(" · ".join(bits))
 
 
 @main.group(cls=SuggestGroup)
@@ -478,6 +512,37 @@ def source_list(as_json: bool) -> None:
                     f"/{r.get('freshness', '?')}")
         click.echo(f"{r.get('id', '?')} · {judgment} · "
                    f"{r.get('title') or r.get('local', '')} · {r.get('path', '')}")
+
+
+@source.command("pipeline")
+@click.argument("source_id", metavar="SOURCE_ID")
+@click.argument("pipeline", metavar="live|dormant|orphaned|transferred:<steward>")
+@click.option("--evidence", required=True,
+              help="One-line receipt for the classification (no enum without evidence).")
+def source_pipeline(source_id: str, pipeline: str, evidence: str) -> None:
+    """Classify a source's pipeline liveness — did the thing that produced it
+    still exist when you last checked? `transferred` and `orphaned` drive
+    opposite consumer behavior, so the enum needs its receipt."""
+    page = sources.set_pipeline(require_notebook_root(), source_id, pipeline, evidence)
+    click.echo(f"{page.id} · pipeline {page.fm['pipeline']} · {page.fm['pipeline_evidence']}")
+
+
+@source.command("provenance")
+@click.argument("source_id", metavar="SOURCE_ID")
+@click.argument("state", type=click.Choice(sources.PROVENANCE_STATES))
+@click.option("--note", default=None,
+              help="What the chain-walk found (e.g. the closest public derivative).")
+def source_provenance(source_id: str, state: str, note: str | None) -> None:
+    """Record where the provenance chain-walk behind this source ended.
+
+    PRIMARY-OPEN is legal mid-pass; doctor refuses done/published while a
+    load-bearing claim rests on one. PRIMARY-NEVER-PUBLISHED is the normal
+    terminal for commercial data — name the closest public derivative in
+    --note rather than silently treating it as the primary.
+    """
+    page = sources.set_provenance_state(require_notebook_root(), source_id, state, note=note)
+    click.echo(f"{page.id} · {page.fm['provenance_state']}"
+               + (f" · {note}" if note else ""))
 
 
 # ---------------------------------------------------------------- log ledgers
@@ -517,13 +582,22 @@ def decide(question: str, decision: str, why: str, rejected: tuple[str, ...]) ->
 @click.argument("text")
 @click.option("--reason", required=True, help="Why it was rejected — the payload.")
 @click.option("--url", default=None, help="Where the rejected thing lives, if anywhere.")
-def pass_(text: str, reason: str, url: str | None) -> None:
+@click.option("--absent-from", "absent_from", default=None,
+              type=click.Choice(ledgers.ABSENT_FROM),
+              help="Scope an absence assertion: corpus (default claimable) · "
+                   "named_surfaces/world (must name --surface(s) checked).")
+@click.option("--surface", "surfaces", multiple=True, metavar="SURFACE",
+              help="A surface this absence was checked against; repeatable.")
+def pass_(text: str, reason: str, url: str | None, absent_from: str | None,
+          surfaces: tuple[str, ...]) -> None:
     """Record negative evidence — considered and rejected — in log/passed.jsonl.
 
     Use when you rule something out, so the next pass (human or agent)
-    doesn't rediscover and re-chase it.
+    doesn't rediscover and re-chase it. An absence beyond this corpus must
+    say where it looked.
     """
-    row = ledgers.add_passed(require_notebook_root(), text, reason, url=url)
+    row = ledgers.add_passed(require_notebook_root(), text, reason, url=url,
+                             absent_from=absent_from, surfaces=list(surfaces))
     click.echo(f"passed {row['ts']} · {row['reason']}")
 
 
@@ -539,10 +613,16 @@ def question() -> None:
 
 @question.command("add")
 @click.argument("text")
-def question_add(text: str) -> None:
+@click.option("--resolves-via", "resolves_via", multiple=True, metavar="SURFACE",
+              help="A surface that could answer this (repeatable) — an open "
+                   "question without a watching surface is a wish, not a plan.")
+def question_add(text: str, resolves_via: tuple[str, ...]) -> None:
     """Open a question, allocating the next Q#. Cite it in prose as [Q2]."""
-    page = ledgers.add_question(require_notebook_root(), text)
-    click.echo(f"{page.id} open · {page.fm.get('description', '')}")
+    page = ledgers.add_question(require_notebook_root(), text,
+                                resolves_via=list(resolves_via))
+    vias = page.fm.get("resolves_via")
+    tail = f" · watches: {', '.join(vias)}" if vias else " · unwatched"
+    click.echo(f"{page.id} open · {page.fm.get('description', '')}{tail}")
 
 
 @question.command("answer")
@@ -620,12 +700,18 @@ def claim() -> None:
 @click.option("--load-bearing", is_flag=True,
               help="The piece falls over if this claim is wrong; doctor audits these.")
 @click.option("--notes", default=None, help="Caveats, e.g. 'single vendor study'.")
+@click.option("--value", default=None, metavar="TEXT",
+              help='The claim\'s number as data, e.g. "4.2" or "~42" or "70-75" — '
+                   "renders and exports carry it; prose alone can't.")
+@click.option("--unit", default=None, metavar="UNIT",
+              help='Unit for --value, e.g. "percent", "USD", "students".')
 def claim_add(text: str, source_ids: tuple[str, ...], load_bearing: bool,
-              notes: str | None) -> None:
+              notes: str | None, value: str | None, unit: str | None) -> None:
     """Assert a claim (status "asserted"), allocating the next C#."""
     root = require_notebook_root()
     page = claims.add_claim(root, text, list(source_ids),
-                            load_bearing=load_bearing, notes=notes)
+                            load_bearing=load_bearing, notes=notes,
+                            value=value, unit=unit)
     srcs = ", ".join(claims.source_ids(page.fm)) or "none"
     click.echo(f"{page.id} asserted · sources: {srcs} · "
                f"corroboration: {page.fm.get('independent_corroboration', 0)}")
@@ -1218,8 +1304,11 @@ def export_okf(dest: Path, include_private: bool, announce: Path | None) -> None
               help="Write the JSON here (path), or '-' for stdout [default: stdout].")
 @click.option("--include-private", is_flag=True,
               help="Emit despite a non-public visibility policy, with the full source trail.")
-def export_json_cmd(out: str | None, include_private: bool) -> None:
-    """Emit the flip-render/1 JSON projection for renderers and site generators.
+@click.option("--render-version", type=click.Choice(["1", "2"]), default="1",
+              help="flip-render contract: 1 (stable default) or 2 (adds support "
+                   "tuples, pipeline, provenance states, claim value/unit).")
+def export_json_cmd(out: str | None, include_private: bool, render_version: str) -> None:
+    """Emit the flip-render/1 (or /2) JSON projection for renderers and site generators.
 
     One stable, versioned, deterministic view of the notebook (identity,
     sources, claims incl. verifications, questions incl. formulations,
@@ -1229,7 +1318,8 @@ def export_json_cmd(out: str | None, include_private: bool) -> None:
     judgment stubs when source_trail_public is false.
     """
     root = require_notebook_root()
-    data = export_mod.export_json(root, include_private=include_private)
+    data = export_mod.export_json(root, include_private=include_private,
+                                  render_version=int(render_version))
     text = json.dumps(data, ensure_ascii=False, indent=2)
     if out in (None, "-"):
         click.echo(text)
@@ -1249,7 +1339,9 @@ def export_json_cmd(out: str | None, include_private: bool) -> None:
             dest.write_text(text + "\n", encoding="utf-8")
         except OSError as exc:
             raise SystemExit(f"cannot write {out}: {exc}") from exc
-        click.echo(f"wrote {export_mod.RENDER_CONTRACT} projection to {out}")
+        contract = (export_mod.RENDER_CONTRACT_2 if render_version == "2"
+                    else export_mod.RENDER_CONTRACT)
+        click.echo(f"wrote {contract} projection to {out}")
 
 
 # ---------------------------------------------------------------- profiles
