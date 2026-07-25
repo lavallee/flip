@@ -33,6 +33,7 @@ from . import pages, workspace
 from .beat import find_beat_root, load_beat
 from .claims import STATUSES as CLAIM_STATUSES  # claim status enum (SPEC §7)
 from .claims import corroboration_count, has_gating_verification
+from .claims import source_ids as claim_source_ids
 from .manifest import STATUSES, VISIBILITIES, Manifest, load_manifest, save_manifest
 from .profiles import SECTIONS, Profile, list_profiles, load_profile
 
@@ -849,7 +850,23 @@ def _check_claims(
                     rel,
                 )
             )
-        claim_sources = [str(s) for s in pages.as_list(page.fm.get("sources"))]
+        legacy = [
+            key for key in ("supports", "verifications", "timestamp") if key in page.fm
+        ]
+        if not legacy and any(
+            not isinstance(e, dict) for e in pages.as_list(page.fm.get("sources"))
+        ):
+            legacy = ["sources"]  # flat id list — the pre-0.7 shape
+        if legacy:
+            findings.append(
+                _warn(
+                    "pre-okf02-layout",
+                    f"claim {cid} carries pre-0.7 frontmatter ({', '.join(legacy)}); "
+                    "run `flip migrate` to adopt the OKF v0.2 layout",
+                    rel,
+                )
+            )
+        claim_sources = claim_source_ids(page.fm)
         corroboration = corroboration_count(source_fms, claim_sources)
         stored = page.fm.get("independent_corroboration")
         if stored is not None and stored != corroboration:
@@ -889,7 +906,7 @@ def _check_claims(
                     )
                 )
         elif status == "asserted" and corroboration == 0 and not pages.as_list(
-            page.fm.get("verifications")
+            page.fm.get("verified")
         ):
             # A2: fire only when a load-bearing claim has *neither* corroboration
             # *nor* any verification record — ending the permanently-unsatisfiable

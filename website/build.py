@@ -429,7 +429,7 @@ def step_plan() -> list[dict]:
                 "kind": "glob",
                 "pattern": "claims/*.md",
                 "lang": "markdown",
-                "caption": "independent_corroboration: 2, and a Citations block regenerated from the edges.",
+                "caption": "independent_corroboration: 2, and footnote attribution regenerated from the edges.",
             },
         },
         {
@@ -721,7 +721,7 @@ ENTITIES = [
         "spec": "7",
         "summary": "A discrete assertion, its sources, and how far it has earned trust.",
         "judgment": True,
-        "keys": ["type", "id", "aliases", "description", "status", "load_bearing", "sources", "supports", "independent_corroboration", "first_asserted", "actor"],
+        "keys": ["type", "id", "aliases", "description", "status", "load_bearing", "sources", "independent_corroboration", "first_asserted", "generated"],
     },
     {
         "type": "Decision",
@@ -730,7 +730,7 @@ ENTITIES = [
         "spec": "7",
         "summary": "A resolved fork and — the payload — why it was resolved that way.",
         "judgment": False,
-        "keys": ["type", "id", "aliases", "question", "alternatives_rejected", "actor"],
+        "keys": ["type", "id", "aliases", "question", "alternatives_rejected", "generated"],
     },
     {
         "type": "Question",
@@ -739,16 +739,16 @@ ENTITIES = [
         "spec": "7",
         "summary": "Something that needs answering, re-posable without losing the earlier wording.",
         "judgment": False,
-        "keys": ["type", "id", "aliases", "status", "actor"],
+        "keys": ["type", "id", "aliases", "status", "generated"],
     },
     {
         "type": "Work Session",
         "id_prefix": "dated",
         "dir": "sessions/",
         "spec": "8",
-        "summary": "One human or agent working episode: actor, model, tools, outputs.",
+        "summary": "One human or agent working episode: generated {by, at}, model, tools, outputs.",
         "judgment": False,
-        "keys": ["type", "actor", "model", "tools", "started"],
+        "keys": ["type", "generated", "model", "tools", "started"],
     },
 ]
 
@@ -870,7 +870,7 @@ def build_spec(sections: dict[str, dict], frontmatter_seen: dict[str, list[str]]
         # Every key we advertise must be one the implementation really writes.
         # Conditional keys are exempt: they appear only when the capture kind or
         # the command supplies them (a copied local file has no `resource` URL).
-        optional = {"model", "tools", "supports", "alternatives_rejected", "resource"}
+        optional = {"model", "tools", "alternatives_rejected", "resource"}
         missing = [k for k in entity["keys"] if k not in observed and k not in optional]
         if missing:
             raise BuildError(

@@ -447,7 +447,7 @@ def make_render_notebook(root: Path, visibility="public", trail_public=False) ->
         {"type": "Claim", "id": "C1", "aliases": ["C1"], "description": "key claim",
          "status": "verified", "load_bearing": True, "sources": ["A1"],
          "independent_corroboration": 1,
-         "verifications": [{"method": "adversarial", "by": "agent:x", "date": "2026-07-02"}]},
+         "verified": [{"method": "adversarial", "by": "agent:x", "at": "2026-07-02T00:00:00Z"}]},
         "key claim\n",
     )
     pages.write_page(
@@ -465,7 +465,8 @@ def make_render_notebook(root: Path, visibility="public", trail_public=False) ->
     )
     pages.write_page(
         root / "sessions" / "2026-07-01T1000-scan.md",
-        {"type": "Work Session", "actor": "agent:x", "model": "m",
+        {"type": "Work Session", "generated": {"by": "agent:x", "at": "2026-07-01T10:00:00Z"},
+         "model": "m",
          "started": "2026-07-01T10:00:00Z", "ended": "2026-07-01T11:00:00Z"},
         "## Goal\nscan the landscape\n\n## Prompt\n",
     )

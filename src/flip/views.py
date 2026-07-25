@@ -113,7 +113,7 @@ def _open_questions(root: Path) -> list[dict]:
         if str(page.fm.get("status", "open")) == "answered":
             continue
         out.append(
-            {"id": page.id, "text": _question_text(page), "ts": str(page.fm.get("timestamp", ""))}
+            {"id": page.id, "text": _question_text(page), "ts": pages.generated_at(page.fm)}
         )
     out.sort(key=lambda q: _id_num(q["id"]))
     return out
@@ -185,8 +185,8 @@ def _claim_line(c: dict, with_status: bool = False) -> str:
     if c.get("load_bearing"):
         parts.append("[load-bearing]")
     parts.append(_trunc(c.get("description", "")))
-    sources = pages.as_list(c.get("sources"))
-    parts.append("sources: " + (", ".join(str(s) for s in sources) if sources else "none"))
+    sources = claims.source_ids(c)
+    parts.append("sources: " + (", ".join(sources) if sources else "none"))
     parts.append(f"corroboration: {c.get('independent_corroboration', 0)}")
     return " · ".join(parts)
 
@@ -344,7 +344,7 @@ def _load_bearing_needing_work(root: Path) -> list[dict]:
         status = str(c.get("status", "asserted"))
         if status in ("retracted", "superseded", "false-positive"):
             continue
-        source_ids = [str(s) for s in pages.as_list(c.get("sources"))]
+        source_ids = claims.source_ids(c)
         corroboration = claims.corroboration_count(source_fms, source_ids)
         linked = claims._linked_fms(source_fms, source_ids)
         has_grade_a = any(fm.get("grade") == "A" for fm in linked)

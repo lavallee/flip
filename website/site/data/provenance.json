@@ -1,6 +1,6 @@
 {
   "contract": "flip-render/1",
-  "generated": "2026-07-25T11:36:38Z",
+  "generated": "2026-07-25T16:39:28Z",
   "source_trail_public": true,
   "notebook": {
     "uid": "nb-qy38zvcn",
@@ -23,6 +23,18 @@
       "title": "Open Knowledge Format (OKF) v0.1 specification",
       "canonical_url": "https://raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/main/okf/SPEC.md",
       "captured_at": "2026-07-25T00:53:42Z",
+      "sha256": "5a3311d270bebb16d558010e75064f5b75323f284992641732b1c8097511f948"
+    },
+    {
+      "id": "A2",
+      "slug": "okf-v0-2-spec",
+      "kind": "",
+      "grade": "A",
+      "independence": "original",
+      "freshness": "fresh",
+      "title": "raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/main/okf/SPEC.md",
+      "canonical_url": "https://raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/main/okf/SPEC.md",
+      "captured_at": "2026-07-25T16:39:11Z",
       "sha256": "5a3311d270bebb16d558010e75064f5b75323f284992641732b1c8097511f948"
     },
     {
@@ -96,7 +108,7 @@
       "id": "C3",
       "slug": "a-flip-notebook-is-a-conformant-okf-v0",
       "text": "A flip notebook is a conformant OKF v0.1 knowledge bundle at rest, not an export target",
-      "status": "verified",
+      "status": "superseded",
       "load_bearing": true,
       "sources": [
         "F1",
@@ -136,6 +148,29 @@
       "sources": [],
       "corroboration": 0,
       "verifications": []
+    },
+    {
+      "id": "C6",
+      "slug": "a-flip-notebook-is-a-conformant-okf-v0-2",
+      "text": "A flip notebook is a conformant OKF v0.2 knowledge bundle at rest, not an export target",
+      "status": "verified",
+      "load_bearing": true,
+      "sources": [
+        "F1",
+        "A2"
+      ],
+      "corroboration": 1,
+      "verifications": [
+        {
+          "method": "independent-sources",
+          "by": "agent:claude",
+          "against": [
+            "A2"
+          ],
+          "date": "2026-07-25",
+          "note": "Read flip SPEC §3/§4 conformance notes against OKF v0.2 (A2): frontmatter parseable + typed on every concept page, reserved index.md/log.md structure per §8/§9; generated/sources/verified families emitted per §5."
+        }
+      ]
     }
   ],
   "questions": [

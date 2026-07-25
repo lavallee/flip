@@ -10,9 +10,10 @@ grade: A
 independence: self-interested
 freshness: fresh
 status: captured
-actor: human:marc
 notes: 'The original specification document, and we author it: authoritative for what flip
   specifies, interested on whether flip is a good idea.'
+generated:
+  by: human:marc
 ---
 
 # SPEC.md

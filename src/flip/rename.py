@@ -89,14 +89,15 @@ def _rewrite_links(root: Path, old_path: Path, new_path: Path) -> int:
 
     Two edge forms exist (SPEC §7, §9): relative/bundle-absolute markdown
     links ending in `<old slug>.md` (rewritten only when they resolve to the
-    renamed file), and extensionless bundle paths `/dir/<old slug>` as used by
-    claims' `supports` frontmatter (matched with the directory attached, so a
-    same-named page elsewhere is untouched).
+    renamed file), and bundle-absolute paths `/dir/<old slug>[.md]` as used by
+    claims' `sources[].resource` frontmatter — and by pre-0.7 `supports`
+    entries (matched with the directory attached, so a same-named page
+    elsewhere is untouched).
     """
     dirname = old_path.parent.name
     old_norm = os.path.normpath(old_path)
-    supports_re = re.compile(
-        re.escape(f"/{dirname}/{old_path.stem}") + r"(?![A-Za-z0-9._-])"
+    resource_re = re.compile(
+        re.escape(f"/{dirname}/{old_path.stem}") + r"(\.md)?(?![A-Za-z0-9._-])"
     )
 
     def _sub_link(match: re.Match, md_file: Path) -> str:
@@ -114,7 +115,9 @@ def _rewrite_links(root: Path, old_path: Path, new_path: Path) -> int:
     for md_file in _md_files(root):
         text = md_file.read_text(encoding="utf-8")
         new_text = _MD_LINK_RE.sub(lambda m: _sub_link(m, md_file), text)
-        new_text = supports_re.sub(f"/{dirname}/{new_path.stem}", new_text)
+        new_text = resource_re.sub(
+            lambda m: f"/{dirname}/{new_path.stem}" + (m.group(1) or ""), new_text
+        )
         if new_text != text:
             md_file.write_text(new_text, encoding="utf-8")
             changed += 1

@@ -10,9 +10,10 @@ grade: A
 independence: original
 freshness: fresh
 status: captured
-actor: human:marc
 notes: The package metadata itself. A dependency list is not an assertion about the world;
   it is the artifact.
+generated:
+  by: human:marc
 ---
 
 # pyproject.toml

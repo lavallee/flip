@@ -43,7 +43,7 @@ def test_new_creates_notebook(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     index = (tmp_path / "demo" / "index.md").read_text(encoding="utf-8")
     assert index.startswith("---\n")
-    assert "flip: '0.6'" in index and "slug: demo" in index
+    assert "flip: '0.7'" in index and "slug: demo" in index
     assert "uid: nb-" in index  # every new notebook gets a stable uid (SPEC §4)
     md = (tmp_path / "demo" / "notebook.md").read_text(encoding="utf-8")
     assert "# Reporter's notebook — Demo run" in md
@@ -388,8 +388,9 @@ def test_rename_moves_page_and_rewrites_links(tmp_path, monkeypatch):
     assert (root / "references" / "vendor-report.md").is_file()
     claim_text = claim_path.read_text(encoding="utf-8")
     assert "(../references/vendor-report.md)" in claim_text
-    assert "report-txt" not in claim_text  # supports path rewritten too
-    assert "- /references/vendor-report" in claim_text
+    assert "report-txt" not in claim_text  # resource path rewritten too
+    claim_fm = pages.read_page(claim_path).fm
+    assert claim_fm["sources"][0]["resource"] == "/references/vendor-report.md"
     prose = (root / "analysis" / "findings.md").read_text(encoding="utf-8")
     assert "(../references/vendor-report.md#quote)" in prose
     # the generated listing picked up the new slug
@@ -760,7 +761,7 @@ def test_actor_flag_overrides_env(tmp_path, monkeypatch):
     monkeypatch.setenv("FLIP_ACTOR", "human:env")
     assert invoke(["--actor", "agent:flag", "question", "add", "who?"]).exit_code == 0
     page = pages.read_page(root / "questions" / "who.md")
-    assert page.fm["actor"] == "agent:flag"  # --actor wins over FLIP_ACTOR
+    assert pages.generated_by(page.fm) == "agent:flag"  # --actor wins over FLIP_ACTOR
 
 
 def test_actor_falls_back_to_env_without_flag(tmp_path, monkeypatch):
@@ -768,7 +769,8 @@ def test_actor_falls_back_to_env_without_flag(tmp_path, monkeypatch):
     monkeypatch.chdir(root)
     monkeypatch.setenv("FLIP_ACTOR", "human:env")
     assert invoke(["question", "add", "who?"]).exit_code == 0
-    assert pages.read_page(root / "questions" / "who.md").fm["actor"] == "human:env"
+    fm = pages.read_page(root / "questions" / "who.md").fm
+    assert pages.generated_by(fm) == "human:env"
 
 
 # ---------------------------------------------------------------- ws show / auto-bind

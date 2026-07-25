@@ -44,7 +44,7 @@ def test_create_beat_writes_index_and_beat_md_only(tmp_path):
 def test_create_beat_manifest_shape(tmp_path):
     root = make_beat(tmp_path)
     fm = pages.read_page(root / "index.md").fm
-    assert fm["okf_version"] == "0.1"
+    assert fm["okf_version"] == "0.2"
     assert fm["flip_beat"] == "0.1"
     assert fm["slug"] == "county"
     assert fm["mission"] == "Cover the county"
@@ -165,7 +165,7 @@ def test_add_thread_page_shape(tmp_path):
     assert page.fm["id"] == "TH1" and page.fm["aliases"] == ["TH1"]
     assert page.fm["kind"] == "arc" and page.fm["status"] == "open"
     assert page.fm["scores"] == {"payoff": 0.9}  # only the provided keys
-    assert page.fm["actor"] == "human:test"
+    assert pages.generated_by(page.fm) == "human:test"
     assert page.body == "tip came in\n"
     # body falls back to the title; unscored threads carry no scores key
     page2 = beat.add_thread(root, "Board money", "vein")

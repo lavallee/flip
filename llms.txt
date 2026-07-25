@@ -1,6 +1,6 @@
 # flip
 
-> CLI and plain-file format for reporter's notebooks — git-friendly research corpora (sources with custody and grading, claims with verification, work/session logs) maintained by humans and agents in the same files. A notebook is natively an OKF v0.1 knowledge bundle: one markdown page per entity with YAML frontmatter, browsable by any OKF consumer or markdown editor (Obsidian works out of the box), no service required.
+> CLI and plain-file format for reporter's notebooks — git-friendly research corpora (sources with custody and grading, claims with verification, work/session logs) maintained by humans and agents in the same files. A notebook is natively an OKF v0.2 knowledge bundle: one markdown page per entity with YAML frontmatter, browsable by any OKF consumer or markdown editor (Obsidian works out of the box), no service required.
 
 ## Docs
 

@@ -97,8 +97,8 @@ def test_add_decision_creates_page_with_sequential_ids(root: Path):
     assert page.fm["aliases"] == ["D1"]
     assert page.fm["description"] == "use jsonl"
     assert page.fm["question"] == "q1?"
-    assert page.fm["actor"] == "human:test"
-    assert page.fm["timestamp"].endswith("Z")
+    assert pages.generated_by(page.fm) == "human:test"
+    assert pages.generated_at(page.fm).endswith("Z")
     assert "alternatives_rejected" not in page.fm
     assert load_manifest(root).updated == util.today()
 
@@ -183,8 +183,8 @@ def test_add_question_opens_with_id(root: Path):
     assert page.fm["aliases"] == ["Q1"]
     assert page.fm["status"] == "open"
     assert page.fm["description"] == "who funded it?"
-    assert page.fm["actor"] == "human:test"
-    assert page.fm["timestamp"].endswith("Z")
+    assert pages.generated_by(page.fm) == "human:test"
+    assert pages.generated_at(page.fm).endswith("Z")
     assert page.body.strip() == "who funded it?"
     assert ledgers.add_question(root, "when?").id == "Q2"
 
@@ -196,7 +196,7 @@ def test_answer_question_updates_frontmatter_keeps_body(root: Path):
     assert page.fm["status"] == "answered"
     assert page.fm["answered"].endswith("Z")
     assert page.fm["answered_by"] == "human:test"
-    assert page.fm["timestamp"] == asked.fm["timestamp"]  # ask time untouched
+    assert pages.generated_at(page.fm) == pages.generated_at(asked.fm)  # ask time untouched
     assert page.body.strip() == "who?"  # body untouched without a note
 
 

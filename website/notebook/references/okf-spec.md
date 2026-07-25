@@ -11,8 +11,9 @@ grade: B
 independence: original
 freshness: fresh
 status: captured
-actor: human:marc
 notes: The format's own publisher, Apache-2.0. Independent of flip.
+generated:
+  by: human:marc
 ---
 
 # raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/main/okf/SPEC.md

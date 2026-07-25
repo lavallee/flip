@@ -110,8 +110,7 @@ def add_decision(
     }
     if alternatives_rejected:
         fm["alternatives_rejected"] = [str(a) for a in alternatives_rejected]
-    fm["timestamp"] = util.utc_now()
-    fm["actor"] = util.detect_actor()
+    fm["generated"] = util.generated_now()
     paragraphs = [
         f"**Question.** {question}",
         f"**Decision.** {decision}",
@@ -146,8 +145,7 @@ def add_question(root: Path, text: str) -> pages.Page:
         "aliases": [qid],
         "description": _description(text),
         "status": "open",
-        "timestamp": util.utc_now(),
-        "actor": util.detect_actor(),
+        "generated": util.generated_now(),
     }
     directory = root / "questions"
     slug = pages.unique_slug(directory, pages.slugify(text, fallback="question"))
@@ -289,8 +287,8 @@ def list_questions(root: Path, status: str | None = None) -> list[dict]:
                 "path": page.path.relative_to(root).as_posix(),
                 "text": _question_text(page),
                 "status": str(page.fm.get("status", "open")),
-                "ts": str(page.fm.get("timestamp", "")),
-                "actor": str(page.fm.get("actor", "")),
+                "ts": pages.generated_at(page.fm),
+                "actor": pages.generated_by(page.fm),
             }
         )
     rows.sort(key=lambda r: _id_num(r["id"]))

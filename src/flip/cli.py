@@ -606,7 +606,8 @@ def claim() -> None:
     """Claims as pages (claims/<slug>.md, ids C#): assertions the work relies on.
 
     Add a claim when the work starts leaning on an assertion; link the
-    source ids that back it (its page gets a generated # Citations block).
+    source ids that back it (its page gets OKF `sources` entries plus
+    generated footnote attribution).
     Verification is gated by the notebook profile's corroboration bar —
     `flip doctor` audits load-bearing claims against it.
     """
@@ -625,13 +626,13 @@ def claim_add(text: str, source_ids: tuple[str, ...], load_bearing: bool,
     root = require_notebook_root()
     page = claims.add_claim(root, text, list(source_ids),
                             load_bearing=load_bearing, notes=notes)
-    srcs = ", ".join(page.fm.get("sources") or []) or "none"
+    srcs = ", ".join(claims.source_ids(page.fm)) or "none"
     click.echo(f"{page.id} asserted · sources: {srcs} · "
                f"corroboration: {page.fm.get('independent_corroboration', 0)}")
     # Dangling cites are legal (§6.1) — doctor counts them — but say so now
     # rather than let a typo'd id ride silently until the next doctor run.
     known = {str(p.fm.get("id")) for p in pages.iter_pages(root, "references")}
-    dangling = [s for s in page.fm.get("sources") or [] if s not in known]
+    dangling = [s for s in claims.source_ids(page.fm) if s not in known]
     if dangling:
         click.echo(f"note: {', '.join(dangling)} not captured yet — dangling "
                    "citation(s) until `flip add-source` lands them (doctor counts these)")
@@ -677,7 +678,7 @@ def claim_list(status: str | None, as_json: bool) -> None:
 def claim_source() -> None:
     """Link or unlink backing sources on a claim after the fact.
 
-    Both regenerate the claim's # Citations block and recompute its
+    Both regenerate the claim's footnote attribution and recompute its
     independent_corroboration — the post-hoc fix for a claim asserted before
     its sources were captured. Ungraded sources link but never count toward
     the verification bar.
@@ -693,7 +694,7 @@ def claim_source_add(claim_id: str, source_ids: tuple[str, ...]) -> None:
         require_notebook_root(), claim_id, list(source_ids)
     )
     click.echo(f"{page.id} · linked {', '.join(added)} · sources: "
-               f"{', '.join(page.fm.get('sources') or []) or 'none'} · "
+               f"{', '.join(claims.source_ids(page.fm)) or 'none'} · "
                f"corroboration: {page.fm.get('independent_corroboration', 0)}")
     for sid in warnings:
         click.echo(f"warning: {sid} is still graded '?' — ungraded sources never count "
@@ -707,7 +708,7 @@ def claim_source_rm(claim_id: str, source_id: str) -> None:
     """Unlink a source id from a claim. Refuses if the claim doesn't cite it."""
     page = claims.remove_claim_source(require_notebook_root(), claim_id, source_id)
     click.echo(f"{page.id} · unlinked {source_id} · sources: "
-               f"{', '.join(page.fm.get('sources') or []) or 'none'} · "
+               f"{', '.join(claims.source_ids(page.fm)) or 'none'} · "
                f"corroboration: {page.fm.get('independent_corroboration', 0)}")
 
 
@@ -730,7 +731,7 @@ def claim_verify(claim_id: str, method: str, against: tuple[str, ...],
     page = claims.verify_claim(require_notebook_root(), claim_id, method,
                                against=list(against), note=note)
     click.echo(f"{page.id} · verified via {method} · "
-               f"{len(page.fm.get('verifications') or [])} verification(s) on record")
+               f"{len(page.fm.get('verified') or [])} verification(s) on record")
     if method == "independent-sources":
         click.echo("note: independent-sources records the reasoning but does not satisfy "
                    "the verified gate alone — the recomputed source count does", err=True)

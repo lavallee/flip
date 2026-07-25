@@ -6,6 +6,28 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-07-25
+
+### Changed
+- **BREAKING (on-disk format): OKF v0.2 adoption (flip profile 0.7).** A notebook is now a conformant
+  OKF v0.2 bundle at rest (clean break — no v0.1 emission mode). Entity
+  pages record `generated: {by, at}` in place of flat `timestamp`/`actor`;
+  claims carry OKF `sources` entries (`{id, resource, title}`) with
+  footnote-marker attribution and generated definition links in place of
+  `supports` + the `# Citations` block; verification records move from
+  `verifications` ({method, by, against, date, note}) to OKF `verified`
+  events ({by, at, method, against?, note?}) — trust-tier consumers now read
+  flip claims for free. Manifests declare `okf_version: "0.2"` / `flip:
+  "0.7"`. The corroboration bar, gate semantics, and the `flip-render/1`
+  JSON contract are unchanged.
+- `flip migrate` upgrades 0.4–0.6 notebooks in place (idempotent; summary
+  gains `pages_okf02`); the v0.3 ledger path now writes the new layout
+  directly. `flip doctor` warns (`pre-okf02-layout`) on claims still carrying
+  the old keys.
+- `flip rename` rewrites `sources[].resource` paths (with `.md`) and
+  footnote-definition links; extensionless pre-0.7 `supports` paths are
+  still rewritten.
+
 ## [0.10.1] — 2026-07-25
 
 ### Fixed

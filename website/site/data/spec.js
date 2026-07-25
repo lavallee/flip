@@ -1,5 +1,5 @@
 window.__FLIP_SPEC__ = {
-  "generated": "2026-07-25T11:36:38+00:00",
+  "generated": "2026-07-25T16:39:27+00:00",
   "sections": [
     {
       "number": "1",
@@ -147,22 +147,20 @@ window.__FLIP_SPEC__ = {
         "status",
         "load_bearing",
         "sources",
-        "supports",
         "independent_corroboration",
         "first_asserted",
-        "actor"
+        "generated"
       ],
       "observed_keys": [
-        "actor",
         "aliases",
         "description",
         "first_asserted",
+        "generated",
         "id",
         "independent_corroboration",
         "load_bearing",
         "sources",
         "status",
-        "supports",
         "type"
       ]
     },
@@ -179,16 +177,15 @@ window.__FLIP_SPEC__ = {
         "aliases",
         "question",
         "alternatives_rejected",
-        "actor"
+        "generated"
       ],
       "observed_keys": [
-        "actor",
         "aliases",
         "alternatives_rejected",
         "description",
+        "generated",
         "id",
         "question",
-        "timestamp",
         "type"
       ]
     },
@@ -204,15 +201,14 @@ window.__FLIP_SPEC__ = {
         "id",
         "aliases",
         "status",
-        "actor"
+        "generated"
       ],
       "observed_keys": [
-        "actor",
         "aliases",
         "description",
+        "generated",
         "id",
         "status",
-        "timestamp",
         "type"
       ]
     },
@@ -221,17 +217,17 @@ window.__FLIP_SPEC__ = {
       "id_prefix": "dated",
       "dir": "sessions/",
       "spec": "8",
-      "summary": "One human or agent working episode: actor, model, tools, outputs.",
+      "summary": "One human or agent working episode: generated {by, at}, model, tools, outputs.",
       "judgment": false,
       "keys": [
         "type",
-        "actor",
+        "generated",
         "model",
         "tools",
         "started"
       ],
       "observed_keys": [
-        "actor",
+        "generated",
         "model",
         "started",
         "tools",

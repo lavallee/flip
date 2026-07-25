@@ -10,8 +10,9 @@ alternatives_rejected:
 - Case studies written from the author's own private notebooks — unverifiable by a reader
   and self-interested
 - Waiting to launch the site until adoption exists — the site is how adoption starts
-timestamp: '2026-07-25T00:55:01Z'
-actor: human:marc
+generated:
+  by: human:marc
+  at: '2026-07-25T00:55:01Z'
 ---
 
 **Question.** How should the site argue for flip when there is no adoption evidence?

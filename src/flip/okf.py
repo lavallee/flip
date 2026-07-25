@@ -1,6 +1,7 @@
 """OKF export — a policy filter over the bundle the notebook already is (SPEC §17).
 
-Since v0.4 a flip notebook IS a conformant OKF v0.1 knowledge bundle at rest,
+Since v0.4 a flip notebook IS a conformant OKF knowledge bundle at rest
+(v0.2 as of profile 0.7),
 so exporting one is no longer a format transform: it is a **copy for outside
 consumption**, honoring the manifest policy. `visibility` gates the export
 (refuse unless `public` or `--include-private`); `source_trail_public`

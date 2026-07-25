@@ -1,26 +1,33 @@
 # A provenance profile for OKF — draft proposal
 
-**Status:** draft for community discussion, 2026-07-10. Not yet submitted
-anywhere; this document is written so it *could* be — to the
+**Status:** draft for community discussion, 2026-07-10; revised 2026-07-25
+against OKF v0.2. Not yet submitted anywhere; this document is written so it
+*could* be — to the
 [OKF repository](https://github.com/GoogleCloudPlatform/knowledge-catalog)
 or the W3C Holon Community Group — if and when the maintainers of flip
 choose to start that conversation.
 
 ## The gap
 
-[OKF v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
-deliberately ships without a provenance scheme: bundle identity is delegated
-to git, freshness to per-concept `timestamp` fields, and history to `log.md`.
-That minimalism is right for v0.1 — but the spec's own first goal is "a
-universal format that enrichment agents can write into," and agent-written
-knowledge raises questions the base format cannot answer:
+[OKF v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
+made real provenance moves: `sources` entries with objective credibility
+signals (`author`, `usage_count`, `last_modified`), `generated: {by, at}`,
+`verified` events with derived trust tiers, `status`, and `stale_after` are
+core frontmatter now. The spec records *signals* and deliberately refuses to
+store judgments ("a score is subjective, unportable across consumers, and
+goes stale"). That is the right base-format call — and it leaves exactly the
+layer agent-written research needs still open:
 
-- Where did this concept's facts come from — and do we have custody of that
-  source, or just a link that may rot?
-- Who judged the source, and separately, how corroborated is the claim?
-- Which agent run produced this page, with what model and inputs?
-- When a consumer re-syncs a bundle, can it distinguish "the world changed"
-  from "an agent hallucinated a revision"?
+- **Custody**: `sources[].resource` may be a URL that rots; nothing in core
+  OKF says "we hold the bytes, hashed at capture."
+- **Judgment**: credibility signals let a consumer *infer* trust, but the
+  recorded, named-actor judgment ("I read this; it grades B; it republishes
+  the wire story") has no slot — and a corroboration *bar* that gates what a
+  claim may assert has none either.
+- **Generation context**: `generated.by` names the actor; the session — the
+  model, the tools, the goal, the transcript pointer — has no concept type.
+- **Negative evidence**: considered-and-rejected has no home, so agents
+  rediscover the same dead ends.
 
 The LLM-wiki pattern compounds knowledge; without lineage it compounds
 *unaudited* knowledge.
@@ -39,8 +46,8 @@ and in production use; the normative statement of the rules is
 
 ```yaml
 # bundle-root index.md frontmatter
-okf_version: "0.1"
-profiles: [provenance/0.1]
+okf_version: "0.2"
+profiles: [provenance/0.2]
 ```
 
 ### Concept types and keys
@@ -50,13 +57,14 @@ profiles: [provenance/0.1]
 | `type: Source` concepts in `references/` | source pages | one concept per external artifact the bundle relies on, mirroring OKF's existing `references/` convention |
 | `grade: A\|B\|C\|?` | Source | source reliability: authoritative primary / official-independent / vendor-practitioner-synthesis / not yet judged |
 | `independence: original\|republisher\|derivative\|self-interested` | Source | judged separately from grade (Admiralty-style split) |
-| `freshness: fresh\|dated` | Source | explicit staleness judgment, distinct from `timestamp` |
+| `freshness: fresh\|dated` | Source | explicit staleness *judgment*, complementing v0.2's mechanical `stale_after` date and `sources[].last_modified` signal |
 | `local`, `sha256`, `retrieved_at`, `captured_with` | Source | custody: the archived copy's bundle-relative path and fixity at capture |
 | `type: Claim` concepts | claim pages | one concept per load-bearing assertion |
 | `status: asserted\|verified\|needs-2nd\|unconfirmed\|false-positive\|retracted\|superseded` | Claim | machine-generated assertions enter `asserted`; `verified` is gated |
-| `sources: [<id>]` + `supports: [/references/<concept>]` | Claim | machine edges (stable ids + bundle paths) duplicating the human `# Citations` block |
-| `type: Work Session` concepts | session pages | one concept per generation episode: `actor`, `model`, `tools`, `started`, `ended` |
-| `actor: human:<name> \| agent:<name>` | any concept | attribution on every page |
+| `sources[].id` as footnote keys | Claim | v0.2's own `sources` + footnote-attribution idiom, used exactly as specified — the profile adds only the gate below |
+| `independent_corroboration` + gated `status` | Claim | `verified` status is *refused* until the declared corroboration bar is met — the judgment layer v0.2 deliberately leaves to profiles |
+| `method` on `verified[]` events | Claim | how the check was performed (`adversarial` / `independent-sources` / `recomputation`); only the first and last clear the gate alone |
+| `type: Work Session` concepts | session pages | one concept per generation episode: `generated: {by, at}`, `model`, `tools`, `started`, `ended` |
 | `id` + `aliases` | any concept | short immutable identifier surviving file renames |
 
 ### Profile rules (normative summary)

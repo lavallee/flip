@@ -80,11 +80,14 @@ def test_add_claim_shape_and_corroboration(sourced: Path):
     assert fm["description"] == "the sky is blue"
     assert fm["status"] == "asserted"
     assert fm["load_bearing"] is True
-    assert fm["sources"] == ["A1", "A2"]
-    assert fm["supports"] == ["/references/orig-b", "/references/repub-a"]
+    assert fm["sources"] == [
+        {"id": "A1", "resource": "/references/orig-b.md", "title": "orig B"},
+        {"id": "A2", "resource": "/references/repub-a.md", "title": "repub A"},
+    ]
+    assert claims.source_ids(fm) == ["A1", "A2"]
     assert fm["independent_corroboration"] == 1  # only A1 is independence=original
     assert fm["first_asserted"] == util.today()
-    assert fm["actor"] == "agent:test"
+    assert pages.generated_by(fm) == "agent:test"
     assert "notes" not in fm
     # the page is the canonical record, slugged from the claim text
     assert page.path == sourced / "claims" / "the-sky-is-blue.md"
@@ -97,11 +100,11 @@ def test_add_claim_body_has_text_notes_and_citations(sourced: Path):
     )
     body = pages.read_page(page.path).body
     # parse keeps the blank separator line after the frontmatter, hence lstrip
-    assert body.lstrip("\n").startswith("the sky is blue\n")
+    assert body.lstrip("\n").startswith("the sky is blue[^A1][^ZZ9]\n")
     assert "_single vendor study_" in body
-    assert "# Citations" in body
-    assert "[1] [orig B](../references/orig-b.md)" in body
-    assert "[2] ZZ9" in body  # dangling citation is plain text, not a link
+    assert "# Citations" not in body  # no more heading; footnote defs instead
+    assert "[^A1]: [orig B](../references/orig-b.md)" in body
+    assert "[^ZZ9]: ZZ9 (not captured)" in body  # dangling citation, plain form
 
 
 def test_citation_links_point_at_real_files(sourced: Path):
@@ -123,22 +126,27 @@ def test_add_claim_notes_and_touch(sourced: Path):
     page = claims.add_claim(sourced, "x", [], notes="single vendor study")
     assert page.fm["notes"] == "single vendor study"
     assert page.fm["independent_corroboration"] == 0
-    assert page.fm["supports"] == []
+    assert page.fm["sources"] == []
     assert load_manifest(sourced).updated == util.today()
 
 
 def test_add_claim_no_sources_yet_gives_zero(root: Path):
     page = claims.add_claim(root, "x", ["A1", "A2"])
     assert page.fm["independent_corroboration"] == 0
-    assert page.fm["supports"] == []  # nothing resolvable
-    assert "[1] A1" in page.body  # cited dangling all the same
+    assert page.fm["sources"] == [{"id": "A1"}, {"id": "A2"}]  # nothing resolvable
+    assert "[^A1][^A2]" in page.body  # cited dangling all the same
+    assert "[^A1]: A1 (not captured)" in page.body
+    assert "[^A2]: A2 (not captured)" in page.body
 
 
 def test_add_claim_unknown_and_duplicate_sources(sourced: Path):
     page = claims.add_claim(sourced, "x", ["A1", "A1", "ZZ9"])
     assert page.fm["independent_corroboration"] == 1  # deduped, unknown id ignored
-    assert page.fm["sources"] == ["A1", "A1", "ZZ9"]  # as given
-    assert page.fm["supports"] == ["/references/orig-b"]  # deduped, resolvable only
+    assert page.fm["sources"] == [
+        {"id": "A1", "resource": "/references/orig-b.md", "title": "orig B"},
+        {"id": "ZZ9"},
+    ]  # deduped; unknown id keeps just its id
+    assert claims.source_ids(page.fm) == ["A1", "ZZ9"]
 
 
 def test_add_claim_empty_text_raises(sourced: Path):
@@ -190,7 +198,7 @@ def test_set_status_unknown_claim_raises(sourced: Path):
 def test_set_status_recomputes_corroboration_and_supports(root: Path):
     page = claims.add_claim(root, "x", ["A1"])  # no reference pages yet
     assert page.fm["independent_corroboration"] == 0
-    assert page.fm["supports"] == []
+    assert page.fm["sources"] == [{"id": "A1"}]
     pages.write_page(
         root / "references" / "orig-b.md",
         source_fm("A1", "orig B", "B", "original"),
@@ -199,10 +207,12 @@ def test_set_status_recomputes_corroboration_and_supports(root: Path):
     updated = claims.set_claim_status(root, "C1", "needs-2nd")
     assert updated.fm["independent_corroboration"] == 1
     assert updated.fm["status"] == "needs-2nd"
-    assert updated.fm["supports"] == ["/references/orig-b"]
+    assert updated.fm["sources"] == [
+        {"id": "A1", "resource": "/references/orig-b.md", "title": "orig B"}
+    ]
     on_disk = pages.read_page(updated.path)
     assert on_disk.fm["independent_corroboration"] == 1
-    assert "[1] [orig B](../references/orig-b.md)" in on_disk.body  # citation refreshed
+    assert "[^A1]: [orig B](../references/orig-b.md)" in on_disk.body  # citation refreshed
 
 
 def test_set_status_refreshes_citations_after_source_rename(sourced: Path):
@@ -212,7 +222,9 @@ def test_set_status_refreshes_citations_after_source_rename(sourced: Path):
         sourced / "references" / "primary-study.md"
     )
     updated = claims.set_claim_status(sourced, "C1", "needs-2nd")
-    assert updated.fm["supports"] == ["/references/primary-study"]
+    assert updated.fm["sources"] == [
+        {"id": "A1", "resource": "/references/primary-study.md", "title": "orig B"}
+    ]
     body = pages.read_page(updated.path).body
     assert "(../references/primary-study.md)" in body
     assert "orig-b.md" not in body
@@ -220,11 +232,13 @@ def test_set_status_refreshes_citations_after_source_rename(sourced: Path):
 
 def test_set_status_round_trips_foreign_frontmatter_and_prose(sourced: Path):
     page = claims.add_claim(sourced, "the sky is blue", ["A1"])
-    # a human annotates the page in Obsidian: foreign key + prose above citations
+    # a human annotates the page in Obsidian: foreign key + prose above the
+    # generated footnote-definition lines (no more "# Citations" heading)
     edited = pages.read_page(page.path)
     edited.fm["review_flag"] = "check with desk"
     body = edited.body.replace(
-        "# Citations", "Editor caveat: metric definition shifted in 2024.\n\n# Citations"
+        "\n\n[^A1]:",
+        "\n\nEditor caveat: metric definition shifted in 2024.\n\n[^A1]:",
     )
     pages.write_page(page.path, edited.fm, body)
 
@@ -233,7 +247,7 @@ def test_set_status_round_trips_foreign_frontmatter_and_prose(sourced: Path):
     on_disk = pages.read_page(page.path)
     assert on_disk.fm["review_flag"] == "check with desk"  # foreign key survives
     assert "Editor caveat: metric definition shifted in 2024." in on_disk.body
-    assert on_disk.body.count("# Citations") == 1  # block regenerated, not duplicated
+    assert on_disk.body.count("[^A1]: [orig B]") == 1  # def regenerated, not duplicated
     assert on_disk.fm["status"] == "needs-2nd"
     assert updated.fm == on_disk.fm
 
@@ -343,10 +357,12 @@ def test_set_status_tolerates_scalar_sources(sourced: Path):
     updated = claims.set_claim_status(sourced, "C1", "needs-2nd")
 
     assert updated.fm["independent_corroboration"] == 1  # A1 is judged original
-    assert updated.fm["supports"] == ["/references/orig-b"]
+    assert updated.fm["sources"] == [
+        {"id": "A1", "resource": "/references/orig-b.md", "title": "orig B"}
+    ]
     body = pages.read_page(page.path).body
-    assert "[1] [orig B](../references/orig-b.md)" in body
-    assert "[1] A\n" not in body and "[2] 1" not in body  # no char-split citations
+    assert "[^A1]: [orig B](../references/orig-b.md)" in body
+    assert "[^A]" not in body and "[^1]" not in body  # no char-split citations
 
 
 # --- list_claims -------------------------------------------------------------
@@ -397,11 +413,14 @@ def test_source_add_links_and_recomputes(sourced: Path):
     page, added, warnings = claims.add_claim_sources(sourced, "C1", ["A3"])
     assert added == ["A3"]
     assert warnings == []
-    assert page.fm["sources"] == ["A1", "A3"]
+    assert claims.source_ids(page.fm) == ["A1", "A3"]
+    assert page.fm["sources"] == [
+        {"id": "A1", "resource": "/references/orig-b.md", "title": "orig B"},
+        {"id": "A3", "resource": "/references/orig-c.md", "title": "orig C"},
+    ]
     assert page.fm["independent_corroboration"] == 2  # A1 + A3 both judged original
-    assert page.fm["supports"] == ["/references/orig-b", "/references/orig-c"]
     on_disk = pages.read_page(page.path)
-    assert "[2] [orig C](../references/orig-c.md)" in on_disk.body  # citations regenerated
+    assert "[^A3]: [orig C](../references/orig-c.md)" in on_disk.body  # citations regenerated
     assert on_disk.fm["independent_corroboration"] == 2
 
 
@@ -409,7 +428,7 @@ def test_source_add_refuses_unknown_id(sourced: Path):
     claims.add_claim(sourced, "x", ["A1"])
     with pytest.raises(SystemExit, match=r"unknown source id\(s\) ZZ9"):
         claims.add_claim_sources(sourced, "C1", ["ZZ9"])
-    assert claim_page(sourced, "C1").fm["sources"] == ["A1"]  # nothing written
+    assert claims.source_ids(claim_page(sourced, "C1").fm) == ["A1"]  # nothing written
 
 
 def test_source_add_warns_on_ungraded(sourced: Path):
@@ -429,9 +448,11 @@ def test_source_add_refuses_when_all_already_linked(sourced: Path):
 def test_source_rm_unlinks_and_recomputes(sourced: Path):
     claims.add_claim(sourced, "x", ["A1", "A3"])
     page = claims.remove_claim_source(sourced, "C1", "A1")
-    assert page.fm["sources"] == ["A3"]
+    assert claims.source_ids(page.fm) == ["A3"]
+    assert page.fm["sources"] == [
+        {"id": "A3", "resource": "/references/orig-c.md", "title": "orig C"}
+    ]
     assert page.fm["independent_corroboration"] == 1
-    assert page.fm["supports"] == ["/references/orig-c"]
     assert "orig-b.md" not in pages.read_page(page.path).body
 
 
@@ -453,20 +474,20 @@ def test_verify_records_appended(sourced: Path):
     claims.add_claim(sourced, "x", ["A1"])
     page = claims.verify_claim(sourced, "C1", "adversarial",
                                against=["A1", "A3"], note="skeptic pass")
-    rec = page.fm["verifications"][0]
+    rec = page.fm["verified"][0]
     assert rec["method"] == "adversarial"
     assert rec["by"] == "agent:test"
     assert rec["against"] == ["A1", "A3"]
-    assert rec["date"] == util.today()
+    assert rec["at"].startswith(util.today())  # full ISO-8601 UTC datetime
     assert rec["note"] == "skeptic pass"
-    assert pages.read_page(page.path).fm["verifications"] == page.fm["verifications"]
+    assert pages.read_page(page.path).fm["verified"] == page.fm["verified"]
 
 
 def test_verify_is_append_only(sourced: Path):
     claims.add_claim(sourced, "x", ["A1"])
     claims.verify_claim(sourced, "C1", "adversarial")
     page = claims.verify_claim(sourced, "C1", "recomputation")
-    assert [v["method"] for v in page.fm["verifications"]] == ["adversarial", "recomputation"]
+    assert [v["method"] for v in page.fm["verified"]] == ["adversarial", "recomputation"]
 
 
 def test_verify_invalid_method_raises(sourced: Path):

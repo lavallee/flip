@@ -276,9 +276,23 @@ def _source_projection(page: pages.Page, prov: dict[str, list[dict]], full_trail
     return out
 
 
+def _verification_projection(record: dict) -> dict:
+    """One `verified:` event as a flip-render/1 verification record: the
+    contract keeps its {method, by, against?, date, note?} shape, so the OKF
+    {by, at, …} event maps back (`date` is the date part of `at`)."""
+    out: dict = {"method": str(record.get("method", "")), "by": str(record.get("by", ""))}
+    against = [str(a) for a in pages.as_list(record.get("against"))]
+    if against:
+        out["against"] = against
+    out["date"] = str(record.get("at", ""))[:10]
+    if record.get("note"):
+        out["note"] = str(record.get("note"))
+    return out
+
+
 def _claim_projection(page: pages.Page, source_fms: list[dict]) -> dict:
     fm = page.fm
-    source_ids = [str(s) for s in pages.as_list(fm.get("sources"))]
+    source_ids = claims_mod.source_ids(fm)
     return {
         "id": fm.get("id") or page.slug,
         "slug": page.slug,
@@ -287,7 +301,11 @@ def _claim_projection(page: pages.Page, source_fms: list[dict]) -> dict:
         "load_bearing": bool(fm.get("load_bearing", False)),
         "sources": source_ids,
         "corroboration": claims_mod.corroboration_count(source_fms, source_ids),
-        "verifications": [dict(v) for v in pages.as_list(fm.get("verifications"))],
+        "verifications": [
+            _verification_projection(v)
+            for v in pages.as_list(fm.get("verified"))
+            if isinstance(v, dict)
+        ],
     }
 
 
@@ -325,7 +343,7 @@ def _session_projection(page: pages.Page) -> dict:
     fm = page.fm
     return {
         "id": page.slug,  # sessions have no compact id scheme (SPEC §8)
-        "actor": str(fm.get("actor", "")),
+        "actor": pages.generated_by(fm),
         "model": str(fm.get("model", "")),
         "started": str(fm.get("started", "")),
         "ended": str(fm.get("ended", "")),

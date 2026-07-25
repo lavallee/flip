@@ -6,15 +6,18 @@ from pathlib import Path
 
 import pytest
 
+from flip import claims as claims_mod
 from flip import pages
 from flip.manifest import FLIP_PROFILE_VERSION, load_manifest
 from flip.migrate import migrate
 from flip.util import UID_RE, is_notebook_root, next_id, today, write_jsonl
 
 # What the profile pass reports on a v0.3 chain: the notebook has never had a
-# uid, and v0.3 manifests carry no links.beat with '#'.
+# uid, and v0.3 manifests carry no links.beat with '#'. pages_okf02 defaults
+# to 0 — the page-shaped (make_v04) fixtures below carry no entity pages at
+# all, so the OKF v0.2 page pass has nothing to rewrite.
 PROFILE_COUNTS = {"uid_added": 1, "beat_link_rewritten": 0,
-                  "profile": FLIP_PROFILE_VERSION}
+                  "pages_okf02": 0, "profile": FLIP_PROFILE_VERSION}
 
 NOTEBOOK_TOML = """\
 slug = "demo"
@@ -130,8 +133,12 @@ def make_v03(tmp_path: Path) -> Path:
 def test_migrate_counts_and_notebook_toml_gone(tmp_path):
     root = make_v03(tmp_path)
     summary = migrate(root)
+    # the session page still lands with a flat pseudo-frontmatter `actor:` key
+    # (_move_session doesn't fold it), so the belt-and-suspenders OKF v0.2
+    # page pass that runs right after finds one page (the session) to rewrite
     assert summary == {"sources": 3, "claims": 1, "decisions": 1, "questions": 2,
-                       "sessions": 1, "already_migrated": 0, **PROFILE_COUNTS}
+                       "sessions": 1, "already_migrated": 0,
+                       **{**PROFILE_COUNTS, "pages_okf02": 1}}
     assert not (root / "notebook.toml").exists()
     assert is_notebook_root(root)
 
@@ -230,16 +237,19 @@ def test_migrate_claims_get_citations_and_recomputed_corroboration(tmp_path):
     assert page.fm["id"] == "C1"
     assert page.fm["status"] == "needs-2nd"
     assert page.fm["load_bearing"] is True
-    assert page.fm["sources"] == ["A1", "X9"]
-    assert page.fm["supports"] == ["/references/vendor-study"]  # dangling X9 contributes nothing
+    assert page.fm["sources"] == [
+        {"id": "A1", "resource": "/references/vendor-study.md", "title": "Vendor study"},
+        {"id": "X9"},  # dangling X9 contributes nothing
+    ]
+    assert claims_mod.source_ids(page.fm) == ["A1", "X9"]
     assert page.fm["independent_corroboration"] == 1  # recomputed: A1 judged B + original
     assert page.fm["first_asserted"] == "2026-07-09"
-    assert page.fm["actor"] == "agent:test"
+    assert pages.generated_by(page.fm) == "agent:test"
     assert "Conversion is 42% higher" in page.body
     assert "_single vendor study_" in page.body
-    assert "# Citations" in page.body
-    assert "[1] [Vendor study](../references/vendor-study.md)" in page.body
-    assert "[2] X9" in page.body  # dangling citation stays visible
+    assert "# Citations" not in page.body  # no more heading; footnote defs instead
+    assert "[^A1]: [Vendor study](../references/vendor-study.md)" in page.body
+    assert "[^X9]: X9 (not captured)" in page.body  # dangling citation stays visible
 
 
 def test_migrate_decisions_become_pages(tmp_path):
@@ -251,8 +261,8 @@ def test_migrate_decisions_become_pages(tmp_path):
     assert page.fm["id"] == "D1"
     assert page.fm["question"] == "Scope?"
     assert page.fm["alternatives_rejected"] == ["full market survey"]
-    assert page.fm["timestamp"] == "2026-07-09T11:00:00Z"
-    assert page.fm["actor"] == "human:test"
+    assert pages.generated_at(page.fm) == "2026-07-09T11:00:00Z"
+    assert pages.generated_by(page.fm) == "human:test"
     for chunk in ("**Question.** Scope?", "**Decision.** Vendor claims only",
                   "**Why.** time-boxed", "**Rejected.** full market survey"):
         assert chunk in page.body
@@ -264,8 +274,8 @@ def test_migrate_folds_question_events(tmp_path):
     assert not (root / "log" / "questions.jsonl").exists()
     answered = pages.find_by_id(root, "Q1")
     assert answered.fm["status"] == "answered"  # last status wins
-    assert answered.fm["timestamp"] == "2026-07-09T11:05:00Z"  # ask ts kept
-    assert answered.fm["actor"] == "agent:test"
+    assert pages.generated_at(answered.fm) == "2026-07-09T11:05:00Z"  # ask ts kept
+    assert pages.generated_by(answered.fm) == "agent:test"
     assert answered.fm["answered"] == "2026-07-10T08:00:00Z"
     assert answered.fm["answered_by"] == "human:test"
     assert answered.body.lstrip("\n").startswith("Do platforms publish data?")  # ask text kept
@@ -282,7 +292,9 @@ def test_migrate_moves_sessions_with_frontmatter(tmp_path):
     assert not (root / "log" / "sessions").exists()  # emptied and removed
     page = pages.read_page(root / "sessions" / "2026-07-01T1000-sweep.md")
     assert page.fm["type"] == "Work Session"
-    assert page.fm["actor"] == "agent:claude"  # pseudo-frontmatter parsed
+    # pseudo-frontmatter parsed, then folded generated:{by,at} by the OKF v0.2
+    # page pass that runs right after the ledger conversion
+    assert pages.generated_by(page.fm) == "agent:claude"
     assert page.fm["model"] == "m1"
     assert page.fm["started"] == "2026-07-01T10:00:00Z"
     assert "## Goal\nsweep the corpus" in page.body
@@ -298,7 +310,7 @@ def test_migrate_session_with_real_frontmatter(tmp_path):
     assert summary["sessions"] == 2
     page = pages.read_page(root / "sessions" / "2026-07-02T0900-audit.md")
     assert page.fm["type"] == "Work Session"
-    assert page.fm["actor"] == "human:test"
+    assert pages.generated_by(page.fm) == "human:test"
     assert "## Goal\naudit" in page.body
 
 
@@ -392,7 +404,7 @@ def test_migrate_resumes_after_partial_run(tmp_path):
     # deleted, notebook.toml still present — the re-run finishes the rest
     root = make_v03(tmp_path)
     full = {"sources": 3, "claims": 1, "decisions": 1, "questions": 2,
-            "sessions": 1, "already_migrated": 0, **PROFILE_COUNTS}
+            "sessions": 1, "already_migrated": 0, **{**PROFILE_COUNTS, "pages_okf02": 1}}
     first = migrate(root)
     assert first == full
     uid = load_manifest(root).uid  # minted once; a re-run must not re-mint it
@@ -402,8 +414,9 @@ def test_migrate_resumes_after_partial_run(tmp_path):
                 [{**DECISION_ROWS[0], "id": "D2", "decision": "Second pass"}])
     second = migrate(root)
     assert second == {"sources": 0, "claims": 0, "decisions": 1, "questions": 0,
-                      "sessions": 0, "already_migrated": 0, "uid_added": 0,
-                      "beat_link_rewritten": 0, "profile": FLIP_PROFILE_VERSION}
+                      "sessions": 0, "already_migrated": 0, "pages_okf02": 0,
+                      "uid_added": 0, "beat_link_rewritten": 0,
+                      "profile": FLIP_PROFILE_VERSION}
     assert not (root / "notebook.toml").exists()
     assert load_manifest(root).uid == uid  # identity survives the resume
     assert pages.find_by_id(root, "D2") is not None
@@ -429,8 +442,9 @@ def test_migrate_resume_skips_rows_whose_pages_exist(tmp_path):
     summary = migrate(root)
 
     assert summary == {"sources": 0, "claims": 0, "decisions": 1, "questions": 0,
-                       "sessions": 0, "already_migrated": 7, "uid_added": 0,
-                       "beat_link_rewritten": 0, "profile": FLIP_PROFILE_VERSION}
+                       "sessions": 0, "already_migrated": 7, "pages_okf02": 0,
+                       "uid_added": 0, "beat_link_rewritten": 0,
+                       "profile": FLIP_PROFILE_VERSION}
     # no duplicated pages, no -2 slugs, no duplicate ids
     for dup in ("vendor-study-3.md", "conversion-is-42-higher-2.md",
                 "vendor-claims-only-2.md"):
@@ -481,7 +495,7 @@ def test_profile_pass_never_remints_an_existing_uid(tmp_path):
     root = make_v04(tmp_path, uid="nb-7k3m9p2x")
     summary = migrate(root)
     assert summary == {"uid_added": 0, "beat_link_rewritten": 0,
-                       "profile": FLIP_PROFILE_VERSION}
+                       "pages_okf02": 0, "profile": FLIP_PROFILE_VERSION}
     assert load_manifest(root).uid == "nb-7k3m9p2x"
 
 
@@ -527,15 +541,17 @@ def test_migrate_restamps_declared_04_even_with_uid(tmp_path):
     root = make_v04(tmp_path, uid="nb-7k3m9p2x", links={"beat": "county:TH2"})
     summary = migrate(root)
     assert summary == {"uid_added": 0, "beat_link_rewritten": 0,
-                       "profile": FLIP_PROFILE_VERSION}
+                       "pages_okf02": 0, "profile": FLIP_PROFILE_VERSION}
     assert pages.read_page(root / "index.md").fm["flip"] == FLIP_PROFILE_VERSION
     with pytest.raises(SystemExit, match="already at the current profile"):
         migrate(root)
 
 
-def test_migrate_0_5_to_0_6_is_version_only_bump(tmp_path):
-    # a live 0.5 notebook (uid present, links canonical) migrates to 0.6 as a
-    # pure version bump — no page moves, keys are additive — then refuses.
+def test_migrate_0_5_to_0_7_is_version_only_bump(tmp_path):
+    # a live 0.5 notebook (uid present, links canonical, no entity pages
+    # carrying legacy timestamp/actor/supports/verifications keys) migrates
+    # straight to 0.7 as a pure version bump — no page rewrites needed —
+    # then refuses.
     root = make_v04(tmp_path, uid="nb-7k3m9p2x")
     index = root / "index.md"
     index.write_text(
@@ -544,7 +560,7 @@ def test_migrate_0_5_to_0_6_is_version_only_bump(tmp_path):
     )
     summary = migrate(root)
     assert summary == {"uid_added": 0, "beat_link_rewritten": 0,
-                       "profile": FLIP_PROFILE_VERSION}
+                       "pages_okf02": 0, "profile": FLIP_PROFILE_VERSION}
     assert pages.read_page(root / "index.md").fm["flip"] == FLIP_PROFILE_VERSION
     assert load_manifest(root).uid == "nb-7k3m9p2x"  # identity untouched
     with pytest.raises(SystemExit, match="already at the current profile"):
