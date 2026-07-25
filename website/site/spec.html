@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The format, visually — flip</title>
+<meta name="description" content="A visual map of the flip notebook format: the bundle on disk, the five entity types and their frontmatter, the append-only ledgers, the lifecycle a source travels, and the profiles that set the bar.">
+<link rel="icon" href="lib/artoo-kit/favicon.svg">
+<link rel="stylesheet" href="lib/artoo-kit/tokens.css">
+<link rel="stylesheet" href="lib/artoo-kit/base.css">
+<link rel="stylesheet" href="lib/artoo-kit/article.css">
+<link rel="stylesheet" href="lib/artoo-kit/components.css">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<nav class="site-nav">
+  <a class="brand" href="index.html">flip</a>
+  <button class="nav-toggle" type="button" aria-label="Menu">menu</button>
+  <div class="nav-links">
+    <a href="flipbook.html">Flipbook</a>
+    <a href="spec.html">Spec</a>
+    <a href="start.html">Start</a>
+    <a href="https://github.com/lavallee/flip">GitHub</a>
+  </div>
+  <button data-theme-toggle class="nav-toggle spacer" type="button" aria-label="Toggle light or dark theme">theme</button>
+</nav>
+
+<main class="page">
+
+  <header>
+    <p class="section-kicker">The format</p>
+    <h1>A notebook, opened</h1>
+    <p class="lede">This is a way into
+      <a href="https://github.com/lavallee/flip/blob/main/SPEC.md">SPEC.md</a>, not a
+      replacement for it. Every region below links to the section that governs it, and
+      the frontmatter keys shown are the keys the implementation actually wrote when
+      this page was built — if they drift apart, the site fails to build rather than
+      quietly misleading you.</p>
+  </header>
+
+  <section>
+    <h2>The bundle on disk</h2>
+    <p>Only <code>index.md</code> and <code>notebook.md</code> are universally
+      required. Directories appear when they are first needed, and a profile decides
+      what a notebook of that kind must contain before it can be called done. Select a
+      region to see what lives there.</p>
+
+    <div class="spec-grid">
+      <div class="bundle" id="bundle" aria-label="Notebook directory layout"></div>
+      <div class="spec-detail" id="detail" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What a source has to survive</h2>
+    <p class="lede">The single most important thing to understand about flip is that
+      these are <em>separate acts</em>, in this order, and that skipping one is
+      visible rather than silent. A static layout diagram cannot show sequence, so:</p>
+    <div class="rail" id="rail"></div>
+    <p class="record__caption">The two stages marked in accent are gates: one is
+      refused if the source is unjudged, the other is refused if the evidence does not
+      meet the profile's bar. <a href="flipbook.html#refused">Watch the refusal →</a></p>
+  </section>
+
+  <section>
+    <h2>The append-only ledgers</h2>
+    <p>Entity pages are the canonical record and they get rewritten. Events are not:
+      the ledgers only ever grow, and the generated views (<code>log.md</code>, every
+      <code>index.md</code> body) are disposable projections of them.</p>
+    <div class="table-wrap"><table id="ledgers"></table></div>
+  </section>
+
+  <section>
+    <h2>Profiles set the bar</h2>
+    <p>A profile is required files, plus <code>notebook.md</code> sections, plus the
+      claim-verification bar. They are plain TOML shipped with flip and overridable
+      per notebook. Profile minimums are <strong>completion requirements, not creation
+      requirements</strong>: a missing path warns while a notebook is active and only
+      errors once it is marked done, published, or archived.</p>
+    <div class="table-wrap"><table id="profiles"></table></div>
+  </section>
+
+  <section>
+    <h2>Two axes, never collapsed</h2>
+    <p>Source reliability and claim credibility are separate judgments, after
+      Admiralty practice [C4]. A source carries reliability; the claim carries
+      credibility. Nothing multiplies them into a trust score, because a composite
+      score is exactly the thing that lets a careless grade disappear into an average.</p>
+    <div class="card-grid">
+      <div class="card">
+        <h3>grade</h3>
+        <p><strong>A</strong> authoritative primary — government, peer-reviewed, or
+          data we extracted ourselves.<br>
+          <strong>B</strong> official documentation, independent journalism, platform
+          docs.<br>
+          <strong>C</strong> vendor, practitioner, commercial, or LLM synthesis.<br>
+          <strong>?</strong> not yet judged — and counting toward nothing.</p>
+      </div>
+      <div class="card">
+        <h3>independence</h3>
+        <p><strong>original</strong> · <strong>republisher</strong> ·
+          <strong>derivative</strong> · <strong>self-interested</strong>.<br>
+          Four republishers of one wire story are one source. This axis is what lets
+          the corroboration count mean something.</p>
+      </div>
+      <div class="card">
+        <h3>claim status</h3>
+        <p><code>asserted</code> → <code>verified</code> · <code>needs-2nd</code> ·
+          <code>unconfirmed</code> · <code>false-positive</code> ·
+          <code>retracted</code> · <code>superseded</code>.<br>
+          Machine-generated assertions enter as <code>asserted</code>. Only the move to
+          <code>verified</code> is gated.</p>
+      </div>
+      <div class="card">
+        <h3>verification methods</h3>
+        <p><code>adversarial</code> — a skeptic pass that sought disconfirming
+          evidence.<br>
+          <code>recomputation</code> — the result re-derived independently.<br>
+          <code>independent-sources</code> — documents the reasoning, and never
+          satisfies the gate on its own.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The whole CLI</h2>
+    <p>Generated from <code>flip cli --json</code> at build time, so this page cannot
+      describe a command that does not exist. The core is filesystem-only: no network
+      calls and no LLM calls live in the library. Capture, research, and recall are
+      pluggable roles that run whatever you configure, and nothing else.</p>
+    <div id="cli"></div>
+  </section>
+
+  <section>
+    <h2>Above and beside a notebook</h2>
+    <div class="card-grid">
+      <div class="card">
+        <h3>Beats</h3>
+        <p>A standing mission that outlives any single notebook, holding the
+          cross-notebook memory that makes the eleventh notebook cheaper than the
+          first. Threads are its unit of attention; graduation turns one into a
+          notebook; dropping one records negative coverage so a dead angle is not
+          re-scouted.</p>
+        <p><a class="spec-link" href="https://github.com/lavallee/flip/blob/main/SPEC.md#14-beats--the-grouping-layer-above-notebooks">SPEC §14 →</a></p>
+      </div>
+      <div class="card">
+        <h3>Workspaces</h3>
+        <p>Many notebooks under one root — a vault, a repo, a share. A local table
+          binds short handles you choose, the way git remote names work, so a
+          cross-notebook reference reads <code>recipes:A3</code> and resolves exactly
+          or fails loudly. Handles never travel with the bundle.</p>
+        <p><a class="spec-link" href="https://github.com/lavallee/flip/blob/main/SPEC.md#18-workspaces--many-notebooks-one-root">SPEC §18 →</a></p>
+      </div>
+      <div class="card">
+        <h3>Exports</h3>
+        <p>Projections, never the canonical form: a BagIt bag for cold archival, CSL
+          JSON for citation managers, a policy-filtered OKF bundle for outside
+          consumption, and <code>flip-render/1</code> JSON for renderers — which is
+          what built the provenance panel on this site.</p>
+        <p><a class="spec-link" href="https://github.com/lavallee/flip/blob/main/SPEC.md#17-exports-generated-projections">SPEC §17 →</a></p>
+      </div>
+      <div class="card">
+        <h3>Humans</h3>
+        <p>A notebook is already a valid Obsidian vault. Frontmatter is the properties
+          panel, the folder taxonomy reads as intended structure, and flip round-trips
+          frontmatter keys it does not own — so a human editing beside an agent is the
+          designed case, not a hazard.</p>
+        <p><a class="spec-link" href="https://github.com/lavallee/flip/blob/main/SPEC.md#12-working-with-humans-the-obsidian-criterion">SPEC §12 →</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Every section of the spec</h2>
+    <div id="sections"></div>
+  </section>
+
+</main>
+
+<footer class="site-foot">
+  <div class="site-foot__inner">
+    <p>flip — format and tooling for reporter's notebooks. MIT licensed.</p>
+    <p>
+      <a href="https://github.com/lavallee/flip">Repository</a> ·
+      <a href="https://github.com/lavallee/flip/blob/main/SPEC.md">Spec</a> ·
+      <a href="https://pypi.org/project/flip-notebook/">PyPI</a>
+    </p>
+  </div>
+</footer>
+
+<script src="data/spec.js"></script>
+<script src="data/flip.js"></script>
+<script src="site.js"></script>
+<script src="spec.js"></script>
+<script src="lib/artoo-kit/kit.js"></script>
+</body>
+</html>

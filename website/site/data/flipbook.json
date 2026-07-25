@@ -1,0 +1,1192 @@
+{
+  "generated": "2026-07-25T01:14:04+00:00",
+  "notebook": {
+    "slug": "sourdough-rise",
+    "title": "Does hydration change sourdough rise time?",
+    "kind": "research-review"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "id": "new",
+      "act": "Open the notebook",
+      "title": "Scaffold a notebook",
+      "narrative": "A notebook is a directory, not a database. `flip new` writes two files: the manifest and the prose working memory. The `--kind` selects a profile, which decides what this notebook must contain before it can be called done \u2014 not before it can be started.",
+      "spec": "4",
+      "commands": [
+        "flip new sourdough-rise --kind research-review --title 'Does hydration change sourdough rise time?'"
+      ],
+      "stdout": "created research-review notebook 'sourdough-rise' at /tmp/flip-site-lwapq8h3/sourdough-rise\nnext: cd /tmp/flip-site-lwapq8h3/sourdough-rise && flip log \"started\" \u2014 see `flip --help` for the toolkit",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": "index.md",
+          "state": "added"
+        },
+        {
+          "path": "notebook.md",
+          "state": "added"
+        }
+      ],
+      "record": {
+        "path": "index.md",
+        "lang": "markdown",
+        "caption": "index.md \u2014 the manifest lives in the root frontmatter, where any OKF consumer already looks.",
+        "text": "---\nokf_version: '0.1'\nflip: '0.6'\nslug: sourdough-rise\nuid: nb-rrpf6xb1\ntitle: Does hydration change sourdough rise time?\nkind: research-review\nstatus: active\ncreated: '2026-07-25'\nupdated: '2026-07-25'\nvisibility: internal\nrenders_public: false\nsource_trail_public: false\ncitation_rule: public-terminus\n---\n\n# Does hydration change sourdough rise time?"
+      }
+    },
+    {
+      "n": 2,
+      "id": "session",
+      "act": "Open the notebook",
+      "title": "Log the episode",
+      "narrative": "Generation is logged. Every working episode that writes pages \u2014 human or model \u2014 gets a session page recording the actor, the model, and the tools it had. The reasoning chain is part of the bundle, not something you reconstruct from a chat history later.",
+      "spec": "8",
+      "commands": [
+        "flip session start hydration-sweep --model claude-opus-5 --tools flip --tools python"
+      ],
+      "stdout": "/tmp/flip-site-lwapq8h3/sourdough-rise/sessions/2026-07-25T0114-hydration-sweep.md",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "added"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "added"
+        }
+      ],
+      "record": {
+        "lang": "markdown",
+        "caption": "sessions/ \u2014 one page per episode, stamped in UTC. Synthesis recorded here is a lead, grade C, until promoted through references/.",
+        "text": "---\ntype: Work Session\nactor: human:baker\nmodel: claude-opus-5\ntools:\n- flip\n- python\nstarted: '2026-07-25T01:14:03Z'\n---\n\n## Goal\n\n## Prompt\n\n## Key outputs\n\n## Transcript",
+        "path": "sessions/2026-07-25T0114-hydration-sweep.md"
+      }
+    },
+    {
+      "n": 3,
+      "id": "question",
+      "act": "Open the notebook",
+      "title": "Write down the question",
+      "narrative": "Questions are entity pages with immutable ids, so they can be cited, re-posed with a sharper formulation, and answered later without losing the earlier wording.",
+      "spec": "7",
+      "commands": [
+        "flip question add 'Does higher hydration shorten the time to double?'"
+      ],
+      "stdout": "Q1 open \u00b7 Does higher hydration shorten the time to double?",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "added"
+        },
+        {
+          "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "state": "added"
+        },
+        {
+          "path": "questions/index.md",
+          "state": "added"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "changed"
+        }
+      ],
+      "record": {
+        "lang": "markdown",
+        "caption": "The filename is a human slug; the immutable id Q1 lives in frontmatter.",
+        "text": "---\ntype: Question\nid: Q1\naliases:\n- Q1\ndescription: Does higher hydration shorten the time to double?\nstatus: open\ntimestamp: '2026-07-25T01:14:03Z'\nactor: human:baker\n---\n\nDoes higher hydration shorten the time to double?",
+        "path": "questions/does-higher-hydration-shorten-the-time-to-double.md"
+      }
+    },
+    {
+      "n": 4,
+      "id": "capture",
+      "act": "Take custody",
+      "title": "Capture a source",
+      "narrative": "Capture copies the bytes into the notebook and hashes them. From here the notebook does not depend on that file still existing anywhere else \u2014 this is the custody principle, and it is the difference between citing something and holding it.",
+      "spec": "5",
+      "commands": [
+        "flip add-source ../ridgeway-club-trial.md --note 'Independent club replication, 44 bakes'"
+      ],
+      "stdout": "F1 \u00b7 sources/raw/F1.md \u00b7 references/ridgeway-club-trial.md (grade ?)\njudge it: flip grade F1 --grade A|B|C --independence original|republisher|derivative|self-interested",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "changed"
+        },
+        {
+          "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/index.md",
+          "state": "added"
+        },
+        {
+          "path": "references/ridgeway-club-trial.md",
+          "state": "added"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "sources/_provenance.jsonl",
+          "state": "added"
+        },
+        {
+          "path": "sources/raw/F1.md",
+          "state": "added"
+        }
+      ],
+      "record": {
+        "path": "sources/_provenance.jsonl",
+        "lang": "json",
+        "caption": "sources/_provenance.jsonl \u2014 the fixity record, appended and never rewritten. Hash at capture, per file.",
+        "text": "{\n  \"ts\": \"2026-07-25T01:14:03Z\",\n  \"source_id\": \"F1\",\n  \"url\": \"file:///tmp/flip-site-lwapq8h3/ridgeway-club-trial.md\",\n  \"local_path\": \"sources/raw/F1.md\",\n  \"sha256\": \"23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40\",\n  \"bytes\": 543,\n  \"tool\": \"builtin:copy\",\n  \"strategy\": \"copy\",\n  \"actor\": \"human:baker\",\n  \"note\": \"Independent club replication, 44 bakes\"\n}"
+      }
+    },
+    {
+      "n": 5,
+      "id": "ungraded",
+      "act": "Take custody",
+      "title": "Capture is not judgment",
+      "narrative": "The source page opens at grade `?`. flip will not guess a grade from where a file came from, and an ungraded source counts toward nothing \u2014 so at this moment the notebook holds evidence it is not yet entitled to rely on.",
+      "spec": "5",
+      "commands": [
+        "flip show --stale"
+      ],
+      "stdout": "OPEN QUESTIONS\n  Q1 \u00b7 Does higher hydration shorten the time to double?",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "same"
+        },
+        {
+          "path": "index.md",
+          "state": "same"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/index.md",
+          "state": "same"
+        },
+        {
+          "path": "references/index.md",
+          "state": "same"
+        },
+        {
+          "path": "references/ridgeway-club-trial.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/_provenance.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F1.md",
+          "state": "same"
+        }
+      ],
+      "record": {
+        "lang": "markdown",
+        "caption": "grade: '?' \u2014 captured, unjudged, and worth nothing to a claim.",
+        "text": "---\ntype: Source\nid: F1\naliases:\n- F1\ntitle: ridgeway-club-trial.md\ndescription: Independent club replication, 44 bakes\nlocal: sources/raw/F1.md\ngrade: '?'\nindependence: original\nfreshness: fresh\nstatus: captured\nactor: human:baker\n---\n\n# ridgeway-club-trial.md\n\nIndependent club replication, 44 bakes",
+        "path": "references/ridgeway-club-trial.md"
+      }
+    },
+    {
+      "n": 6,
+      "id": "grade",
+      "act": "Take custody",
+      "title": "Grade it, as a separate act",
+      "narrative": "Grading is a recorded judgment by a named actor, after reading. Reliability and independence are two axes, never collapsed into one score \u2014 the practice comes from Admiralty source grading. An organised trial run by people who are not us, who measured it directly: B for reliability, original for independence.",
+      "spec": "5",
+      "commands": [
+        "flip grade F1 --grade B --independence original --notes 'Organised trial we did not run; proofing vessels not standardised.'"
+      ],
+      "stdout": "F1 \u00b7 grade B \u00b7 original \u00b7 fresh",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "same"
+        },
+        {
+          "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/ridgeway-club-trial.md",
+          "state": "changed"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "sources/_provenance.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F1.md",
+          "state": "same"
+        }
+      ],
+      "record": {
+        "lang": "markdown",
+        "caption": "The same page after judgment. Only the judgment keys changed; everything else round-trips untouched.",
+        "text": "---\ntype: Source\nid: F1\naliases:\n- F1\ntitle: ridgeway-club-trial.md\ndescription: Independent club replication, 44 bakes\nlocal: sources/raw/F1.md\ngrade: B\nindependence: original\nfreshness: fresh\nstatus: captured\nactor: human:baker\nnotes: Organised trial we did not run; proofing vessels not standardised.\n---\n\n# ridgeway-club-trial.md\n\nIndependent club replication, 44 bakes",
+        "path": "references/ridgeway-club-trial.md"
+      }
+    },
+    {
+      "n": 7,
+      "id": "claim",
+      "act": "Make a claim stick",
+      "title": "Assert a claim",
+      "narrative": "A claim is a discrete assertion with an id, a status, and an edge to the sources behind it. It enters as `asserted` \u2014 the status a machine-generated assertion always starts in. `--load-bearing` means the work falls over if this is wrong, and it is what makes `flip doctor` care.",
+      "spec": "7",
+      "commands": [
+        "flip claim add 'Doubling time falls about a quarter between 65% and 80% hydration' --source F1 --load-bearing"
+      ],
+      "stdout": "C1 asserted \u00b7 sources: F1 \u00b7 corroboration: 1",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "changed"
+        },
+        {
+          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
+          "state": "added"
+        },
+        {
+          "path": "claims/index.md",
+          "state": "added"
+        },
+        {
+          "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/ridgeway-club-trial.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "sources/_provenance.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F1.md",
+          "state": "same"
+        }
+      ],
+      "record": {
+        "lang": "markdown",
+        "caption": "status: asserted \u00b7 independent_corroboration: 1 \u2014 recomputed by the tooling, not trusted from the page.",
+        "text": "---\ntype: Claim\nid: C1\naliases:\n- C1\ndescription: Doubling time falls about a quarter between 65% and 80% hydration\nstatus: asserted\nload_bearing: true\nsources:\n- F1\nsupports:\n- /references/ridgeway-club-trial\nindependent_corroboration: 1\nfirst_asserted: '2026-07-25'\nactor: human:baker\n---\n\nDoubling time falls about a quarter between 65% and 80% hydration\n\n# Citations\n[1] [ridgeway-club-trial.md](../references/ridgeway-club-trial.md)",
+        "path": "claims/doubling-time-falls-about-a-quarter-between-65.md"
+      }
+    },
+    {
+      "n": 8,
+      "id": "refused",
+      "act": "Make a claim stick",
+      "title": "Try to call it verified",
+      "narrative": "This is the enforcement. This notebook is a research-review, so its bar is two independent judged sources \u2014 and one is not corroboration. The command is refused, not warned about: refused, with a non-zero exit code. An agent cannot promote its own assertion by asserting harder. The bar is the profile's, and it is mechanical.",
+      "spec": "7",
+      "commands": [
+        "flip claim status C1 verified"
+      ],
+      "stdout": "cannot verify C1: 1 independent original source(s) of 2 required and no grade-A source among its sources (sources: F1); add independent original sources to the claim or upgrade one to grade A via `flip grade`; or record a skeptic/recompute pass with `flip claim verify C1 --method adversarial|recomputation`",
+      "exit_code": 1,
+      "refused": true,
+      "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "same"
+        },
+        {
+          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/index.md",
+          "state": "same"
+        },
+        {
+          "path": "index.md",
+          "state": "same"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/index.md",
+          "state": "same"
+        },
+        {
+          "path": "references/index.md",
+          "state": "same"
+        },
+        {
+          "path": "references/ridgeway-club-trial.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/_provenance.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F1.md",
+          "state": "same"
+        }
+      ],
+      "record": {
+        "lang": "text",
+        "caption": "Exit code 1. The claim keeps the status it earned.",
+        "text": "cannot verify C1: 1 independent original source(s) of 2 required and no grade-A source among its sources (sources: F1); add independent original sources to the claim or upgrade one to grade A via `flip grade`; or record a skeptic/recompute pass with `flip claim verify C1 --method adversarial|recomputation`",
+        "path": "stdout"
+      }
+    },
+    {
+      "n": 9,
+      "id": "second",
+      "act": "Make a claim stick",
+      "title": "Go and measure it yourself",
+      "narrative": "So we bake. Twelve bakes at four hydration levels, one kitchen, one flour lot \u2014 data we extracted ourselves, which is what grade A means. Capture the file and the notebook owns the bytes; grade it and the notebook can rely on them.",
+      "spec": "5",
+      "commands": [
+        "flip add-source ../rise-times.csv --note 'Our own kitchen log, 12 bakes at four hydration levels'",
+        "flip grade F2 --grade A --independence original --notes 'Data we measured ourselves; one kitchen, one flour lot, 12 bakes.'"
+      ],
+      "stdout": "F2 \u00b7 sources/raw/F2.csv \u00b7 references/rise-times.md (grade ?)\njudge it: flip grade F2 --grade A|B|C --independence original|republisher|derivative|self-interested\n\nF2 \u00b7 grade A \u00b7 original \u00b7 fresh",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "changed"
+        },
+        {
+          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/ridgeway-club-trial.md",
+          "state": "same"
+        },
+        {
+          "path": "references/rise-times.md",
+          "state": "added"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "sources/_provenance.jsonl",
+          "state": "changed"
+        },
+        {
+          "path": "sources/raw/F1.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F2.csv",
+          "state": "added"
+        }
+      ],
+      "record": {
+        "path": "sources/_provenance.jsonl",
+        "lang": "json",
+        "caption": "A second custody event. The ledger only ever grows.",
+        "text": "{\n  \"ts\": \"2026-07-25T01:14:03Z\",\n  \"source_id\": \"F2\",\n  \"url\": \"file:///tmp/flip-site-lwapq8h3/rise-times.csv\",\n  \"local_path\": \"sources/raw/F2.csv\",\n  \"sha256\": \"d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c\",\n  \"bytes\": 427,\n  \"tool\": \"builtin:copy\",\n  \"strategy\": \"copy\",\n  \"actor\": \"human:baker\",\n  \"note\": \"Our own kitchen log, 12 bakes at four hydration levels\"\n}"
+      }
+    },
+    {
+      "n": 10,
+      "id": "passed",
+      "act": "Make a claim stick",
+      "title": "Record what you rejected",
+      "narrative": "A flour miller's spec sheet makes a rise claim with no trial data behind it. Passing on it is worth recording: negative evidence stops the next session \u2014 human or agent \u2014 from rediscovering and re-chasing the same dead end.",
+      "spec": "8",
+      "commands": [
+        "flip pass 'Millwright Flour spec sheet rise claim' --reason 'Vendor marketing copy; no trial data, self-interested on the exact question.'"
+      ],
+      "stdout": "passed 2026-07-25T01:14:04Z \u00b7 Vendor marketing copy; no trial data, self-interested on the exact question.",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "same"
+        },
+        {
+          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "log/passed.jsonl",
+          "state": "added"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/ridgeway-club-trial.md",
+          "state": "same"
+        },
+        {
+          "path": "references/rise-times.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "sources/_provenance.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F1.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F2.csv",
+          "state": "same"
+        }
+      ],
+      "record": {
+        "path": "log/passed.jsonl",
+        "lang": "json",
+        "caption": "log/passed.jsonl \u2014 the notebook remembers what it decided not to use.",
+        "text": "{\n  \"ts\": \"2026-07-25T01:14:04Z\",\n  \"text\": \"Millwright Flour spec sheet rise claim\",\n  \"reason\": \"Vendor marketing copy; no trial data, self-interested on the exact question.\",\n  \"actor\": \"human:baker\"\n}"
+      }
+    },
+    {
+      "n": 11,
+      "id": "link",
+      "act": "Make a claim stick",
+      "title": "Link the second source",
+      "narrative": "Linking regenerates the claim's citation block and recomputes its corroboration count from the graded sources it actually has. The number on the page is never taken on faith.",
+      "spec": "7",
+      "commands": [
+        "flip claim source add C1 F2"
+      ],
+      "stdout": "C1 \u00b7 linked F2 \u00b7 sources: F1, F2 \u00b7 corroboration: 2",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "same"
+        },
+        {
+          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
+          "state": "changed"
+        },
+        {
+          "path": "claims/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "log/passed.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/ridgeway-club-trial.md",
+          "state": "same"
+        },
+        {
+          "path": "references/rise-times.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "sources/_provenance.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F1.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F2.csv",
+          "state": "same"
+        }
+      ],
+      "record": {
+        "lang": "markdown",
+        "caption": "independent_corroboration: 2, and a Citations block regenerated from the edges.",
+        "text": "---\ntype: Claim\nid: C1\naliases:\n- C1\ndescription: Doubling time falls about a quarter between 65% and 80% hydration\nstatus: asserted\nload_bearing: true\nsources:\n- F1\n- F2\nsupports:\n- /references/ridgeway-club-trial\n- /references/rise-times\nindependent_corroboration: 2\nfirst_asserted: '2026-07-25'\nactor: human:baker\n---\n\nDoubling time falls about a quarter between 65% and 80% hydration\n\n# Citations\n[1] [ridgeway-club-trial.md](../references/ridgeway-club-trial.md)\n[2] [rise-times.csv](../references/rise-times.md)",
+        "path": "claims/doubling-time-falls-about-a-quarter-between-65.md"
+      }
+    },
+    {
+      "n": 12,
+      "id": "verified",
+      "act": "Make a claim stick",
+      "title": "Now it passes",
+      "narrative": "Same command as before, different answer \u2014 because the evidence changed, not because anyone insisted. The default bar is two independent judged sources *or* one grade-A primary, and the notebook now has both: a second independent trial, and first-party data we measured ourselves. Either would have cleared it.",
+      "spec": "7",
+      "commands": [
+        "flip claim status C1 verified"
+      ],
+      "stdout": "C1 \u2192 verified \u00b7 corroboration: 2",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "same"
+        },
+        {
+          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
+          "state": "changed"
+        },
+        {
+          "path": "claims/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "log/passed.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/ridgeway-club-trial.md",
+          "state": "same"
+        },
+        {
+          "path": "references/rise-times.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "sources/_provenance.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F1.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F2.csv",
+          "state": "same"
+        }
+      ],
+      "record": {
+        "lang": "markdown",
+        "caption": "status: verified \u2014 earned mechanically, and re-checkable by anyone with the files.",
+        "text": "---\ntype: Claim\nid: C1\naliases:\n- C1\ndescription: Doubling time falls about a quarter between 65% and 80% hydration\nstatus: verified\nload_bearing: true\nsources:\n- F1\n- F2\nsupports:\n- /references/ridgeway-club-trial\n- /references/rise-times\nindependent_corroboration: 2\nfirst_asserted: '2026-07-25'\nactor: human:baker\n---\n\nDoubling time falls about a quarter between 65% and 80% hydration\n\n# Citations\n[1] [ridgeway-club-trial.md](../references/ridgeway-club-trial.md)\n[2] [rise-times.csv](../references/rise-times.md)",
+        "path": "claims/doubling-time-falls-about-a-quarter-between-65.md"
+      }
+    },
+    {
+      "n": 13,
+      "id": "decide",
+      "act": "Keep the record",
+      "title": "Record the fork you resolved",
+      "narrative": "The what is recoverable from git; the why is not. Decisions are pages so that nobody relitigates them in six weeks, including the agent that made them.",
+      "spec": "7",
+      "commands": [
+        "flip decide --question 'Report doubling time or final crumb quality?' --decision 'Doubling time only' --why 'It is the one variable both trials measured the same way.' --rejected 'Crumb scoring \u2014 subjective and not recorded by the club'"
+      ],
+      "stdout": "D1 \u00b7 Doubling time only",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "changed"
+        },
+        {
+          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "decisions/doubling-time-only.md",
+          "state": "added"
+        },
+        {
+          "path": "decisions/index.md",
+          "state": "added"
+        },
+        {
+          "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "log/passed.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/ridgeway-club-trial.md",
+          "state": "same"
+        },
+        {
+          "path": "references/rise-times.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "sources/_provenance.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F1.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F2.csv",
+          "state": "same"
+        }
+      ],
+      "record": {
+        "lang": "markdown",
+        "caption": "The rejected alternative is part of the record, not a footnote.",
+        "text": "---\ntype: Decision\nid: D1\naliases:\n- D1\ndescription: Doubling time only\nquestion: Report doubling time or final crumb quality?\nalternatives_rejected:\n- Crumb scoring \u2014 subjective and not recorded by the club\ntimestamp: '2026-07-25T01:14:04Z'\nactor: human:baker\n---\n\n**Question.** Report doubling time or final crumb quality?\n\n**Decision.** Doubling time only\n\n**Why.** It is the one variable both trials measured the same way.\n\n**Rejected.** Crumb scoring \u2014 subjective and not recorded by the club",
+        "path": "decisions/doubling-time-only.md"
+      }
+    },
+    {
+      "n": 14,
+      "id": "doctor",
+      "act": "Audit and render",
+      "title": "Audit the notebook",
+      "narrative": "`flip doctor` validates after the fact instead of gatekeeping before \u2014 which is what lets a human edit the same files freely in a markdown editor. It lints OKF conformance, profile minimums, orphaned custody, under-verified load-bearing claims, and link rot.",
+      "spec": "15",
+      "commands": [
+        "flip doctor"
+      ],
+      "stdout": "ok: no findings yet\nexpected until use (these appear with the work, not problems yet \u2014 don't re-run doctor for reassurance):\n  WARN missing-required drafts \u2014 profile 'research-review' requires drafts (it appears with use; required before done/published/archived); create it",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "same"
+        },
+        {
+          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/index.md",
+          "state": "same"
+        },
+        {
+          "path": "decisions/doubling-time-only.md",
+          "state": "same"
+        },
+        {
+          "path": "decisions/index.md",
+          "state": "same"
+        },
+        {
+          "path": "index.md",
+          "state": "same"
+        },
+        {
+          "path": "log/passed.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/index.md",
+          "state": "same"
+        },
+        {
+          "path": "references/index.md",
+          "state": "same"
+        },
+        {
+          "path": "references/ridgeway-club-trial.md",
+          "state": "same"
+        },
+        {
+          "path": "references/rise-times.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/_provenance.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F1.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F2.csv",
+          "state": "same"
+        }
+      ],
+      "record": {
+        "lang": "text",
+        "caption": "Profile minimums warn while a notebook is active, and only error once it is called done.",
+        "text": "ok: no findings yet\nexpected until use (these appear with the work, not problems yet \u2014 don't re-run doctor for reassurance):\n  WARN missing-required drafts \u2014 profile 'research-review' requires drafts (it appears with use; required before done/published/archived); create it",
+        "path": "stdout"
+      }
+    },
+    {
+      "n": 15,
+      "id": "show",
+      "act": "Audit and render",
+      "title": "The hot view",
+      "narrative": "Nothing is deleted to keep context small. `flip show` computes what is hot \u2014 open questions, claims needing work, recent log \u2014 from the pages and ledgers, every time. Add `--json` and it is an agent's context primer.",
+      "spec": "10",
+      "commands": [
+        "flip show"
+      ],
+      "stdout": "sourdough-rise \u00b7 research-review \u00b7 active \u00b7 2026-07-25\n\nOPEN QUESTIONS\n  Q1 \u00b7 Does higher hydration shorten the time to double?\n\nLATEST SESSION\n  sessions/2026-07-25T0114-hydration-sweep.md",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "same"
+        },
+        {
+          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/index.md",
+          "state": "same"
+        },
+        {
+          "path": "decisions/doubling-time-only.md",
+          "state": "same"
+        },
+        {
+          "path": "decisions/index.md",
+          "state": "same"
+        },
+        {
+          "path": "index.md",
+          "state": "same"
+        },
+        {
+          "path": "log/passed.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/index.md",
+          "state": "same"
+        },
+        {
+          "path": "references/index.md",
+          "state": "same"
+        },
+        {
+          "path": "references/ridgeway-club-trial.md",
+          "state": "same"
+        },
+        {
+          "path": "references/rise-times.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/_provenance.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F1.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F2.csv",
+          "state": "same"
+        }
+      ],
+      "record": {
+        "lang": "text",
+        "caption": "A projection, not a stored view. The files remain canonical.",
+        "text": "sourdough-rise \u00b7 research-review \u00b7 active \u00b7 2026-07-25\n\nOPEN QUESTIONS\n  Q1 \u00b7 Does higher hydration shorten the time to double?\n\nLATEST SESSION\n  sessions/2026-07-25T0114-hydration-sweep.md",
+        "path": "stdout"
+      }
+    },
+    {
+      "n": 16,
+      "id": "export",
+      "act": "Audit and render",
+      "title": "Render it somewhere",
+      "narrative": "`flip export json` emits the versioned flip-render/1 projection for renderers and site generators \u2014 deterministic, diffable, and policy-filtered. This notebook is `visibility: internal`, so the export refuses outright until you either mark it public or say `--include-private` and mean it. It is how the provenance panel on this site is built, from this site's own notebook.",
+      "spec": "17",
+      "commands": [
+        "flip export json --out - --include-private"
+      ],
+      "stdout": "{\n  \"contract\": \"flip-render/1\",\n  \"generated\": \"2026-07-25T01:14:04Z\",\n  \"source_trail_public\": true,\n  \"notebook\": {\n    \"uid\": \"nb-rrpf6xb1\",\n    \"slug\": \"sourdough-rise\",\n    \"title\": \"Does hydration change sourdough rise time?\",\n    \"kind\": \"research-review\",\n    \"status\": \"active\",\n    \"created\": \"2026-07-25\",\n    \"updated\": \"2026-07-25\",\n    \"visibility\": \"internal\"\n  },\n  \"sources\": [\n    {\n      \"id\": \"F1\",\n      \"slug\": \"ridgeway-club-trial\",\n      \"kind\": \"\",\n      \"grade\": \"B\",\n      \"independence\": \"original\",\n      \"freshness\": \"fresh\",\n      \"title\": \"ridgeway-club-trial.md\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-07-25T01:14:03Z\",\n      \"sha256\": \"23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40\"\n    },\n    {\n      \"id\": \"F2\",\n      \"slug\": \"rise-times\",\n      \"kind\": \"\",\n      \"grade\": \"A\",\n      \"independence\": \"original\",\n      \"freshness\": \"fresh\",\n      \"title\": \"rise-times.csv\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-07-25T01:14:03Z\",\n      \"sha256\": \"d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c\"\n    }\n  ],\n  \"claims\": [\n    {\n      \"id\": \"C1\",\n      \"slug\": \"doubling-time-falls-about-a-quarter-between-65\",\n      \"text\": \"Doubling time falls about a quarter between 65% and 80% hydration\",\n      \"status\": \"verified\",\n      \"load_bearing\": true,\n      \"sources\": [\n        \"F1\",\n        \"F2\"\n      ],\n      \"corroboration\": 2,\n      \"verifications\": []\n    }\n  ],\n  \"questions\": [\n    {\n      \"id\": \"Q1\",\n      \"slug\": \"does-higher-hydration-shorten-the-time-to-double\",\n      \"text\": \"Does higher hydration shorten the time to double?\",\n      \"status\": \"open\",\n      \"formulations\": []\n    }\n  ],\n  \"decisions\": [\n    {\n      \"id\": \"D1\",\n      \"slug\": \"doubling-time-only\",\n      \"text\": \"Doubling time only\",\n      \"question\": \"Report doubling time or final crumb quality?\",\n      \"alternatives_rejected\": [\n        \"Crumb scoring \u2014 subjective and not recorded by the club\"\n      ]\n    }\n  ],\n  \"sessions\": [\n    {\n      \"id\": \"2026-07-25T0114-hydration-sweep\",\n      \"actor\": \"human:baker\",\n      \"model\": \"claude-opus-5\",\n      \"started\": \"2026-07-25T01:14:03Z\",\n      \"ended\": \"\",\n      \"goal\": \"## Prompt\"\n    }\n  ],\n  \"log_tail\": []\n}",
+      "exit_code": 0,
+      "refused": false,
+      "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "same"
+        },
+        {
+          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/index.md",
+          "state": "same"
+        },
+        {
+          "path": "decisions/doubling-time-only.md",
+          "state": "same"
+        },
+        {
+          "path": "decisions/index.md",
+          "state": "same"
+        },
+        {
+          "path": "index.md",
+          "state": "same"
+        },
+        {
+          "path": "log/passed.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "notebook.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/index.md",
+          "state": "same"
+        },
+        {
+          "path": "references/index.md",
+          "state": "same"
+        },
+        {
+          "path": "references/ridgeway-club-trial.md",
+          "state": "same"
+        },
+        {
+          "path": "references/rise-times.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-07-25T0114-hydration-sweep.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/index.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/_provenance.jsonl",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F1.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F2.csv",
+          "state": "same"
+        }
+      ],
+      "record": {
+        "lang": "json",
+        "caption": "flip-render/1 \u2014 a projection, not an API. Stable ids to anchor and link back to.",
+        "truncated": true,
+        "text": "{\n  \"contract\": \"flip-render/1\",\n  \"generated\": \"2026-07-25T01:14:04Z\",\n  \"source_trail_public\": true,\n  \"notebook\": {\n    \"uid\": \"nb-rrpf6xb1\",\n    \"slug\": \"sourdough-rise\",\n    \"title\": \"Does hydration change sourdough rise time?\",\n    \"kind\": \"research-review\",\n    \"status\": \"active\",\n    \"created\": \"2026-07-25\",\n    \"updated\": \"2026-07-25\",\n    \"visibility\": \"internal\"\n  },\n  \"sources\": [\n    {\n      \"id\": \"F1\",\n      \"slug\": \"ridgeway-club-trial\",\n      \"kind\": \"\",\n      \"grade\": \"B\",\n      \"independence\": \"original\",\n      \"freshness\": \"fresh\",\n      \"title\": \"ridgeway-club-trial.md\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-07-25T01:14:03Z\",\n      \"sha256\": \"23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40\"\n    },\n    {\n      \"id\": \"F2\",\n      \"slug\": \"rise-times\",\n      \"kind\": \"\",\n      \"grade\": \"A\",\n      \"independence\": \"original\",\n      \"freshness\": \"fresh\",\n      \"title\": \"rise-times.csv\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-07-25T01:14:03Z\",\n      \"sha256\": \"d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c\"\n    }\n  ],",
+        "path": "stdout"
+      }
+    }
+  ]
+}

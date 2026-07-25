@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Start a notebook — flip</title>
+<meta name="description" content="Install flip, capture your first source, grade it, make a claim, and run doctor. Every command shown with the output it actually produces.">
+<link rel="icon" href="lib/artoo-kit/favicon.svg">
+<link rel="stylesheet" href="lib/artoo-kit/tokens.css">
+<link rel="stylesheet" href="lib/artoo-kit/base.css">
+<link rel="stylesheet" href="lib/artoo-kit/article.css">
+<link rel="stylesheet" href="lib/artoo-kit/components.css">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<nav class="site-nav">
+  <a class="brand" href="index.html">flip</a>
+  <button class="nav-toggle" type="button" aria-label="Menu">menu</button>
+  <div class="nav-links">
+    <a href="flipbook.html">Flipbook</a>
+    <a href="spec.html">Spec</a>
+    <a href="start.html">Start</a>
+    <a href="https://github.com/lavallee/flip">GitHub</a>
+  </div>
+  <button data-theme-toggle class="nav-toggle spacer" type="button" aria-label="Toggle light or dark theme">theme</button>
+</nav>
+
+<main class="page page--narrow">
+
+  <header>
+    <p class="section-kicker">Start</p>
+    <h1>Your first notebook</h1>
+    <p class="lede">Eight steps. Local files work with no configuration at all; URL
+      capture needs one config file, which flip writes for you. Python
+      <span data-fact="python">3.12+</span>, two libraries, no services.</p>
+  </header>
+
+  <ol class="steps">
+
+    <li>
+      <h3>Install it</h3>
+      <p>A tool install keeps flip off your project's dependency list, which is where
+        it belongs — flip is something you run, not something you import.</p>
+      <div class="cmd"><code>uv tool install flip-notebook</code></div>
+      <p>Or <code>pipx install flip-notebook</code>, or
+        <code>pip install flip-notebook</code> inside a virtualenv. From source:
+        <code>git clone https://github.com/lavallee/flip &amp;&amp; cd flip &amp;&amp; uv sync</code>.</p>
+      <div class="cmd"><code>flip --version</code></div>
+    </li>
+
+    <li>
+      <h3>Tell it who you are</h3>
+      <p>Every event and every entity page records an actor. Set it once in your
+        shell profile and stop thinking about it; agents set it per-invocation so
+        their work is distinguishable from yours.</p>
+      <div class="cmd"><code>export FLIP_ACTOR="human:yourname"</code></div>
+      <p>Precedence is <code>--actor</code>, then <code>FLIP_ACTOR</code>, then a
+        detected default.</p>
+    </li>
+
+    <li>
+      <h3>Write a starter config, if you want URL capture</h3>
+      <p>Local files always copy with no config. For URLs, this writes a
+        <code>config.toml</code> whose <code>web</code> lane uses the bundled
+        zero-dependency <code>flip-fetch</code> helper, so capture works immediately
+        and you can swap in curl, wget, a headless browser, or your own fetcher later.</p>
+      <div class="cmd"><code>flip config init</code></div>
+      <p>flip's core makes no network calls and no LLM calls. It runs exactly what
+        you configure, and records which tool ran in the provenance ledger.</p>
+    </li>
+
+    <li>
+      <h3>Open a notebook</h3>
+      <p>Pick a profile with <code>--kind</code>. A <code>scout</code> screens an
+        angle fast and needs one judged source per claim; a
+        <code>research-review</code> is headed for publication and demands two. You
+        can change your mind later — <code>flip migrate</code> upgrades in place.</p>
+      <div class="cmd"><code>flip new my-question --kind scout --title "The thing I am trying to find out"</code></div>
+      <div class="cmd"><code>cd my-question</code></div>
+      <div id="out-new"></div>
+    </li>
+
+    <li>
+      <h3>Capture something, before you cite it</h3>
+      <p>A local file, a URL, or a DOI. flip copies the bytes in, hashes them, appends
+        a provenance line, and opens a source page at grade <code>?</code>. From this
+        point the notebook does not depend on that thing still existing anywhere else.</p>
+      <div class="cmd"><code>flip add-source ./some-report.pdf --note "why I grabbed this"</code></div>
+      <div class="cmd"><code>flip add-source https://example.org/a-page</code></div>
+      <div id="out-capture"></div>
+    </li>
+
+    <li>
+      <h3>Read it, then grade it</h3>
+      <p>Capture is custody; grading is judgment, and they are deliberately separate
+        acts. Until you grade it the source counts toward nothing at all — which is
+        the point, because a source you have not read should not be able to prop up a
+        claim.</p>
+      <div class="cmd"><code>flip grade F1 --grade A --independence original --notes "why this grade"</code></div>
+      <div id="out-grade"></div>
+    </li>
+
+    <li>
+      <h3>Make a claim, and try to promote it</h3>
+      <p>Claims enter as <code>asserted</code>. Mark the ones your work would fall
+        over without as <code>--load-bearing</code>, because those are the ones
+        <code>flip doctor</code> audits. Then find out what your profile demands.</p>
+      <div class="cmd"><code>flip claim add "The assertion, in one sentence" --source F1 --load-bearing</code></div>
+      <div class="cmd"><code>flip claim status C1 verified</code></div>
+      <div id="out-refused"></div>
+      <p>If it refuses, that is the system working. Add an independent source with
+        <code>flip claim source add C1 F2</code>, or record a real check with
+        <code>flip claim verify C1 --method adversarial</code> — a skeptic pass that
+        went looking for disconfirming evidence.</p>
+    </li>
+
+    <li>
+      <h3>Audit, and see where you are</h3>
+      <p><code>doctor</code> validates after the fact rather than gatekeeping before,
+        which is what makes it safe for a human to edit the same files in a markdown
+        editor. <code>show</code> computes the hot view every time; add
+        <code>--json</code> and it becomes an agent's context primer.</p>
+      <div class="cmd"><code>flip doctor</code></div>
+      <div class="cmd"><code>flip show</code></div>
+      <div id="out-doctor"></div>
+    </li>
+
+  </ol>
+
+  <section class="prose">
+    <h2>Then what</h2>
+    <ul>
+      <li><strong>Open it in Obsidian.</strong> <code>flip obsidian</code> writes the
+        vault link config and installs a companion plugin that surfaces doctor
+        findings and the hot view in the sidebar. The notebook was already a valid
+        vault; this just finishes the job.</li>
+      <li><strong>Point an agent at it.</strong>
+        <a href="https://github.com/lavallee/flip/blob/main/AGENTS.md">AGENTS.md</a> is
+        the five-minute tour and the lineage rules an agent has to honour. Six
+        procedural skills ship as plain <code>SKILL.md</code> files that any runtime
+        can read.</li>
+      <li><strong>Put many notebooks under one root.</strong> <code>flip ws init</code>
+        binds each to a short handle you choose, so <code>recipes:A3</code> resolves
+        from anywhere underneath.</li>
+      <li><strong>Render it.</strong> <code>flip export json</code> emits the
+        <code>flip-render/1</code> projection for site generators. This site's
+        provenance panel is built from it.</li>
+    </ul>
+    <p><a href="https://github.com/lavallee/flip/blob/main/docs/quickstart.md">The full
+      quickstart →</a></p>
+  </section>
+
+  <p class="demo-note" id="start-note">The outputs shown above are real, captured by
+    running these commands against a scratch notebook when this page was built. Ids
+    and timestamps will differ in yours.</p>
+
+</main>
+
+<footer class="site-foot">
+  <div class="site-foot__inner">
+    <p>flip — format and tooling for reporter's notebooks. MIT licensed.</p>
+    <p>
+      <a href="https://github.com/lavallee/flip">Repository</a> ·
+      <a href="https://github.com/lavallee/flip/blob/main/SPEC.md">Spec</a> ·
+      <a href="https://pypi.org/project/flip-notebook/">PyPI</a>
+    </p>
+  </div>
+</footer>
+
+<script src="data/flipbook.js"></script>
+<script src="data/flip.js"></script>
+<script src="site.js"></script>
+<script src="start.js"></script>
+<script src="lib/artoo-kit/kit.js"></script>
+</body>
+</html>

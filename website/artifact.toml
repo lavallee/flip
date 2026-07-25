@@ -1,0 +1,31 @@
+[artifact]
+slug = "flip-site"
+title = "flip — the reporter's notebook format"
+description = "A wiki tells an agent what we know. A notebook can prove where it came from."
+kind = "explainer"
+status = "live"
+created = "2026-07-24"
+updated = "2026-07-24"
+
+[build]
+commands = ["python3 build.py"]
+
+[research]
+notebook = "notebook"
+rendered_uid = "nb-qy38zvcn"
+rendered_updated = "2026-07-25"
+
+[deploy]
+target = "github-pages"
+
+[deploy.github-pages]
+commit = false
+mode = "workflow"
+own_root = true
+publish_dir = "website/site"
+subpath = ""
+
+[[libraries]]
+name = "artoo-kit"
+version = "0.3.0"
+sha256 = "66993edcfc8a821cddd430a163b787d644c17bd809c92aeab0d4ff55074073f7"
