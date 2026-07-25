@@ -131,6 +131,7 @@ def run_doctor(root: Path) -> list[Finding]:
     claim_pages = [p for p in by_dir.get("claims", []) if p.fm.get("type") == "Claim"]
     _check_claims(root, claim_pages, source_pages, profile, findings)
     _check_provenance_open(root, manifest, claim_pages, source_pages, findings)
+    _check_kind_contract(root, manifest, findings)
     return findings
 
 
@@ -1065,3 +1066,38 @@ def _check_claims(
                     rel,
                 )
             )
+
+
+# --- kind contract (design-outcome-kinds.md, Phase 1) ---------------------------
+
+
+def _check_kind_contract(root: Path, manifest: Manifest | None, findings: list[Finding]) -> None:
+    """Unmet contract requirements of the notebook's adopted kind (SPEC/design
+    outcome-kinds.md): WARN while active/dormant (a gap not yet due — same
+    gating as profile minimums), ERROR once done/published/archived. A kind
+    that resolves with no contract (including every profile-adapter kind:
+    scout, ledger, …) is a no-op — nothing to gap-check."""
+    if manifest is None:
+        return
+    from . import kinds  # local: kinds imports profiles/manifest/registry, no cycle risk here
+
+    try:
+        kind = kinds.load_kind(manifest.kind, root)
+    except (SystemExit, Exception):
+        return  # unresolvable kind id is already reported by _check_profile
+    if not kind.contract:
+        return
+    closed = manifest.status in CLOSED_STATUSES
+    for row in kinds.gap_manifest(root, kind):
+        if row.tier == "met":
+            continue
+        msg = (
+            f"kind '{kind.id}' requirement '{row.requirement_id}' unmet "
+            f"({row.have}/{row.min}): {row.what} — assembled by {row.assembled_by} "
+            f"[{row.tier}]"
+        )
+        findings.append(
+            _error("kind-gap", msg, ROOT_FILE)
+            if closed
+            else _warn("kind-gap", msg, ROOT_FILE, expected=True)
+        )

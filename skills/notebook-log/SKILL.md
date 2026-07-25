@@ -16,7 +16,7 @@ promote what matters out of it before the episode ends.
 |---|---|
 | start a notebook | `flip new <slug> --kind <profile>` |
 | capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
-| grade a source | `flip grade <id> --grade A\|B\|C --independence … --freshness …` |
+| grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--n … --base-defined\|--base-undefined]` — the letter is derived |
 | assert a claim | `flip claim add "<text>" --source <id> [--load-bearing]` |
 | link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
 | record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |

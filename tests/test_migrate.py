@@ -15,9 +15,12 @@ from flip.util import UID_RE, is_notebook_root, next_id, today, write_jsonl
 # What the profile pass reports on a v0.3 chain: the notebook has never had a
 # uid, and v0.3 manifests carry no links.beat with '#'. pages_okf02 defaults
 # to 0 — the page-shaped (make_v04) fixtures below carry no entity pages at
-# all, so the OKF v0.2 page pass has nothing to rewrite.
+# all, so the OKF v0.2 page pass has nothing to rewrite. sources_08 also
+# defaults to 0 — either there's no references/ directory yet (make_v04), or
+# the v0.3 source pages were already written directly in 0.8 vocabulary by
+# _write_source_page, so the 0.8 pass finds nothing left to map.
 PROFILE_COUNTS = {"uid_added": 1, "beat_link_rewritten": 0,
-                  "pages_okf02": 0, "profile": FLIP_PROFILE_VERSION}
+                  "pages_okf02": 0, "sources_08": 0, "profile": FLIP_PROFILE_VERSION}
 
 NOTEBOOK_TOML = """\
 slug = "demo"
@@ -203,7 +206,10 @@ def test_migrate_sources_become_reference_pages(tmp_path):
     assert page.fm["publisher"] == "example.com"
     assert page.fm["local"] == "sources/raw/A1/page.html"
     assert page.fm["grade"] == "B"
-    assert page.fm["independence"] == "original"
+    # v0.3 "original" maps to 0.8 "independent"; a judged (B) row also seeds
+    # support so derive_grade returns the authored letter until re-graded
+    assert page.fm["independence"] == "independent"
+    assert page.fm["support"] == {"seeded": "legacy-grade"}
     assert page.fm["freshness"] == "fresh"
     assert page.fm["status"] == "captured"
     assert page.fm["kind"] == "web"  # unconsumed row fields survive
@@ -222,8 +228,10 @@ def test_migrate_untitled_source_uses_local_basename_and_defaults(tmp_path):
     assert page.fm["id"] == "F1"
     assert page.fm["title"] == "F1.csv"
     assert page.fm["grade"] == "?"  # capture is custody, not judgment
-    assert page.fm["independence"] == "original"
-    assert page.fm["freshness"] == "fresh"
+    # never judged (grade "?" + default independence): the 0.8 pass drops
+    # both capture-time defaults rather than writing a decorative judgment
+    assert "independence" not in page.fm
+    assert "freshness" not in page.fm
     assert page.fm["status"] == "captured"
     assert "resource" not in page.fm  # no url on the row
 
@@ -415,7 +423,7 @@ def test_migrate_resumes_after_partial_run(tmp_path):
     second = migrate(root)
     assert second == {"sources": 0, "claims": 0, "decisions": 1, "questions": 0,
                       "sessions": 0, "already_migrated": 0, "pages_okf02": 0,
-                      "uid_added": 0, "beat_link_rewritten": 0,
+                      "sources_08": 0, "uid_added": 0, "beat_link_rewritten": 0,
                       "profile": FLIP_PROFILE_VERSION}
     assert not (root / "notebook.toml").exists()
     assert load_manifest(root).uid == uid  # identity survives the resume
@@ -443,7 +451,7 @@ def test_migrate_resume_skips_rows_whose_pages_exist(tmp_path):
 
     assert summary == {"sources": 0, "claims": 0, "decisions": 1, "questions": 0,
                        "sessions": 0, "already_migrated": 7, "pages_okf02": 0,
-                       "uid_added": 0, "beat_link_rewritten": 0,
+                       "sources_08": 0, "uid_added": 0, "beat_link_rewritten": 0,
                        "profile": FLIP_PROFILE_VERSION}
     # no duplicated pages, no -2 slugs, no duplicate ids
     for dup in ("vendor-study-3.md", "conversion-is-42-higher-2.md",
@@ -495,7 +503,8 @@ def test_profile_pass_never_remints_an_existing_uid(tmp_path):
     root = make_v04(tmp_path, uid="nb-7k3m9p2x")
     summary = migrate(root)
     assert summary == {"uid_added": 0, "beat_link_rewritten": 0,
-                       "pages_okf02": 0, "profile": FLIP_PROFILE_VERSION}
+                       "pages_okf02": 0, "sources_08": 0,
+                       "profile": FLIP_PROFILE_VERSION}
     assert load_manifest(root).uid == "nb-7k3m9p2x"
 
 
@@ -541,17 +550,18 @@ def test_migrate_restamps_declared_04_even_with_uid(tmp_path):
     root = make_v04(tmp_path, uid="nb-7k3m9p2x", links={"beat": "county:TH2"})
     summary = migrate(root)
     assert summary == {"uid_added": 0, "beat_link_rewritten": 0,
-                       "pages_okf02": 0, "profile": FLIP_PROFILE_VERSION}
+                       "pages_okf02": 0, "sources_08": 0,
+                       "profile": FLIP_PROFILE_VERSION}
     assert pages.read_page(root / "index.md").fm["flip"] == FLIP_PROFILE_VERSION
     with pytest.raises(SystemExit, match="already at the current profile"):
         migrate(root)
 
 
-def test_migrate_0_5_to_0_7_is_version_only_bump(tmp_path):
+def test_migrate_0_5_to_0_8_is_version_only_bump(tmp_path):
     # a live 0.5 notebook (uid present, links canonical, no entity pages
-    # carrying legacy timestamp/actor/supports/verifications keys) migrates
-    # straight to 0.7 as a pure version bump — no page rewrites needed —
-    # then refuses.
+    # carrying legacy timestamp/actor/supports/verifications keys, no
+    # references/ needing the 0.8 judgment-vocab pass) migrates straight to
+    # 0.8 as a pure version bump — no page rewrites needed — then refuses.
     root = make_v04(tmp_path, uid="nb-7k3m9p2x")
     index = root / "index.md"
     index.write_text(
@@ -560,7 +570,8 @@ def test_migrate_0_5_to_0_7_is_version_only_bump(tmp_path):
     )
     summary = migrate(root)
     assert summary == {"uid_added": 0, "beat_link_rewritten": 0,
-                       "pages_okf02": 0, "profile": FLIP_PROFILE_VERSION}
+                       "pages_okf02": 0, "sources_08": 0,
+                       "profile": FLIP_PROFILE_VERSION}
     assert pages.read_page(root / "index.md").fm["flip"] == FLIP_PROFILE_VERSION
     assert load_manifest(root).uid == "nb-7k3m9p2x"  # identity untouched
     with pytest.raises(SystemExit, match="already at the current profile"):

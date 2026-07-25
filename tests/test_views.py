@@ -568,7 +568,8 @@ def test_ws_show_claim_meeting_bar_not_listed(tmp_path):
         pages.write_page(
             ws / "recipes" / "references" / f"{sid.lower()}.md",
             {"type": "Source", "id": sid, "aliases": [sid], "title": sid,
-             "grade": "A", "independence": "original", "freshness": "fresh"},
+             "grade": "A", "independence": "independent",
+             "support": {"basis": "official-record"}, "freshness": "fresh"},
             f"# {sid}\n",
         )
     pages.write_page(

@@ -16,7 +16,7 @@ verification bar, and what doesn't clear it gets flagged, not shipped.
 |---|---|
 | start a notebook | `flip new <slug> --kind <profile>` |
 | capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
-| grade a source | `flip grade <id> --grade A\|B\|C --independence … --freshness …` |
+| grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--n … --base-defined\|--base-undefined]` — the letter is derived |
 | assert a claim | `flip claim add "<text>" --source <id> [--load-bearing]` |
 | link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
 | record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
@@ -45,7 +45,8 @@ archived. They are not problems; don't re-run doctor for reassurance.
    `flip claim list --json`). Audit every claim marked `load_bearing` first,
    then the rest.
 3. **Walk each load-bearing claim against the bar** (profile default: two
-   independent `original` sources, or one grade-A primary):
+   sources whose recorded independence is `independent`, or one whose
+   derived digest is A):
    - sources actually support the claim as worded — reread them, don't trust
      the link
    - every cited source is judged — `flip source list` and grade any `?`
@@ -84,7 +85,7 @@ archived. They are not problems; don't re-run doctor for reassurance.
    `flip log "audit: <n> load-bearing claims, <n> verified, <n> flagged"`.
 
 Do not mark a claim verified without the corroboration bar — independent
-original sources or a grade-A primary, actually reread — and never soften
+independent sources or a derived-A primary, actually reread — and never soften
 the bar by editing statuses or grades directly in page frontmatter: go
 through `flip claim status` and `flip grade`, which enforce and recompute
 (hand-set corroboration counts show up as doctor drift findings).

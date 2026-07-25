@@ -18,9 +18,10 @@ one piece of research; don't create it until you can say what that piece is.
 
 | to do this | run |
 |---|---|
-| start a notebook | `flip new <slug> --kind <profile>` |
+| start a notebook | `flip new <slug> --kind <kind>` — kinds are outcomes (`lit-review`, `decision-packet`) or rigor profiles (`scout`, …); `flip kind list` shows all |
+| adopt an outcome late | `flip kind adopt <id>` — crystallizes an open notebook; prints the honest gap manifest |
 | capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
-| grade a source | `flip grade <id> --grade A\|B\|C --independence … --freshness …` |
+| grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--n … --base-defined\|--base-undefined]` — the letter is derived |
 | assert a claim | `flip claim add "<text>" --source <id> [--load-bearing]` |
 | link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
 | record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
@@ -42,16 +43,28 @@ archived. They are not problems; don't re-run doctor for reassurance.
 
 ## Checklist
 
-1. **Interview.** Establish, in one line each: where the question came from
-   (the tip), what the reader will do with the answer, and how heavy the work
-   is (quick screen vs. publishable survey vs. dataset dig vs. client work).
-2. **Pick the profile.** Run `flip profiles` and choose the lightest kind
-   that fits: `ledger` (source spine only), `scout` (screen fast, kill or
-   graduate), `research-review` (headed for publication), `engagement`
-   (client-confidential), `data-investigation` (dataset-first), `pursuit`
-   (one question under pursuit — scaffolds `drafts/question-plan.md` and the
-   primary question as Q1, for a banded answer backed by verified claims).
-   When unsure, start `scout` — graduating later beats hauling empty ceremony.
+1. **Interview — two modes.** People start one of two ways; both are
+   first-class:
+   - **Outcome mode**: they name what they're making ("a lit review", "a
+     decision memo", "a SWOT"). Map the outcome to a kind (`flip kind
+     list`) — the kind brings its collection contract, so the doctor knows
+     from day one what the finished output must contain. Don't make them
+     learn the vocabulary: they said "lit review", you run `--kind
+     lit-review`; if they want to know how it works, show `flip kind show`.
+   - **Open mode**: they start open-ended. Ask a clarifying question or two
+     if useful, but never block on it — the job in open mode is
+     regret-minimal capture: custody, judgments at read time, negative
+     evidence with reasons, questions with watching surfaces. That's what
+     keeps a late `flip kind adopt` cheap.
+   Either way establish, in one line each: where the question came from
+   (the tip), what the reader will do with the answer, and how heavy the
+   work is.
+2. **Pick the kind.** Outcome named → that kind. Otherwise the lightest
+   rigor profile that fits: `ledger` (source spine only), `scout` (screen
+   fast, kill or graduate), `research-review` (headed for publication),
+   `engagement` (client-confidential), `data-investigation`
+   (dataset-first), `pursuit` (one question under pursuit). When unsure,
+   start `scout` — adopting an outcome later beats hauling empty ceremony.
 3. **Scaffold.**
    ```bash
    flip new <slug> --kind <profile> --title "<human title>"

@@ -431,7 +431,7 @@ def make_render_notebook(root: Path, visibility="public", trail_public=False) ->
         root / "references" / "a1.md",
         {"type": "Source", "id": "A1", "aliases": ["A1"], "title": "Secret Filing",
          "resource": "https://example.org/a1", "local": "sources/raw/A1.html",
-         "grade": "A", "independence": "original", "freshness": "fresh", "kind": "web"},
+         "grade": "A", "independence": "independent", "freshness": "fresh", "kind": "web"},
         "# Secret Filing\n",
     )
     prov = root / "sources" / "_provenance.jsonl"
@@ -539,7 +539,7 @@ def test_export_json_stripped_trail_withholds_custody(tmp_path):
     data = export_json(root)
     assert data["source_trail_public"] is False
     src = data["sources"][0]
-    assert src["grade"] == "A" and src["independence"] == "original"
+    assert src["grade"] == "A" and src["independence"] == "independent"
     assert src["freshness"] == "fresh" and src["kind"] == "web"
     for withheld in ("title", "canonical_url", "sha256", "captured_at"):
         assert withheld not in src, withheld

@@ -1,5 +1,5 @@
 window.__FLIP_SPEC__ = {
-  "generated": "2026-07-25T17:34:40+00:00",
+  "generated": "2026-07-25T23:04:32+00:00",
   "sections": [
     {
       "number": "1",
@@ -63,8 +63,8 @@ window.__FLIP_SPEC__ = {
     },
     {
       "number": "13",
-      "title": "Profiles",
-      "anchor": "13-profiles"
+      "title": "Kinds \u2014 outcomes and profiles, one registry",
+      "anchor": "13-kinds--outcomes-and-profiles-one-registry"
     },
     {
       "number": "14",
@@ -114,20 +114,20 @@ window.__FLIP_SPEC__ = {
         "local",
         "grade",
         "independence",
-        "freshness",
+        "support",
         "status"
       ],
       "observed_keys": [
-        "actor",
         "aliases",
         "description",
-        "freshness",
+        "generated",
         "grade",
         "id",
         "independence",
         "local",
         "notes",
         "status",
+        "support",
         "title",
         "type"
       ]

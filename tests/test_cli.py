@@ -43,7 +43,7 @@ def test_new_creates_notebook(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     index = (tmp_path / "demo" / "index.md").read_text(encoding="utf-8")
     assert index.startswith("---\n")
-    assert "flip: '0.7'" in index and "slug: demo" in index
+    assert "flip: '0.8'" in index and "slug: demo" in index
     assert "uid: nb-" in index  # every new notebook gets a stable uid (SPEC §4)
     md = (tmp_path / "demo" / "notebook.md").read_text(encoding="utf-8")
     assert "# Reporter's notebook — Demo run" in md
@@ -125,7 +125,7 @@ def test_full_flow(tmp_path, monkeypatch):
     assert "C1 asserted" in result.output
     assert "corroboration: 0" in result.output  # F1 is still grade "?"
 
-    result = invoke(["grade", "F1", "--grade", "A", "--independence", "original"])
+    result = invoke(["grade", "F1", "--independence", "independent", "--basis", "official-record"])
     assert result.exit_code == 0, result.output
     assert "grade A" in result.output
 
@@ -155,15 +155,24 @@ def test_full_flow(tmp_path, monkeypatch):
 def test_grade_without_flags_is_actionable(tmp_path, monkeypatch):
     root = make_notebook(tmp_path / "demo")
     monkeypatch.chdir(root)
+    # no flags at all: refused before the library is even reached
     result = invoke(["grade", "F1"])
     assert result.exit_code == 1
-    assert "--grade" in result.output
+    assert "nothing to record" in result.output
+
+    payload = tmp_path / "report.txt"
+    payload.write_text("vendor says 42%\n", encoding="utf-8")
+    assert invoke(["add-source", str(payload)]).exit_code == 0  # F1, unjudged
+    # a flag is given, but the source has never been judged: independence is required first
+    result = invoke(["grade", "F1", "--freshness", "fresh"])
+    assert result.exit_code == 1
+    assert "independence is the judgment's spine" in result.output
 
 
 def test_grade_unknown_source_id(tmp_path, monkeypatch):
     root = make_notebook(tmp_path / "demo")
     monkeypatch.chdir(root)
-    result = invoke(["grade", "F9", "--grade", "A"])
+    result = invoke(["grade", "F9", "--independence", "independent"])
     assert result.exit_code == 1
     assert "unknown source id 'F9'" in result.output
 
@@ -178,11 +187,12 @@ def test_source_list_text_and_json(tmp_path, monkeypatch):
     payload = tmp_path / "table.csv"
     payload.write_text("a,b\n", encoding="utf-8")
     invoke(["add-source", str(payload)])
-    invoke(["grade", "F1", "--grade", "B", "--independence", "republisher"])
+    invoke(["grade", "F1", "--independence", "corroborated", "--basis", "survey",
+             "--method", "cross-checked with a second source", "--freshness", "fresh"])
 
     listing = invoke(["source", "list"])
     assert listing.exit_code == 0, listing.output
-    assert "F1 · B/republisher/fresh · table.csv · references/table.md" in listing.output
+    assert "F1 · B/corroborated/fresh · table.csv · references/table.md" in listing.output
 
     rows = json.loads(invoke(["source", "list", "--json"]).output)
     assert rows[0]["id"] == "F1"
@@ -628,7 +638,8 @@ def _seed_claim(root: Path, monkeypatch) -> None:
     payload = root.parent / "src1.txt"
     payload.write_text("primary evidence\n", encoding="utf-8")
     assert invoke(["add-source", str(payload)]).exit_code == 0  # F1
-    assert invoke(["grade", "F1", "--grade", "B", "--independence", "original"]).exit_code == 0
+    assert invoke(["grade", "F1", "--independence", "independent",
+                    "--basis", "official-record"]).exit_code == 0
     assert invoke(["claim", "add", "the finding holds", "--load-bearing"]).exit_code == 0  # C1
 
 

@@ -1,0 +1,79 @@
+# lit-review — a flip kind: "I am making a literature review"
+#
+# Defends against two failures: cherry-picking (the search and screening were
+# shaped by the conclusion) and staleness (it was true when you last looked).
+# A worked example to fork: one file is a complete kind.
+# genres-sketches/lit-review/genre.toml) — the discipline/slot-stack layer is
+# out of scope for Phase 1 (design-outcome-kinds.md, deferred to Phase 3);
+# its load-bearing defaults are folded straight into the contract below.
+
+id      = "lit-review"
+version = "0.1"
+summary = """
+A defensible answer to "what does the published record say about X, and how
+do we know we didn't just pick our friends?" A finished review can show its
+search, its screening, and its extraction — not just its conclusion.
+"""
+
+[defaults]
+freshness_months = 6
+
+[[contract.require]]
+id           = "frozen-criteria"
+what         = "Inclusion/exclusion criteria fixed in writing before screening began."
+entity       = "files"
+path         = "criteria.md"
+min          = 1
+assembled_by = "review.md (methods section) and flow.md (the denominator)"
+prospective  = true
+
+[[contract.require]]
+id           = "per-source-screening"
+what         = "Each screened source records include/exclude with a typed reason."
+entity       = "references"
+field        = "screening.decision"
+min          = 1
+assembled_by = "flow.md (PRISMA-style selection diagram)"
+
+[[contract.require]]
+id           = "extraction-fields"
+what         = "Included sources carry extraction-table fields (method, magnitude, population)."
+entity       = "references"
+field        = "extraction.method"
+min          = 1
+assembled_by = "review.md (extraction table)"
+
+[[contract.require]]
+id           = "search-strategy-log"
+what         = "A dated log of the search strategy: surfaces queried, query strings, hit counts."
+entity       = "files"
+path         = "search-log.md"
+min          = 1
+assembled_by = "flow.md (the denominator's own denominator)"
+
+[[workflow.phase]]
+id       = "search"
+produces = "search-log.md — surfaces queried, dates, hit counts"
+
+[[workflow.phase]]
+id       = "screen"
+produces = "screening.decision recorded on every references/ page"
+
+[[workflow.phase]]
+id       = "extract"
+produces = "extraction fields on every included source"
+
+[[workflow.phase]]
+id       = "synthesize"
+produces = "review.md"
+
+[versioning]
+mode = "living"
+scheduled_re_search_days = 180
+standing_sweep_days = 90
+note = """
+A floor, not the mechanism: most editions are trigger-driven (an included
+source's standing changes, a criterion is amended). The schedule exists so a
+quiet field still gets a dated 'we looked, nothing moved' — certified
+silence, which is an assertion, not a shrug.
+"""

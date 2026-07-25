@@ -9,10 +9,13 @@ description: Open Knowledge Format (OKF) v0.2 specification, captured from the k
 resource: https://raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/main/okf/SPEC.md
 local: sources/raw/A2/capture.txt
 grade: A
-independence: original
+independence: independent
 freshness: fresh
 status: captured
-actor: agent:claude
+generated:
+  by: agent:claude
+support:
+  seeded: legacy-grade
 ---
 
 # raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/main/okf/SPEC.md

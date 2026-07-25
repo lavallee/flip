@@ -6,6 +6,43 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-07-25
+
+### Added
+- **Outcome kinds.** `flip new --kind lit-review|decision-packet` starts a
+  notebook that knows what its finished output must contain: kinds are
+  single-TOML declarations (built-in, `$FLIP_HOME/kinds/`, or
+  notebook-local) carrying a collection contract whose entries each name
+  the render that needs them and whether they are prospective. `flip kind
+  list|show|adopt|new`; late adoption prints an honest gap manifest
+  (recoverable / reconstructible-with-loss / unrecoverable-by-construction)
+  and records the crystallization; `flip doctor` reports `kind-gap`
+  findings (WARN while active, ERROR at done/published). Profiles and
+  outcome kinds share one registry and one manifest key; the open notebook
+  stays the default and first-class.
+- Questions carry `resolves_via` watching surfaces (`flip show` marks
+  `unwatched`); pass records carry `absent_from` scoping (non-corpus
+  absences must name surfaces); sources carry `pipeline` liveness with a
+  mandatory evidence receipt and six provenance terminal states
+  (PRIMARY-REACHED/GATED/LOST/NEVER-PUBLISHED/EXISTS-PRIVATE/OPEN, with a
+  completion gate on OPEN); failed acquisitions are logged provenance
+  events; claims carry `value`/`unit` as data; `flip export json
+  --render-version 2` (flip-render/2, a superset — /1 unchanged);
+  `flip doctor --workspace` checks cross-notebook claim-status drift.
+
+### Changed
+- **BREAKING (judgment model): the support tuple replaces authored
+  grades.** `flip grade` records evidence *description* — independence
+  (`independent|corroborated|self-reported|derivative`), basis, n (a
+  string, so a sample size can't masquerade as the base), method, vintage,
+  `base_defined` — and the letter grade is derived from it, never
+  authored. The corroboration bar counts `independence: independent`;
+  grade-A-suffices reads the derived digest. `flip migrate` (profile 0.8)
+  maps the old vocabulary and seeds pre-0.8 letters so every existing bar
+  outcome is preserved until sources are re-graded (doctor lists seeds as
+  expected-until-touched). Capture no longer writes decorative
+  independence/freshness defaults.
+
 ## [0.11.1] — 2026-07-25
 
 ### Added

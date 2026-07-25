@@ -102,13 +102,19 @@ def source_page(
     root: Path,
     sid: str = "A1",
     grade: str = "B",
-    independence: str = "original",
+    independence: str = "independent",
     freshness: str = "fresh",
     date: str | None = None,
     raw: bool = True,
     prov: bool = True,
+    support: dict | None = None,
 ) -> Path:
-    """A captured source: references/ page + raw bytes + provenance event."""
+    """A captured source: references/ page + raw bytes + provenance event.
+
+    `independence` defaults to the current (0.8+) vocabulary; pass `support`
+    (a dict merged onto the page's `support` tuple, e.g. {"basis": ...,
+    "method": ...}) when a test needs the stored `grade` to match what
+    `derive_grade` recomputes from the tuple (no grade-drift)."""
     local = f"sources/raw/{sid}.html"
     if raw:
         (root / "sources" / "raw").mkdir(parents=True, exist_ok=True)
@@ -125,6 +131,8 @@ def source_page(
         "independence": independence,
         "freshness": freshness,
     }
+    if support:
+        fm["support"] = support
     if date:
         fm["date"] = date
     fm["status"] = "captured"
@@ -173,7 +181,12 @@ def test_healthy_notebook_has_no_findings(tmp_path):
 
 def test_healthy_populated_notebook_has_no_findings(tmp_path):
     root = make_notebook(tmp_path)
-    source_page(root, "A1", grade="B", independence="original")
+    # independent + a strong-enough basis/method so the stored grade "B"
+    # matches what derive_grade recomputes from the support tuple (no drift).
+    source_page(
+        root, "A1", grade="B", independence="independent",
+        support={"basis": "survey", "method": "cross-check"},
+    )
     claim_page(root, "C1", status="needs-2nd", sources=["A1"], corroboration=1)
     assert run_doctor(root) == []
 
@@ -472,7 +485,7 @@ def test_claim_scalar_sources_not_char_split(tmp_path):
     # a hand-edited `sources: A1` must count as the one source A1, not the
     # characters "A" and "1" (which would recompute corroboration as 0)
     root = make_notebook(tmp_path, min_independent=1)
-    source_page(root, "A1", grade="B", independence="original")
+    source_page(root, "A1", grade="B", independence="independent")
     (root / "claims").mkdir()
     (root / "claims" / "hand.md").write_text(
         "---\ntype: Claim\nid: C1\naliases: [C1]\nstatus: asserted\n"
@@ -542,7 +555,7 @@ def test_link_rot_handles_fragments_bundle_paths_and_outside_links(tmp_path):
 
 def test_corroboration_drift_is_warn_with_refresh_hint(tmp_path):
     root = make_notebook(tmp_path)
-    source_page(root, "A1", grade="B", independence="original")
+    source_page(root, "A1", grade="B", independence="independent")
     claim_page(root, "C1", status="needs-2nd", sources=["A1"], corroboration=0)  # stale: now 1
     drift = [f for f in run_doctor(root) if f.code == "corroboration-drift"]
     assert drift and drift[0].level == "WARN"
@@ -552,7 +565,7 @@ def test_corroboration_drift_is_warn_with_refresh_hint(tmp_path):
 
 def test_no_drift_when_stored_count_matches(tmp_path):
     root = make_notebook(tmp_path)
-    source_page(root, "A1", grade="B", independence="original")
+    source_page(root, "A1", grade="B", independence="independent")
     claim_page(root, "C1", status="needs-2nd", sources=["A1"], corroboration=1)
     assert "corroboration-drift" not in codes(run_doctor(root))
 
@@ -571,16 +584,23 @@ def test_under_verified_recomputes_and_ignores_stored_count(tmp_path):
 
 
 def test_grade_a_primary_satisfies_the_bar(tmp_path):
+    # A single grade-A primary (independent + a strong basis, so derive_grade
+    # actually recomputes "A") clears the verified bar via the grade-A
+    # shortcut even though its lone corroboration count (1) falls short of
+    # the profile's min_independent (2).
     root = make_notebook(tmp_path, min_independent=2)
-    source_page(root, "A1", grade="A", independence="republisher")
+    source_page(
+        root, "A1", grade="A", independence="independent",
+        support={"basis": "official-record"},
+    )
     claim_page(root, "C1", status="verified", load_bearing=True, sources=["A1"])
     assert "under-verified" not in codes(run_doctor(root))
 
 
-def test_enough_original_sources_satisfy_the_bar(tmp_path):
+def test_enough_independent_sources_satisfy_the_bar(tmp_path):
     root = make_notebook(tmp_path, min_independent=2)
-    source_page(root, "A1")
-    source_page(root, "A2")
+    source_page(root, "A1", independence="independent")
+    source_page(root, "A2", independence="independent")
     claim_page(
         root, "C1", status="verified", load_bearing=True, sources=["A1", "A2"], corroboration=2
     )
@@ -597,7 +617,7 @@ def test_profile_can_disable_grade_a_shortcut(tmp_path):
 def test_under_verified_dedupes_duplicate_source_ids(tmp_path):
     # The same source listed twice must count once, not clear a bar of 2.
     root = make_notebook(tmp_path, min_independent=2)
-    source_page(root, "A1", grade="B", independence="original")
+    source_page(root, "A1", grade="B", independence="independent")
     claim_page(root, "C1", status="verified", load_bearing=True, sources=["A1", "A1"])
     under = [f for f in run_doctor(root) if f.code == "under-verified"]
     assert under and under[0].level == "ERROR"
@@ -644,7 +664,7 @@ def test_asserted_claim_with_corroboration_is_not_unaudited(tmp_path):
     # A2: unaudited-claim ends the permanent nag — a load-bearing asserted
     # claim that has *some* corroboration no longer warns.
     root = make_notebook(tmp_path)
-    source_page(root, "A1", grade="B", independence="original")
+    source_page(root, "A1", grade="B", independence="independent")
     claim_page(root, "C1", status="asserted", load_bearing=True, sources=["A1"])
     assert "unaudited-claim" not in codes(run_doctor(root))
 

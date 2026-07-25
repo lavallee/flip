@@ -103,10 +103,11 @@ def test_builtin_copy_end_to_end(tmp_path):
     assert fm["description"] == "grabbed for test"
     assert fm["local"] == "sources/raw/F1.pdf"
     assert fm["grade"] == "?"
-    assert fm["independence"] == "original"
-    assert fm["freshness"] == "fresh"
+    assert "independence" not in fm  # capture confers no judgment (SPEC §5.4)
+    assert "freshness" not in fm
     assert fm["status"] == "captured"
-    assert fm["actor"]
+    assert fm["generated"]["by"]
+    assert fm["generated"]["at"]
     assert "resource" not in fm  # local copies carry origin in provenance only
 
     # the page is the canonical record: on disk, human slug, heading + note body
@@ -308,7 +309,16 @@ def test_fetcher_nonzero_exit_errors(tmp_path, monkeypatch):
     msg = str(ei.value)
     assert "exit 3" in msg
     assert "boom" in msg
-    assert not (root / "sources" / "_provenance.jsonl").exists()
+    # a failed acquisition still lands in the ledger (L5): "searched, gone" is
+    # distinguishable from "did not look"
+    events = read_jsonl(root / "sources" / "_provenance.jsonl")
+    assert len(events) == 1
+    ev = events[0]
+    assert ev["source_id"] == "A1"
+    assert ev["url"] == "https://example.com/x"
+    assert ev["status"] == "failed"
+    assert "boom" in ev["error"]
+    assert ev["actor"]
     assert not (root / "references").exists()  # no page opened on failure
 
 
@@ -351,7 +361,7 @@ ENVELOPE = (
     '"strategy": "googlebot", "status": "paywalled", '
     '"retrieved_at": "2026-07-01T00:00:00Z", "mime": "text/html", '
     '"backend_ref": "store:abc123", '
-    '"independence_hint": "republisher", "freshness_hint": "dated"}}'
+    '"independence_hint": "corroborated", "freshness_hint": "dated"}}'
 )
 
 
@@ -368,11 +378,11 @@ def test_envelope_from_stdout_harvested_to_page_and_provenance(tmp_path, monkeyp
     assert page.fm["local"] == "sources/raw/A1/capture.json"
     # grading stays a judgment: hints never touch the judgment keys
     assert page.fm["grade"] == "?"
-    assert page.fm["independence"] == "original"
-    assert page.fm["freshness"] == "fresh"
+    assert "independence" not in page.fm
+    assert "freshness" not in page.fm
     # hints land in the body as an unverified note
     assert "capture hints" in page.body
-    assert "independence=republisher" in page.body
+    assert "independence=corroborated" in page.body
     assert "freshness=dated" in page.body
     assert "status=paywalled" in page.body
 
@@ -458,7 +468,7 @@ def test_envelope_ignores_out_of_vocab_hints(tmp_path, monkeypatch):
 
     # invalid hint dropped; status "success" is not noise-noted
     assert "capture hints" not in page.body
-    assert page.fm["independence"] == "original"
+    assert "independence" not in page.fm
 
 
 # --- id allocation --------------------------------------------------------
@@ -537,11 +547,13 @@ def _captured_source(tmp_path):
 def test_grade_source_updates_page_in_place(tmp_path):
     root, page = _captured_source(tmp_path)
     graded = sources.grade_source(
-        root, page.id, grade="B", independence="republisher", freshness="dated",
-        notes="vendor blog",
+        root, page.id, independence="corroborated", basis="survey", method="phone poll",
+        freshness="dated", notes="vendor blog",
     )
     assert graded.fm["grade"] == "B"
-    assert graded.fm["independence"] == "republisher"
+    assert graded.fm["independence"] == "corroborated"
+    assert graded.fm["support"]["basis"] == "survey"
+    assert graded.fm["support"]["method"] == "phone poll"
     assert graded.fm["freshness"] == "dated"
     assert graded.fm["notes"] == "vendor blog"
     assert graded.fm["status"] == "captured"  # untouched keys survive
@@ -550,11 +562,16 @@ def test_grade_source_updates_page_in_place(tmp_path):
 
 
 def test_grade_source_partial_update(tmp_path):
+    # first grading sets independence (the tuple's spine, required); a later
+    # partial update (freshness only) must not need to repass it
     root, page = _captured_source(tmp_path)
-    graded = sources.grade_source(root, page.id, grade="A")
+    sources.grade_source(
+        root, page.id, independence="independent", basis="official-record", method="direct"
+    )
+    graded = sources.grade_source(root, page.id, freshness="dated")
     assert graded.fm["grade"] == "A"
-    assert graded.fm["independence"] == "original"
-    assert graded.fm["freshness"] == "fresh"
+    assert graded.fm["independence"] == "independent"
+    assert graded.fm["freshness"] == "dated"
 
 
 def test_add_source_reserves_its_id(tmp_path):
@@ -574,7 +591,9 @@ def test_grade_source_normalizes_foreign_tz_to_utc(tmp_path):
     )
     page.path.write_text(text, encoding="utf-8")
 
-    graded = sources.grade_source(root, page.id, grade="B")
+    graded = sources.grade_source(
+        root, page.id, independence="independent", basis="official-record"
+    )
 
     assert graded.fm["retrieved"] == "2026-07-09T12:30:00Z"  # instant preserved
     on_disk = page.path.read_text(encoding="utf-8")
@@ -591,7 +610,10 @@ def test_grade_source_round_trips_foreign_frontmatter_and_body(tmp_path):
     edited.fm["cssclasses"] = ["wide"]
     pages.write_page(page.path, edited.fm, edited.body + "\nPull-quote I care about.\n")
 
-    graded = sources.grade_source(root, page.id, grade="B", notes="read in full")
+    graded = sources.grade_source(
+        root, page.id, independence="corroborated", basis="survey", method="phone poll",
+        notes="read in full",
+    )
 
     on_disk = pages.read_page(page.path)
     assert on_disk.fm["starred"] is True
@@ -606,28 +628,31 @@ def test_grade_source_rewrites_are_byte_stable(tmp_path):
     # read-modify-write must not accrete whitespace (SPEC §12): grading twice
     # with the same values leaves the file byte-identical.
     root, page = _captured_source(tmp_path)
-    sources.grade_source(root, page.id, grade="B")
+    kwargs = dict(independence="corroborated", basis="survey", method="phone poll")
+    sources.grade_source(root, page.id, **kwargs)
     first = page.path.read_text(encoding="utf-8")
-    sources.grade_source(root, page.id, grade="B")
+    sources.grade_source(root, page.id, **kwargs)
     assert page.path.read_text(encoding="utf-8") == first
 
 
 def test_grade_source_invalid_values(tmp_path):
     root, page = _captured_source(tmp_path)
-    with pytest.raises(SystemExit, match="invalid grade"):
-        sources.grade_source(root, page.id, grade="Z")
     with pytest.raises(SystemExit, match="invalid independence"):
         sources.grade_source(root, page.id, independence="biased")
+    with pytest.raises(SystemExit, match="invalid basis"):
+        sources.grade_source(root, page.id, basis="vibes")
     with pytest.raises(SystemExit, match="invalid freshness"):
         sources.grade_source(root, page.id, freshness="stale")
     # invalid input must not dirty the page
-    assert pages.read_page(page.path).fm["grade"] == "?"
+    fm = pages.read_page(page.path).fm
+    assert fm["grade"] == "?"
+    assert "independence" not in fm
 
 
 def test_grade_source_unknown_id(tmp_path):
     root, _page = _captured_source(tmp_path)
     with pytest.raises(SystemExit) as ei:
-        sources.grade_source(root, "P99", grade="A")
+        sources.grade_source(root, "P99")
     msg = str(ei.value)
     assert "unknown source id 'P99'" in msg
     assert "F1" in msg  # names the ids it does have
@@ -636,7 +661,7 @@ def test_grade_source_unknown_id(tmp_path):
 def test_grade_source_no_sources_yet(tmp_path):
     root = make_notebook(tmp_path)
     with pytest.raises(SystemExit) as ei:
-        sources.grade_source(root, "A1", grade="B")
+        sources.grade_source(root, "A1")
     assert "unknown source id" in str(ei.value)
 
 

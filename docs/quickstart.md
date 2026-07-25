@@ -64,7 +64,9 @@ custody and judgment in the frontmatter, your notes in the body.
 **Grade** after you've actually read it:
 
 ```bash
-flip grade F1 --grade A --independence original --notes "state data, extracted ourselves"
+flip grade F1 --independence independent --basis official-record --base-defined \
+  --notes "state data, extracted ourselves"
+# F1 · grade A (derived) — the letter is a digest of the evidence description
 # F1 · grade A · original · fresh
 ```
 

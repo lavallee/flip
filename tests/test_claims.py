@@ -22,26 +22,46 @@ updated: 2020-01-01
 # t
 """
 
-# id, slug, title, grade, independence — the judgment matrix the bar tests need.
+# id, slug, title, grade, independence, support — the judgment matrix the bar
+# tests need. A1/A3 are independence="independent" (judged via the tuple's
+# spine) and corroborate. A2 is judged only via a migration-seed marker
+# (support.seeded == "legacy-grade", design D-A): it derives to grade A so it
+# clears the grade-A-suffices path, but carries no `independence` key, so it
+# never counts toward corroboration. A4 is captured but never judged at all —
+# no independence key, no seed — an inert "?" that must corroborate nothing
+# (SPEC §5.4).
 SOURCE_ROWS = [
-    ("A1", "orig-b", "orig B", "B", "original"),
-    ("A2", "repub-a", "repub A", "A", "republisher"),
-    ("A3", "orig-c", "orig C", "C", "original"),
-    # captured but never judged: capture-time defaults (original/fresh) are
-    # inert while grade is "?" — this page must corroborate nothing (SPEC §5.4)
-    ("A4", "unjudged", "unjudged", "?", "original"),
+    ("A1", "orig-b", "orig B", "B", "independent",
+     {"basis": "single-operator", "method": "n=200 survey"}),
+    ("A2", "repub-a", "repub A", "A", None, {"seeded": "legacy-grade"}),
+    ("A3", "orig-c", "orig C", "C", "independent", None),
+    ("A4", "unjudged", "unjudged", "?", None, None),
 ]
 
 
-def source_fm(sid: str, title: str, grade: str, independence: str) -> dict:
-    return {
+def source_fm(
+    sid: str,
+    title: str,
+    grade: str,
+    independence: str | None = None,
+    support: dict | None = None,
+) -> dict:
+    fm: dict = {
         "type": "Source", "id": sid, "aliases": [sid], "title": title,
-        "local": f"sources/raw/{sid}.html", "grade": grade,
-        "independence": independence, "freshness": "fresh", "status": "captured",
+        "local": f"sources/raw/{sid}.html", "grade": grade, "status": "captured",
     }
+    if independence:
+        fm["independence"] = independence
+        fm["freshness"] = "fresh"
+    if support:
+        fm["support"] = support
+    return fm
 
 
-SOURCE_FMS = [source_fm(sid, title, grade, ind) for sid, _, title, grade, ind in SOURCE_ROWS]
+SOURCE_FMS = [
+    source_fm(sid, title, grade, ind, sup)
+    for sid, _, title, grade, ind, sup in SOURCE_ROWS
+]
 
 
 @pytest.fixture
@@ -53,10 +73,10 @@ def root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 @pytest.fixture
 def sourced(root: Path) -> Path:
-    for sid, slug, title, grade, ind in SOURCE_ROWS:
+    for sid, slug, title, grade, ind, sup in SOURCE_ROWS:
         pages.write_page(
             root / "references" / f"{slug}.md",
-            source_fm(sid, title, grade, ind),
+            source_fm(sid, title, grade, ind, sup),
             f"# {title}\n",
         )
     return root
@@ -85,7 +105,7 @@ def test_add_claim_shape_and_corroboration(sourced: Path):
         {"id": "A2", "resource": "/references/repub-a.md", "title": "repub A"},
     ]
     assert claims.source_ids(fm) == ["A1", "A2"]
-    assert fm["independent_corroboration"] == 1  # only A1 is independence=original
+    assert fm["independent_corroboration"] == 1  # only A1 is independence=independent
     assert fm["first_asserted"] == util.today()
     assert pages.generated_by(fm) == "agent:test"
     assert "notes" not in fm
@@ -201,7 +221,7 @@ def test_set_status_recomputes_corroboration_and_supports(root: Path):
     assert page.fm["sources"] == [{"id": "A1"}]
     pages.write_page(
         root / "references" / "orig-b.md",
-        source_fm("A1", "orig B", "B", "original"),
+        source_fm("A1", "orig B", "B", "independent"),
         "# orig B\n",
     )
     updated = claims.set_claim_status(root, "C1", "needs-2nd")
@@ -263,13 +283,14 @@ def test_set_status_rewrites_are_byte_stable(sourced: Path):
 
 
 def test_verify_meets_min_independent(sourced: Path):
-    # scout profile: claim_min_independent = 1; A1 is original
+    # scout profile: claim_min_independent = 1; A1 is independence=independent
     claims.add_claim(sourced, "x", ["A1"])
     assert claims.set_claim_status(sourced, "C1", "verified").fm["status"] == "verified"
 
 
 def test_verify_grade_a_suffices(sourced: Path):
-    # A2 is a republisher (0 original) but grade A, and scout allows grade-A shortcuts
+    # A2 has no independence key (0 independent corroboration) but derives to
+    # grade A via a migration-seed marker, and scout allows grade-A shortcuts
     claims.add_claim(sourced, "x", ["A2"])
     page = claims.set_claim_status(sourced, "C1", "verified")
     assert page.fm["status"] == "verified"
@@ -289,7 +310,7 @@ def test_verify_below_bar_raises_actionable(sourced: Path):
         index.read_text(encoding="utf-8").replace("kind: scout", "kind: strict"),
         encoding="utf-8",
     )
-    claims.add_claim(sourced, "x", ["A1", "A2"])  # 1 original, grade A present but moot
+    claims.add_claim(sourced, "x", ["A1", "A2"])  # 1 independent, grade A present but moot
     with pytest.raises(SystemExit, match=r"cannot verify C1: 1 independent.*of 2 required"):
         claims.set_claim_status(sourced, "C1", "verified")
     # status unchanged on disk
@@ -310,7 +331,7 @@ def test_corroboration_count_ignores_ungraded_and_dedupes():
     assert claims.corroboration_count(fms, ["A4"]) == 0  # grade "?" is inert
     assert claims.corroboration_count(fms, ["A1", "A4"]) == 1
     assert claims.corroboration_count(fms, ["A1", "A1", "A1"]) == 1  # deduped
-    assert claims.corroboration_count(fms, ["A2"]) == 0  # judged but republisher
+    assert claims.corroboration_count(fms, ["A2"]) == 0  # judged (legacy seed), not independence=independent
     assert claims.corroboration_count(fms, ["A1", "A3", "ZZ9"]) == 2
 
 
@@ -326,7 +347,7 @@ def test_verify_refused_when_only_source_is_ungraded(sourced: Path):
     with pytest.raises(SystemExit) as ei:
         claims.set_claim_status(sourced, "C1", "verified")
     msg = str(ei.value)
-    assert "cannot verify C1: 0 independent original source(s)" in msg
+    assert "cannot verify C1: 0 independent source(s)" in msg
     assert "A4" in msg and "flip grade" in msg  # names the unjudged source
     assert claim_page(sourced, "C1").fm["status"] == "asserted"
 
@@ -337,7 +358,9 @@ def test_grading_the_source_then_allows_verification(sourced: Path):
     claims.add_claim(sourced, "x", ["A4"], load_bearing=True)
     with pytest.raises(SystemExit):
         claims.set_claim_status(sourced, "C1", "verified")
-    sources_mod.grade_source(sourced, "A4", grade="B", independence="original")
+    sources_mod.grade_source(
+        sourced, "A4", independence="independent", basis="single-operator", method="site visit"
+    )
     page = claims.set_claim_status(sourced, "C1", "verified")
     assert page.fm["status"] == "verified"
     assert page.fm["independent_corroboration"] == 1
@@ -356,7 +379,7 @@ def test_set_status_tolerates_scalar_sources(sourced: Path):
 
     updated = claims.set_claim_status(sourced, "C1", "needs-2nd")
 
-    assert updated.fm["independent_corroboration"] == 1  # A1 is judged original
+    assert updated.fm["independent_corroboration"] == 1  # A1 is judged independent
     assert updated.fm["sources"] == [
         {"id": "A1", "resource": "/references/orig-b.md", "title": "orig B"}
     ]
@@ -409,7 +432,7 @@ def test_set_claim_status_outside_notebook_raises(tmp_path: Path):
 
 
 def test_source_add_links_and_recomputes(sourced: Path):
-    claims.add_claim(sourced, "x", ["A1"])  # 1 original → corroboration 1
+    claims.add_claim(sourced, "x", ["A1"])  # 1 independent → corroboration 1
     page, added, warnings = claims.add_claim_sources(sourced, "C1", ["A3"])
     assert added == ["A3"]
     assert warnings == []
@@ -418,7 +441,7 @@ def test_source_add_links_and_recomputes(sourced: Path):
         {"id": "A1", "resource": "/references/orig-b.md", "title": "orig B"},
         {"id": "A3", "resource": "/references/orig-c.md", "title": "orig C"},
     ]
-    assert page.fm["independent_corroboration"] == 2  # A1 + A3 both judged original
+    assert page.fm["independent_corroboration"] == 2  # A1 + A3 both judged independent
     on_disk = pages.read_page(page.path)
     assert "[^A3]: [orig C](../references/orig-c.md)" in on_disk.body  # citations regenerated
     assert on_disk.fm["independent_corroboration"] == 2
@@ -513,7 +536,7 @@ def test_verified_gate_refusal_names_both_paths(sourced: Path):
     with pytest.raises(SystemExit) as ei:
         claims.set_claim_status(sourced, "C1", "verified")
     msg = str(ei.value)
-    assert "independent original source(s)" in msg  # the corroboration path
+    assert "independent source(s)" in msg  # the corroboration path
     assert "flip claim verify C1" in msg and "adversarial" in msg  # the verification path
 
 

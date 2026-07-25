@@ -1,0 +1,66 @@
+# decision-packet — a flip kind: "I am making a decision packet"
+#
+# A worked example to fork: one file is a complete kind.
+# disciplines/genres-sketches/decision-packet/genre.toml) — the retrofit
+# case: pressure-tested against two real runs before this file existed. A
+# packet answers ONE named decision point for ONE named consumer — bounded,
+# priced, and honest about what the material could not tell you.
+
+id      = "decision-packet"
+version = "0.1"
+summary = """
+A bounded answer to one decision, for one named consumer, at one named
+decision point — built by walking from the anchor material up to what it
+actually measures and down to whether the thing that measured it still
+exists. Not a story, not a bare claim: a headline plus its own limits.
+"""
+
+[defaults]
+visibility = "client-confidential"
+
+[[contract.require]]
+id           = "named-decision-point"
+what         = "A named decision point exists — who is deciding what, by when."
+entity       = "decisions"
+min          = 1
+assembled_by = "packet.md (the frame — decision, consumer, date)"
+
+[[contract.require]]
+id           = "per-claim-disposition"
+what         = "Every claim in scope carries a disposition (advance/defer/decline/fold) with a reason."
+entity       = "claims"
+field        = "disposition.reason"
+min          = 1
+assembled_by = "triage-and-dispositions.md"
+
+[[contract.require]]
+id           = "provenance-log"
+what         = "A log of what was actually consulted for the headline finding."
+entity       = "files"
+path         = "provenance-log.md"
+min          = 1
+assembled_by = "provenance-log.md itself — cited from packet.md"
+
+[[contract.require]]
+id           = "whats-not-here"
+what         = "A named section on what the anchor material could not have told this consumer."
+entity       = "files"
+path         = "whats-unrecoverable.md"
+min          = 1
+assembled_by = "packet.md (closing section) / whats-unrecoverable.md"
+
+[[workflow.phase]]
+id       = "anchor"
+produces = "the corpus anchor and what it actually measures"
+
+[[workflow.phase]]
+id       = "triage"
+produces = "triage-and-dispositions.md"
+
+[[workflow.phase]]
+id       = "write"
+produces = "packet.md"
+
+[versioning]
+mode = "one-shot"
+note = "Superseded wholesale by a new pass_run, never patched in place."

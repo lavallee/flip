@@ -1516,5 +1516,141 @@ def beat_log(text: str) -> None:
     click.echo(f"logged {row['ts']} · {row['actor']}")
 
 
+# ---------------------------------------------------------------- kind
+
+
+from . import kinds as kinds_mod  # noqa: E402 — appended at file end by design
+
+
+@main.group(cls=SuggestGroup)
+def kind() -> None:
+    """Outcome kinds (design-outcome-kinds.md): what you're making, not how.
+
+    A kind names a desired output ("a lit review," "a decision packet") and
+    brings a contract — the requirements a finished notebook of that shape
+    must satisfy — plus optional workflow phases and a versioning mode.
+    Kinds load from built-ins, $FLIP_HOME/kinds/, and <notebook>/.flip/kinds/
+    (later wins); today's `flip new --kind` profiles show up here too, as
+    rigor-shaped kinds with empty contracts. Start with `flip kind list`.
+    """
+
+
+@kind.command("list")
+@click.option("--json", "as_json", is_flag=True,
+              help="Emit id/origin/version/summary rows as JSON.")
+def kind_list(as_json: bool) -> None:
+    """List every visible kind: built-in, user, notebook-local, and profiles.
+
+    Later sources win on id collision (built-in -> $FLIP_HOME/kinds/ ->
+    <notebook>/.flip/kinds/); shipped profiles (scout, ledger, …) appear too,
+    as kinds with an empty contract.
+    """
+    root = find_notebook_root_pinned()
+    rows = kinds_mod.list_kinds(root)
+    if as_json:
+        click.echo(json.dumps(
+            [
+                {"id": k.id, "origin": k.origin, "version": k.version, "summary": k.summary}
+                for k in rows
+            ],
+            ensure_ascii=False, indent=2,
+        ))
+        return
+    if not rows:
+        click.echo("no kinds found")
+        return
+    width = max(len(k.id) for k in rows)
+    for k in rows:
+        one_line = k.summary.strip().split("\n", 1)[0] if k.summary else "(no summary)"
+        click.echo(f"{k.id:<{width}}  {k.origin:<9}  {one_line}")
+
+
+@kind.command("show")
+@click.argument("kind_id", metavar="ID")
+@click.option("--json", "as_json", is_flag=True, help="Emit the kind's parsed shape as JSON.")
+def kind_show(kind_id: str, as_json: bool) -> None:
+    """Show a kind's contract and workflow — the doctor-checkable shape.
+
+    Unknown ids are refused with the list of known ones (`flip kind list`).
+    """
+    root = find_notebook_root_pinned()
+    k = kinds_mod.load_kind(kind_id, root)
+    if as_json:
+        click.echo(json.dumps(
+            {
+                "id": k.id, "version": k.version, "origin": k.origin, "summary": k.summary,
+                "defaults": k.defaults,
+                "contract": [asdict(r) for r in k.contract],
+                "workflow": k.workflow, "versioning": k.versioning,
+            },
+            ensure_ascii=False, indent=2,
+        ))
+        return
+    click.echo(f"{k.id} · {k.origin} · v{k.version or '?'}")
+    if k.summary:
+        click.echo(k.summary.strip())
+    if k.source_path:
+        click.echo(f"source: {k.source_path}")
+    if not k.contract:
+        click.echo("\nno contract requirements (a rigor-shaped kind, or not yet written).")
+    else:
+        click.echo("\ncontract:")
+        for r in k.contract:
+            tag = " [prospective]" if r.prospective else ""
+            click.echo(f"  - {r.id} (min {r.min}){tag}: {r.what}")
+            click.echo(f"      assembled by: {r.assembled_by}")
+    if k.workflow:
+        click.echo("\nworkflow:")
+        for phase in k.workflow:
+            name = phase.get("id") or phase.get("name") or "?"
+            produces = phase.get("produces")
+            line = f"  - {name}"
+            if produces:
+                line += f" -> produces: {produces}"
+            click.echo(line)
+    if k.versioning:
+        click.echo(f"\nversioning: mode={k.versioning.get('mode', '?')}")
+
+
+@kind.command("adopt")
+@click.argument("kind_id", metavar="ID")
+def kind_adopt(kind_id: str) -> None:
+    """Adopt a kind onto this notebook: set manifest kind, log a
+    crystallization event, and print the gap manifest.
+
+    Late adoption is not a foul: the gap manifest says exactly what's
+    missing and whether it can still be added honestly (recoverable), added
+    but not contemporaneously (reconstructible-with-loss), or gone for good
+    because it needed to be frozen before the work started
+    (unrecoverable-by-construction). Refuses if the kind id is unknown.
+    """
+    root = require_notebook_root()
+    k, rows = kinds_mod.adopt_kind(root, kind_id)
+    click.echo(f"kind -> {k.id} (crystallization event logged to log/log.jsonl)")
+    if not rows:
+        click.echo("no contract requirements — nothing to gap-check.")
+        return
+    click.echo("\ngap manifest:")
+    for row in rows:
+        status = "met" if row.tier == "met" else f"{row.have}/{row.min} — {row.tier}"
+        click.echo(f"  - {row.requirement_id}: {status}")
+        if row.tier != "met":
+            click.echo(f"      {row.what} (assembled by {row.assembled_by})")
+
+
+@kind.command("new")
+@click.argument("kind_id", metavar="ID")
+@click.option("--force", is_flag=True, help="Overwrite an existing scaffold at that path.")
+def kind_new(kind_id: str, force: bool) -> None:
+    """Scaffold $FLIP_HOME/kinds/<id>.toml from a commented template.
+
+    The template is the documentation: every key is explained in place with
+    a safe default. Edit it, then `flip kind show <id>` to check the result.
+    """
+    path = kinds_mod.scaffold_kind(kind_id, force=force)
+    click.echo(str(path))
+    click.echo(f"edit it, then `flip kind show {kind_id}`")
+
+
 if __name__ == "__main__":  # pragma: no cover
     main()

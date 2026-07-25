@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.11 · 2026-07-25
+**Status:** draft v0.12 · 2026-07-25
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -525,7 +525,37 @@ Obsidian is the reference case — is already a first-class flip client:
   citations, doctor findings inline — driven by `flip show --json` /
   `flip doctor --json`.
 
-## 13. Profiles
+## 13. Kinds — outcomes and profiles, one registry
+
+A notebook's `kind` answers "what are you making" (v0.8). Two families
+share one registry and one manifest key:
+
+- **Outcome kinds** (`lit-review`, `decision-packet`, …) are named for the
+  output you'd tell a colleague you're making. Each is one TOML —
+  built-in, `$FLIP_HOME/kinds/<id>.toml` (or `<id>/kind.toml`; the loader
+  treats both forms identically), or notebook-local — carrying a
+  **collection contract**: the assets and fields that must accumulate for
+  the output to assemble, each entry naming the render section that needs
+  it (`assembled_by` — a field no render needs is doctor-findable cargo
+  cult) and whether it is *prospective* (cannot be honestly backfilled,
+  e.g. inclusion criteria frozen before screening). `flip doctor` reports
+  unmet contract entries (`kind-gap`) as WARNs while the notebook is
+  active, ERRORs once done/published.
+- **Profiles** (below) are rigor-shaped kinds: required files +
+  notebook.md sections + claim-verification bar, no collection contract.
+
+The open notebook is first-class: start with any profile (or `scout` by
+default) and **adopt an outcome kind late** — `flip kind adopt lit-review`
+records the crystallization in the log and prints a **gap manifest**, each
+gap tiered honestly: `recoverable` (add it now) ·
+`reconstructible-with-loss` (record it non-contemporaneously) ·
+`unrecoverable-by-construction` (prospective entries adopted late — the
+retrofit is priced before it's promised). `flip kind new <id>` scaffolds a
+commented single-file kind for domain experts to fill; `flip kind
+list`/`show` inspect the registry. Substrate discipline (custody, grading,
+corroboration) applies identically under every kind.
+
+### Profiles
 
 A profile = required files + notebook.md sections + claim-verification bar.
 Everything else is optional everywhere.
