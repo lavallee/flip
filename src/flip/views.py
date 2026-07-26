@@ -52,6 +52,7 @@ _DIR_TITLES = {
     "claims": "Claims",
     "decisions": "Decisions",
     "questions": "Questions",
+    "forecasts": "Forecasts",
     "sessions": "Sessions",
 }
 
@@ -299,6 +300,67 @@ def stale_view(root: Path, as_data: bool = False) -> str | dict:
     if not lines:
         return "nothing stale"
     return "\n".join(lines).rstrip()
+
+
+def forecasts_view(root: Path, as_data: bool = False) -> str | dict:
+    """Open forecasts (due first) and the labeled calibration record (SPEC §7).
+
+    Both scores ship labeled so nobody mistakes one for the other: sharpness
+    is the resolved-yes share of scored resolutions; Brier appears only once
+    the record has volume (forecast.BRIER_MIN_RESOLUTIONS) — before that it
+    prints n/a, never a number computed on noise.
+    """
+    from . import forecast as forecast_mod
+
+    load_manifest(root)  # fail early with an actionable error if this isn't a notebook
+    due = forecast_mod.due_forecasts(root)
+    due_ids = {str(r.get("id")) for r in due}
+    rest = [
+        r
+        for r in forecast_mod.list_forecasts(root)
+        if r.get("type") == "Forecast"
+        and str(r.get("status", "open")) == "open"
+        and str(r.get("id")) not in due_ids
+    ]
+    rest.sort(key=lambda r: str(r.get("resolves_by", "")))
+    cal = forecast_mod.calibration(root)
+    if as_data:
+        return {"due": due, "open": rest, "calibration": cal}
+    lines: list[str] = []
+    if due:
+        lines.append("DUE FORECASTS")
+        for r in due:
+            days = r.get("days_left")
+            when = f"overdue {-days}d" if isinstance(days, int) and days < 0 else f"in {days}d"
+            lines.append(
+                f"  {r.get('id', '?')} · resolves {r.get('resolves_by', '?')} ({when}) · "
+                f"p={r.get('probability', '?')} c={r.get('confidence', '?')} · "
+                f"{_trunc(r.get('description', ''))}"
+            )
+        lines.append("")
+    if rest:
+        lines.append("OPEN FORECASTS")
+        for r in rest:
+            lines.append(
+                f"  {r.get('id', '?')} · resolves {r.get('resolves_by', '?')} · "
+                f"p={r.get('probability', '?')} c={r.get('confidence', '?')} · "
+                f"{_trunc(r.get('description', ''))}"
+            )
+        lines.append("")
+    if not due and not rest:
+        lines += ["no open forecasts (forecasts/ is absent or empty)", ""]
+    lines.append("RECORD")
+    lines.append(
+        f"  resolved: {cal['resolved_yes']} yes · {cal['resolved_no']} no · "
+        f"{cal['void']} void ({cal['n_scored']} scored)"
+    )
+    sharp = "n/a" if cal["sharpness"] is None else f"{cal['sharpness']:.2f}"
+    lines.append(f"  sharpness (resolved-yes share): {sharp}")
+    brier = "n/a" if cal["brier"] is None else f"{cal['brier']:.3f}"
+    lines.append(
+        f"  Brier (needs ≥{forecast_mod.BRIER_MIN_RESOLUTIONS} resolutions): {brier}"
+    )
+    return "\n".join(lines)
 
 
 # --- workspace roster (SPEC §18) ---------------------------------------------
@@ -583,6 +645,11 @@ def _root_body(root: Path, m: Manifest, events: list[dict]) -> str:
         open_n = len(_open_questions(root))
         bullets.append(
             f"* [Questions](questions/) - {_count(counts['questions'], 'question')}, {open_n} open"
+        )
+    if "forecasts" in counts:
+        bullets.append(
+            f"* [Forecasts](forecasts/) - {_count(counts['forecasts'], 'forecast page')} "
+            "with dates and scoring"
         )
     if "sessions" in counts:
         bullets.append(f"* [Sessions](sessions/) - {_count(counts['sessions'], 'work session')}")

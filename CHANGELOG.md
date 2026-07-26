@@ -6,6 +6,37 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-07-26
+
+### Added
+- **The Forecast class.** A backward notebook fights staleness; a forward
+  notebook accrues credibility through resolution. `forecasts/<slug>.md`
+  pages (FC#) carry probability + confidence (two scalars, never merged),
+  dated `resolves_by` with surfaces and a ranked resolver ladder, a
+  string `base_rate` (outside view first), mandatory `annul_if`, typed
+  `bears_on` refs, and an append-only `updates:` log. `flip forecast
+  add|update|resolve|decline|due|list`; resolutions append RS-schema rows
+  to `log/resolutions.jsonl`; the record scores as labeled sharpness +
+  Brier (≥5 resolutions); the fold disposition records declines whose
+  substance survives elsewhere. Clusters (CL#) hold unscored decision
+  questions over proxy forecasts with Claim-typed inference links — class
+  purity at file level. The **two-object rule is machine-enforced**:
+  doctor errors on probabilities on claims and grades on forecasts.
+  New built-in `forward-set` kind (aka "predictions", "what to watch"):
+  three dated forecasts + a naive baseline declared before the first
+  resolution. flip-render/2 gains a forecasts array; `flip show
+  --forecasts` prints the board and the record.
+- **"One notebook, whole"** — the docs site now renders a canonical
+  browsable notebook (notebook.html) generated at build time from the
+  demo notebook via flip-render/2: sources with support tuples and
+  custody, claims with attribution and verification records, questions,
+  decisions, sessions — every entity anchor-linkable, nothing
+  hand-authored.
+
+### Fixed
+- flip-render/2 question projections now carry `resolves_via`; blank
+  session Goal sections no longer leak the next heading into the goal.
+
 ## [0.12.1] — 2026-07-25
 
 ### Added

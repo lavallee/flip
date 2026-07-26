@@ -877,18 +877,23 @@ def session_end(slug_or_path: str, summary: str) -> None:
               help="All claims grouped by status.")
 @click.option("--stale", "stale_flag", is_flag=True,
               help="What went cold: dated sources, open questions, stuck claims.")
+@click.option("--forecasts", "forecasts_flag", is_flag=True,
+              help="Open forecasts (due first) and the calibration record.")
 @click.option("--json", "as_json", is_flag=True, help="Emit the view as JSON.")
-def show(claims_flag: bool, stale_flag: bool, as_json: bool) -> None:
+def show(claims_flag: bool, stale_flag: bool, forecasts_flag: bool, as_json: bool) -> None:
     """Show a computed view of the notebook; default is the hot view.
 
     The hot view is the resume-here screen: open questions, claims needing
     work, recent log, latest session. Views are computed from the pages and
     ledgers, never stored (SPEC §10).
     """
-    if claims_flag and stale_flag:
-        raise SystemExit("pass at most one of --claims/--stale")
+    if sum([claims_flag, stale_flag, forecasts_flag]) > 1:
+        raise SystemExit("pass at most one of --claims/--stale/--forecasts")
     root = require_notebook_root()
-    fn = views.claims_view if claims_flag else views.stale_view if stale_flag else views.hot_view
+    fn = (views.claims_view if claims_flag
+          else views.stale_view if stale_flag
+          else views.forecasts_view if forecasts_flag
+          else views.hot_view)
     out = fn(root, as_data=as_json)
     click.echo(json.dumps(out, ensure_ascii=False, indent=2) if as_json else out)
 
@@ -1659,6 +1664,185 @@ def kind_new(kind_id: str, force: bool) -> None:
     path = kinds_mod.scaffold_kind(kind_id, force=force)
     click.echo(str(path))
     click.echo(f"edit it, then `flip kind show {kind_id}`")
+
+
+# ---------------------------------------------------------------- forecast
+
+
+from . import forecast as forecast_mod  # noqa: E402 — appended near the kind group by design
+
+
+@main.group(cls=SuggestGroup)
+def forecast() -> None:
+    """Forecasts as pages (forecasts/<slug>.md, ids FC#): dated, scoreable bets.
+
+    The forward half of the two-object rule (SPEC §7): claims are verified
+    and never carry probabilities; forecasts ship early at low confidence,
+    update in the open (`forecast update`), and get scored on their dates
+    (`forecast resolve` — every resolution lands in log/resolutions.jsonl).
+    `flip show --forecasts` is the board + running record; `forecast due`
+    is the sweep list for any runner.
+    """
+
+
+@forecast.command("add")
+@click.argument("question")
+@click.option("--resolves-by", "resolves_by", default=None, metavar="YYYY-MM-DD",
+              help="The resolution date — mandatory; no undated forecasts.")
+@click.option("--resolves-via", "resolves_via", multiple=True, metavar="SURFACE",
+              help="A surface that resolves this (repeatable) — what the desk "
+                   "will actually look at on the date.")
+@click.option("--annul-if", "annul_if", default=None,
+              help="Mandatory: the condition under which the question stops "
+                   "being askable (resolves void, scores nothing).")
+@click.option("--probability", default=None, metavar="0..1",
+              help="The estimate, a float in [0, 1].")
+@click.option("--confidence", default=None, metavar="0..1",
+              help="How much the estimate rests on, in [0, 1] — never merged "
+                   "with probability.")
+@click.option("--criteria", "resolution_criteria", default=None,
+              help="Resolution criteria prose, edge cases pre-answered.")
+@click.option("--ladder", "ladder", multiple=True, metavar="STEP",
+              help="Resolution source ladder entry, best first (repeatable) — "
+                   "the ranked fallback when the primary surface fails.")
+@click.option("--resolver", default=None,
+              help="Who or what reads the surface and calls it.")
+@click.option("--base-rate", "base_rate", default=None, metavar="TEXT",
+              help="The outside view AS STATED, a string with its own "
+                   "numerator/denominator — never a bare number.")
+@click.option("--predictability", default=None,
+              type=click.Choice(forecast_mod.PREDICTABILITY),
+              help="How forecastable this domain is at all.")
+@click.option("--bears-on", "bears_on", multiple=True, metavar="TYPE:REF",
+              help="Typed edge to what this bet informs (claim:<ref>, "
+                   "cluster:<ref>, question:<ref>); repeatable.")
+@click.option("--generated-by", "generated_by", default=None,
+              help="What emitted this forecast (a generator name, or a person).")
+@click.option("--horizon", default=None,
+              help="Planning horizon the bet informs (not the resolution date).")
+def forecast_add(question: str, resolves_by: str | None, resolves_via: tuple[str, ...],
+                 annul_if: str | None, probability: str | None, confidence: str | None,
+                 resolution_criteria: str | None, ladder: tuple[str, ...],
+                 resolver: str | None, base_rate: str | None, predictability: str | None,
+                 bears_on: tuple[str, ...], generated_by: str | None,
+                 horizon: str | None) -> None:
+    """Open a forecast (status "open"), allocating the next FC#."""
+    page = forecast_mod.add_forecast(
+        require_notebook_root(), question, resolves_by, list(resolves_via), annul_if,
+        probability, confidence, resolution_criteria=resolution_criteria,
+        resolution_source_ladder=list(ladder), resolver=resolver, base_rate=base_rate,
+        predictability=predictability, bears_on=list(bears_on),
+        generated_by=generated_by, horizon=horizon,
+    )
+    vias = ", ".join(page.fm.get("resolves_via") or []) or "no surface named"
+    click.echo(f"{page.id} open · p={page.fm['probability']} c={page.fm['confidence']} · "
+               f"resolves {page.fm['resolves_by']} via {vias}")
+
+
+@forecast.command("update")
+@click.argument("fid", metavar="FORECAST_ID")
+@click.option("--probability", default=None, metavar="0..1",
+              help="New probability in [0, 1].")
+@click.option("--confidence", default=None, metavar="0..1",
+              help="New confidence in [0, 1].")
+@click.option("--note", default=None, help="Why the estimate moved.")
+def forecast_update(fid: str, probability: str | None, confidence: str | None,
+                    note: str | None) -> None:
+    """Move a forecast's current estimate; the old one stays in `updates:`.
+
+    Append-only: every update lands as a dated record, so the whole path
+    from opening estimate to resolution survives on the page.
+    """
+    page = forecast_mod.update_forecast(require_notebook_root(), fid,
+                                        probability=probability,
+                                        confidence=confidence, note=note)
+    click.echo(f"{page.id} · p={page.fm.get('probability')} c={page.fm.get('confidence')} · "
+               f"{len(page.fm.get('updates') or [])} update(s) on record")
+
+
+@forecast.command("resolve")
+@click.argument("fid", metavar="FORECAST_ID")
+@click.argument("outcome", type=click.Choice(["yes", "no", "void"]))
+@click.option("--note", default=None,
+              help="What the surface showed — recorded as the resolution evidence.")
+def forecast_resolve(fid: str, outcome: str, note: str | None) -> None:
+    """Resolve a forecast on its surface: yes | no | void. Final.
+
+    Flips the status, appends the closing update, logs a forecast-resolve
+    event, and writes the scoring row (prior · posterior · shift) to
+    log/resolutions.jsonl — the record `flip show --forecasts` reads back.
+    """
+    page = forecast_mod.resolve_forecast(require_notebook_root(), fid, outcome, note=note)
+    click.echo(f"{page.id} → {page.fm.get('status')} · scoring row appended to "
+               f"log/resolutions.jsonl")
+
+
+@forecast.command("decline")
+@click.argument("text")
+@click.option("--reason", required=True,
+              help="Why this generated question was declined — the payload.")
+@click.option("--fold-into", "fold_into", default=None, metavar="FORECAST_ID",
+              help="The existing forecast that absorbed the useful part "
+                   "(e.g. as an annul_if clause).")
+def forecast_decline(text: str, reason: str, fold_into: str | None) -> None:
+    """Record a declined generated question in log/declined-forecasts.jsonl.
+
+    The fold: declined generations are negative coverage — a good share are
+    load-bearing elsewhere; --fold-into records where the part went.
+    """
+    row = forecast_mod.decline_forecast(require_notebook_root(), text, reason,
+                                        fold_into=fold_into)
+    tail = f" · folded into {row['fold_into']}" if row.get("fold_into") else ""
+    click.echo(f"declined {row['ts']} · {row['reason']}{tail}")
+
+
+@forecast.command("due")
+@click.option("--within", default=30, show_default=True, metavar="DAYS",
+              help="Include open forecasts resolving within this many days.")
+@click.option("--json", "as_json", is_flag=True, help="Emit the rows as JSON.")
+def forecast_due(within: int, as_json: bool) -> None:
+    """List open forecasts past or near their resolves_by date, soonest first.
+
+    The sweep list: flip records, runners run — any agent runtime gets the
+    resolution loop from this listing without flip owning cadence.
+    """
+    rows = forecast_mod.due_forecasts(require_notebook_root(), within_days=within)
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        click.echo(f"no open forecasts due within {within} day(s)")
+        return
+    for r in rows:
+        days = r.get("days_left")
+        when = f"overdue {-days}d" if isinstance(days, int) and days < 0 else f"in {days}d"
+        click.echo(f"{r.get('id', '?')} · {r.get('resolves_by', '?')} ({when}) · "
+                   f"p={r.get('probability', '?')}/c={r.get('confidence', '?')} · "
+                   f"{r.get('description', '')}")
+
+
+@forecast.command("list")
+@click.option("--json", "as_json", is_flag=True,
+              help="Emit the page frontmatter (+ slug, path) as JSON.")
+def forecast_list(as_json: bool) -> None:
+    """List every forecast (and cluster): id · status · resolves_by · p/c · question."""
+    rows = forecast_mod.list_forecasts(require_notebook_root())
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        click.echo("no forecasts recorded (forecasts/ is absent or empty)")
+        return
+    for r in rows:
+        if r.get("type") == "Cluster":
+            click.echo(f"{r.get('id', '?')} · {r.get('status', 'open')} · cluster · "
+                       f"proxies: {', '.join(str(p) for p in r.get('proxies') or []) or 'none'} · "
+                       f"{r.get('description', '')}")
+            continue
+        click.echo(f"{r.get('id', '?')} · {r.get('status', '?')} · "
+                   f"{r.get('resolves_by', '?')} · "
+                   f"p={r.get('probability', '?')}/c={r.get('confidence', '?')} · "
+                   f"{r.get('description', '')}")
 
 
 if __name__ == "__main__":  # pragma: no cover

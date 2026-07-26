@@ -1,0 +1,50 @@
+# forward-set — a flip kind: "I am making a forecast set"
+#
+# A backward notebook fights staleness; a forward one earns credibility by
+# resolving. The product is the record: dated bets, updated in the open,
+# scored when their dates arrive — hits, misses, and voids alike.
+
+id      = "forward-set"
+version = "0.1"
+aka     = ["forecast set", "predictions", "what to watch", "forward look"]
+summary = """
+A set of dated, resolvable forecasts about one subject. Every bet names the
+date it resolves, the surface that resolves it, and the condition that would
+annul it; the running record of resolutions is the product. A forecast set
+earns trust by being scored, not by being right — so the set needs enough
+volume to score, and its naive baseline declared before anything resolves.
+"""
+
+[[contract.require]]
+id           = "three-dated-forecasts"
+what         = "At least three dated forecasts (resolves_by set). One bet is an opinion; three is the floor for a record anyone can score."
+entity       = "forecasts"
+field        = "resolves_by"
+min          = 3
+assembled_by = "the forecast board"
+
+[[contract.require]]
+id           = "baseline-declared"
+what         = "baseline.md — the naive baseline (what a dart-throwing observer would say), declared before the first resolution lands."
+entity       = "files"
+path         = "baseline.md"
+min          = 1
+prospective  = true
+assembled_by = "the record — the only time declaring it is worth anything"
+
+# Near-dated forecasts are a workflow discipline, not a checkable field: a
+# contract can't do date math, so the phase below carries the ask in prose.
+[[workflow.phase]]
+id       = "board"
+produces = "the board: dated bets, each with a resolving surface and an annulment condition"
+
+[[workflow.phase]]
+id       = "near-dates"
+produces = "at least one near-dated forecast (resolving within months, not years) — a set whose first resolution is years out builds no record"
+
+[[workflow.phase]]
+id       = "resolve-and-score"
+produces = "resolutions on their dates, and the running record: counts, sharpness, Brier once volume allows"
+
+[versioning]
+mode = "living"

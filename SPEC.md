@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.12 · 2026-07-25
+**Status:** draft v0.13 · 2026-07-25
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -99,6 +99,7 @@ from its local files alone.
   claims/<slug>.md         # type: Claim (+ generated index.md)
   decisions/<slug>.md      # type: Decision (+ generated index.md)
   questions/<slug>.md      # type: Question (+ generated index.md)
+  forecasts/<slug>.md      # type: Forecast (FC#) / Cluster (CL#) — §7
   sessions/                # type: Work Session — one page per episode
     <UTC stamp>-<slug>.md
   analysis/                # graduated prose: hypotheses.md, findings.md, …
@@ -353,7 +354,7 @@ Extension vocabulary summary — flip's frontmatter keys beyond OKF v0.2's
 advisory `draft|stable|deprecated` values. OKF consumers must preserve and
 may ignore all of them.
 
-## 7. Claims — `claims/<slug>.md`
+## 7. Claims and forecasts — the two-object rule
 
 ```markdown
 ---
@@ -424,6 +425,49 @@ lead, while the superseded text is preserved in a `formulations:` history list
 (`{text, date, actor}`) and a dated **Re-posed** body section, and a
 `question-repose` event lands in the log — so `flip open Q#` always shows the
 full journey.
+
+
+### Forecasts — `forecasts/<slug>.md` (FC#) and clusters (CL#)
+
+A backward notebook fights staleness; a forward notebook **accrues
+credibility through resolution**. The two-object rule is the load-bearing
+split, machine-enforced by doctor: **claims carry grades, never
+probabilities; forecasts carry probabilities, never grades.**
+
+A Forecast (`type: Forecast`) commits to what a watched surface will show
+by a date: `question`, `resolution_criteria` (edge cases pre-answered),
+`resolves_by` (dated — there are no undated forecasts), `resolves_via`
+(surfaces), `resolution_source_ladder` (ranked fallbacks — a forecast
+resolves on what the desk can *see*), `resolver`, `probability` and
+`confidence` (two scalars in [0,1], never merged), `base_rate` (a string
+carrying its own numerator/denominator — outside view first),
+`predictability` (`white|gray-light|gray-dark|black`), `annul_if`
+(**mandatory** — the written condition under which the question stops
+meaning anything), typed `bears_on` refs (`claim:`/`cluster:`/
+`question:`), `generated_by`, `horizon` (the planning horizon informed —
+distinct from `resolves_by`), `opened`/`freeze`, `status`
+(`open|resolved-yes|resolved-no|void|superseded`), and an append-only
+`updates:` list.
+
+`flip forecast resolve FC3 yes|no|void` flips status, appends the closing
+update, logs the event, and appends one row to the append-only
+**`log/resolutions.jsonl`** (topic · bears_on · prior · evidence ·
+posterior · shift · confidence · source). The record is scored two ways,
+always labeled: **sharpness** (resolved-yes share) and **Brier** (mean
+squared error, reported only at ≥5 resolutions). `flip forecast due`
+lists what a sweep should check; declined generated questions are logged
+with reasons, and the **fold** disposition (`--fold-into FC2`) records a
+decline whose substance survives as another forecast's annulment clause
+or criteria.
+
+A Cluster (`type: Cluster`, CL#) holds an unresolvable decision question
+(`scored: false`, `probability: null` by construction) over ordered proxy
+Forecasts, with any `inference_link` pointing at a **Claim** page — the
+inference from proxies to decision is itself a gradeable claim, and class
+purity holds at the file level. The `forward-set` kind carries the
+discipline extras: at least three dated forecasts and a naive baseline
+declared in `baseline.md` **before** the first resolution — the only time
+declaring it is worth anything.
 
 ## 8. Logs — events, sessions, views
 
