@@ -13,7 +13,7 @@ commands = ["python3 build.py"]
 [research]
 notebook = "notebook"
 rendered_uid = "nb-qy38zvcn"
-rendered_updated = "2026-07-25"
+rendered_updated = "2026-07-26"
 
 [deploy]
 target = "github-pages"

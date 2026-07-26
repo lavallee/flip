@@ -10,7 +10,7 @@ sources:
 - id: F2
   resource: /references/flip-pyproject.md
   title: pyproject.toml
-independent_corroboration: 1
+independent_corroboration: 0
 first_asserted: '2026-07-25'
 generated:
   by: human:marc

@@ -6,16 +6,17 @@ aliases:
 title: pyproject.toml
 description: 'flip''s package metadata: dependencies and Python floor'
 local: sources/raw/F2.toml
-grade: A
-independence: independent
+grade: C
+independence: self-reported
 freshness: fresh
 status: captured
-notes: The package metadata itself. A dependency list is not an assertion about the world;
-  it is the artifact.
+notes: Self-describing; the dependency claim is verified by recomputation (pip show/import
+  audit), not by trusting this file's independence.
 generated:
   by: human:marc
 support:
-  seeded: legacy-grade
+  basis: official-record
+  method: the package manifest itself
 ---
 
 # pyproject.toml

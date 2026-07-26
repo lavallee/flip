@@ -15,7 +15,10 @@ status: captured
 generated:
   by: agent:claude
 support:
-  seeded: legacy-grade
+  basis: official-record
+  method: Google's published OKF v0.2 spec, captured from the knowledge-catalog repo main
+    branch
+  vintage: 2026-07
 ---
 
 # raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/main/okf/SPEC.md
