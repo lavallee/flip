@@ -593,3 +593,35 @@ def test_export_json_is_deterministic(tmp_path):
 def test_export_json_requires_notebook(tmp_path):
     with pytest.raises(SystemExit, match="not a flip notebook"):
         export_json(tmp_path)
+
+
+def test_render_2_carries_the_work(tmp_path, monkeypatch):
+    """flip-render/2 ships the notebook's WORK — notebook.md first, then
+    root prose renders, then analysis/ pages — because a notebook is the
+    completed/in-progress work AND its dependent sources. Version 1 stays
+    work-free."""
+    from flip import scaffold
+    from flip.export import export_json
+
+    root = scaffold.create_notebook(tmp_path / "wk", "wk", "scout", title="t")
+    (root / "criteria.md").write_text(
+        "---\ntype: Reference\ntitle: Frozen criteria\n---\nbody here\n", encoding="utf-8"
+    )
+    (root / "analysis").mkdir()
+    (root / "analysis" / "findings.md").write_text(
+        "---\ntype: Finding\ntitle: The findings\n---\nwhat we can say\n", encoding="utf-8"
+    )
+    (root / "HANDOFF.md").write_text("no frontmatter, just prose\n", encoding="utf-8")
+
+    v2 = export_json(root, include_private=True, render_version=2)
+    paths = [w["path"] for w in v2["work"]]
+    assert paths[0] == "notebook.md"
+    assert "criteria.md" in paths and "HANDOFF.md" in paths
+    assert paths[-1] == "analysis/findings.md"
+    by_path = {w["path"]: w for w in v2["work"]}
+    assert by_path["criteria.md"]["title"] == "Frozen criteria"
+    assert by_path["analysis/findings.md"]["body"] == "what we can say"
+    assert by_path["HANDOFF.md"]["body"].startswith("no frontmatter")
+
+    v1 = export_json(root, include_private=True, render_version=1)
+    assert "work" not in v1

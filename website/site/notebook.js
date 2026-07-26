@@ -119,6 +119,7 @@
     var host = document.getElementById("nb-toc");
     if (!host) return;
     var links = [
+      ["sec-work", "Work", nb.work],
       ["sec-sources", "Sources", nb.sources],
       ["sec-claims", "Claims", nb.claims],
       ["sec-questions", "Questions", nb.questions],
@@ -128,7 +129,8 @@
       ["sec-log", "Log", null]
     ];
     links.forEach(function (link) {
-      if (link[1] === "Forecasts" && !present(link[2])) return; // no forecasts lane, no link
+      // Optional lanes only earn a link when the projection carries them.
+      if ((link[1] === "Forecasts" || link[1] === "Work") && !present(link[2])) return;
       var a = el("a", "nb__toc-link", link[1]);
       a.href = "#" + link[0];
       if (link[2]) {
@@ -136,6 +138,195 @@
         if (count != null) a.appendChild(el("span", "nb__toc-count", String(count)));
       }
       host.appendChild(a);
+    });
+  }
+
+  // -- the work ------------------------------------------------------------------
+  // The prose the notebook exists to carry (working memory, findings), from the
+  // projection's `work` array: [{path, title, body}], body in markdown. Rendered
+  // by a deliberately small renderer — headings, paragraphs, blockquotes, lists,
+  // tables, fenced code, bold/italic, links, inline code — with [C1]-style refs
+  // linked to the matching entity anchors when the id exists in the projection.
+
+  var workIds = null;
+  function knownWorkIds() {
+    if (workIds) return workIds;
+    workIds = {};
+    ["sources", "claims", "questions", "decisions", "sessions", "forecasts"]
+      .forEach(function (lane) {
+        (nb[lane] || []).forEach(function (item) {
+          if (item && present(item.id)) workIds[item.id] = true;
+        });
+      });
+    return workIds;
+  }
+
+  // First alternative that matches wins; link syntax outranks bare [C1] refs.
+  var MD_INLINE = new RegExp(
+    "(`[^`\\n]+`)" +                              // 1 inline code
+    "|(\\*\\*[^*\\n]+\\*\\*)" +                   // 2 bold
+    "|(\\*[^*\\n]+\\*)" +                         // 3 italic
+    "|\\[([^\\]\\n]+)\\]\\(([^)\\s]+)\\)" +       // 4,5 link text, href
+    "|\\[([A-Z]{1,3}\\d+)\\]"                     // 6 entity ref
+  );
+
+  function mdInline(text) {
+    var frag = document.createDocumentFragment();
+    var rest = String(text == null ? "" : text);
+    var m;
+    while ((m = MD_INLINE.exec(rest))) {
+      if (m.index > 0) frag.appendChild(document.createTextNode(rest.slice(0, m.index)));
+      if (m[1]) {
+        frag.appendChild(el("code", null, m[1].slice(1, -1)));
+      } else if (m[2]) {
+        var strong = document.createElement("strong");
+        strong.appendChild(mdInline(m[2].slice(2, -2)));
+        frag.appendChild(strong);
+      } else if (m[3]) {
+        var emph = document.createElement("em");
+        emph.appendChild(mdInline(m[3].slice(1, -1)));
+        frag.appendChild(emph);
+      } else if (m[4] != null) {
+        var link = document.createElement("a");
+        link.href = m[5];
+        link.appendChild(mdInline(m[4]));
+        frag.appendChild(link);
+      } else if (m[6]) {
+        if (knownWorkIds()[m[6]]) {
+          var ref = anchor(m[6]);
+          ref.textContent = m[0]; // keep the brackets the prose was written with
+          frag.appendChild(ref);
+        } else {
+          frag.appendChild(document.createTextNode(m[0]));
+        }
+      }
+      rest = rest.slice(m.index + m[0].length);
+    }
+    if (rest) frag.appendChild(document.createTextNode(rest));
+    return frag;
+  }
+
+  var MD_TABLE_RULE = /^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/;
+
+  function mdTableCells(line) {
+    return line.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|")
+      .map(function (cell) { return cell.trim(); });
+  }
+
+  function mdBlocks(text) {
+    var host = el("div", "nb__md");
+    var lines = String(text == null ? "" : text).replace(/\r\n?/g, "\n").split("\n");
+    var i = 0;
+
+    function listAt(marker) {
+      var list = document.createElement(marker === "ol" ? "ol" : "ul");
+      var re = marker === "ol" ? /^\s*\d+[.)]\s+(.*)$/ : /^\s*[-*+]\s+(.*)$/;
+      var m2;
+      while (i < lines.length && (m2 = lines[i].match(re))) {
+        var item = document.createElement("li");
+        item.appendChild(mdInline(m2[1]));
+        list.appendChild(item);
+        i += 1;
+      }
+      return list;
+    }
+
+    while (i < lines.length) {
+      var line = lines[i];
+      if (!line.trim()) { i += 1; continue; }
+      var m = line.match(/^(#{1,6})\s+(.*)$/);
+      if (m) {
+        var heading = document.createElement("h" + m[1].length);
+        heading.appendChild(mdInline(m[2]));
+        host.appendChild(heading);
+        i += 1;
+        continue;
+      }
+      if (/^\s*(?:---+|\*\*\*+)\s*$/.test(line)) {
+        host.appendChild(document.createElement("hr"));
+        i += 1;
+        continue;
+      }
+      if (/^```/.test(line)) {
+        var fence = [];
+        i += 1;
+        while (i < lines.length && !/^```/.test(lines[i])) { fence.push(lines[i]); i += 1; }
+        i += 1; // the closing fence
+        var pre = document.createElement("pre");
+        pre.appendChild(el("code", null, fence.join("\n")));
+        host.appendChild(pre);
+        continue;
+      }
+      if (/^\s*>/.test(line)) {
+        var quoted = [];
+        while (i < lines.length && /^\s*>/.test(lines[i])) {
+          quoted.push(lines[i].replace(/^\s*>\s?/, ""));
+          i += 1;
+        }
+        var quote = document.createElement("blockquote");
+        var inner = mdBlocks(quoted.join("\n"));
+        while (inner.firstChild) quote.appendChild(inner.firstChild);
+        host.appendChild(quote);
+        continue;
+      }
+      if (/^\s*[-*+]\s+/.test(line)) { host.appendChild(listAt("ul")); continue; }
+      if (/^\s*\d+[.)]\s+/.test(line)) { host.appendChild(listAt("ol")); continue; }
+      if (line.indexOf("|") !== -1 && i + 1 < lines.length && MD_TABLE_RULE.test(lines[i + 1])) {
+        var table = document.createElement("table");
+        var thead = document.createElement("thead");
+        var headRow = document.createElement("tr");
+        mdTableCells(line).forEach(function (cell) {
+          var th = document.createElement("th");
+          th.setAttribute("scope", "col");
+          th.appendChild(mdInline(cell));
+          headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+        var tbody = document.createElement("tbody");
+        i += 2; // header + rule
+        while (i < lines.length && lines[i].indexOf("|") !== -1 && lines[i].trim()) {
+          var bodyRow = document.createElement("tr");
+          mdTableCells(lines[i]).forEach(function (cell) {
+            bodyRow.appendChild(td(mdInline(cell)));
+          });
+          tbody.appendChild(bodyRow);
+          i += 1;
+        }
+        table.appendChild(tbody);
+        var wrap = el("div", "table-wrap");
+        wrap.appendChild(table);
+        host.appendChild(wrap);
+        continue;
+      }
+      var para = [];
+      while (i < lines.length && lines[i].trim()
+        && !/^(#{1,6}\s|\s*>|\s*[-*+]\s+|\s*\d+[.)]\s+|```)/.test(lines[i])) {
+        para.push(lines[i].trim());
+        i += 1;
+      }
+      var p = document.createElement("p");
+      p.appendChild(mdInline(para.join(" ")));
+      host.appendChild(p);
+    }
+    return host;
+  }
+
+  function renderWork() {
+    if (!present(nb.work)) return; // no work lane, no section
+    var section = document.getElementById("sec-work");
+    var host = document.getElementById("nb-work");
+    if (!section || !host) return;
+    section.hidden = false;
+    nb.work.forEach(function (doc) {
+      var card = el("article", "nb__work-doc");
+      var head = el("div", "nb__work-head");
+      var title = doc.title || (doc.path === "notebook.md" ? "Working memory" : doc.path);
+      head.appendChild(el("h3", null, title));
+      if (present(doc.path)) head.appendChild(el("span", "nb__work-path", doc.path));
+      card.appendChild(head);
+      card.appendChild(mdBlocks(doc.body));
+      host.appendChild(card);
     });
   }
 
@@ -350,6 +541,7 @@
 
   renderManifest();
   renderToc();
+  renderWork();
   renderSources();
   renderClaims();
   renderQuestions();

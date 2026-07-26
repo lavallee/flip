@@ -6,6 +6,20 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.1] — 2026-07-26
+
+### Changed
+- **The flipbook is a conversation now** — one scrolling page modeling the
+  person↔agent exchange: human bubbles, agent replies, the command run
+  shown by default, and the full under-the-hood detail (narrative, output,
+  record, tree) behind a closed-by-default disclosure per exchange. No
+  more stepper.
+- **Notebooks show their work.** flip-render/2 gains a `work` array
+  (notebook.md, root prose renders, analysis/ pages) — a notebook is the
+  completed/in-progress work AND its dependent sources, and the site's
+  notebook viewer now leads with "The work" accordingly. The demo
+  notebook writes its own findings page during the build.
+
 ## [0.13.0] — 2026-07-26
 
 ### Added

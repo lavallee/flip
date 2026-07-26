@@ -33,7 +33,8 @@
     <h1>What a flip notebook actually looks like</h1>
     <p class="lede">This notebook was built by the flip CLI while this site was built —
       the same commands an agent runs while a person directs the work in conversation,
-      never touching the CLI itself. Every panel below is generated from the
+      never touching the CLI itself. This page shows the work itself first, then
+      everything that work rests on. Every panel below is generated from the
       notebook's own files through the <code>flip-render/2</code> projection: nothing
       on this page is hand-authored.</p>
   </header>
@@ -51,6 +52,16 @@
   </section>
 
   <nav class="nb__toc" id="nb-toc" aria-label="Jump to section"></nav>
+
+  <section class="nb__section" id="sec-work" aria-labelledby="work-heading" hidden>
+    <p class="section-kicker">What the notebook is for</p>
+    <h2 id="work-heading">The work</h2>
+    <p class="nb__section-note">The completed and in-progress writing this notebook
+      exists to carry — working memory and findings — with everything below as the
+      evidentiary floor it rests on. Bracketed ids in the prose link to the claims
+      and sources further down.</p>
+    <div id="nb-work"></div>
+  </section>
 
   <section class="nb__section" id="sec-sources" aria-labelledby="sources-heading">
     <p class="section-kicker">Custody &amp; judgment</p>

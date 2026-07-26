@@ -495,4 +495,40 @@ def export_json(root: Path, include_private: bool = False, render_version: int =
     }
     if forecasts is not None:
         out["forecasts"] = forecasts
+    if render_version >= 2:
+        out["work"] = _work_pages(root)
+    return out
+
+
+def _work_pages(root: Path) -> list[dict]:
+    """The notebook's WORK, for flip-render/2: the completed/in-progress
+    prose that the sources and claims exist to support. notebook.md (the
+    working memory) first, then root-level prose renders (criteria.md,
+    review.md, baseline.md, HANDOFF.md, …), then analysis/ pages. The
+    notebook's own prose is not custody — it ships regardless of the
+    source-trail policy, exactly like claims and questions do."""
+    out: list[dict] = []
+
+    def _add(path: Path, rel: str, default_title: str) -> None:
+        try:
+            page = pages.read_page(path)
+            title = str(page.fm.get("title") or default_title)
+            body = page.body.strip()
+        except SystemExit:  # a prose file without frontmatter (HANDOFF.md …)
+            title, body = default_title, path.read_text(encoding="utf-8").strip()
+        out.append({"path": rel, "title": title, "body": body})
+
+    nb = root / "notebook.md"
+    if nb.is_file():
+        _add(nb, "notebook.md", "Working memory")
+    for path in sorted(root.glob("*.md")):
+        if path.name in ("index.md", "log.md", "notebook.md") or path.name.startswith("_"):
+            continue
+        _add(path, path.name, path.stem)
+    analysis = root / "analysis"
+    if analysis.is_dir():
+        for path in sorted(analysis.glob("*.md")):
+            if path.name in pages.RESERVED or path.name.startswith("_"):
+                continue
+            _add(path, f"analysis/{path.name}", path.stem)
     return out

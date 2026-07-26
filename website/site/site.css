@@ -848,3 +848,232 @@
 @media (max-width: 720px) {
   .nb { padding-left: var(--sp-4); padding-right: var(--sp-4); }
 }
+
+/* -- flipbook: one scrolling conversation ----------------------------------- */
+/* The page models a person <> agent chat. Human turns sit right, agent turns
+   left; the command the agent ran shows by default inside its bubble, and the
+   full under-the-hood record lives in a closed <details> beneath it. */
+
+.fb__chat {
+  max-width: 52rem;
+  margin: var(--sp-8) 0 var(--sp-16);
+}
+
+.fb__act-kicker {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin: var(--sp-12) 0 var(--sp-6);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+}
+
+.fb__act-kicker::before,
+.fb__act-kicker::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+
+.fb__chat .fb__act-kicker:first-child { margin-top: 0; }
+
+.fb__exchange {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 var(--sp-8);
+  scroll-margin-top: 4.5rem;
+}
+
+/* the human's turn: right-aligned, accent-tinted (extends .fb__say .bubble) */
+.fb__exchange .fb__say {
+  align-self: flex-end;
+  max-width: min(44rem, 92%);
+  margin: 0 0 var(--sp-3);
+}
+
+.fb__exchange .fb__say .bubble {
+  border-radius: 12px 12px 3px 12px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+}
+
+/* the agent's turn: left-aligned, surface-colored */
+.fb__agent {
+  align-self: flex-start;
+  width: 100%;
+  max-width: min(46rem, 100%);
+}
+
+.fb__agent > .bubble {
+  display: block;
+  font-size: 0.98rem;
+  line-height: 1.45;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px 12px 12px 3px;
+  padding: 0.55rem 0.85rem 0.65rem;
+}
+
+.fb__agent > .bubble > b {
+  font-size: 0.7rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 0.15rem;
+  opacity: 0.65;
+  font-family: var(--font-ui);
+}
+
+/* the default under-the-hood detail: what ran, one monospace line per command */
+.fb__ran {
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.fb__ran-line {
+  display: block;
+  font-family: var(--font-numeric);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  background: none;
+  border: 0;
+  padding: 0;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.fb__exit {
+  font-family: var(--font-numeric);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  color: var(--danger);
+}
+
+/* the expandable full record */
+.fb__details {
+  margin-top: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 55%, var(--bg));
+}
+
+.fb__details > summary {
+  cursor: pointer;
+  padding: var(--sp-2) var(--sp-3);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.fb__details > summary:hover { color: var(--text); }
+.fb__details[open] > summary { border-bottom: 1px solid var(--border); color: var(--text-2); }
+
+.fb__details-body { padding: var(--sp-3) var(--sp-4) var(--sp-4); }
+.fb__details-body .fb__narrative { font-size: var(--text-sm); margin-bottom: var(--sp-4); }
+.fb__details-body .pane-label { margin-top: var(--sp-4); }
+.fb__details-body .pane-label:first-of-type { margin-top: 0; }
+.fb__details-body .record { margin: var(--sp-2) 0; }
+.fb__details-body .tree { max-height: 22rem; }
+.fb__spec-row { margin: var(--sp-3) 0 0; }
+
+.fb__unprompted {
+  align-self: center;
+  text-align: center;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--muted);
+  margin: 0 0 var(--sp-3);
+}
+
+@media (max-width: 720px) {
+  .fb__exchange .fb__say { max-width: 100%; }
+}
+
+/* -- notebook: the work ------------------------------------------------------ */
+/* The prose the notebook exists to carry, rendered from the projection's
+   `work` array by a small markdown renderer in notebook.js. */
+
+.nb__work-doc {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin: var(--sp-6) 0;
+  overflow: hidden;
+}
+
+.nb__work-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.nb__work-head h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-family: var(--font-display);
+}
+
+.nb__work-path {
+  font-family: var(--font-numeric);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 0.1rem 0.45rem;
+  white-space: nowrap;
+}
+
+.nb__md {
+  padding: var(--sp-4) var(--sp-4) var(--sp-5);
+  max-width: 46rem;
+}
+
+.nb__md h1 { font-size: var(--text-xl); margin: var(--sp-4) 0 var(--sp-3); }
+.nb__md h2 { font-size: var(--text-lg); margin: var(--sp-5) 0 var(--sp-2); }
+.nb__md h3, .nb__md h4, .nb__md h5, .nb__md h6 {
+  font-size: var(--text-base);
+  margin: var(--sp-4) 0 var(--sp-2);
+}
+.nb__md > :first-child { margin-top: 0; }
+.nb__md > :last-child { margin-bottom: 0; }
+
+.nb__md p, .nb__md li {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--text-2);
+}
+
+.nb__md p { margin: 0 0 var(--sp-3); }
+.nb__md ul, .nb__md ol { margin: 0 0 var(--sp-3); padding-left: 1.4em; }
+
+.nb__md blockquote {
+  margin: 0 0 var(--sp-3);
+  padding: 0 0 0 var(--sp-3);
+  border-left: 2px solid var(--border-strong);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.nb__md blockquote p { color: inherit; margin-bottom: var(--sp-1); }
+
+.nb__md pre {
+  font-size: var(--text-xs);
+  overflow-x: auto;
+  margin: 0 0 var(--sp-3);
+}
+
+.nb__md table { min-width: 0; font-size: var(--text-xs); margin: 0; }
+.nb__md .table-wrap { margin: 0 0 var(--sp-3); }
+.nb__md hr { border: 0; border-top: 1px solid var(--border); margin: var(--sp-4) 0; }

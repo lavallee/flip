@@ -156,6 +156,7 @@ def step_plan() -> list[dict]:
         {
             "id": "new",
             "say": ("Someone in the baking club swears higher hydration makes sourdough rise faster. Can you actually look into it — properly, with the trail kept?"),
+            "reply": ("Started a research-review notebook: two files, the manifest and our working memory. Everything else appears as we work."),
             "act": "Open the notebook",
             "title": "Scaffold a notebook",
             "narrative": (
@@ -179,6 +180,7 @@ def step_plan() -> list[dict]:
         {
             "id": "session",
             "say": "",
+            "reply": ("Logging myself first: this episode gets a session page, so the reasoning trail is part of the record."),
             "act": "Open the notebook",
             "title": "Log the episode",
             "narrative": (
@@ -211,6 +213,7 @@ def step_plan() -> list[dict]:
         {
             "id": "question",
             "say": "",
+            "reply": ("Filed it as Q1 — your question is a page with an id now, not a memory."),
             "act": "Open the notebook",
             "title": "Write down the question",
             "narrative": (
@@ -232,6 +235,7 @@ def step_plan() -> list[dict]:
         {
             "id": "capture",
             "say": ("The King Arthur hydration guide is the obvious place to start — bring it in."),
+            "reply": ("Captured it. The bytes are stored and hashed — whatever that page does later, we hold what we cited."),
             "act": "Take custody",
             "title": "Capture a source",
             "narrative": (
@@ -259,6 +263,7 @@ def step_plan() -> list[dict]:
         {
             "id": "ungraded",
             "say": "",
+            "reply": ("It's in as F1 — but see the grade: '?'. Captured isn't judged; it counts for nothing until I've actually read it."),
             "act": "Take custody",
             "title": "Capture is not judgment",
             "narrative": (
@@ -279,6 +284,7 @@ def step_plan() -> list[dict]:
         {
             "id": "grade",
             "say": ("You've read it now — how good is it, actually?"),
+            "reply": ("Read it. An organized trial by people who aren't us, method stated — that derives to B, independent. The letter follows the description."),
             "act": "Take custody",
             "title": "Grade it, as a separate act",
             "narrative": (
@@ -314,6 +320,7 @@ def step_plan() -> list[dict]:
         {
             "id": "claim",
             "say": ("So what's the answer so far?"),
+            "reply": ("Asserted as C1, load-bearing, cited to F1. One source: corroboration 1."),
             "act": "Make a claim stick",
             "title": "Assert a claim",
             "narrative": (
@@ -344,6 +351,7 @@ def step_plan() -> list[dict]:
         {
             "id": "refused",
             "say": ("Good enough for me — mark it confirmed."),
+            "reply": ("I tried — flip refused, exit code 1. The profile wants two independent sources or a derived A, and my confidence doesn't override the bar."),
             "act": "Make a claim stick",
             "title": "Try to call it verified",
             "narrative": (
@@ -366,6 +374,7 @@ def step_plan() -> list[dict]:
         {
             "id": "second",
             "say": ("Fine. What would it take to actually know?"),
+            "reply": ("So we baked. Twelve bakes at four hydration levels — our own measurement, captured with fixity and graded A: independent, measured, base defined."),
             "act": "Make a claim stick",
             "title": "Go and measure it yourself",
             "narrative": (
@@ -407,6 +416,7 @@ def step_plan() -> list[dict]:
         {
             "id": "passed",
             "say": ("What about that forum thread everyone keeps linking?"),
+            "reply": ("Looked at it — it republishes the same trial we already hold, so it adds nothing. Recorded as passed-on with the reason, so neither of us re-chases it."),
             "act": "Make a claim stick",
             "title": "Record what you rejected",
             "narrative": (
@@ -434,6 +444,7 @@ def step_plan() -> list[dict]:
         {
             "id": "link",
             "say": "",
+            "reply": ("Linked F2 to the claim. Corroboration recomputed to 2; the attribution regenerated itself."),
             "act": "Make a claim stick",
             "title": "Link the second source",
             "narrative": (
@@ -453,6 +464,7 @@ def step_plan() -> list[dict]:
         {
             "id": "verified",
             "say": ("Try again now."),
+            "reply": ("Now it passes: C1 is verified — earned mechanically, and re-checkable by anyone with the files."),
             "act": "Make a claim stick",
             "title": "Now it passes",
             "narrative": (
@@ -474,6 +486,7 @@ def step_plan() -> list[dict]:
         {
             "id": "decide",
             "say": ("Let's not bother testing rye — white flour only."),
+            "reply": ("Recorded the decision, rejected alternative included. The why is the payload; the what is recoverable from git."),
             "act": "Keep the record",
             "title": "Record the fork you resolved",
             "narrative": (
@@ -505,6 +518,7 @@ def step_plan() -> list[dict]:
         {
             "id": "doctor",
             "say": ("Anything left hanging before we wrap up?"),
+            "reply": ("Doctor is clean apart from the expected-with-use notes. Nothing blocking."),
             "act": "Audit and render",
             "title": "Audit the notebook",
             "narrative": (
@@ -525,6 +539,7 @@ def step_plan() -> list[dict]:
         {
             "id": "show",
             "say": ("Where do we stand?"),
+            "reply": ("Here's where we stand: open questions, claims needing work, recent activity. It's a projection — the files stay canonical."),
             "act": "Audit and render",
             "title": "The hot view",
             "narrative": (
@@ -544,6 +559,7 @@ def step_plan() -> list[dict]:
         {
             "id": "export",
             "say": ("Share it with the group."),
+            "reply": ("Rendered the JSON projection: stable ids, policy-filtered, versioned. Anything downstream can build on this and link back."),
             "act": "Audit and render",
             "title": "Render it somewhere",
             "narrative": (
@@ -682,6 +698,7 @@ def build_flipbook(env_base: dict[str, str]) -> dict:
                     "n": index,
                     "id": plan["id"],
                     "say": plan.get("say", ""),
+                    "reply": plan.get("reply", ""),
                     "act": plan["act"],
                     "title": plan["title"],
                     "narrative": plan["narrative"],
@@ -718,7 +735,30 @@ def export_demo_notebook(binary: str, notebook: Path, env: dict[str, str]) -> di
     this one call, not from anything hand-authored. Fails loud if the export
     itself fails, or if it does not carry the contract this site's notebook
     viewer was built against.
+
+    Before exporting, the demo's WORK gets written the way an agent would
+    write it — a findings page in analysis/ — because a notebook is the
+    completed/in-progress work AND its dependent sources, and the viewer
+    should show both.
     """
+    analysis = notebook / "analysis"
+    analysis.mkdir(exist_ok=True)
+    (analysis / "findings.md").write_text(
+        "---\n"
+        "type: Finding\n"
+        "title: What we can actually say about hydration and rise time\n"
+        "---\n\n"
+        "# What we can actually say\n\n"
+        "Higher hydration shortens rise time [C1] — now verified: the\n"
+        "community trial [F1] and our own twelve bakes [F2] agree, and the\n"
+        "two are independent measurements, not echoes of each other. The\n"
+        "trial alone couldn't carry it (flip refused, correctly); the\n"
+        "kitchen log is what earned the verification.\n\n"
+        "Scope honestly: one flour lot, one kitchen, home-oven conditions.\n"
+        "Whether the effect size transfers to rye is the question we chose\n"
+        "not to chase [D1] — white flour only, this round.\n",
+        encoding="utf-8",
+    )
     proc = run(
         [binary, "export", "json", "--render-version", "2", "--include-private", "--out", "-"],
         cwd=notebook,

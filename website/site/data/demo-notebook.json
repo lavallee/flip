@@ -1,9 +1,9 @@
 {
   "contract": "flip-render/2",
-  "generated": "2026-07-26T00:59:00Z",
+  "generated": "2026-07-26T13:06:04Z",
   "source_trail_public": true,
   "notebook": {
-    "uid": "nb-b2xvppvr",
+    "uid": "nb-hqz919xq",
     "slug": "sourdough-rise",
     "title": "Does hydration change sourdough rise time?",
     "kind": "research-review",
@@ -26,7 +26,7 @@
       },
       "title": "ridgeway-club-trial.md",
       "canonical_url": "",
-      "captured_at": "2026-07-26T00:58:59Z",
+      "captured_at": "2026-07-26T13:06:03Z",
       "sha256": "23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40"
     },
     {
@@ -43,7 +43,7 @@
       },
       "title": "rise-times.csv",
       "canonical_url": "",
-      "captured_at": "2026-07-26T00:58:59Z",
+      "captured_at": "2026-07-26T13:06:03Z",
       "sha256": "d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c"
     }
   ],
@@ -85,14 +85,26 @@
   ],
   "sessions": [
     {
-      "id": "2026-07-26T0058-hydration-sweep",
+      "id": "2026-07-26T1306-hydration-sweep",
       "actor": "human:baker",
       "model": "claude-opus-5",
-      "started": "2026-07-26T00:58:59Z",
+      "started": "2026-07-26T13:06:03Z",
       "ended": "",
       "goal": ""
     }
   ],
   "log_tail": [],
-  "forecasts": []
+  "forecasts": [],
+  "work": [
+    {
+      "path": "notebook.md",
+      "title": "Working memory",
+      "body": "# Reporter's notebook \u2014 Does hydration change sourdough rise time?\n\n## The tip\n\n> Where the question came from, and what the reader will do with the answer.\n\n## Frame\n\n> Decision the reader should be able to make \u00b7 headline claim (state it before building) \u00b7 counter-narrative to rule out \u00b7 audience and their prior knowledge.\n\n## What the data can and can't say\n\n> Can say / can't say (but readers might assume) / could say with more ingest. Name unresolved tensions so they travel forward explicitly.\n\n## Hypotheses & falsifiers\n\n> Set before looking, each with a named falsifier (H1, H2\u2026). Close the loop with a 'what survived the reporting' audit.\n\n## Sources & provenance\n\n> What fed this. Point at references/ and sources/_provenance.jsonl; for datasets name the generator, inputs, cut date, and rebuild command.\n\n## Priors ledger\n\n> Each shift: claim \u00b7 prior \u2192 posterior \u00b7 shift size \u00b7 confidence \u00b7 source.\n\n## Decisions\n\n> Resolved forks and why (D1, D2\u2026). The why is the payload \u2014 the what is recoverable from git, the why isn't.\n\n## What's not in the piece\n\n> Honest omissions \u2014 what you left out, and why.\n\n## Workflow notes\n\n> What helped, what hurt \u2014 tooling, agent patterns, dead ends. About the process, not the piece.\n\n## Gaps & self-critique\n\n> Where this work is weakest; what a hostile reviewer would attack first."
+    },
+    {
+      "path": "analysis/findings.md",
+      "title": "What we can actually say about hydration and rise time",
+      "body": "# What we can actually say\n\nHigher hydration shortens rise time [C1] \u2014 now verified: the\ncommunity trial [F1] and our own twelve bakes [F2] agree, and the\ntwo are independent measurements, not echoes of each other. The\ntrial alone couldn't carry it (flip refused, correctly); the\nkitchen log is what earned the verification.\n\nScope honestly: one flour lot, one kitchen, home-oven conditions.\nWhether the effect size transfers to rye is the question we chose\nnot to chase [D1] \u2014 white flour only, this round."
+    }
+  ]
 }
