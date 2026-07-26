@@ -35,6 +35,9 @@ from .beat import find_beat_root, load_beat
 from .claims import STATUSES as CLAIM_STATUSES  # claim status enum (SPEC §7)
 from .claims import corroboration_count, has_gating_verification
 from .claims import source_ids as claim_source_ids
+
+# Forecast enums and the typed-ref grammar (SPEC §7), from the owning module.
+from .forecast import BEARS_ON_RE, FORECAST_STATUSES, PREDICTABILITY
 from .manifest import STATUSES, VISIBILITIES, Manifest, load_manifest, save_manifest
 from .profiles import SECTIONS, Profile, list_profiles, load_profile
 
@@ -56,7 +59,7 @@ LEDGERS = (PROVENANCE, "derived/_derivations.jsonl", "log/log.jsonl", "log/passe
 
 # Entity directories whose pages must carry a compact id; sessions are entity
 # pages too but have no id scheme (SPEC §8), so they are exempt here.
-_ID_DIRS = ("references", "claims", "decisions", "questions")
+_ID_DIRS = ("references", "claims", "decisions", "questions", "forecasts")
 _DIR_PREFIXES: dict[str, tuple[str, ...]] = {
     d: tuple(sorted(p for p, dd in pages.PREFIX_DIR.items() if dd == d)) for d in _ID_DIRS
 }
@@ -130,6 +133,7 @@ def run_doctor(root: Path) -> list[Finding]:
     _check_raw(root, provenance, findings)
     claim_pages = [p for p in by_dir.get("claims", []) if p.fm.get("type") == "Claim"]
     _check_claims(root, claim_pages, source_pages, profile, findings)
+    _check_forecasts(root, by_dir, findings)
     _check_provenance_open(root, manifest, claim_pages, source_pages, findings)
     _check_kind_contract(root, manifest, findings)
     return findings
@@ -637,6 +641,7 @@ def _suggested_type(dirname: str) -> str:
         "claims": "Claim",
         "decisions": "Decision",
         "questions": "Question",
+        "forecasts": "Forecast",
         "sessions": "Work Session",
     }.get(dirname, "Note")
 
@@ -995,6 +1000,19 @@ def _check_claims(
                     rel,
                 )
             )
+        # The two-object gate (SPEC §7): claims are verified, never scored —
+        # a probability on a Claim is a Forecast wearing the wrong type.
+        for key in ("probability", "confidence"):
+            if key in page.fm:
+                findings.append(
+                    _error(
+                        "two-object",
+                        f"claim {cid} carries '{key}' — probabilities live on Forecast "
+                        "pages, never Claims (the two-object rule, SPEC §7); move the "
+                        "bet to `flip forecast add` or remove the key",
+                        rel,
+                    )
+                )
         legacy = [
             key for key in ("supports", "verifications", "timestamp") if key in page.fm
         ]
@@ -1066,6 +1084,193 @@ def _check_claims(
                     rel,
                 )
             )
+
+
+# --- forecasts & clusters (SPEC §7) ---------------------------------------------
+
+
+def _ids_and_slugs(found: list[pages.Page]) -> set[str]:
+    """Every name a page answers to: its compact id and its filename slug.
+    bears_on/proxy refs may use either (the pilot convention writes slugs)."""
+    out: set[str] = set()
+    for page in found:
+        if page.id:
+            out.add(page.id)
+        out.add(page.slug)
+    return out
+
+
+def _check_forecasts(
+    root: Path, by_dir: dict[str, list[pages.Page]], findings: list[Finding]
+) -> None:
+    """Forecast/Cluster checks (SPEC §7): enums, the two-object gate from the
+    forecast side (grade/support/independence never belong on a bet), the
+    no-undated-forecasts and mandatory-annul_if rules on open forecasts,
+    overdue open forecasts (WARN — resolve or void), dangling typed bears_on
+    refs (WARN, consistent with the dangling-citation policy), and cluster
+    class purity: probability null by construction, proxies resolving to
+    Forecasts, inference_link resolving to a Claim, never a Forecast."""
+    fdir = by_dir.get("forecasts", [])
+    forecast_pages = [p for p in fdir if p.fm.get("type") == "Forecast"]
+    cluster_pages = [p for p in fdir if p.fm.get("type") == "Cluster"]
+    if not forecast_pages and not cluster_pages:
+        return
+    claim_names = _ids_and_slugs(
+        [p for p in by_dir.get("claims", []) if p.fm.get("type") == "Claim"]
+    )
+    question_names = _ids_and_slugs(
+        [p for p in by_dir.get("questions", []) if p.fm.get("type") == "Question"]
+    )
+    cluster_names = _ids_and_slugs(cluster_pages)
+    forecast_names = _ids_and_slugs(forecast_pages)
+    target_names = {
+        "claim": claim_names, "cluster": cluster_names, "question": question_names,
+    }
+    today = datetime.now(timezone.utc).date().isoformat()
+
+    for page in forecast_pages:
+        fid = page.id or "?"
+        rel = _rel(page, root)
+        status = str(page.fm.get("status", "open"))
+        if page.fm.get("status") is not None and status not in FORECAST_STATUSES:
+            findings.append(
+                _error(
+                    "bad-enum",
+                    f"forecast {fid}: status '{status}' invalid "
+                    f"(one of: {', '.join(FORECAST_STATUSES)})",
+                    rel,
+                )
+            )
+        predictability = page.fm.get("predictability")
+        if predictability is not None and predictability not in PREDICTABILITY:
+            findings.append(
+                _error(
+                    "bad-enum",
+                    f"forecast {fid}: predictability '{predictability}' invalid "
+                    f"(one of: {', '.join(PREDICTABILITY)})",
+                    rel,
+                )
+            )
+        # The two-object gate, forecast side (SPEC §7): grades and support
+        # tuples belong to verified records, never to bets.
+        for key in ("grade", "support", "independence"):
+            if key in page.fm:
+                findings.append(
+                    _error(
+                        "two-object",
+                        f"forecast {fid} carries '{key}' — grades and support tuples "
+                        "live on Source/Claim pages, never Forecasts (the two-object "
+                        "rule, SPEC §7); a forecast earns trust through resolution — "
+                        "remove the key",
+                        rel,
+                    )
+                )
+        resolves_by = str(page.fm.get("resolves_by") or "")
+        if status == "open":
+            if not resolves_by:
+                findings.append(
+                    _error(
+                        "undated-forecast",
+                        f"open forecast {fid} has no resolves_by — no undated "
+                        "forecasts (SPEC §7): an undated bet can never be scored; "
+                        "add the resolution date or void the forecast",
+                        rel,
+                    )
+                )
+            if not str(page.fm.get("annul_if") or "").strip():
+                findings.append(
+                    _error(
+                        "missing-annul-if",
+                        f"open forecast {fid} has no annul_if — annulment conditions "
+                        "are mandatory (SPEC §7); state when the question stops "
+                        "being askable",
+                        rel,
+                    )
+                )
+            if resolves_by and resolves_by < today:
+                findings.append(
+                    _warn(
+                        "overdue-forecast",
+                        f"forecast {fid} was due {resolves_by} and is still open — "
+                        f"overdue — resolve or void (`flip forecast resolve {fid} "
+                        "yes|no|void`)",
+                        rel,
+                    )
+                )
+        for entry in pages.as_list(page.fm.get("bears_on")):
+            entry = str(entry)
+            m = BEARS_ON_RE.match(entry)
+            if not m:
+                findings.append(
+                    _error(
+                        "untyped-ref",
+                        f"forecast {fid}: bears_on entry '{entry}' is not a typed ref "
+                        "(claim:<ref>, cluster:<ref>, question:<ref>) — every "
+                        "cross-class edge names its class (SPEC §7)",
+                        rel,
+                    )
+                )
+                continue
+            kind, _, target = entry.partition(":")
+            if target not in target_names.get(kind, set()):
+                findings.append(
+                    _warn(
+                        "dangling-bears-on",
+                        f"forecast {fid}: bears_on '{entry}' resolves to no existing "
+                        f"{kind} page; add the {kind} or fix the ref (dangling refs "
+                        "are legal but counted, like dangling citations)",
+                        rel,
+                    )
+                )
+
+    for page in cluster_pages:
+        cid = page.id or "?"
+        rel = _rel(page, root)
+        if page.fm.get("probability") is not None:
+            findings.append(
+                _error(
+                    "scored-cluster",
+                    f"cluster {cid} carries probability {page.fm.get('probability')} — "
+                    "a decision question carries no probability, by construction "
+                    "(SPEC §7); the numbers live on its proxy forecasts — set "
+                    "probability: null",
+                    rel,
+                )
+            )
+        for proxy in pages.as_list(page.fm.get("proxies")):
+            if str(proxy) not in forecast_names:
+                findings.append(
+                    _warn(
+                        "dangling-proxy",
+                        f"cluster {cid}: proxy '{proxy}' resolves to no forecasts/ "
+                        "Forecast page; add the forecast or fix the ref",
+                        rel,
+                    )
+                )
+        link = page.fm.get("inference_link")
+        if link is not None:
+            link = str(link)
+            if link in forecast_names or link in cluster_names:
+                findings.append(
+                    _error(
+                        "impure-inference-link",
+                        f"cluster {cid}: inference_link '{link}' points at a "
+                        "forecasts/ page — the link is a piece of reasoning and "
+                        "must be a Claim (graded, never scored; class purity, "
+                        "SPEC §7); move the reasoning to claims/ and point there",
+                        rel,
+                    )
+                )
+            elif link not in claim_names:
+                findings.append(
+                    _warn(
+                        "dangling-inference-link",
+                        f"cluster {cid}: inference_link '{link}' resolves to no "
+                        "claims/ page; add the link claim (`flip claim add`) or "
+                        "fix the ref",
+                        rel,
+                    )
+                )
 
 
 # --- kind contract (design-outcome-kinds.md, Phase 1) ---------------------------

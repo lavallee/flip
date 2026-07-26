@@ -19,7 +19,7 @@ PAGES = ["index.html", "flipbook.html", "spec.html", "start.html", "404.html"]
 
 # Tool, host, and project names that must never appear in public output. The
 # public distribution names integration *roles*, never the commands that fill
-# them (SPEC §16).
+# them (SPEC §7).
 INTERNAL_NAMES = re.compile(
     r"\b(weaver|frank|collagen|malo|fab|keel|barnowl|cistern|downunder|paperboy"
     r"|george|oslo|delphi|trawler|jackdaw)\b",

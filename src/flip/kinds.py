@@ -46,7 +46,7 @@ KIND_ID_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 # Where a contract requirement's `entity` can count pages from — the entity
 # dirs flip already scans (SPEC §9), plus "files" for a plain path/glob check
 # against the notebook root (a required sibling file, e.g. criteria.md).
-ENTITY_DIRS = ("references", "claims", "questions", "decisions", "sessions")
+ENTITY_DIRS = ("references", "claims", "questions", "decisions", "forecasts", "sessions")
 ENTITY_KINDS = (*ENTITY_DIRS, "files")
 
 ORIGINS = ("built-in", "user", "notebook", "profile")

@@ -700,7 +700,47 @@ def build_flipbook(env_base: dict[str, str]) -> dict:
         # Cross-check the spec map against what the implementation really wrote.
         frontmatter = harvest_frontmatter(notebook)
 
-    return {"steps": steps, "frontmatter_seen": frontmatter}
+        # The flip-render/2 projection of this same scratch notebook, taken
+        # before the temp directory goes away — the canonical data source
+        # for site/notebook.html.
+        export = export_demo_notebook(binary, notebook, env)
+
+    return {"steps": steps, "frontmatter_seen": frontmatter, "export": export}
+
+
+def export_demo_notebook(binary: str, notebook: Path, env: dict[str, str]) -> dict:
+    """Run the real `flip export json --render-version 2` against the scratch
+    demo notebook while it still exists on disk, and return the parsed
+    flip-render/2 projection.
+
+    This is the canonical data source for notebook.html: every source,
+    claim, question, decision, session, and log line on that page comes from
+    this one call, not from anything hand-authored. Fails loud if the export
+    itself fails, or if it does not carry the contract this site's notebook
+    viewer was built against.
+    """
+    proc = run(
+        [binary, "export", "json", "--render-version", "2", "--include-private", "--out", "-"],
+        cwd=notebook,
+        env=env,
+    )
+    if proc.returncode != 0:
+        raise BuildError(
+            f"`flip export json --render-version 2` exited {proc.returncode}:\n"
+            f"{(proc.stdout or '') + (proc.stderr or '')}"
+        )
+    try:
+        payload = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        raise BuildError(
+            f"`flip export json --render-version 2` did not emit valid JSON: {exc}"
+        ) from exc
+    if payload.get("contract") != "flip-render/2":
+        raise BuildError(
+            "expected the flip-render/2 contract from `flip export json "
+            f"--render-version 2`, got {payload.get('contract')!r}"
+        )
+    return payload
 
 
 def harvest_frontmatter(notebook: Path) -> dict[str, list[str]]:
@@ -936,6 +976,7 @@ def main() -> int:
 
     print("· cross-checking the spec map against the generated notebook")
     spec = build_spec(sections, flipbook.pop("frontmatter_seen"))
+    demo_notebook = flipbook.pop("export")
 
     stamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     skills = sorted(p.name for p in (REPO / "src" / "flip" / "skills").iterdir() if p.is_dir())
@@ -973,6 +1014,7 @@ def main() -> int:
             },
         ),
         ("spec", "__FLIP_SPEC__", {"generated": stamp, **spec}),
+        ("demo-notebook", "__FLIP_NOTEBOOK__", demo_notebook),
     ):
         body = json.dumps(payload, indent=2, sort_keys=False)
         (DATA / f"{name}.json").write_text(body + "\n", encoding="utf-8")

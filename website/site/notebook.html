@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One notebook, whole — a flip notebook viewer</title>
+<meta name="description" content="The canonical view of a flip notebook: manifest, sources, claims, questions, decisions, sessions, and log, rendered from the flip-render/2 projection the CLI emits at build time.">
+<link rel="icon" href="lib/artoo-kit/favicon.svg">
+<link rel="stylesheet" href="lib/artoo-kit/tokens.css">
+<link rel="stylesheet" href="lib/artoo-kit/base.css">
+<link rel="stylesheet" href="lib/artoo-kit/article.css">
+<link rel="stylesheet" href="lib/artoo-kit/components.css">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<nav class="site-nav">
+  <a class="brand" href="index.html">flip</a>
+  <button class="nav-toggle" type="button" aria-label="Menu">menu</button>
+  <div class="nav-links">
+    <a href="flipbook.html">Flipbook</a>
+    <a href="spec.html">Spec</a>
+    <a href="start.html">Start</a>
+    <a href="https://github.com/lavallee/flip">GitHub</a>
+  </div>
+  <button data-theme-toggle class="nav-toggle spacer" type="button" aria-label="Toggle light or dark theme">theme</button>
+</nav>
+
+<main class="nb">
+
+  <header class="nb__lede">
+    <p class="section-kicker">One notebook, whole</p>
+    <h1>What a flip notebook actually looks like</h1>
+    <p class="lede">This notebook was built by the flip CLI while this site was built —
+      the same commands an agent runs while a person directs the work in conversation,
+      never touching the CLI itself. Every panel below is generated from the
+      notebook's own files through the <code>flip-render/2</code> projection: nothing
+      on this page is hand-authored.</p>
+  </header>
+
+  <noscript>
+    <p>This page needs JavaScript to render the notebook from
+      <code>data/demo-notebook.json</code>. That file is plain JSON generated at build
+      time — open it directly, or read the same data rendered frame by frame on the
+      <a href="flipbook.html">flipbook page</a>.</p>
+  </noscript>
+
+  <section aria-labelledby="nb-manifest-heading">
+    <h2 id="nb-manifest-heading" class="visually-hidden">Manifest</h2>
+    <dl class="facts" id="nb-manifest"></dl>
+  </section>
+
+  <nav class="nb__toc" id="nb-toc" aria-label="Jump to section"></nav>
+
+  <section class="nb__section" id="sec-sources" aria-labelledby="sources-heading">
+    <p class="section-kicker">Custody &amp; judgment</p>
+    <h2 id="sources-heading">Sources</h2>
+    <p class="nb__section-note">What this notebook holds custody of, and the judgment
+      recorded about each piece — independence and basis are a description, never a
+      score; the grade letter is derived from them.</p>
+    <div class="table-wrap">
+      <table class="nb__table" id="nb-sources-table">
+        <thead>
+          <tr>
+            <th scope="col">id</th>
+            <th scope="col">title</th>
+            <th scope="col">grade</th>
+            <th scope="col">independence</th>
+            <th scope="col">basis</th>
+            <th scope="col">freshness</th>
+            <th scope="col">provenance</th>
+            <th scope="col">custody</th>
+          </tr>
+        </thead>
+        <tbody id="nb-sources"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="nb__section" id="sec-claims" aria-labelledby="claims-heading">
+    <p class="section-kicker">What this notebook asserts</p>
+    <h2 id="claims-heading">Claims</h2>
+    <p class="nb__section-note">A claim enters <code>asserted</code>. It cannot call
+      itself <code>verified</code> until the corroboration bar is met — mechanically,
+      not by anyone insisting.</p>
+    <div class="table-wrap">
+      <table class="nb__table" id="nb-claims-table">
+        <thead>
+          <tr>
+            <th scope="col">id</th>
+            <th scope="col">claim</th>
+            <th scope="col">status</th>
+            <th scope="col">load-bearing</th>
+            <th scope="col">value</th>
+            <th scope="col">sources</th>
+            <th scope="col">corroboration</th>
+            <th scope="col">verifications</th>
+          </tr>
+        </thead>
+        <tbody id="nb-claims"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="nb__section" id="sec-questions" aria-labelledby="questions-heading">
+    <p class="section-kicker">Open threads</p>
+    <h2 id="questions-heading">Questions</h2>
+    <p class="nb__section-note">An open question without a watching surface is a wish,
+      not a plan — flip marks it <code>unwatched</code> rather than pretending it is
+      covered.</p>
+    <div class="table-wrap">
+      <table class="nb__table" id="nb-questions-table">
+        <thead>
+          <tr>
+            <th scope="col">id</th>
+            <th scope="col">question</th>
+            <th scope="col">status</th>
+            <th scope="col">watches</th>
+          </tr>
+        </thead>
+        <tbody id="nb-questions"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="nb__section" id="sec-decisions" aria-labelledby="decisions-heading">
+    <p class="section-kicker">Resolved forks</p>
+    <h2 id="decisions-heading">Decisions</h2>
+    <p class="nb__section-note">The what is recoverable from git history; the why is
+      not. Rejected alternatives are part of the record, not a footnote.</p>
+    <div class="table-wrap">
+      <table class="nb__table" id="nb-decisions-table">
+        <thead>
+          <tr>
+            <th scope="col">id</th>
+            <th scope="col">question → decision</th>
+            <th scope="col">rejected alternatives</th>
+          </tr>
+        </thead>
+        <tbody id="nb-decisions"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="nb__section" id="sec-sessions" aria-labelledby="sessions-heading">
+    <p class="section-kicker">Who did the work</p>
+    <h2 id="sessions-heading">Sessions</h2>
+    <p class="nb__section-note">One page per working episode, human or agent, stamped
+      in UTC — the reasoning chain is part of the bundle, not reconstructed later from
+      a chat log.</p>
+    <div class="table-wrap">
+      <table class="nb__table" id="nb-sessions-table">
+        <thead>
+          <tr>
+            <th scope="col">actor</th>
+            <th scope="col">model</th>
+            <th scope="col">started</th>
+            <th scope="col">goal</th>
+          </tr>
+        </thead>
+        <tbody id="nb-sessions"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="nb__section" id="sec-forecasts" aria-labelledby="forecasts-heading" hidden>
+    <p class="section-kicker">Standing predictions</p>
+    <h2 id="forecasts-heading">Forecasts</h2>
+    <p class="nb__section-note">A probability and a resolution date attached to an open
+      question — present only when this notebook's profile tracks forecasts.</p>
+    <div class="table-wrap">
+      <table class="nb__table" id="nb-forecasts-table">
+        <thead>
+          <tr>
+            <th scope="col">question</th>
+            <th scope="col">probability / confidence</th>
+            <th scope="col">resolves by</th>
+            <th scope="col">status</th>
+          </tr>
+        </thead>
+        <tbody id="nb-forecasts"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="nb__section" id="sec-log" aria-labelledby="log-heading">
+    <p class="section-kicker">Newest first</p>
+    <h2 id="log-heading">Log tail</h2>
+    <p class="nb__section-note">The last lines of the append-only work log — fetched X,
+      ran Y, hit wall Z. Nothing is deleted to keep context small.</p>
+    <ol class="nb__log" id="nb-log"></ol>
+  </section>
+
+  <section class="prose">
+    <h2>What this page is</h2>
+    <p>Nothing above was typed by a person for this site. The notebook it renders was
+      scaffolded, sourced, graded, claimed, decided, and logged by the real
+      <code>flip</code> CLI during the site build — the
+      <a href="flipbook.html">flipbook page</a> steps through the same notebook one
+      command at a time; this page shows where all those commands land once the
+      notebook is whole. The projection itself is versioned: this page reads
+      <code>flip-render/2</code>, the contract <code>flip export json
+      --render-version 2</code> emits, so a future contract bump cannot silently change
+      what a reader sees here without the build noticing first.</p>
+  </section>
+
+</main>
+
+<footer class="site-foot">
+  <div class="site-foot__inner">
+    <p>flip — format and tooling for reporter's notebooks. MIT licensed.</p>
+    <p>
+      <a href="https://github.com/lavallee/flip">Repository</a> ·
+      <a href="https://github.com/lavallee/flip/blob/main/SPEC.md">Spec</a> ·
+      <a href="https://pypi.org/project/flip-notebook/">PyPI</a>
+    </p>
+  </div>
+  <p class="demo-note nb__footnote" id="nb-vintage">
+    Generated at build time from a scratch notebook the flip CLI built during this
+    site's own build. The demo subject — a fictional baking club's sourdough hydration
+    trial — is invented on purpose, so nothing on this page could be mistaken for a
+    real finding.
+    <a href="flipbook.html">Watch this notebook get built, frame by frame →</a>
+    For real notebooks, see
+    <a href="https://github.com/lavallee/flip-examples">the flip-examples repository</a>.
+  </p>
+</footer>
+
+<script src="data/demo-notebook.js"></script>
+<script src="site.js"></script>
+<script src="notebook.js"></script>
+<script src="lib/artoo-kit/kit.js"></script>
+</body>
+</html>

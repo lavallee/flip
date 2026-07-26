@@ -325,14 +325,35 @@ def _claim_projection(page: pages.Page, source_fms: list[dict],
     return out
 
 
-def _question_projection(page: pages.Page) -> dict:
+def _question_projection(page: pages.Page, render_version: int = 1) -> dict:
     fm = page.fm
-    return {
+    out = {
         "id": fm.get("id") or page.slug,
         "slug": page.slug,
         "text": str(fm.get("description", "")),
         "status": str(fm.get("status", "open")),
         "formulations": [dict(f) for f in pages.as_list(fm.get("formulations"))],
+    }
+    if render_version >= 2:
+        out["resolves_via"] = [str(s) for s in pages.as_list(fm.get("resolves_via"))]
+    return out
+
+
+def _forecast_projection(page: pages.Page) -> dict:
+    """One forecast as a flip-render/2 node (SPEC §7): the bet, its current
+    scalars, and the resolution wiring a renderer needs to show a board —
+    plus the update count (the full append-only trail stays on the page)."""
+    fm = page.fm
+    return {
+        "id": fm.get("id") or page.slug,
+        "question": str(fm.get("question") or fm.get("description", "")),
+        "status": str(fm.get("status", "open")),
+        "probability": fm.get("probability"),
+        "confidence": fm.get("confidence"),
+        "resolves_by": str(fm.get("resolves_by", "")),
+        "resolves_via": [str(s) for s in pages.as_list(fm.get("resolves_via"))],
+        "horizon": fm.get("horizon"),
+        "updates": len(pages.as_list(fm.get("updates"))),
     }
 
 
@@ -347,7 +368,7 @@ def _decision_projection(page: pages.Page) -> dict:
     }
 
 
-_GOAL_RE = re.compile(r"^##\s+Goal\s*\n(.*?)(?=\n##\s|\Z)", re.S | re.M)
+_GOAL_RE = re.compile(r"^##\s+Goal[ \t]*\n(.*?)(?=^##\s|\Z)", re.S | re.M)
 
 
 def _session_goal(body: str) -> str:
@@ -415,7 +436,7 @@ def export_json(root: Path, include_private: bool = False, render_version: int =
         key=lambda c: _id_num(c["id"]),
     )
     questions = sorted(
-        (_question_projection(p) for p in pages.iter_pages(root, "questions")
+        (_question_projection(p, render_version) for p in pages.iter_pages(root, "questions")
          if str(p.fm.get("type", "")) == "Question"),
         key=lambda q: _id_num(q["id"]),
     )
@@ -423,6 +444,17 @@ def export_json(root: Path, include_private: bool = False, render_version: int =
         (_decision_projection(p) for p in pages.iter_pages(root, "decisions")
          if str(p.fm.get("type", "")) == "Decision"),
         key=lambda d: _id_num(d["id"]),
+    )
+    # Forecasts arrived with flip-render/2 (SPEC §7); version 1 stays
+    # byte-stable for existing consumers and never grows the key.
+    forecasts = (
+        sorted(
+            (_forecast_projection(p) for p in pages.iter_pages(root, "forecasts")
+             if str(p.fm.get("type", "")) == "Forecast"),
+            key=lambda f: _id_num(f["id"]),
+        )
+        if render_version >= 2
+        else None
     )
     # Session pages are the work log in entity form — their goals, and the
     # goal-derived filename slugs, are custody like log_tail (SPEC §17).
@@ -440,7 +472,7 @@ def export_json(root: Path, include_private: bool = False, render_version: int =
         except ValueError:
             log_tail = []
 
-    return {
+    out = {
         "contract": RENDER_CONTRACT_2 if render_version >= 2 else RENDER_CONTRACT,
         "generated": utc_now(),
         "source_trail_public": full_trail,
@@ -461,3 +493,6 @@ def export_json(root: Path, include_private: bool = False, render_version: int =
         "sessions": sessions,
         "log_tail": log_tail,
     }
+    if forecasts is not None:
+        out["forecasts"] = forecasts
+    return out

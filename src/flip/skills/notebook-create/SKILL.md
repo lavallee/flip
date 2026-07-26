@@ -28,6 +28,7 @@ one piece of research; don't create it until you can say what that piece is.
 | move a claim's status | `flip claim status <C#> <status>` |
 | questions | `flip question add\|repose\|answer\|list` |
 | decisions / dead ends | `flip decide …` · `flip pass …` |
+| forecasts | `flip forecast add\|update\|resolve\|due\|list` — probabilities live here, never on claims |
 | log / sessions | `flip log "<text>"` · `flip session start\|end` |
 | views | `flip show [--claims\|--stale] [--json]` · `flip ws show [--open\|--claims] [--json]` |
 | resolve an id | `flip open <ref>` · `flip resolve <ref> --json` |

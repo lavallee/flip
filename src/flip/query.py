@@ -109,7 +109,7 @@ class RecallResult:
 
 
 def _land_raw(root: Path, verb: str, query: str, raw: str) -> Path:
-    """Preserve a tool's verbatim stdout under sessions/raw/ (custody, SPEC §16)."""
+    """Preserve a tool's verbatim stdout under sessions/raw/ (custody, SPEC §7)."""
     slug = pages.slugify(query, fallback=verb)
     path = root / RAW / f"{util.stamp_slug()}-{verb}-{slug}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
