@@ -1,7 +1,7 @@
 window.__FLIP_META__ = {
-  "generated": "2026-07-26T13:06:04+00:00",
-  "version": "0.13.1",
-  "revision": "737a7f5",
+  "generated": "2026-07-26T17:27:48+00:00",
+  "version": "0.14.0",
+  "revision": "93c2455",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",
@@ -9,9 +9,9 @@ window.__FLIP_META__ = {
   ],
   "license": "MIT",
   "package": "flip-notebook",
-  "tests": 788,
-  "spec_status": "draft v0.13 \u00b7 2026-07-25",
-  "spec_lines": 980,
+  "tests": 843,
+  "spec_status": "draft v0.14 \u00b7 2026-07-25",
+  "spec_lines": 1029,
   "skills": [
     "notebook-audit",
     "notebook-create",
@@ -348,6 +348,49 @@ window.__FLIP_META__ = {
           },
           {
             "name": "--rejected",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip discipline list",
+        "group": "flip discipline",
+        "name": "list",
+        "purpose": "List every visible discipline: built-in, user, and notebook-local.",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip discipline new",
+        "group": "flip discipline",
+        "name": "new",
+        "purpose": "Scaffold $FLIP_HOME/disciplines/<id>.toml from a commented template.",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--force",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip discipline show",
+        "group": "flip discipline",
+        "name": "show",
+        "purpose": "Show a discipline's slots, gates, and checks \u2014 the composable shape.",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--json",
             "required": false
           }
         ]

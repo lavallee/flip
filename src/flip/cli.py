@@ -1596,6 +1596,7 @@ def kind_show(kind_id: str, as_json: bool) -> None:
                 "defaults": k.defaults,
                 "contract": [asdict(r) for r in k.contract],
                 "workflow": k.workflow, "versioning": k.versioning,
+                "requires": k.requires,
             },
             ensure_ascii=False, indent=2,
         ))
@@ -1624,6 +1625,16 @@ def kind_show(kind_id: str, as_json: bool) -> None:
             click.echo(line)
     if k.versioning:
         click.echo(f"\nversioning: mode={k.versioning.get('mode', '?')}")
+    if k.requires:
+        click.echo("\nrequires (slots a declared discipline must own; "
+                   "informational until the manifest declares disciplines):")
+        for req in k.requires:
+            slot = req.get("slot", "?")
+            default = req.get("default")
+            line = f"  - slot '{slot}'"
+            if default:
+                line += f" (default: {default})"
+            click.echo(line)
 
 
 @kind.command("adopt")
@@ -1664,6 +1675,157 @@ def kind_new(kind_id: str, force: bool) -> None:
     path = kinds_mod.scaffold_kind(kind_id, force=force)
     click.echo(str(path))
     click.echo(f"edit it, then `flip kind show {kind_id}`")
+
+
+# ---------------------------------------------------------------- discipline
+
+
+from . import disciplines as disciplines_mod  # noqa: E402 — appended at file end by design
+
+
+@main.group(cls=SuggestGroup)
+def discipline() -> None:
+    """Disciplines (design-composition-0.14.md): the standard the work is held to.
+
+    A discipline names a policy standard — the slots it owns, the gates it
+    applies (enforced gates block; attested gates record third-party
+    verification), and its advisory checks. Kinds say what you're making;
+    disciplines say the standard it's held to. Declare pins in the manifest
+    (`disciplines: [lineage@1, forecasting@1]`) and `flip doctor` resolves,
+    composes, and labels. Start with `flip discipline list`.
+    """
+
+
+@discipline.command("list")
+@click.option("--json", "as_json", is_flag=True,
+              help="Emit id/version/kind/origin/summary/aka rows as JSON.")
+def discipline_list(as_json: bool) -> None:
+    """List every visible discipline: built-in, user, and notebook-local.
+
+    Later sources win on id collision (built-in -> $FLIP_HOME/disciplines/
+    -> <notebook>/.flip/disciplines/).
+    """
+    root = find_notebook_root_pinned()
+    rows = disciplines_mod.list_disciplines(root)
+    if as_json:
+        click.echo(json.dumps(
+            [
+                {"id": d.id, "version": d.version, "kind": d.kind,
+                 "origin": d.origin, "summary": d.summary, "aka": d.aka}
+                for d in rows
+            ],
+            ensure_ascii=False, indent=2,
+        ))
+        return
+    if not rows:
+        click.echo("no disciplines found")
+        return
+    width = max(len(f"{d.id}@{d.version}") for d in rows)
+    for d in rows:
+        one_line = d.summary.strip().split("\n", 1)[0] if d.summary else "(no summary)"
+        pin = f"{d.id}@{d.version}"
+        click.echo(f"{pin:<{width}}  {d.kind:<12}  {d.origin:<9}  {one_line}")
+        if d.aka:
+            click.echo(f"{'':<{width}}  {'':<12}  {'':<9}  aka: {', '.join(d.aka)}")
+
+
+def _check_display(check) -> str:
+    """One line for a gate/check target: a code, or the predicate spelled out."""
+    if isinstance(check, str):
+        return f"check {check}"
+    requires = check.get("requires", "?")
+    line = f"{check.get('class', '?')}.{check.get('field', '?')} {requires}"
+    if requires == "one_of":
+        line += f" [{', '.join(str(v) for v in check.get('one_of') or [])}]"
+    return line
+
+
+@discipline.command("show")
+@click.argument("disc_id", metavar="ID")
+@click.option("--json", "as_json", is_flag=True,
+              help="Emit the discipline's parsed shape as JSON.")
+def discipline_show(disc_id: str, as_json: bool) -> None:
+    """Show a discipline's slots, gates, and checks — the composable shape.
+
+    Unknown ids are refused with the list of known ones (`flip discipline
+    list`).
+    """
+    root = find_notebook_root_pinned()
+    d = disciplines_mod.load_discipline(disc_id, root)
+    if as_json:
+        click.echo(json.dumps(
+            {
+                "id": d.id, "version": d.version, "kind": d.kind, "origin": d.origin,
+                "summary": d.summary, "aka": d.aka, "governs": d.governs,
+                "slots": [asdict(s) for s in d.slots],
+                "gates": [asdict(g) for g in d.gates],
+                "checks": d.checks, "vocabulary": d.vocabulary,
+                "depends_on": d.depends_on, "conflicts": d.conflicts,
+                "corrections": d.corrections, "extends": d.extends,
+            },
+            ensure_ascii=False, indent=2,
+        ))
+        return
+    click.echo(f"{d.id}@{d.version} · {d.kind} · {d.origin}")
+    if d.summary:
+        click.echo(d.summary.strip())
+    if d.source_path:
+        click.echo(f"source: {d.source_path}")
+    if d.governs:
+        click.echo(f"governs: {', '.join(d.governs)}")
+    if d.slots:
+        click.echo("\nslots (the unit of ownership in composition):")
+        for s in d.slots:
+            click.echo(f"  - {s.id}" + ("" if s.owns else " (owns: false)"))
+    if d.gates:
+        click.echo("\ngates (enforced block when this discipline owns the slot; "
+                   "attested record, never block):")
+        for g in d.gates:
+            click.echo(f"  - {g.id} @ {g.slot} · {g.kind} · {_check_display(g.check)}")
+    if d.checks:
+        click.echo("\nchecks (advisory rubric — labeled, never blocking):")
+        for entry in d.checks:
+            if "check" in entry:
+                click.echo(f"  - check {entry['check']}")
+            else:
+                name = entry.get("id")
+                prefix = f"{name} · " if name else ""
+                click.echo(f"  - {prefix}{_check_display(entry)}")
+    if d.vocabulary:
+        click.echo("\nvocabulary:")
+        for term in sorted(d.vocabulary):
+            click.echo(f"  - {term}: {d.vocabulary[term]}")
+    if d.depends_on:
+        click.echo(f"\ndepends on (absent partner is a doctor WARN, never a "
+                   f"conflict): {', '.join(d.depends_on)}")
+    if d.conflicts:
+        click.echo("\nconflicts (the manifest resolves; never silently merged):")
+        for c in d.conflicts:
+            click.echo(f"  - with {c.get('with', '?')} on slot '{c.get('slot', '?')}'")
+    if d.corrections:
+        click.echo("\ncorrections policy (carried with the discipline; not yet "
+                   "enforced): " + ", ".join(f"{k}={v}" for k, v in d.corrections.items()))
+    problems = disciplines_mod.validate_discipline(d)
+    if problems:
+        click.echo("\nproblems (doctor reports these as bad-discipline):")
+        for p in problems:
+            click.echo(f"  - {p}")
+
+
+@discipline.command("new")
+@click.argument("disc_id", metavar="ID")
+@click.option("--force", is_flag=True, help="Overwrite an existing scaffold at that path.")
+def discipline_new(disc_id: str, force: bool) -> None:
+    """Scaffold $FLIP_HOME/disciplines/<id>.toml from a commented template.
+
+    The template is the documentation: every key is explained in place,
+    including the versioning rule (authored disciplines start at 0.1; 1.x is
+    reserved for enforcement flip itself guarantees). Edit it, then
+    `flip discipline show <id>` to check the result.
+    """
+    path = disciplines_mod.scaffold_discipline(disc_id, force=force)
+    click.echo(str(path))
+    click.echo(f"edit it, then `flip discipline show {disc_id}`")
 
 
 # ---------------------------------------------------------------- forecast

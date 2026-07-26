@@ -83,6 +83,11 @@ class Kind:
     contract: list[ContractRequirement] = field(default_factory=list)
     workflow: list[dict] | None = None
     versioning: dict | None = None
+    # Slot requirements (design-composition-0.14.md, ship item 4): "genres
+    # require slots, not disciplines" — [{slot, default}] entries. Engages only
+    # when the notebook declares disciplines (doctor: slot-unfilled); otherwise
+    # the default is informational.
+    requires: list[dict] = field(default_factory=list)
     raw: dict = field(default_factory=dict)  # the full parsed TOML
 
 
@@ -161,6 +166,7 @@ def _kind_from_toml(text: str, source_path: Path | None, origin: str) -> Kind:
         contract=requires,
         workflow=workflow,
         versioning=data.get("versioning"),
+        requires=[dict(e) for e in data.get("requires", []) if isinstance(e, dict)],
         raw=data,
     )
 
@@ -461,6 +467,12 @@ prospective  = false                  # true only if this can never be
 # "editions".
 # [versioning]
 # mode = "one-shot"
+
+# Optional: slots a declared discipline must own for this kind — "genres
+# require slots, not disciplines". Engages only when the notebook declares
+# `disciplines:` in its manifest (doctor: slot-unfilled, naming the default
+# as the fix); otherwise informational. Delete if none.
+# requires = [{{slot = "screening", default = "systematic-screening@0.1"}}]
 '''
 
 

@@ -1,0 +1,57 @@
+# lineage — what flip has always enforced, now self-described. Version 1.x
+# because every check below is doctor's own, release-tested enforcement
+# (the versioning policy: 1.x = flip-guaranteed; 0.x = still earning it).
+# A worked example to fork: one file is a complete discipline.
+
+id      = "lineage"
+version = "1.0"
+kind    = "regime"
+aka     = ["custody", "chain of custody", "provenance discipline"]
+summary = """
+Work held to lineage can show where every byte came from and why every
+claim is trusted: sources are captured with hashes and logged custody,
+judged through a support tuple (grades derived, never authored), and a
+claim only counts as verified when independent sources — or a recorded
+adversarial check — actually back it.
+"""
+governs = ["sources", "claims"]
+
+[[slot]]
+id = "custody"          # bytes hashed at capture; every acquisition logged
+[[slot]]
+id = "grading"          # the support tuple; letter grades derived from it
+[[slot]]
+id = "corroboration"    # the bar: independent sources, grade-A, or a recorded check
+[[slot]]
+id = "release"          # open provenance chains block done/published
+
+[[gate]]
+id    = "verified-bar"
+slot  = "corroboration"
+kind  = "enforced"
+check = "under-verified"        # an existing doctor check, by its code
+
+[[gate]]
+id    = "closed-chains"
+slot  = "release"
+kind  = "enforced"
+check = "provenance-open"
+
+# Advisory rubric: everything lineage watches without blocking.
+[[check]]
+check = "corroboration-drift"
+[[check]]
+check = "seeded-grade"
+[[check]]
+check = "grade-drift"
+[[check]]
+check = "unaudited-claim"
+[[check]]
+check = "enum-without-evidence"
+[[check]]
+check = "unlogged-capture"
+[[check]]
+check = "orphan-provenance"
+
+[vocabulary]
+"lineage:verified" = "cleared the corroboration bar: independent sources, a grade-A primary, or a recorded adversarial/recomputation check"

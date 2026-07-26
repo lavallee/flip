@@ -1,0 +1,46 @@
+# systematic-screening — the first *authored* discipline: the standard the
+# lit-review kind's contract implies, extracted into a declarable regime.
+# Version 0.x by policy: authored content still earning its stability
+# (1.x is reserved for enforcement flip itself guarantees).
+# A worked example to fork — this is the shape your own standard takes.
+
+id      = "systematic-screening"
+version = "0.1"
+kind    = "regime"
+aka     = ["screening", "inclusion screening"]
+summary = """
+A corpus held to systematic screening can show why every source is in and
+what was turned away: each source that advances records an include/exclude
+decision made against stated criteria, so the finished review defends its
+denominator — not just its conclusion.
+"""
+governs = ["sources"]
+
+[[slot]]
+id   = "screening"
+owns = true
+
+# The gate: a source counted by a screening contract carries a typed
+# decision. A field predicate (decision C-C, Form B) — class + dotted
+# field + one of three tests; no expression language.
+[[gate]]
+id   = "typed-screening-decision"
+slot = "screening"
+kind = "enforced"
+[gate.check]
+class    = "references"
+field    = "screening.decision"
+requires = "one_of"
+one_of   = ["include", "exclude"]
+message  = "a screened corpus records include/exclude with a typed reason on every advanced source"
+
+# Advisory: the decision should name the criterion it was made against.
+[[check]]
+id       = "screening-criterion-stated"
+class    = "references"
+field    = "screening.criterion"
+requires = "present"
+message  = "each screening decision names the criterion it was made against"
+
+[vocabulary]
+"systematic-screening:screened" = "carries a typed include/exclude decision made against stated criteria"

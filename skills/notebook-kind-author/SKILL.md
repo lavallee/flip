@@ -60,6 +60,34 @@ Ship it to the team however files travel — the kind is one file (or a
 together once: if the tiers surprise them, the `prospective` flags are
 wrong, and fixing those now is cheap.
 
+## Authoring a discipline
+
+Sometimes the interview surfaces a *standard*, not an output: "any source
+that counts must have been screened," "peer review gets recorded, not
+trusted." That's a **discipline** — kind = what you're making; discipline =
+the standard it's held to. Same interview philosophy: their standard made
+checkable, not your opinion of their field.
+
+```bash
+flip discipline new <id>    # scaffold at $FLIP_HOME/disciplines/<id>.toml
+# ...fill it, then:
+flip discipline show <id>   # read back the parsed shape — this is the review
+```
+
+Map their answers to: `[[slot]]` (the policy areas the standard owns —
+reuse existing slot names so genuine collisions collide), `[[gate]]` (the
+bars — `enforced` when flip should block, `attested` when a third party
+already ran the verification and flip only records it), `[[check]]` (the
+advisory rubric). A check is either an existing doctor code or a simple
+field predicate (`class` + `field` + present/absent/one_of) — when their
+rule needs more than that, keep it in prose and say so; never fake it.
+
+Start the version at `0.1` — 0.x marks authored content still earning its
+stability; 1.x is reserved for enforcement flip itself guarantees. Notebooks
+adopt it by declaring the pin in the manifest (`disciplines:
+[<id>@0.1]`); `flip discipline show <id>` flags problems doctor would
+report as bad-discipline.
+
 Never: invent requirements the expert didn't state; write a requirement
 without `assembled_by`; mark something prospective to seem rigorous. The
 kind is their standard made checkable — not your opinion of their field.

@@ -135,7 +135,7 @@ plugin reads the handle table, audits the shared space, and open-by-id
 suggests every bound notebook's entities as `recipes:A3`. The walkthrough
 is [docs/obsidian.md](docs/obsidian.md).
 
-Status: spec draft v0.13 — notebooks are native OKF v0.2 bundles. The CLI
+Status: spec draft v0.14 — notebooks are native OKF v0.2 bundles. The CLI
 covers the full surface (`cli`, `new`, `add-source`, `grade`, `log`, `decide`,
 `pass`, `question` (incl. `repose`), `claim` (incl. `verify` / `source add`),
 `session`, `show`, `open`, `resolve`, `rename`, `doctor`, `index`, `migrate`,

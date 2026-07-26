@@ -40,8 +40,8 @@ SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 KNOWN_KEYS = (
     "okf_version", "flip", "slug", "uid", "title", "kind", "status", "created",
     "updated", "host", "origin", "visibility", "renders_public",
-    "source_trail_public", "citation_rule", "links", "relations", "consumers",
-    "tools",
+    "source_trail_public", "citation_rule", "disciplines", "discipline_resolve",
+    "links", "relations", "consumers", "tools",
 )
 
 DEFAULT_POLICY = {
@@ -67,6 +67,13 @@ class Manifest:
     renders_public: bool = DEFAULT_POLICY["renders_public"]
     source_trail_public: bool = DEFAULT_POLICY["source_trail_public"]
     citation_rule: str = DEFAULT_POLICY["citation_rule"]
+    # Declared discipline pins ("lineage@1", "systematic-screening@0.1") and
+    # slot-conflict resolutions ({slot: discipline-id}) — stored as-is; doctor
+    # resolves and judges them (design-composition-0.14.md). An absent
+    # `disciplines:` key is the dormant default: implicitly lineage
+    # (+forecasting iff forecasts/ exists), zero new ceremony.
+    disciplines: list = field(default_factory=list)
+    discipline_resolve: dict = field(default_factory=dict)
     links: dict = field(default_factory=dict)
     relations: list = field(default_factory=list)
     consumers: list = field(default_factory=list)
@@ -128,8 +135,8 @@ def load_manifest(root: Path) -> Manifest:
     # {a: map}, …) are never silently dropped: the typed field keeps its
     # default and the hand-authored value rides along in extras, re-emitted
     # verbatim under its own name on save (SPEC §6.6).
-    for key, want in (("links", dict), ("tools", dict),
-                      ("relations", list), ("consumers", list)):
+    for key, want in (("links", dict), ("tools", dict), ("discipline_resolve", dict),
+                      ("relations", list), ("consumers", list), ("disciplines", list)):
         value = fm.get(key)
         if isinstance(value, want):
             setattr(m, key, value)
@@ -156,7 +163,9 @@ def manifest_frontmatter(m: Manifest) -> dict:
     fm["renders_public"] = m.renders_public
     fm["source_trail_public"] = m.source_trail_public
     fm["citation_rule"] = m.citation_rule
-    for key, value in (("links", m.links), ("relations", m.relations),
+    for key, value in (("disciplines", m.disciplines),
+                       ("discipline_resolve", m.discipline_resolve),
+                       ("links", m.links), ("relations", m.relations),
                        ("consumers", m.consumers), ("tools", m.tools)):
         if value:
             fm[key] = value

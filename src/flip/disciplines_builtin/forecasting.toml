@@ -1,0 +1,55 @@
+# forecasting — the forward half of the two-object rule, self-described.
+# Version 1.x because every check below is doctor's own, release-tested
+# enforcement (1.x = flip-guaranteed; 0.x = still earning it).
+# A worked example to fork: one file is a complete discipline.
+
+id      = "forecasting"
+version = "1.0"
+kind    = "regime"
+aka     = ["forecast discipline", "calibration"]
+summary = """
+Work held to forecasting keeps bets and verdicts apart and keeps every bet
+scoreable: probabilities live only on dated forecasts (never on claims,
+never on decision clusters), every open forecast says when it resolves and
+when its question stops being askable, and resolutions land as a running
+record a reader can score the desk by.
+"""
+governs = ["forecasts"]
+
+[[slot]]
+id = "resolution"       # dated, annullable, resolved on its surface
+[[slot]]
+id = "calibration"      # the scoring record: prior · posterior · shift
+[[slot]]
+id = "two-object"       # claims are verified, forecasts are scored — never merged
+
+[[gate]]
+id    = "claims-are-not-bets"
+slot  = "two-object"
+kind  = "enforced"
+check = "two-object"            # an existing doctor check, by its code
+
+[[gate]]
+id    = "dated-or-nothing"
+slot  = "resolution"
+kind  = "enforced"
+check = "undated-forecast"
+
+[[gate]]
+id    = "annulment-stated"
+slot  = "resolution"
+kind  = "enforced"
+check = "missing-annul-if"
+
+# Advisory rubric: what forecasting watches without blocking.
+[[check]]
+check = "overdue-forecast"
+[[check]]
+check = "dangling-bears-on"
+[[check]]
+check = "scored-cluster"
+[[check]]
+check = "impure-inference-link"
+
+[vocabulary]
+"forecasting:scored" = "resolved on its stated surface by its stated date; the scoring row is in the running record"
