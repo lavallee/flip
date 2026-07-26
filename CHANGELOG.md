@@ -6,6 +6,29 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-07-26
+
+### Added
+- **Disciplines: declared standards with slot composition.** A discipline
+  is what a notebook is *held to* — one TOML (built-in, $FLIP_HOME, or
+  notebook-local) declaring the slots it owns, enforced vs attested
+  gates, advisory checks (doctor check codes or simple field predicates —
+  deliberately no expression language), namespaced vocabulary, graceful
+  depends_on, and declared conflicts the manifest must resolve.
+  Composition: gates partition by slot (the owner blocks); rubrics union
+  (non-owners emit labeled advisory findings). Three batteries-included
+  built-ins: `lineage@1.0` and `forecasting@1.0` (self-descriptions of
+  enforcement flip already guarantees) and `systematic-screening@0.1`
+  (the first authored regime, exercised by a real notebook). Versioning
+  policy: 1.x = flip-guaranteed, 0.x = authored-and-earning-it; pins
+  never move silently. Kinds may require slots
+  (`requires = [{slot, default}]`); lit-review requires `screening`.
+  Fully dormant: an undeclared manifest behaves byte-identically to
+  0.13 — proven by test. `flip discipline list|show|new`; exports carry
+  the declaration, so the identity of the *standard* travels with the
+  bundle. Beats are untouched and stay what they are: a loose topic /
+  multi-notebook grouping, not a standard.
+
 ## [0.13.1] — 2026-07-26
 
 ### Changed

@@ -493,6 +493,12 @@ def export_json(root: Path, include_private: bool = False, render_version: int =
         "sessions": sessions,
         "log_tail": log_tail,
     }
+    # Declared discipline pins travel with the render (flip-render/2 only —
+    # version 1 stays byte-stable): the identity of the *standard*, not just
+    # the author, rides with the bundle. Absent when nothing is declared —
+    # the implicit set is self-description, not an advertised standard.
+    if render_version >= 2 and m.disciplines:
+        out["notebook"]["disciplines"] = [str(p) for p in m.disciplines]
     if forecasts is not None:
         out["forecasts"] = forecasts
     if render_version >= 2:

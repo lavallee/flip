@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.13 · 2026-07-25
+**Status:** draft v0.14 · 2026-07-25
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -353,6 +353,55 @@ Extension vocabulary summary — flip's frontmatter keys beyond OKF v0.2's
 (claim and question statuses, notebook lifecycle) extend OKF §5.4's
 advisory `draft|stable|deprecated` values. OKF consumers must preserve and
 may ignore all of them.
+
+
+### Disciplines — declared standards, slot composition (v0.14)
+
+A **discipline** is a named, versioned policy standard — what a notebook
+is *held to*, distinct from its kind (what it's *making*) and its beat (a
+loose topic / multi-notebook bundle; beats and disciplines are different
+things and do not converge). One TOML per discipline — built-in,
+`$FLIP_HOME/disciplines/`, or notebook-local; single-file or directory
+form — declaring: `kind` (`regime|overlay|frame|frame-regime`), the
+classes it `governs`, the **slots** it owns (named policy areas — open
+strings, with the registry below as shared vocabulary), `gates`
+(`enforced` block; `attested` record a third party's already-run
+verification and never block), advisory `checks`, namespaced
+`vocabulary`, graceful `depends_on`, and declared `conflicts` that the
+manifest must resolve (`[discipline_resolve]`) — never silently merged.
+A check is a doctor check code (the stable registry every finding
+already prints) or a simple field predicate
+(`{class, field, requires: present|absent|one_of}`); there is
+deliberately no expression language.
+
+**Composition**: partition the gates by slot — one owner per slot per
+notebook, the owner blocks; union the rubrics — every declared
+discipline's checks run, non-owners emitting labeled advisory findings,
+never silently discarded. Substrate policies compose strictest-wins;
+epistemic policies are never auto-merged. **Dormancy**: a manifest with
+no `disciplines:` key behaves exactly as before — implicitly
+`["lineage@1"]` (plus `"forecasting@1"` when forecasts/ exists) with no
+new findings; the machinery wakes only on explicit declaration.
+
+**Versioning**: `MAJOR.MINOR`. `1.x` is reserved for self-descriptions
+of enforcement flip itself guarantees (`lineage@1.0`,
+`forecasting@1.0`); `0.x` marks authored disciplines still earning
+stability (`systematic-screening@0.1`, and everything domain experts
+write via `flip discipline new`). Pins: `id@MAJOR` takes the highest
+available minor; `id@MAJOR.MINOR` is exact; a newer minor than an exact
+pin is a visible WARN — the standard never moves silently. Exports carry
+the declaration: the identity of the *standard* travels with the bundle.
+
+**Starter slot registry** (open — shared names, not a closed enum):
+`custody` · `grading` · `corroboration` · `release` · `staleness` ·
+`resolution` · `calibration` · `two-object` · `screening` ·
+`sourcing.tier` · `evidence_standing` · `citation_role` ·
+`corrections.trigger` · `attribution` · `disclosure`.
+
+Kinds may `require` slots (`requires = [{slot, default}]`) — a kind
+names the policy *area* its output needs filled, never a specific
+discipline; the default is a suggestion, informational until the
+notebook declares disciplines.
 
 ## 7. Claims and forecasts — the two-object rule
 

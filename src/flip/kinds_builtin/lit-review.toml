@@ -13,6 +13,11 @@ do we know we didn't just pick our friends?" A finished review can show its
 search, its screening, and its extraction — not just its conclusion.
 """
 
+# Genres require slots, not disciplines: a lit review needs *some* declared
+# discipline to own screening; the default names the shipped one. Engages
+# only when the manifest declares `disciplines:` — informational otherwise.
+requires = [{slot = "screening", default = "systematic-screening@0.1"}]
+
 [defaults]
 freshness_months = 6
 

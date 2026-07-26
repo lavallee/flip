@@ -86,6 +86,44 @@ CLOSED_STATUSES = ("done", "published", "archived")
 _LINK_RE = re.compile(r"\]\(([^)\s]+)")
 _SCHEME_RE = re.compile(r"^[a-z][a-z0-9+.-]*:")
 
+# The check registry (design-composition-0.14.md, ship item 3): every finding
+# code doctor can emit, promoted to a stable, documented API. Discipline files
+# reference these codes in gates/checks (Form A), and disciplines.py validates
+# against this set — a gate referencing a code not listed here is ERROR
+# bad-discipline. Maintained by hand; test_disciplines.py asserts every code
+# literal in this file is registered, so the two can't drift.
+CHECK_CODES: frozenset[str] = frozenset({
+    # manifest, profile, kind
+    "bad-manifest", "bad-status", "bad-visibility", "missing-uid",
+    "unknown-kind", "missing-required", "policy-mismatch", "missing-section",
+    "missing-notebook", "kind-gap",
+    # beat link
+    "broken-beat-link", "deprecated-ref-separator",
+    # OKF conformance, ids, links, ledgers
+    "bad-jsonl", "bad-frontmatter", "missing-type", "reserved-frontmatter",
+    "duplicate-id", "missing-id", "bad-id", "wrong-prefix", "missing-alias",
+    "dangling-citation",
+    # sources: custody, judgment, freshness
+    "orphan-custody", "unlogged-capture", "bad-enum", "pre-08-vocabulary",
+    "enum-without-evidence", "seeded-grade", "grade-drift",
+    "orphan-provenance", "stale-freshness", "unregistered-raw",
+    # claims
+    "two-object", "pre-okf02-layout", "corroboration-drift", "under-verified",
+    "unaudited-claim", "provenance-open",
+    # forecasts & clusters
+    "undated-forecast", "missing-annul-if", "overdue-forecast", "untyped-ref",
+    "dangling-bears-on", "scored-cluster", "dangling-proxy",
+    "impure-inference-link", "dangling-inference-link",
+    # workspace mode
+    "bad-workspace-file", "handle-syntax", "dangling-workspace-entry",
+    "unregistered-notebook", "duplicate-uid", "stale-alias", "ambiguous-id",
+    "cross-notebook-drift", "slug-collision",
+    # disciplines & slot composition (0.14)
+    "unknown-discipline", "discipline-moved", "bad-discipline",
+    "unresolved-slot", "discipline-dependency", "slot-name-mismatch",
+    "slot-unfilled",
+})
+
 
 @dataclass
 class Finding:
@@ -136,6 +174,7 @@ def run_doctor(root: Path) -> list[Finding]:
     _check_forecasts(root, by_dir, findings)
     _check_provenance_open(root, manifest, claim_pages, source_pages, findings)
     _check_kind_contract(root, manifest, findings)
+    _check_disciplines(root, manifest, findings)
     return findings
 
 
@@ -1306,3 +1345,241 @@ def _check_kind_contract(root: Path, manifest: Manifest | None, findings: list[F
             if closed
             else _warn("kind-gap", msg, ROOT_FILE, expected=True)
         )
+
+
+# --- disciplines & slot composition (design-composition-0.14.md) ----------------
+
+
+def _slot_norm(slot_id: str) -> str:
+    """Slot names normalized for the near-miss advisory: case and punctuation
+    stripped, so `sourcing.tier` / `sourcing-tier` / `SourcingTier` collide."""
+    return re.sub(r"[^a-z0-9]", "", slot_id.lower())
+
+
+def _dependency_met(dep: str, resolved: list) -> bool:
+    from . import disciplines as disc_mod
+
+    parsed = disc_mod.parse_pin(dep)
+    if parsed is None:  # a bare id: met when any resolved discipline carries it
+        return any(d.id == str(dep) for d in resolved)
+    dep_id, major, minor = parsed
+    return any(
+        d.id == dep_id and disc_mod.pick_version([d.version], major, minor) is not None
+        for d in resolved
+    )
+
+
+def _check_disciplines(root: Path, manifest: Manifest | None, findings: list[Finding]) -> None:
+    """Composition checks (design-composition-0.14.md): pin resolution, slot
+    ownership (one owner per slot; the manifest resolves declared conflicts),
+    graceful dependencies, the slot near-miss advisory, field-predicate gates
+    and checks, kind slot requirements, and owner labeling.
+
+    Dormancy (the anti-J2EE rule): a manifest with no `disciplines:` key is
+    implicitly lineage (+forecasting iff forecasts/ exists) — pure
+    self-description. In that mode this function adds NO findings and NO
+    labels: doctor output stays byte-identical to an undeclared notebook.
+    The machinery wakes only when someone declares.
+    """
+    if manifest is None:
+        return
+    from . import disciplines as disc_mod
+
+    declared_pins, declared = disc_mod.effective_pins(root, manifest.disciplines)
+    if not declared:
+        return
+
+    resolved: list[disc_mod.Discipline] = []
+    for pin in declared_pins:
+        d, reason = disc_mod.resolve_pin(pin, root)
+        if d is None:
+            findings.append(_error("unknown-discipline", reason, ROOT_FILE))
+            continue
+        parsed_pin = disc_mod.parse_pin(pin)
+        version = disc_mod.parse_version(d.version)
+        if (
+            parsed_pin is not None and parsed_pin[2] is not None
+            and version is not None and version > (parsed_pin[1], parsed_pin[2])
+        ):
+            findings.append(
+                _warn(
+                    "discipline-moved",
+                    f"pin '{pin}' is exact but {d.id}@{d.version} is available — "
+                    "the standard moved; review the newer minor and re-pin",
+                    ROOT_FILE,
+                )
+            )
+        for problem in disc_mod.validate_discipline(d):
+            findings.append(
+                _error("bad-discipline", f"discipline '{d.id}': {problem}", ROOT_FILE)
+            )
+        resolved.append(d)
+
+    declared_ids = {d.id for d in resolved}
+
+    # (b) Slot ownership: one owning discipline per slot per notebook; genuine
+    # collisions are resolved explicitly in [discipline_resolve], never merged.
+    owners_by_slot: dict[str, list] = {}
+    for d in resolved:
+        for slot in d.slots:
+            if slot.owns:
+                owners_by_slot.setdefault(slot.id, []).append(d)
+    resolve_table = {str(k): str(v) for k, v in (manifest.discipline_resolve or {}).items()}
+    for slot_id, chosen in sorted(resolve_table.items()):
+        if chosen not in declared_ids:
+            findings.append(
+                _error(
+                    "unresolved-slot",
+                    f"discipline_resolve names '{chosen}' for slot '{slot_id}' but "
+                    "that discipline is not declared; declare it in `disciplines:` "
+                    "or fix the resolution",
+                    ROOT_FILE,
+                )
+            )
+    slot_owner: dict[str, str] = {}
+    for slot_id, ds in sorted(owners_by_slot.items()):
+        if len(ds) == 1:
+            slot_owner[slot_id] = ds[0].id
+            continue
+        names = ", ".join(sorted(d.id for d in ds))
+        chosen = resolve_table.get(slot_id)
+        if not chosen:
+            findings.append(
+                _error(
+                    "unresolved-slot",
+                    f"disciplines {names} both own slot '{slot_id}' with no "
+                    f"[discipline_resolve] entry; add `discipline_resolve: "
+                    f"{{{slot_id}: <one of: {names}>}}` to the manifest — "
+                    "collisions are resolved explicitly, never silently merged",
+                    ROOT_FILE,
+                )
+            )
+        elif chosen not in {d.id for d in ds}:
+            if chosen in declared_ids:  # declared, but not an owner of this slot
+                findings.append(
+                    _error(
+                        "unresolved-slot",
+                        f"discipline_resolve names '{chosen}' for slot '{slot_id}' "
+                        f"but the disciplines owning it are {names}; pick one of those",
+                        ROOT_FILE,
+                    )
+                )
+        else:
+            slot_owner[slot_id] = chosen
+
+    # (c) depends_on: the graceful fourth relation — absent partner is a WARN,
+    # never a conflict.
+    for d in resolved:
+        for dep in d.depends_on:
+            if not _dependency_met(dep, resolved):
+                findings.append(
+                    _warn(
+                        "discipline-dependency",
+                        f"discipline '{d.id}' depends on '{dep}', which is not "
+                        "declared; composition degrades gracefully — declare it "
+                        "to restore the partnership",
+                        ROOT_FILE,
+                    )
+                )
+
+    # (d) Slot near-miss advisory: two declared disciplines whose slot names
+    # differ only by case/punctuation silently never collide — the likeliest
+    # silent-miss shape under open slot strings (decision C-B).
+    slot_names: dict[str, dict[str, set[str]]] = {}  # norm -> raw -> discipline ids
+    for d in resolved:
+        for slot in d.slots:
+            slot_names.setdefault(_slot_norm(slot.id), {}).setdefault(slot.id, set()).add(d.id)
+    for norm in sorted(slot_names):
+        raws = slot_names[norm]
+        if len(raws) < 2:
+            continue
+        listed = "; ".join(
+            f"'{raw}' ({', '.join(sorted(raws[raw]))})" for raw in sorted(raws)
+        )
+        findings.append(
+            _warn(
+                "slot-name-mismatch",
+                f"slot names differing only by case/punctuation never collide — "
+                f"probably the same policy area: {listed}; align on one spelling",
+                ROOT_FILE,
+            )
+        )
+
+    # (f) Field-predicate gates and checks (decision C-C, Form B), evaluated
+    # over the class's pages. Owner enforced gate -> ERROR; non-owner ->
+    # labeled advisory WARN; attested -> never errors, WARN-expected label
+    # only when the check fails (decision C-D: parse + reserve + label).
+    for d in resolved:
+        for gate in d.gates:
+            if not isinstance(gate.check, dict):
+                continue
+            message = str(gate.check.get("message") or "").strip()
+            code = gate.id or "discipline-gate"
+            owns = slot_owner.get(gate.slot) == d.id
+            for rel, detail in disc_mod.evaluate_predicate(root, gate.check):
+                body = f"{detail} — {message}" if message else detail
+                if gate.kind == "attested":
+                    findings.append(
+                        _warn(
+                            code,
+                            f"attested ({d.id}): recorded, not enforced — {body}",
+                            rel,
+                            expected=True,
+                        )
+                    )
+                elif owns:
+                    findings.append(_error(code, f"{body} ({d.id})", rel))
+                else:
+                    findings.append(_warn(code, f"advisory ({d.id}): {body}", rel))
+        for entry in d.checks:
+            if "check" in entry or "class" not in entry:
+                continue  # Form A codes run as doctor's own checks; labeled below
+            message = str(entry.get("message") or "").strip()
+            code = str(entry.get("id") or "discipline-check")
+            for rel, detail in disc_mod.evaluate_predicate(root, entry):
+                body = f"{detail} — {message}" if message else detail
+                findings.append(_warn(code, f"advisory ({d.id}): {body}", rel))
+
+    # Kind slot requirements (ship item 4): a kind's `requires` engages only
+    # when the notebook declares disciplines; otherwise it stays informational.
+    from . import kinds as kinds_mod
+
+    try:
+        kind = kinds_mod.load_kind(manifest.kind, root)
+    except (SystemExit, Exception):
+        kind = None
+    if kind is not None:
+        for req in kind.requires:
+            slot_id = str(req.get("slot") or "")
+            default = str(req.get("default") or "")
+            if not slot_id or slot_id in owners_by_slot:
+                continue
+            fix = (
+                f"declare '{default}' (the kind's default) in the manifest "
+                "`disciplines:` list, or another discipline owning it"
+                if default
+                else "declare a discipline owning it in the manifest `disciplines:` list"
+            )
+            findings.append(
+                _error(
+                    "slot-unfilled",
+                    f"kind '{kind.id}' requires slot '{slot_id}' but no declared "
+                    f"discipline owns it; {fix}",
+                    ROOT_FILE,
+                )
+            )
+
+    # (e) Owner labeling, post-processed after all checks: a finding whose
+    # code is claimed (gate or check) by exactly one resolved discipline gets
+    # the owner label appended — "the identity of the standard travels with
+    # the finding". Codes claimed by several disciplines stay unlabeled.
+    claimed: dict[str, set[str]] = {}
+    for d in resolved:
+        for code in d.claimed_codes():
+            claimed.setdefault(code, set()).add(d.id)
+    for f in findings:
+        owners = claimed.get(f.code)
+        if owners and len(owners) == 1:
+            owner = next(iter(owners))
+            if f"({owner})" not in f.message:
+                f.message = f"{f.message} ({owner})"

@@ -1,9 +1,9 @@
 {
   "contract": "flip-render/2",
-  "generated": "2026-07-26T13:06:04Z",
+  "generated": "2026-07-26T17:27:48Z",
   "source_trail_public": true,
   "notebook": {
-    "uid": "nb-hqz919xq",
+    "uid": "nb-vj59dz6k",
     "slug": "sourdough-rise",
     "title": "Does hydration change sourdough rise time?",
     "kind": "research-review",
@@ -26,7 +26,7 @@
       },
       "title": "ridgeway-club-trial.md",
       "canonical_url": "",
-      "captured_at": "2026-07-26T13:06:03Z",
+      "captured_at": "2026-07-26T17:27:46Z",
       "sha256": "23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40"
     },
     {
@@ -43,7 +43,7 @@
       },
       "title": "rise-times.csv",
       "canonical_url": "",
-      "captured_at": "2026-07-26T13:06:03Z",
+      "captured_at": "2026-07-26T17:27:47Z",
       "sha256": "d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c"
     }
   ],
@@ -85,10 +85,10 @@
   ],
   "sessions": [
     {
-      "id": "2026-07-26T1306-hydration-sweep",
+      "id": "2026-07-26T1727-hydration-sweep",
       "actor": "human:baker",
       "model": "claude-opus-5",
-      "started": "2026-07-26T13:06:03Z",
+      "started": "2026-07-26T17:27:46Z",
       "ended": "",
       "goal": ""
     }
