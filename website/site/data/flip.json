@@ -1,7 +1,7 @@
 {
-  "generated": "2026-07-26T17:27:48+00:00",
+  "generated": "2026-07-26T17:29:49+00:00",
   "version": "0.14.0",
-  "revision": "93c2455",
+  "revision": "3be46b2",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",

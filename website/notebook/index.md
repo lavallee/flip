@@ -8,6 +8,8 @@ kind: ledger
 status: active
 created: '2026-07-25'
 updated: '2026-07-26'
+disciplines:
+- lineage@1
 visibility: public
 renders_public: true
 source_trail_public: true
