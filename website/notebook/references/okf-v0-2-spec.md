@@ -19,6 +19,7 @@ support:
   method: Google's published OKF v0.2 spec, captured from the knowledge-catalog repo main
     branch
   vintage: 2026-07
+last_checked: '2026-07-28T13:44:29Z'
 ---
 
 # raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/main/okf/SPEC.md

@@ -7,13 +7,13 @@ title: flip site — claims and their sources
 kind: ledger
 status: active
 created: '2026-07-25'
-updated: '2026-07-26'
-disciplines:
-- lineage@1
+updated: '2026-07-28'
 visibility: public
 renders_public: true
 source_trail_public: true
 citation_rule: public-terminus
+disciplines:
+- lineage@1
 ---
 
 # flip site — claims and their sources
