@@ -69,7 +69,7 @@ def write_user_discipline(tmp_path: Path, name: str, text: str) -> Path:
 def test_list_disciplines_includes_three_builtins():
     rows = {d.id: d for d in disciplines.list_disciplines()}
     assert rows["lineage"].origin == "built-in"
-    assert rows["lineage"].version == "1.0"
+    assert rows["lineage"].version == "1.1"
     assert rows["forecasting"].version == "1.0"
     assert rows["systematic-screening"].version == "0.1"
     for d in rows.values():
@@ -170,7 +170,7 @@ def test_pick_version_exact_takes_its_minor_or_newer():
 def test_resolve_pin_success_and_failures():
     d, reason = disciplines.resolve_pin("lineage@1")
     assert d is not None and reason is None
-    assert d.version == "1.0"
+    assert d.version == "1.1"
     d, reason = disciplines.resolve_pin("no-such@1")
     assert d is None and "no known discipline" in reason
     d, reason = disciplines.resolve_pin("lineage@2")
@@ -202,8 +202,7 @@ def test_lineage_shape():
     assert d.governs == ["sources", "claims"]
     assert {e["check"] for e in d.checks} == {
         "corroboration-drift", "seeded-grade", "grade-drift", "unaudited-claim",
-        "enum-without-evidence", "unlogged-capture", "orphan-provenance",
-    }
+        "enum-without-evidence", "unlogged-capture", "orphan-provenance", "source-drift", "drifted-evidence"}
 
 
 def test_forecasting_shape():
@@ -656,7 +655,7 @@ def test_export_okf_manifest_passthrough_carries_disciplines(tmp_path):
 def test_cli_discipline_list_shows_pins_kind_origin_and_aka():
     result = invoke(["discipline", "list"])
     assert result.exit_code == 0, result.output
-    assert "lineage@1.0" in result.output
+    assert "lineage@1.1" in result.output
     assert "forecasting@1.0" in result.output
     assert "systematic-screening@0.1" in result.output
     assert "regime" in result.output
@@ -668,14 +667,14 @@ def test_cli_discipline_list_json():
     result = invoke(["discipline", "list", "--json"])
     assert result.exit_code == 0, result.output
     rows = {r["id"]: r for r in json.loads(result.output)}
-    assert rows["lineage"]["version"] == "1.0"
+    assert rows["lineage"]["version"] == "1.1"
     assert rows["systematic-screening"]["aka"] == ["screening", "inclusion screening"]
 
 
 def test_cli_discipline_show_prints_slots_gates_checks():
     result = invoke(["discipline", "show", "lineage"])
     assert result.exit_code == 0, result.output
-    assert "lineage@1.0 · regime · built-in" in result.output
+    assert "lineage@1.1 · regime · built-in" in result.output
     assert "corroboration" in result.output
     assert "verified-bar @ corroboration · enforced · check under-verified" in result.output
     assert "check corroboration-drift" in result.output

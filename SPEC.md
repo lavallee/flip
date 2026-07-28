@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.14 · 2026-07-25
+**Status:** draft v0.15 · 2026-07-25
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -306,6 +306,17 @@ seeds as expected-until-touched).
   name the closest public derivative, never silently promote it)
   `· PRIMARY-EXISTS-PRIVATE · PRIMARY-OPEN` (legal mid-pass; doctor refuses
   done/published while a load-bearing claim rests on one).
+
+**The refresh receipt** (`flip source recheck <id>`): a page timestamp
+says the page changed; `last_checked` says the world was checked.
+Recheck re-fetches the canonical coordinate into a temp area (custody is
+never overwritten), hash-compares against the capture ledger, appends a
+`recheck` event ({result: unchanged|changed|gone, sha256_now,
+sha256_captured}), and on drift sets `drifted:` — doctor warns on the
+source (`source-drift`) and on load-bearing claims resting on it
+(`drifted-evidence`). A drift worth keeping is a fresh capture; an
+unchanged recheck clears the flag. Cached synthesis without a checked-at
+receipt is a claim about the past wearing present tense.
 
 **Claim credibility** lives on the claim (§7). LLM and retrieval-service
 outputs are `synthesis`-basis intermediaries; under `citation_rule:

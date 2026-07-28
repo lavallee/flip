@@ -4,7 +4,7 @@
 # A worked example to fork: one file is a complete discipline.
 
 id      = "lineage"
-version = "1.0"
+version = "1.1"   # 1.1: adds the refresh-receipt checks (source-drift, drifted-evidence)
 kind    = "regime"
 aka     = ["custody", "chain of custody", "provenance discipline"]
 summary = """
@@ -55,3 +55,9 @@ check = "orphan-provenance"
 
 [vocabulary]
 "lineage:verified" = "cleared the corroboration bar: independent sources, a grade-A primary, or a recorded adversarial/recomputation check"
+
+[[check]]
+check = "source-drift"
+
+[[check]]
+check = "drifted-evidence"

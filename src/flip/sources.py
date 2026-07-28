@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -28,6 +29,7 @@ from . import integrations, manifest, pages
 from .util import (
     append_jsonl,
     detect_actor,
+    read_jsonl,
     require_notebook_root,
     sha256_file,
     utc_now,
@@ -390,6 +392,77 @@ def set_pipeline(root: Path, source_id: str, pipeline: str, evidence: str) -> pa
     manifest.touch_updated(root)
     _regenerate_views(root)
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
+
+
+def recheck_source(root: Path, source_id: str, via: str | None = None) -> dict:
+    """Re-fetch a URL-backed source's canonical coordinate and compare it
+    against custody — the refresh receipt (SPEC §5.4).
+
+    A page timestamp says the page changed; `last_checked` says the world
+    was checked. The fetch lands in a temp directory — custody is never
+    overwritten (a drift worth keeping is a fresh `flip add-source`
+    capture). Appends a `recheck` event to the capture ledger
+    ({ts, source_id, url, event, result: unchanged|changed|gone,
+    sha256_now?, sha256_captured, actor}), stamps `last_checked`, and on
+    changed/gone sets `drifted:` — doctor warns on the source and on
+    load-bearing claims resting on it. Returns {result, url, sha256_now,
+    baseline}.
+    """
+    root = require_notebook_root(root)
+    page = _find_source_page(root, source_id)
+    url = str(page.fm.get("resource") or page.fm.get("url") or "").strip()
+    if not url:
+        raise SystemExit(
+            f"{source_id} has no URL coordinate (a copied local file); recheck applies "
+            "to URL-backed captures — re-add the file to record a fresh capture"
+        )
+    local = str(page.fm.get("local") or "")
+    baseline = None
+    for ev in read_jsonl(root / "sources" / "_provenance.jsonl"):
+        if str(ev.get("source_id")) == source_id and ev.get("sha256"):
+            if not local or str(ev.get("local_path") or "") == local:
+                baseline = str(ev["sha256"])
+    if baseline is None:
+        raise SystemExit(
+            f"{source_id} has no recorded fixity in the capture ledger; nothing to "
+            "compare against — capture it first with `flip add-source`"
+        )
+    kind = str(page.fm.get("kind") or "web")
+    resolved = integrations.resolve("fetchers", "web" if kind == "file" else kind, via=via)
+    result, sha_now, error = "gone", None, None
+    with tempfile.TemporaryDirectory() as td:
+        try:
+            run = integrations.run_capture(resolved, Path(td), source_id, url)
+            primary = [f for f in run.files if f.name != "flip.json"] or run.files
+            largest = max(primary, key=lambda p: p.stat().st_size)
+            sha_now = sha256_file(largest)
+            result = "unchanged" if sha_now == baseline else "changed"
+        except SystemExit as exc:
+            error = str(exc)
+    ts = utc_now()
+    event: dict = {
+        "ts": ts,
+        "source_id": source_id,
+        "url": url,
+        "event": "recheck",
+        "result": result,
+        "sha256_captured": baseline,
+    }
+    if sha_now:
+        event["sha256_now"] = sha_now
+    if error:
+        event["error"] = error
+    event["actor"] = detect_actor()
+    append_jsonl(root / "sources" / "_provenance.jsonl", event)
+    page.fm["last_checked"] = ts
+    if result in ("changed", "gone"):
+        page.fm["drifted"] = result
+    else:
+        page.fm.pop("drifted", None)
+    pages.write_page(page.path, page.fm, page.body)
+    manifest.touch_updated(root)
+    _regenerate_views(root)
+    return {"result": result, "url": url, "sha256_now": sha_now, "baseline": baseline}
 
 
 def set_provenance_state(

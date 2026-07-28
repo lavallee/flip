@@ -6,6 +6,19 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-07-28
+
+### Added
+- **The refresh receipt: `flip source recheck <id>`.** A page timestamp
+  says the page changed; `last_checked` says the world was checked.
+  Recheck re-fetches a URL-backed source's canonical coordinate into a
+  temp area — custody is never overwritten — hash-compares against the
+  capture ledger, and appends a recheck event (unchanged | changed |
+  gone). Drift sets `drifted:` on the page; doctor warns on the source
+  (`source-drift`) and on load-bearing claims resting on it
+  (`drifted-evidence`); an unchanged recheck clears the flag.
+  `lineage@1.1` claims the two new checks.
+
 ## [0.14.0] — 2026-07-26
 
 ### Added
