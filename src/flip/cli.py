@@ -533,6 +533,28 @@ def source_pipeline(source_id: str, pipeline: str, evidence: str) -> None:
     click.echo(f"{page.id} · pipeline {page.fm['pipeline']} · {page.fm['pipeline_evidence']}")
 
 
+@source.command("recheck")
+@click.argument("source_id", metavar="SOURCE_ID")
+@click.option("--via", default=None, metavar="FETCHER",
+              help="Named fetcher lane to use (defaults to the source's kind).")
+def source_recheck(source_id: str, via: str | None) -> None:
+    """Re-fetch a source's canonical URL and compare against custody.
+
+    The refresh receipt: `last_checked` says the world was checked, not
+    just that the page changed. Custody is never overwritten — unchanged
+    clears any drift flag; changed/gone set `drifted:` and doctor warns on
+    load-bearing claims resting on the source.
+    """
+    out = sources.recheck_source(require_notebook_root(), source_id, via=via)
+    line = f"{source_id} · {out['result']} · {out['url']}"
+    if out["result"] == "changed":
+        line += (f"\n  captured {out['baseline'][:12]}… now {out['sha256_now'][:12]}… — "
+                 "custody holds the cited bytes; re-add the source if the new version matters")
+    elif out["result"] == "gone":
+        line += "\n  fetch failed — the coordinate no longer serves; consider pipeline/provenance updates"
+    click.echo(line)
+
+
 @source.command("provenance")
 @click.argument("source_id", metavar="SOURCE_ID")
 @click.argument("state", type=click.Choice(sources.PROVENANCE_STATES))

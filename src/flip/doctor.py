@@ -107,6 +107,7 @@ CHECK_CODES: frozenset[str] = frozenset({
     "orphan-custody", "unlogged-capture", "bad-enum", "pre-08-vocabulary",
     "enum-without-evidence", "seeded-grade", "grade-drift",
     "orphan-provenance", "stale-freshness", "unregistered-raw",
+    "source-drift", "drifted-evidence",
     # claims
     "two-object", "pre-okf02-layout", "corroboration-drift", "under-verified",
     "unaudited-claim", "provenance-open",
@@ -930,6 +931,20 @@ def _check_sources(
                     rel,
                 )
             )
+        drifted = page.fm.get("drifted")
+        if drifted:
+            findings.append(
+                _warn(
+                    "source-drift",
+                    f"source {sid}: the upstream coordinate has "
+                    f"{'stopped serving' if drifted == 'gone' else 'changed'} since "
+                    f"capture (rechecked {page.fm.get('last_checked', '?')}); custody "
+                    "holds the cited bytes — re-capture with `flip add-source` if the "
+                    "new version matters, or clear the flag with a fresh "
+                    f"`flip source recheck {sid}` once resolved",
+                    rel,
+                )
+            )
         support = page.fm.get("support") if isinstance(page.fm.get("support"), dict) else {}
         if support.get("seeded") == "legacy-grade":
             findings.append(
@@ -1083,6 +1098,20 @@ def _check_claims(
             )
         if not page.fm.get("load_bearing"):
             continue
+        drifted_cited = sorted(
+            s for s in dict.fromkeys(claim_sources)
+            if s in by_id and by_id[s].get("drifted")
+        )
+        if drifted_cited:
+            findings.append(
+                _warn(
+                    "drifted-evidence",
+                    f"load-bearing claim {cid} rests on {', '.join(drifted_cited)} whose "
+                    "upstream has drifted since capture; the cited bytes are custodied, "
+                    "but review whether the claim survives the current version",
+                    rel,
+                )
+            )
         if status == "verified" and profile is not None:
             # Recompute the bar with the shared helper (claims.corroboration_count:
             # deduped ids, judged + original only); never trust the stored count.

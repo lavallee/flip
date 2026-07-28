@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-26T17:29:49+00:00",
+  "generated": "2026-07-28T13:43:17+00:00",
   "notebook": {
     "slug": "sourdough-rise",
     "title": "Does hydration change sourdough rise time?",
@@ -18,7 +18,7 @@
       "commands": [
         "flip new sourdough-rise --kind research-review --title 'Does hydration change sourdough rise time?'"
       ],
-      "stdout": "created research-review notebook 'sourdough-rise' at /tmp/flip-site-pnz424pk/sourdough-rise\nnext: cd /tmp/flip-site-pnz424pk/sourdough-rise && flip log \"started\" \u2014 see `flip --help` for the toolkit",
+      "stdout": "created research-review notebook 'sourdough-rise' at /tmp/flip-site-tfvpy04n/sourdough-rise\nnext: cd /tmp/flip-site-tfvpy04n/sourdough-rise && flip log \"started\" \u2014 see `flip --help` for the toolkit",
       "exit_code": 0,
       "refused": false,
       "tree": [
@@ -35,7 +35,7 @@
         "path": "index.md",
         "lang": "markdown",
         "caption": "index.md \u2014 the manifest lives in the root frontmatter, where any OKF consumer already looks.",
-        "text": "---\nokf_version: '0.2'\nflip: '0.8'\nslug: sourdough-rise\nuid: nb-s75js1bv\ntitle: Does hydration change sourdough rise time?\nkind: research-review\nstatus: active\ncreated: '2026-07-26'\nupdated: '2026-07-26'\nvisibility: internal\nrenders_public: false\nsource_trail_public: false\ncitation_rule: public-terminus\n---\n\n# Does hydration change sourdough rise time?"
+        "text": "---\nokf_version: '0.2'\nflip: '0.8'\nslug: sourdough-rise\nuid: nb-r4kjj2tf\ntitle: Does hydration change sourdough rise time?\nkind: research-review\nstatus: active\ncreated: '2026-07-28'\nupdated: '2026-07-28'\nvisibility: internal\nrenders_public: false\nsource_trail_public: false\ncitation_rule: public-terminus\n---\n\n# Does hydration change sourdough rise time?"
       }
     },
     {
@@ -50,7 +50,7 @@
       "commands": [
         "flip session start hydration-sweep --model claude-opus-5 --tools flip --tools python"
       ],
-      "stdout": "/tmp/flip-site-pnz424pk/sourdough-rise/sessions/2026-07-26T1729-hydration-sweep.md",
+      "stdout": "/tmp/flip-site-tfvpy04n/sourdough-rise/sessions/2026-07-28T1343-hydration-sweep.md",
       "exit_code": 0,
       "refused": false,
       "tree": [
@@ -63,7 +63,7 @@
           "state": "same"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "added"
         },
         {
@@ -74,8 +74,8 @@
       "record": {
         "lang": "markdown",
         "caption": "sessions/ \u2014 one page per episode, stamped in UTC. Synthesis recorded here is a lead, grade C, until promoted through references/.",
-        "text": "---\ntype: Work Session\ngenerated:\n  by: human:baker\n  at: '2026-07-26T17:29:48Z'\nmodel: claude-opus-5\ntools:\n- flip\n- python\nstarted: '2026-07-26T17:29:48Z'\n---\n\n## Goal\n\n## Prompt\n\n## Key outputs\n\n## Transcript",
-        "path": "sessions/2026-07-26T1729-hydration-sweep.md"
+        "text": "---\ntype: Work Session\ngenerated:\n  by: human:baker\n  at: '2026-07-28T13:43:15Z'\nmodel: claude-opus-5\ntools:\n- flip\n- python\nstarted: '2026-07-28T13:43:15Z'\n---\n\n## Goal\n\n## Prompt\n\n## Key outputs\n\n## Transcript",
+        "path": "sessions/2026-07-28T1343-hydration-sweep.md"
       }
     },
     {
@@ -115,7 +115,7 @@
           "state": "added"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "same"
         },
         {
@@ -126,7 +126,7 @@
       "record": {
         "lang": "markdown",
         "caption": "The filename is a human slug; the immutable id Q1 lives in frontmatter.",
-        "text": "---\ntype: Question\nid: Q1\naliases:\n- Q1\ndescription: Does higher hydration shorten the time to double?\nstatus: open\ngenerated:\n  by: human:baker\n  at: '2026-07-26T17:29:48Z'\n---\n\nDoes higher hydration shorten the time to double?",
+        "text": "---\ntype: Question\nid: Q1\naliases:\n- Q1\ndescription: Does higher hydration shorten the time to double?\nstatus: open\ngenerated:\n  by: human:baker\n  at: '2026-07-28T13:43:15Z'\n---\n\nDoes higher hydration shorten the time to double?",
         "path": "questions/does-higher-hydration-shorten-the-time-to-double.md"
       }
     },
@@ -175,7 +175,7 @@
           "state": "added"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "same"
         },
         {
@@ -195,7 +195,7 @@
         "path": "sources/_provenance.jsonl",
         "lang": "json",
         "caption": "sources/_provenance.jsonl \u2014 the fixity record, appended and never rewritten. Hash at capture, per file.",
-        "text": "{\n  \"ts\": \"2026-07-26T17:29:48Z\",\n  \"source_id\": \"F1\",\n  \"url\": \"file:///tmp/flip-site-pnz424pk/ridgeway-club-trial.md\",\n  \"local_path\": \"sources/raw/F1.md\",\n  \"sha256\": \"23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40\",\n  \"bytes\": 543,\n  \"tool\": \"builtin:copy\",\n  \"strategy\": \"copy\",\n  \"actor\": \"human:baker\",\n  \"note\": \"Independent club replication, 44 bakes\"\n}"
+        "text": "{\n  \"ts\": \"2026-07-28T13:43:15Z\",\n  \"source_id\": \"F1\",\n  \"url\": \"file:///tmp/flip-site-tfvpy04n/ridgeway-club-trial.md\",\n  \"local_path\": \"sources/raw/F1.md\",\n  \"sha256\": \"23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40\",\n  \"bytes\": 543,\n  \"tool\": \"builtin:copy\",\n  \"strategy\": \"copy\",\n  \"actor\": \"human:baker\",\n  \"note\": \"Independent club replication, 44 bakes\"\n}"
       }
     },
     {
@@ -243,7 +243,7 @@
           "state": "same"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "same"
         },
         {
@@ -262,7 +262,7 @@
       "record": {
         "lang": "markdown",
         "caption": "grade: '?' \u2014 captured, unjudged, and worth nothing to a claim.",
-        "text": "---\ntype: Source\nid: F1\naliases:\n- F1\ntitle: ridgeway-club-trial.md\ndescription: Independent club replication, 44 bakes\nlocal: sources/raw/F1.md\ngrade: '?'\nstatus: captured\ngenerated:\n  by: human:baker\n  at: '2026-07-26T17:29:48Z'\n---\n\n# ridgeway-club-trial.md\n\nIndependent club replication, 44 bakes",
+        "text": "---\ntype: Source\nid: F1\naliases:\n- F1\ntitle: ridgeway-club-trial.md\ndescription: Independent club replication, 44 bakes\nlocal: sources/raw/F1.md\ngrade: '?'\nstatus: captured\ngenerated:\n  by: human:baker\n  at: '2026-07-28T13:43:15Z'\n---\n\n# ridgeway-club-trial.md\n\nIndependent club replication, 44 bakes",
         "path": "references/ridgeway-club-trial.md"
       }
     },
@@ -311,7 +311,7 @@
           "state": "changed"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "same"
         },
         {
@@ -330,7 +330,7 @@
       "record": {
         "lang": "markdown",
         "caption": "The same page after judgment. Only the judgment keys changed; everything else round-trips untouched.",
-        "text": "---\ntype: Source\nid: F1\naliases:\n- F1\ntitle: ridgeway-club-trial.md\ndescription: Independent club replication, 44 bakes\nlocal: sources/raw/F1.md\ngrade: B\nstatus: captured\ngenerated:\n  by: human:baker\n  at: '2026-07-26T17:29:48Z'\nsupport:\n  basis: panel\n  method: blind community trial, 40 bakers, self-reported rise times\nindependence: independent\nnotes: Organised trial we did not run; proofing vessels not standardised.\n---\n\n# ridgeway-club-trial.md\n\nIndependent club replication, 44 bakes",
+        "text": "---\ntype: Source\nid: F1\naliases:\n- F1\ntitle: ridgeway-club-trial.md\ndescription: Independent club replication, 44 bakes\nlocal: sources/raw/F1.md\ngrade: B\nstatus: captured\ngenerated:\n  by: human:baker\n  at: '2026-07-28T13:43:15Z'\nsupport:\n  basis: panel\n  method: blind community trial, 40 bakers, self-reported rise times\nindependence: independent\nnotes: Organised trial we did not run; proofing vessels not standardised.\n---\n\n# ridgeway-club-trial.md\n\nIndependent club replication, 44 bakes",
         "path": "references/ridgeway-club-trial.md"
       }
     },
@@ -387,7 +387,7 @@
           "state": "same"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "same"
         },
         {
@@ -406,7 +406,7 @@
       "record": {
         "lang": "markdown",
         "caption": "status: asserted \u00b7 independent_corroboration: 1 \u2014 recomputed by the tooling, not trusted from the page.",
-        "text": "---\ntype: Claim\nid: C1\naliases:\n- C1\ndescription: Doubling time falls about a quarter between 65% and 80% hydration\nstatus: asserted\nload_bearing: true\nsources:\n- id: F1\n  resource: /references/ridgeway-club-trial.md\n  title: ridgeway-club-trial.md\nindependent_corroboration: 1\nfirst_asserted: '2026-07-26'\ngenerated:\n  by: human:baker\n  at: '2026-07-26T17:29:48Z'\n---\n\nDoubling time falls about a quarter between 65% and 80% hydration[^F1]\n\n[^F1]: [ridgeway-club-trial.md](../references/ridgeway-club-trial.md)",
+        "text": "---\ntype: Claim\nid: C1\naliases:\n- C1\ndescription: Doubling time falls about a quarter between 65% and 80% hydration\nstatus: asserted\nload_bearing: true\nsources:\n- id: F1\n  resource: /references/ridgeway-club-trial.md\n  title: ridgeway-club-trial.md\nindependent_corroboration: 1\nfirst_asserted: '2026-07-28'\ngenerated:\n  by: human:baker\n  at: '2026-07-28T13:43:16Z'\n---\n\nDoubling time falls about a quarter between 65% and 80% hydration[^F1]\n\n[^F1]: [ridgeway-club-trial.md](../references/ridgeway-club-trial.md)",
         "path": "claims/doubling-time-falls-about-a-quarter-between-65.md"
       }
     },
@@ -463,7 +463,7 @@
           "state": "same"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "same"
         },
         {
@@ -544,7 +544,7 @@
           "state": "added"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "same"
         },
         {
@@ -568,7 +568,7 @@
         "path": "sources/_provenance.jsonl",
         "lang": "json",
         "caption": "A second custody event. The ledger only ever grows.",
-        "text": "{\n  \"ts\": \"2026-07-26T17:29:48Z\",\n  \"source_id\": \"F2\",\n  \"url\": \"file:///tmp/flip-site-pnz424pk/rise-times.csv\",\n  \"local_path\": \"sources/raw/F2.csv\",\n  \"sha256\": \"d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c\",\n  \"bytes\": 427,\n  \"tool\": \"builtin:copy\",\n  \"strategy\": \"copy\",\n  \"actor\": \"human:baker\",\n  \"note\": \"Our own kitchen log, 12 bakes at four hydration levels\"\n}"
+        "text": "{\n  \"ts\": \"2026-07-28T13:43:16Z\",\n  \"source_id\": \"F2\",\n  \"url\": \"file:///tmp/flip-site-tfvpy04n/rise-times.csv\",\n  \"local_path\": \"sources/raw/F2.csv\",\n  \"sha256\": \"d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c\",\n  \"bytes\": 427,\n  \"tool\": \"builtin:copy\",\n  \"strategy\": \"copy\",\n  \"actor\": \"human:baker\",\n  \"note\": \"Our own kitchen log, 12 bakes at four hydration levels\"\n}"
       }
     },
     {
@@ -583,7 +583,7 @@
       "commands": [
         "flip pass 'Millwright Flour spec sheet rise claim' --reason 'Vendor marketing copy; no trial data, self-interested on the exact question.'"
       ],
-      "stdout": "passed 2026-07-26T17:29:48Z \u00b7 Vendor marketing copy; no trial data, self-interested on the exact question.",
+      "stdout": "passed 2026-07-28T13:43:16Z \u00b7 Vendor marketing copy; no trial data, self-interested on the exact question.",
       "exit_code": 0,
       "refused": false,
       "tree": [
@@ -632,7 +632,7 @@
           "state": "same"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "same"
         },
         {
@@ -656,7 +656,7 @@
         "path": "log/passed.jsonl",
         "lang": "json",
         "caption": "log/passed.jsonl \u2014 the notebook remembers what it decided not to use.",
-        "text": "{\n  \"ts\": \"2026-07-26T17:29:48Z\",\n  \"text\": \"Millwright Flour spec sheet rise claim\",\n  \"reason\": \"Vendor marketing copy; no trial data, self-interested on the exact question.\",\n  \"actor\": \"human:baker\"\n}"
+        "text": "{\n  \"ts\": \"2026-07-28T13:43:16Z\",\n  \"text\": \"Millwright Flour spec sheet rise claim\",\n  \"reason\": \"Vendor marketing copy; no trial data, self-interested on the exact question.\",\n  \"actor\": \"human:baker\"\n}"
       }
     },
     {
@@ -720,7 +720,7 @@
           "state": "same"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "same"
         },
         {
@@ -743,7 +743,7 @@
       "record": {
         "lang": "markdown",
         "caption": "independent_corroboration: 2, and footnote attribution regenerated from the edges.",
-        "text": "---\ntype: Claim\nid: C1\naliases:\n- C1\ndescription: Doubling time falls about a quarter between 65% and 80% hydration\nstatus: asserted\nload_bearing: true\nsources:\n- id: F1\n  resource: /references/ridgeway-club-trial.md\n  title: ridgeway-club-trial.md\n- id: F2\n  resource: /references/rise-times.md\n  title: rise-times.csv\nindependent_corroboration: 2\nfirst_asserted: '2026-07-26'\ngenerated:\n  by: human:baker\n  at: '2026-07-26T17:29:48Z'\n---\n\nDoubling time falls about a quarter between 65% and 80% hydration[^F1][^F2]\n\n[^F1]: [ridgeway-club-trial.md](../references/ridgeway-club-trial.md)\n[^F2]: [rise-times.csv](../references/rise-times.md)",
+        "text": "---\ntype: Claim\nid: C1\naliases:\n- C1\ndescription: Doubling time falls about a quarter between 65% and 80% hydration\nstatus: asserted\nload_bearing: true\nsources:\n- id: F1\n  resource: /references/ridgeway-club-trial.md\n  title: ridgeway-club-trial.md\n- id: F2\n  resource: /references/rise-times.md\n  title: rise-times.csv\nindependent_corroboration: 2\nfirst_asserted: '2026-07-28'\ngenerated:\n  by: human:baker\n  at: '2026-07-28T13:43:16Z'\n---\n\nDoubling time falls about a quarter between 65% and 80% hydration[^F1][^F2]\n\n[^F1]: [ridgeway-club-trial.md](../references/ridgeway-club-trial.md)\n[^F2]: [rise-times.csv](../references/rise-times.md)",
         "path": "claims/doubling-time-falls-about-a-quarter-between-65.md"
       }
     },
@@ -808,7 +808,7 @@
           "state": "same"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "same"
         },
         {
@@ -831,7 +831,7 @@
       "record": {
         "lang": "markdown",
         "caption": "status: verified \u2014 earned mechanically, and re-checkable by anyone with the files.",
-        "text": "---\ntype: Claim\nid: C1\naliases:\n- C1\ndescription: Doubling time falls about a quarter between 65% and 80% hydration\nstatus: verified\nload_bearing: true\nsources:\n- id: F1\n  resource: /references/ridgeway-club-trial.md\n  title: ridgeway-club-trial.md\n- id: F2\n  resource: /references/rise-times.md\n  title: rise-times.csv\nindependent_corroboration: 2\nfirst_asserted: '2026-07-26'\ngenerated:\n  by: human:baker\n  at: '2026-07-26T17:29:48Z'\n---\n\nDoubling time falls about a quarter between 65% and 80% hydration[^F1][^F2]\n\n[^F1]: [ridgeway-club-trial.md](../references/ridgeway-club-trial.md)\n[^F2]: [rise-times.csv](../references/rise-times.md)",
+        "text": "---\ntype: Claim\nid: C1\naliases:\n- C1\ndescription: Doubling time falls about a quarter between 65% and 80% hydration\nstatus: verified\nload_bearing: true\nsources:\n- id: F1\n  resource: /references/ridgeway-club-trial.md\n  title: ridgeway-club-trial.md\n- id: F2\n  resource: /references/rise-times.md\n  title: rise-times.csv\nindependent_corroboration: 2\nfirst_asserted: '2026-07-28'\ngenerated:\n  by: human:baker\n  at: '2026-07-28T13:43:16Z'\n---\n\nDoubling time falls about a quarter between 65% and 80% hydration[^F1][^F2]\n\n[^F1]: [ridgeway-club-trial.md](../references/ridgeway-club-trial.md)\n[^F2]: [rise-times.csv](../references/rise-times.md)",
         "path": "claims/doubling-time-falls-about-a-quarter-between-65.md"
       }
     },
@@ -904,7 +904,7 @@
           "state": "same"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "same"
         },
         {
@@ -927,7 +927,7 @@
       "record": {
         "lang": "markdown",
         "caption": "The rejected alternative is part of the record, not a footnote.",
-        "text": "---\ntype: Decision\nid: D1\naliases:\n- D1\ndescription: Doubling time only\nquestion: Report doubling time or final crumb quality?\nalternatives_rejected:\n- Crumb scoring \u2014 subjective and not recorded by the club\ngenerated:\n  by: human:baker\n  at: '2026-07-26T17:29:49Z'\n---\n\n**Question.** Report doubling time or final crumb quality?\n\n**Decision.** Doubling time only\n\n**Why.** It is the one variable both trials measured the same way.\n\n**Rejected.** Crumb scoring \u2014 subjective and not recorded by the club",
+        "text": "---\ntype: Decision\nid: D1\naliases:\n- D1\ndescription: Doubling time only\nquestion: Report doubling time or final crumb quality?\nalternatives_rejected:\n- Crumb scoring \u2014 subjective and not recorded by the club\ngenerated:\n  by: human:baker\n  at: '2026-07-28T13:43:16Z'\n---\n\n**Question.** Report doubling time or final crumb quality?\n\n**Decision.** Doubling time only\n\n**Why.** It is the one variable both trials measured the same way.\n\n**Rejected.** Crumb scoring \u2014 subjective and not recorded by the club",
         "path": "decisions/doubling-time-only.md"
       }
     },
@@ -1000,7 +1000,7 @@
           "state": "same"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "same"
         },
         {
@@ -1039,7 +1039,7 @@
       "commands": [
         "flip show"
       ],
-      "stdout": "sourdough-rise \u00b7 research-review \u00b7 active \u00b7 2026-07-26\n\nOPEN QUESTIONS\n  Q1 \u00b7 Does higher hydration shorten the time to double?  [unwatched \u2014 no resolves_via surface]\n\nLATEST SESSION\n  sessions/2026-07-26T1729-hydration-sweep.md",
+      "stdout": "sourdough-rise \u00b7 research-review \u00b7 active \u00b7 2026-07-28\n\nOPEN QUESTIONS\n  Q1 \u00b7 Does higher hydration shorten the time to double?  [unwatched \u2014 no resolves_via surface]\n\nLATEST SESSION\n  sessions/2026-07-28T1343-hydration-sweep.md",
       "exit_code": 0,
       "refused": false,
       "tree": [
@@ -1096,7 +1096,7 @@
           "state": "same"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "same"
         },
         {
@@ -1119,7 +1119,7 @@
       "record": {
         "lang": "text",
         "caption": "A projection, not a stored view. The files remain canonical.",
-        "text": "sourdough-rise \u00b7 research-review \u00b7 active \u00b7 2026-07-26\n\nOPEN QUESTIONS\n  Q1 \u00b7 Does higher hydration shorten the time to double?  [unwatched \u2014 no resolves_via surface]\n\nLATEST SESSION\n  sessions/2026-07-26T1729-hydration-sweep.md",
+        "text": "sourdough-rise \u00b7 research-review \u00b7 active \u00b7 2026-07-28\n\nOPEN QUESTIONS\n  Q1 \u00b7 Does higher hydration shorten the time to double?  [unwatched \u2014 no resolves_via surface]\n\nLATEST SESSION\n  sessions/2026-07-28T1343-hydration-sweep.md",
         "path": "stdout"
       }
     },
@@ -1135,7 +1135,7 @@
       "commands": [
         "flip export json --out - --include-private"
       ],
-      "stdout": "{\n  \"contract\": \"flip-render/1\",\n  \"generated\": \"2026-07-26T17:29:49Z\",\n  \"source_trail_public\": true,\n  \"notebook\": {\n    \"uid\": \"nb-s75js1bv\",\n    \"slug\": \"sourdough-rise\",\n    \"title\": \"Does hydration change sourdough rise time?\",\n    \"kind\": \"research-review\",\n    \"status\": \"active\",\n    \"created\": \"2026-07-26\",\n    \"updated\": \"2026-07-26\",\n    \"visibility\": \"internal\"\n  },\n  \"sources\": [\n    {\n      \"id\": \"F1\",\n      \"slug\": \"ridgeway-club-trial\",\n      \"kind\": \"\",\n      \"grade\": \"B\",\n      \"independence\": \"independent\",\n      \"freshness\": \"\",\n      \"title\": \"ridgeway-club-trial.md\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-07-26T17:29:48Z\",\n      \"sha256\": \"23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40\"\n    },\n    {\n      \"id\": \"F2\",\n      \"slug\": \"rise-times\",\n      \"kind\": \"\",\n      \"grade\": \"A\",\n      \"independence\": \"independent\",\n      \"freshness\": \"\",\n      \"title\": \"rise-times.csv\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-07-26T17:29:48Z\",\n      \"sha256\": \"d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c\"\n    }\n  ],\n  \"claims\": [\n    {\n      \"id\": \"C1\",\n      \"slug\": \"doubling-time-falls-about-a-quarter-between-65\",\n      \"text\": \"Doubling time falls about a quarter between 65% and 80% hydration\",\n      \"status\": \"verified\",\n      \"load_bearing\": true,\n      \"sources\": [\n        \"F1\",\n        \"F2\"\n      ],\n      \"corroboration\": 2,\n      \"verifications\": []\n    }\n  ],\n  \"questions\": [\n    {\n      \"id\": \"Q1\",\n      \"slug\": \"does-higher-hydration-shorten-the-time-to-double\",\n      \"text\": \"Does higher hydration shorten the time to double?\",\n      \"status\": \"open\",\n      \"formulations\": []\n    }\n  ],\n  \"decisions\": [\n    {\n      \"id\": \"D1\",\n      \"slug\": \"doubling-time-only\",\n      \"text\": \"Doubling time only\",\n      \"question\": \"Report doubling time or final crumb quality?\",\n      \"alternatives_rejected\": [\n        \"Crumb scoring \u2014 subjective and not recorded by the club\"\n      ]\n    }\n  ],\n  \"sessions\": [\n    {\n      \"id\": \"2026-07-26T1729-hydration-sweep\",\n      \"actor\": \"human:baker\",\n      \"model\": \"claude-opus-5\",\n      \"started\": \"2026-07-26T17:29:48Z\",\n      \"ended\": \"\",\n      \"goal\": \"\"\n    }\n  ],\n  \"log_tail\": []\n}",
+      "stdout": "{\n  \"contract\": \"flip-render/1\",\n  \"generated\": \"2026-07-28T13:43:17Z\",\n  \"source_trail_public\": true,\n  \"notebook\": {\n    \"uid\": \"nb-r4kjj2tf\",\n    \"slug\": \"sourdough-rise\",\n    \"title\": \"Does hydration change sourdough rise time?\",\n    \"kind\": \"research-review\",\n    \"status\": \"active\",\n    \"created\": \"2026-07-28\",\n    \"updated\": \"2026-07-28\",\n    \"visibility\": \"internal\"\n  },\n  \"sources\": [\n    {\n      \"id\": \"F1\",\n      \"slug\": \"ridgeway-club-trial\",\n      \"kind\": \"\",\n      \"grade\": \"B\",\n      \"independence\": \"independent\",\n      \"freshness\": \"\",\n      \"title\": \"ridgeway-club-trial.md\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-07-28T13:43:15Z\",\n      \"sha256\": \"23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40\"\n    },\n    {\n      \"id\": \"F2\",\n      \"slug\": \"rise-times\",\n      \"kind\": \"\",\n      \"grade\": \"A\",\n      \"independence\": \"independent\",\n      \"freshness\": \"\",\n      \"title\": \"rise-times.csv\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-07-28T13:43:16Z\",\n      \"sha256\": \"d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c\"\n    }\n  ],\n  \"claims\": [\n    {\n      \"id\": \"C1\",\n      \"slug\": \"doubling-time-falls-about-a-quarter-between-65\",\n      \"text\": \"Doubling time falls about a quarter between 65% and 80% hydration\",\n      \"status\": \"verified\",\n      \"load_bearing\": true,\n      \"sources\": [\n        \"F1\",\n        \"F2\"\n      ],\n      \"corroboration\": 2,\n      \"verifications\": []\n    }\n  ],\n  \"questions\": [\n    {\n      \"id\": \"Q1\",\n      \"slug\": \"does-higher-hydration-shorten-the-time-to-double\",\n      \"text\": \"Does higher hydration shorten the time to double?\",\n      \"status\": \"open\",\n      \"formulations\": []\n    }\n  ],\n  \"decisions\": [\n    {\n      \"id\": \"D1\",\n      \"slug\": \"doubling-time-only\",\n      \"text\": \"Doubling time only\",\n      \"question\": \"Report doubling time or final crumb quality?\",\n      \"alternatives_rejected\": [\n        \"Crumb scoring \u2014 subjective and not recorded by the club\"\n      ]\n    }\n  ],\n  \"sessions\": [\n    {\n      \"id\": \"2026-07-28T1343-hydration-sweep\",\n      \"actor\": \"human:baker\",\n      \"model\": \"claude-opus-5\",\n      \"started\": \"2026-07-28T13:43:15Z\",\n      \"ended\": \"\",\n      \"goal\": \"\"\n    }\n  ],\n  \"log_tail\": []\n}",
       "exit_code": 0,
       "refused": false,
       "tree": [
@@ -1192,7 +1192,7 @@
           "state": "same"
         },
         {
-          "path": "sessions/2026-07-26T1729-hydration-sweep.md",
+          "path": "sessions/2026-07-28T1343-hydration-sweep.md",
           "state": "same"
         },
         {
@@ -1216,7 +1216,7 @@
         "lang": "json",
         "caption": "flip-render/1 \u2014 a projection, not an API. Stable ids to anchor and link back to.",
         "truncated": true,
-        "text": "{\n  \"contract\": \"flip-render/1\",\n  \"generated\": \"2026-07-26T17:29:49Z\",\n  \"source_trail_public\": true,\n  \"notebook\": {\n    \"uid\": \"nb-s75js1bv\",\n    \"slug\": \"sourdough-rise\",\n    \"title\": \"Does hydration change sourdough rise time?\",\n    \"kind\": \"research-review\",\n    \"status\": \"active\",\n    \"created\": \"2026-07-26\",\n    \"updated\": \"2026-07-26\",\n    \"visibility\": \"internal\"\n  },\n  \"sources\": [\n    {\n      \"id\": \"F1\",\n      \"slug\": \"ridgeway-club-trial\",\n      \"kind\": \"\",\n      \"grade\": \"B\",\n      \"independence\": \"independent\",\n      \"freshness\": \"\",\n      \"title\": \"ridgeway-club-trial.md\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-07-26T17:29:48Z\",\n      \"sha256\": \"23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40\"\n    },\n    {\n      \"id\": \"F2\",\n      \"slug\": \"rise-times\",\n      \"kind\": \"\",\n      \"grade\": \"A\",\n      \"independence\": \"independent\",\n      \"freshness\": \"\",\n      \"title\": \"rise-times.csv\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-07-26T17:29:48Z\",\n      \"sha256\": \"d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c\"\n    }\n  ],",
+        "text": "{\n  \"contract\": \"flip-render/1\",\n  \"generated\": \"2026-07-28T13:43:17Z\",\n  \"source_trail_public\": true,\n  \"notebook\": {\n    \"uid\": \"nb-r4kjj2tf\",\n    \"slug\": \"sourdough-rise\",\n    \"title\": \"Does hydration change sourdough rise time?\",\n    \"kind\": \"research-review\",\n    \"status\": \"active\",\n    \"created\": \"2026-07-28\",\n    \"updated\": \"2026-07-28\",\n    \"visibility\": \"internal\"\n  },\n  \"sources\": [\n    {\n      \"id\": \"F1\",\n      \"slug\": \"ridgeway-club-trial\",\n      \"kind\": \"\",\n      \"grade\": \"B\",\n      \"independence\": \"independent\",\n      \"freshness\": \"\",\n      \"title\": \"ridgeway-club-trial.md\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-07-28T13:43:15Z\",\n      \"sha256\": \"23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40\"\n    },\n    {\n      \"id\": \"F2\",\n      \"slug\": \"rise-times\",\n      \"kind\": \"\",\n      \"grade\": \"A\",\n      \"independence\": \"independent\",\n      \"freshness\": \"\",\n      \"title\": \"rise-times.csv\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-07-28T13:43:16Z\",\n      \"sha256\": \"d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c\"\n    }\n  ],",
         "path": "stdout"
       }
     }

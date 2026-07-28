@@ -1,7 +1,7 @@
 {
-  "generated": "2026-07-26T17:29:49+00:00",
-  "version": "0.14.0",
-  "revision": "3be46b2",
+  "generated": "2026-07-28T13:43:17+00:00",
+  "version": "0.15.0",
+  "revision": "48c426a",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",
@@ -9,9 +9,9 @@
   ],
   "license": "MIT",
   "package": "flip-notebook",
-  "tests": 843,
-  "spec_status": "draft v0.14 \u00b7 2026-07-25",
-  "spec_lines": 1029,
+  "tests": 849,
+  "spec_status": "draft v0.15 \u00b7 2026-07-25",
+  "spec_lines": 1040,
   "skills": [
     "notebook-audit",
     "notebook-create",
@@ -1095,6 +1095,21 @@
         "options": [
           {
             "name": "--note",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip source recheck",
+        "group": "flip source",
+        "name": "recheck",
+        "purpose": "Re-fetch a source's canonical URL and compare against custody.",
+        "arguments": [
+          "SOURCE_ID"
+        ],
+        "options": [
+          {
+            "name": "--via",
             "required": false
           }
         ]
