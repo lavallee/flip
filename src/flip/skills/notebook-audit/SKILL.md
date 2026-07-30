@@ -41,6 +41,20 @@ archived. They are not problems; don't re-run doctor for reassurance.
 1. **Lint first.** `flip doctor` — fix every ERROR (bad enums, orphan
    custody, id/alias breakage, under-verified claims) before auditing
    content. Doctor exits 1 while ERRORs remain.
+
+   **Read the top line before counting the rest.** Doctor leads with any
+   *cause* it can identify — a `vocabulary-drift` line naming how many
+   sources share one root problem and which claims it explains — and
+   collapses codes that repeat past three (`--json` for every finding). A
+   long wall of findings is usually one fix, not a deeply unsound notebook.
+   Triage by cause, not by count.
+
+   **A corroboration count is not always a verdict on the evidence.** If a
+   claim fails the bar, check whether doctor named sources it *could not
+   count* — a page carrying pre-0.8 `independence` vocabulary is unjudged
+   whatever letter is stored on it, so the count understates the evidence
+   rather than measuring it. Establish that first; regrading 100+ sources
+   because a number looked wrong is the expensive way to find out.
 2. **Pull the claim map.** `flip show --claims` (or
    `flip claim list --json`). Audit every claim marked `load_bearing` first,
    then the rest.

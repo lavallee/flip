@@ -1,7 +1,7 @@
 window.__FLIP_META__ = {
-  "generated": "2026-07-28T13:43:17+00:00",
-  "version": "0.15.0",
-  "revision": "48c426a",
+  "generated": "2026-07-30T14:57:05+00:00",
+  "version": "0.16.0",
+  "revision": "00a077b",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",
@@ -9,9 +9,9 @@ window.__FLIP_META__ = {
   ],
   "license": "MIT",
   "package": "flip-notebook",
-  "tests": 849,
-  "spec_status": "draft v0.15 \u00b7 2026-07-25",
-  "spec_lines": 1040,
+  "tests": 883,
+  "spec_status": "draft v0.16 \u00b7 2026-07-30",
+  "spec_lines": 1076,
   "skills": [
     "notebook-audit",
     "notebook-create",
@@ -695,6 +695,10 @@ window.__FLIP_META__ = {
             "required": false
           },
           {
+            "name": "--explain",
+            "required": false
+          },
+          {
             "name": "--grade",
             "required": false
           }
@@ -1113,6 +1117,17 @@ window.__FLIP_META__ = {
             "required": false
           }
         ]
+      },
+      {
+        "command": "flip source retitle",
+        "group": "flip source",
+        "name": "retitle",
+        "purpose": "Rewrite a source's title (and its `# heading`), quoting it correctly.",
+        "arguments": [
+          "SOURCE_ID",
+          "TITLE"
+        ],
+        "options": []
       },
       {
         "command": "flip ws add",

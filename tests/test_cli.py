@@ -954,3 +954,106 @@ def test_version_flag():
     result = invoke(["--version"])
     assert result.exit_code == 0
     assert "flip" in result.output
+
+
+# --- flip grade --explain -------------------------------------------------------
+
+
+def _graded(tmp_path: Path, *args: str) -> Path:
+    root = make_notebook(tmp_path / "nb")
+    target = tmp_path / "capture.csv"
+    target.write_text("x\n", encoding="utf-8")
+    assert invoke(["--notebook", str(root), "add-source", str(target)]).exit_code == 0
+    if args:
+        assert invoke(["--notebook", str(root), "grade", "F1", *args]).exit_code == 0
+    return root
+
+
+def test_grade_explain_names_what_moves_the_letter(tmp_path):
+    # Only three of the seven graded fields move the letter, and `method` alone
+    # gates B — discoverable before this flag only by reading derive_grade.
+    root = _graded(tmp_path, "--independence", "independent",
+                   "--basis", "official-record", "--n", "12 districts")
+    result = invoke(["--notebook", str(root), "grade", "F1", "--explain"])
+    assert result.exit_code == 0, result.output
+    assert "grade A (derived)" in result.output
+    assert "because:" in result.output
+    assert "to move it: A is the ceiling" in result.output
+    assert "method: — (alone gates B)" in result.output
+    assert "documentation only (never moves the letter):" in result.output
+    assert "n=12 districts" in result.output
+
+
+def test_grade_explain_writes_nothing(tmp_path):
+    root = _graded(tmp_path, "--independence", "self-reported")
+    before = (root / "references" / "capture.md").read_text(encoding="utf-8")
+    assert invoke(["--notebook", str(root), "grade", "F1", "--explain"]).exit_code == 0
+    assert (root / "references" / "capture.md").read_text(encoding="utf-8") == before
+
+
+def test_grade_explain_on_an_unjudged_source(tmp_path):
+    root = _graded(tmp_path)
+    result = invoke(["--notebook", str(root), "grade", "F1", "--explain"])
+    assert result.exit_code == 0, result.output
+    assert "grade ? (derived)" in result.output
+    assert "capture is custody, not judgment" in result.output
+
+
+def test_grade_explain_unknown_id(tmp_path):
+    root = _graded(tmp_path)
+    result = invoke(["--notebook", str(root), "grade", "A99", "--explain"])
+    assert result.exit_code != 0
+    assert "unknown source id" in result.output
+
+
+# --- source list shows the DERIVED letter ---------------------------------------
+
+
+def test_source_list_names_the_stored_letter_when_it_disagrees(tmp_path):
+    root = make_notebook(tmp_path / "nb")
+    pages.write_page(
+        root / "references" / "stale.md",
+        {"type": "Source", "id": "A1", "aliases": ["A1"], "title": "Carried over",
+         "grade": "A", "independence": "original", "freshness": "fresh"},
+        "# Carried over\n",
+    )
+    result = invoke(["--notebook", str(root), "source", "list"])
+    assert result.exit_code == 0, result.output
+    assert "? (stored A)" in result.output
+    assert "corroborates nothing until re-judged" in result.output
+
+
+# --- source retitle -------------------------------------------------------------
+
+
+def test_source_retitle_handles_a_colon(tmp_path):
+    root = _graded(tmp_path)
+    result = invoke(["--notebook", str(root), "source", "retitle", "F1",
+                     "Report: Q3 findings"])
+    assert result.exit_code == 0, result.output
+    assert "Report: Q3 findings" in result.output
+    # the page still parses — an unquoted colon here broke `flip rename`
+    # across a whole notebook until fixed by hand
+    assert invoke(["--notebook", str(root), "source", "list"]).exit_code == 0
+    assert pages.read_page(root / "references" / "capture.md").fm["title"] == \
+        "Report: Q3 findings"
+
+
+# --- doctor collapses a repeated code ------------------------------------------
+
+
+def test_doctor_collapses_repeated_codes_but_json_keeps_all(tmp_path):
+    root = make_notebook(tmp_path / "nb")
+    for sid in ("A1", "A2", "A3", "A4", "A5"):
+        pages.write_page(
+            root / "references" / f"{sid.lower()}.md",
+            {"type": "Source", "id": sid, "aliases": [sid], "title": f"source {sid}",
+             "grade": "A", "independence": "original"},
+            f"# source {sid}\n",
+        )
+    text = invoke(["--notebook", str(root), "doctor"]).output
+    assert "and 2 more with the same code (--json for all)" in text
+    assert text.count("WARN pre-08-vocabulary references/") == 3
+    payload = json.loads(invoke(["--notebook", str(root), "doctor", "--json"]).output)
+    assert len([f for f in payload if f["code"] == "pre-08-vocabulary"]) == 5
+    assert payload[0]["code"] == "vocabulary-drift"  # the cause still leads

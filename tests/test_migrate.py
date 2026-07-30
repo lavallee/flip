@@ -8,6 +8,7 @@ import pytest
 
 from flip import claims as claims_mod
 from flip import pages
+from flip import sources as sources_mod
 from flip.manifest import FLIP_PROFILE_VERSION, load_manifest
 from flip.migrate import migrate
 from flip.util import UID_RE, is_notebook_root, next_id, today, write_jsonl
@@ -205,11 +206,17 @@ def test_migrate_sources_become_reference_pages(tmp_path):
     assert page.fm["authors"] == ["V. Endor"]
     assert page.fm["publisher"] == "example.com"
     assert page.fm["local"] == "sources/raw/A1/page.html"
-    assert page.fm["grade"] == "B"
-    # v0.3 "original" maps to 0.8 "independent"; a judged (B) row also seeds
-    # support so derive_grade returns the authored letter until re-graded
-    assert page.fm["independence"] == "independent"
-    assert page.fm["support"] == {"seeded": "legacy-grade"}
+    # v0.3 "original" encoded CUSTODY; 0.8 independence encodes EPISTEMICS, so
+    # it is never translated mechanically (that promoted self-reported sources
+    # to full corroboration weight). The value stays as the unmigrated marker,
+    # the authored letter is parked for whoever re-reads the source, and the
+    # digest drops to "?" — uncountable, not a confident B.
+    assert page.fm["grade"] == "?"
+    assert page.fm["independence"] == "original"
+    assert page.fm["support"] == {"pre_08_grade": "B"}
+    assert sources_mod.unmigrated(page.fm)
+    assert sources_mod.judged(page.fm) is False
+    assert sources_mod.derive_grade(page.fm) == "?"
     assert page.fm["freshness"] == "fresh"
     assert page.fm["status"] == "captured"
     assert page.fm["kind"] == "web"  # unconsumed row fields survive
@@ -250,7 +257,12 @@ def test_migrate_claims_get_citations_and_recomputed_corroboration(tmp_path):
         {"id": "X9"},  # dangling X9 contributes nothing
     ]
     assert claims_mod.source_ids(page.fm) == ["A1", "X9"]
-    assert page.fm["independent_corroboration"] == 1  # recomputed: A1 judged B + original
+    # A1 carries unmigrated pre-0.8 vocabulary, so it corroborates nothing —
+    # and the 0 is reported alongside the reason, never as a bare number.
+    assert page.fm["independent_corroboration"] == 0
+    assert claims_mod.uncountable_sources(
+        [pages.read_page(root / "references" / "vendor-study.md").fm], ["A1", "X9"]
+    ) == ["A1"]
     assert page.fm["first_asserted"] == "2026-07-09"
     assert pages.generated_by(page.fm) == "agent:test"
     assert "Conversion is 42% higher" in page.body
@@ -612,3 +624,87 @@ def test_migrate_question_event_extras_fold_onto_the_page(tmp_path):
     assert page.fm["priority"] == "low"  # later event wins per key
     assert page.fm["status"] == "answered"
     assert page.fm["answered_by"] == "human:test"
+
+
+# --- migrate scans PAGES, not just the manifest ---------------------------------
+
+
+def _stale_source(root: Path, sid: str = "A1", grade: str = "A",
+                  independence: str = "original") -> Path:
+    return pages.write_page(
+        root / "references" / f"{sid.lower()}.md",
+        {"type": "Source", "id": sid, "aliases": [sid], "title": f"source {sid}",
+         "grade": grade, "independence": independence, "freshness": "fresh"},
+        f"# source {sid}\n",
+    )
+
+
+def _current_manifest(root: Path) -> None:
+    index = root / "index.md"
+    fm = pages.read_page(index).fm
+    fm["flip"] = FLIP_PROFILE_VERSION
+    fm["uid"] = "nb-7k3m9p2x"
+    pages.write_page(index, fm, "# Orchard survey\n")
+
+
+def test_migrate_acts_on_stale_pages_under_a_current_manifest(tmp_path):
+    # The no-op exactly when it was needed: the manifest said the profile was
+    # current while every source page inside still carried pre-0.8 tuples, so
+    # migrate read the manifest and went home — while doctor was telling the
+    # notebook's owner to run precisely this command.
+    root = make_v04(tmp_path)
+    _current_manifest(root)
+    _stale_source(root, "A1", grade="A", independence="original")
+    _stale_source(root, "A2", grade="B", independence="self-interested")
+    summary = migrate(root)
+    assert summary["sources_08"] == 2
+
+    parked = pages.read_page(root / "references" / "a1.md").fm
+    assert parked["independence"] == "original"   # custody ≠ epistemics: never mapped
+    assert parked["grade"] == "?"                 # uncountable, not a confident A
+    assert parked["support"] == {"pre_08_grade": "A"}
+
+    mapped = pages.read_page(root / "references" / "a2.md").fm
+    assert mapped["independence"] == "self-reported"  # same axis: maps cleanly
+    assert mapped["support"] == {"seeded": "legacy-grade"}
+    assert sources_mod.derive_grade(mapped) == "B"
+
+
+def test_migrate_never_promotes_original_to_independent(tmp_path):
+    # The old original → independent map silently gave every self-reported
+    # source full corroboration weight.
+    root = make_v04(tmp_path)
+    _current_manifest(root)
+    _stale_source(root, "A1", grade="A", independence="original")
+    migrate(root)
+    fm = pages.read_page(root / "references" / "a1.md").fm
+    assert fm["independence"] != "independent"
+    assert claims_mod.corroboration_count([fm], ["A1"]) == 0
+
+
+def test_migrate_is_idempotent_over_parked_pages_and_then_refuses(tmp_path):
+    root = make_v04(tmp_path)
+    _current_manifest(root)
+    _stale_source(root, "A1", grade="A", independence="original")
+    migrate(root)
+    before = (root / "references" / "a1.md").read_text(encoding="utf-8")
+    # A parked page waits on a human re-reading the source, not on another
+    # mechanical pass — so the second run is the refusal, and it says so.
+    with pytest.raises(SystemExit) as ei:
+        migrate(root)
+    msg = str(ei.value)
+    assert "already at the current profile" in msg
+    assert "1 source page(s) still carry pre-0.8" in msg
+    assert "flip grade" in msg
+    assert (root / "references" / "a1.md").read_text(encoding="utf-8") == before
+
+
+def test_migrate_still_drops_unjudged_capture_time_defaults(tmp_path):
+    root = make_v04(tmp_path)
+    _current_manifest(root)
+    _stale_source(root, "A1", grade="?", independence="original")
+    migrate(root)
+    fm = pages.read_page(root / "references" / "a1.md").fm
+    assert "independence" not in fm  # a decorative default, never a judgment
+    assert "freshness" not in fm
+    assert "support" not in fm  # nothing to park: there was no authored letter

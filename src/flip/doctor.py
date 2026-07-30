@@ -33,7 +33,7 @@ from . import pages, workspace
 from . import sources as sources_mod
 from .beat import find_beat_root, load_beat
 from .claims import STATUSES as CLAIM_STATUSES  # claim status enum (SPEC §7)
-from .claims import corroboration_count, has_gating_verification
+from .claims import corroboration_count, has_gating_verification, uncountable_sources
 from .claims import source_ids as claim_source_ids
 
 # Forecast enums and the typed-ref grammar (SPEC §7), from the owning module.
@@ -110,7 +110,9 @@ CHECK_CODES: frozenset[str] = frozenset({
     "source-drift", "drifted-evidence",
     # claims
     "two-object", "pre-okf02-layout", "corroboration-drift", "under-verified",
-    "unaudited-claim", "provenance-open",
+    "unaudited-claim", "provenance-open", "unlocatable-recomputation",
+    # shared causes — one line that explains many symptoms
+    "vocabulary-drift",
     # forecasts & clusters
     "undated-forecast", "missing-annul-if", "overdue-forecast", "untyped-ref",
     "dangling-bears-on", "scored-cluster", "dangling-proxy",
@@ -176,7 +178,48 @@ def run_doctor(root: Path) -> list[Finding]:
     _check_provenance_open(root, manifest, claim_pages, source_pages, findings)
     _check_kind_contract(root, manifest, findings)
     _check_disciplines(root, manifest, findings)
+    _lead_with_causes(root, source_pages, claim_pages, findings)
     return findings
+
+
+def _lead_with_causes(
+    root: Path,
+    source_pages: list[pages.Page],
+    claim_pages: list[pages.Page],
+    findings: list[Finding],
+) -> None:
+    """Insert a cause line ahead of the symptoms that share it.
+
+    272 warnings and 4 errors once had ONE root cause, every warning on its own
+    line, and the errors looked like an evidence problem when they were a
+    vocabulary problem. Anyone triaging that reasonably concludes the notebook
+    is deeply unsound; the truth was that one field changed meaning. The
+    per-source findings stay (they carry the paths, and --json keeps
+    everything) — this just puts the explanation first.
+    """
+    stale = sorted(p.id or "?" for p in source_pages if sources_mod.unmigrated(p.fm))
+    if not stale:
+        return
+    affected = sorted(
+        page.id or "?"
+        for page in claim_pages
+        if uncountable_sources([p.fm for p in source_pages], claim_source_ids(page.fm))
+    )
+    msg = (
+        f"{len(stale)} source(s) carry pre-0.8 independence vocabulary, so they "
+        "corroborate nothing and derive grade '?'"
+    )
+    if affected:
+        msg += (
+            f"; this also explains the corroboration counts on {len(affected)} claim(s) "
+            f"({', '.join(affected)})"
+        )
+    msg += (
+        f". One cause, {len(stale) + len(affected)} symptom(s): fix it with `flip migrate` "
+        "then re-judge the parked sources (`flip grade <id> --independence … --basis …`, "
+        "`flip grade <id> --explain` to see what moves the letter)"
+    )
+    findings.insert(0, _warn("vocabulary-drift", msg, ROOT_FILE))
 
 
 def _check_provenance_open(
@@ -848,7 +891,16 @@ def _check_links(root: Path, by_dir: dict[str, list[pages.Page]], findings: list
 def _check_sources(
     root: Path, source_pages: list[pages.Page], provenance: list[dict], findings: list[Finding]
 ) -> None:
-    logged_ids = {str(p.get("source_id")) for p in provenance if p.get("source_id")}
+    # A `status: failed` row is a recorded *finding* — "searched, gone" is
+    # deliberately distinguishable from "did not look" (L5) — so it has no page
+    # by design and must not read as corruption. Excluding it here is what stops
+    # orphan-provenance from nagging about an id whose whole point is the
+    # absence, with hand-editing JSONL as the only way to silence it.
+    logged_ids = {
+        str(p.get("source_id"))
+        for p in provenance
+        if p.get("source_id") and p.get("status") != "failed"
+    }
     page_ids = {p.id for p in source_pages if p.id}
     for page in source_pages:
         sid = page.id or "?"
@@ -878,17 +930,29 @@ def _check_sources(
         ):
             value = page.fm.get(field)
             if value is not None and value not in valid:
-                if field == "independence" and value in (
-                    "original", "republisher", "self-interested"
-                ):
-                    findings.append(
-                        _warn(
-                            "pre-08-vocabulary",
-                            f"source {sid}: independence '{value}' is pre-0.8 vocabulary; "
-                            "run `flip migrate` to adopt the support-tuple model",
-                            rel,
+                if field == "independence" and value in sources_mod.PRE_08_INDEPENDENCE:
+                    # Name the fix that actually applies. `flip migrate`
+                    # translates republisher/self-interested; it CANNOT
+                    # translate 'original' (custody, not epistemics) and only
+                    # parks it, so telling a parked page's owner to migrate is
+                    # advice that does nothing.
+                    support_now = page.fm.get("support")
+                    support_now = support_now if isinstance(support_now, dict) else {}
+                    if support_now.get("pre_08_grade"):
+                        msg = (
+                            f"source {sid}: independence '{value}' is pre-0.8 vocabulary — it "
+                            "encoded custody, not epistemics, so no migration can translate "
+                            f"it. Derives grade '?' and corroborates nothing until re-read "
+                            f"(the pre-0.8 letter was {support_now['pre_08_grade']}): "
+                            f"`flip grade {sid} --independence … --basis …`"
                         )
-                    )
+                    else:
+                        msg = (
+                            f"source {sid}: independence '{value}' is pre-0.8 vocabulary and "
+                            "is not a judgment flip can read — it corroborates nothing; run "
+                            "`flip migrate` to adopt the support-tuple model"
+                        )
+                    findings.append(_warn("pre-08-vocabulary", msg, rel))
                     continue
                 findings.append(
                     _error(
@@ -1096,6 +1160,27 @@ def _check_claims(
                     rel,
                 )
             )
+        # A recomputation clears the `verified` gate on its own, so it has to be
+        # locatable: `against` is where the session id, script path, or
+        # derivation record goes. Without one, the claim records that a
+        # recomputation happened with no way to reach the thing that did it —
+        # an assertion with better manners.
+        unlocatable = [
+            v for v in pages.as_list(page.fm.get("verified"))
+            if isinstance(v, dict) and str(v.get("method")) == "recomputation"
+            and not pages.as_list(v.get("against"))
+        ]
+        if unlocatable:
+            findings.append(
+                _warn(
+                    "unlocatable-recomputation",
+                    f"claim {cid} rests on a recomputation with nothing cited in "
+                    "`against` — name what recomputed it (a session id, script path, or "
+                    f"derivation record): `flip claim verify {cid} --method recomputation "
+                    "--against <ref>`",
+                    rel,
+                )
+            )
         if not page.fm.get("load_bearing"):
             continue
         drifted_cited = sorted(
@@ -1125,17 +1210,25 @@ def _check_claims(
             )
             if not ok:
                 suffix = " or one grade-A primary" if profile.claim_grade_a_suffices else ""
-                findings.append(
-                    _error(
-                        "under-verified",
-                        f"claim {cid} is 'verified' with {corroboration} independent "
-                        f"source(s); profile '{profile.id}' needs "
-                        f"{profile.claim_min_independent}{suffix} — add corroboration, "
-                        f"record an adversarial/recomputation check (`flip claim verify "
-                        f"{cid} --method adversarial`), or set status needs-2nd",
-                        rel,
-                    )
+                msg = (
+                    f"claim {cid} is 'verified' with {corroboration} independent "
+                    f"source(s); profile '{profile.id}' needs "
+                    f"{profile.claim_min_independent}{suffix} — add corroboration, "
+                    f"record an adversarial/recomputation check (`flip claim verify "
+                    f"{cid} --method adversarial`), or set status needs-2nd"
                 )
+                # Never let the count stand alone as a verdict on the evidence:
+                # an uncountable source drops out silently and the claim then
+                # fails for a reason that has nothing to do with what it rests on.
+                stale = uncountable_sources(source_fms, claim_sources)
+                if stale:
+                    msg += (
+                        f". NOTE {', '.join(stale)} "
+                        f"{'carries' if len(stale) == 1 else 'carry'} pre-0.8 "
+                        "independence vocabulary and could not be counted either way, "
+                        "so that count understates the evidence rather than measuring it"
+                    )
+                findings.append(_error("under-verified", msg, rel))
         elif status == "asserted" and corroboration == 0 and not pages.as_list(
             page.fm.get("verified")
         ):

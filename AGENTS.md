@@ -43,10 +43,22 @@ logged 2026-07-10T19:59:41Z · agent:claude
 
 $ flip add-source ./districts.csv --note "district enrollment table"
 F1 · sources/raw/F1.csv · references/districts.md (grade ?)
-judge it: flip grade F1 --grade A|B|C --independence original|republisher|derivative|self-interested
+judge it after reading: flip grade F1 --independence independent|corroborated|self-reported|derivative --basis … [--n … --base-defined|--base-undefined]
 
-$ flip grade F1 --grade A --independence original --notes "state data, extracted ourselves"
-F1 · grade A · original · fresh
+$ flip grade F1 --independence independent --basis official-record --base-defined \
+    --freshness fresh --notes "state data, extracted ourselves"
+F1 · grade A (derived) · independent · official-record · base_defined: true · fresh
+
+$ flip grade F1 --explain
+F1 · grade A (derived) — districts.csv
+  because: independence 'independent' + strong basis 'official-record', base not undefined
+  to move it: A is the ceiling
+  moves the letter:
+    independence: independent
+    basis: official-record
+    base_defined: true
+    method: — (alone gates B)
+  documentation only (never moves the letter): n=—, vintage=—, freshness=fresh
 
 $ flip claim add "District enrollment fell 4.2% since 2021" --source F1 --load-bearing
 C1 asserted · sources: F1 · corroboration: 1
@@ -93,7 +105,8 @@ rewrote links in 2 file(s)
 
 `flip rename` is the **only sanctioned rename**: it moves the page (id and
 aliases untouched, so `[F1]` cites keep resolving) and rewrites every
-markdown link and `supports` path notebook-wide. Never `mv` a page yourself.
+markdown link and citation `resource` path notebook-wide. Never `mv` a page
+yourself.
 An unknown id fails helpfully:
 
 ```console
@@ -113,13 +126,22 @@ When verification isn't earned, flip refuses and says what to do:
 
 ```console
 $ flip claim status C2 verified
-cannot verify C2: 0 independent original source(s) of 1 required and no
-grade-A source among its sources (sources: none); add independent original
-sources to the claim or upgrade one to grade A via `flip grade`
+cannot verify C2: 0 independent source(s) of 1 required and no grade-A
+source among its sources (sources: none); add sources whose independence is
+'independent' to the claim or upgrade one to grade A via `flip grade`; or
+record a skeptic/recompute pass with `flip claim verify C2 --method
+adversarial|recomputation`
 ```
 
+The refusal names every path out, including the ones that don't need more
+sources. It also names anything it *couldn't count* — a cited source still on
+pre-0.8 `independence` vocabulary is neither for nor against, and a bare `0`
+would read as a verdict on your evidence when it isn't one.
+
 The rest of the surface: `flip source list` (every source at a glance:
-`F1 · A/original/fresh · districts.csv · references/district-enrollment-table.md`),
+`F1 · A/independent/fresh · districts.csv · references/district-enrollment-table.md`
+— the letter shown is the *derived* digest, and where the letter stored on the
+page disagrees it says so),
 `flip question list` / `flip question answer Q1 --note "..."` /
 `flip question repose Q1 "<sharper wording>"` (append-only; the journey survives),
 `flip claim verify C7 --method adversarial|recomputation` (a recorded check
@@ -143,7 +165,9 @@ group. The leaves you reach for most:
 |---|---|
 | start a notebook | `flip new <slug> --kind <profile>` (kinds: `flip profiles`) |
 | capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
-| grade a source | `flip grade <id> --grade A\|B\|C --independence … --freshness …` |
+| grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--method … --base-defined\|--base-undefined]` — the letter is derived |
+| ask why a letter | `flip grade <id> --explain` — the derivation; writes nothing |
+| fix a capture's title | `flip source retitle <id> "<title>"` — never hand-edit frontmatter |
 | assert a claim | `flip claim add "<text>" --source <id> [--load-bearing]` |
 | link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
 | record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
@@ -183,7 +207,7 @@ reassurance.
 4. **Claims carry status, and verification is gated.** Assert claims with
    `flip claim add --source <id>` the moment the work leans on them.
    `verified` is refused until the profile's corroboration bar is met
-   (default: two independent original sources, or one grade-A primary),
+   (default: two sources recorded `independent`, or one grade-A primary),
    counting judged sources only. Don't argue with the gate — go get
    corroboration.
 5. **Generation is logged.** Wrap every LLM run or research sweep in
@@ -243,7 +267,9 @@ flip find "who acquired X?"                                        # research: c
 flip ask "who acquired X?"                                         # research: cited synthesis (a grade-C lead → sessions/raw/)
 flip recall "prior work on X"                                      # knowledge: what we already hold locally
 # read it, then judge it — grading is a judgment, not a formality:
-flip grade A1 --grade B --independence original --freshness fresh --notes "official docs; original publisher"
+flip grade A1 --independence independent --basis official-record --method "published filing" \
+  --freshness fresh --notes "official docs; the original publisher"
+flip grade A1 --explain    # which fields moved the letter, and what a higher one takes
 flip source list           # audit: any grade "?" line is captured but unjudged
 flip source list --json    # same rows for machine consumption
 ```
@@ -253,8 +279,14 @@ frontmatter, your capture notes in the body. URL/DOI capture needs a
 `[fetchers]` entry in `$FLIP_HOME/config.toml` (default `~/.flip/config.toml`)
 — see [docs/quickstart.md](docs/quickstart.md). If the fetcher isn't
 configured, flip's error prints a schematic stanza to adapt.
-`republisher`/`derivative` sources don't count toward corroboration — prefer
-the original — and neither does anything still graded `?`.
+`self-reported`/`derivative` sources don't count toward corroboration — prefer
+an independent one — and neither does anything still graded `?`. On a notebook
+carried across the 0.8 judgment change, watch for a third case: `independence`
+used to record **custody** and now records **epistemics**, so a page still
+holding the old values (`original`, `republisher`, `self-interested`) is
+*unjudged* however confident the stored letter looks. `flip doctor` leads with
+a `vocabulary-drift` line naming the count and the claims it explains; `flip
+migrate` translates what it can and parks the rest for you to re-read.
 Integrations are configured under three roles in `$FLIP_HOME/config.toml`:
 `[fetchers]` (capture, run by `add-source`), `[research]` (`find`/`ask`), and
 `[knowledge]` (`recall`). `flip config init` writes a starter config whose
@@ -277,9 +309,12 @@ flip claim status C1 needs-2nd         # honest fallback while you hunt corrobor
 flip claim list --status needs-2nd --json
 ```
 
-The claim page (`claims/<slug>.md`) carries `sources: [ids]` and a generated
-`# Citations` block linking the reference pages; flip recomputes
-`independent_corroboration` on status changes and doctor flags drift.
+The claim page (`claims/<slug>.md`) carries OKF v0.2 `sources` entries
+(`{id, resource, title}`) and generated footnote attribution — id-shaped
+markers ending the lead paragraph plus `[^F1]: …` definition lines linking
+the reference pages. flip recomputes `independent_corroboration` on status
+changes and doctor flags drift; where a cited source can't be counted at all,
+every surface that shows the number names it too.
 
 ### Record a session
 

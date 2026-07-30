@@ -78,6 +78,22 @@ and neither does a source still graded `?` (capture is custody, not
 judgment). `flip source list` shows every source at a glance; any `?`
 line still needs judging.
 
+Only `--independence`, `--basis` and `--base-defined` move the letter, plus
+`--method`, which alone gates B; `--n`, `--vintage` and `--freshness` are
+documentation. You don't have to remember that — ask:
+
+```bash
+flip grade F1 --explain          # writes nothing
+# F1 · grade A (derived) — NJDOE enrollment file
+#   because: independence 'independent' + strong basis 'official-record', base not undefined
+#   to move it: A is the ceiling
+```
+
+If a capture lands with a useless title (a fetcher handing back a binary
+payload's first bytes, say), fix it with `flip source retitle F1 "<title>"`
+rather than opening the page — flip quotes the YAML, so a title containing a
+colon can't break every reader of the notebook at once.
+
 **Claim** when the work starts leaning on an assertion:
 
 ```bash
@@ -287,6 +303,29 @@ A 0.4 notebook (already page-shaped) gets the profile pass alone: the
 manifest gains its `uid` (the stable identity exports and imports carry,
 SPEC §4) and a `links.beat` written with the old `#` separator moves to
 the canonical `:` (SPEC §9; `#` reads are removed in flip 0.10).
+
+**Carrying a notebook across the 0.8 judgment change.** `migrate` checks the
+*pages*, not just the manifest's `flip:` version — the two drift apart, and a
+notebook declaring a current profile can still hold source pages full of
+pre-0.8 tuples. Where it can translate mechanically it does. Where it can't,
+it parks: `independence: original` recorded **custody** ("we hold the original
+bytes") while 0.8 records **epistemics** ("independent of its own subject"),
+and an exact-commit copy of a project's own README is both original custody
+*and* self-reported evidence. So the old letter moves to
+`support.pre_08_grade`, the grade resets to `?`, and you re-read the source:
+
+```bash
+flip doctor            # leads with `vocabulary-drift`: the count, and the claims it explains
+flip migrate           # translates what it can; parks `original`
+flip grade A3 --explain # what the letter would take
+flip grade A3 --independence self-reported --basis single-operator
+```
+
+A parked source corroborates nothing, so **claims resting on one will
+demote** — deliberately: a corroboration count drawn from a judgment flip
+couldn't read was never evidence of anything. Every surface that shows the
+count also names the sources it couldn't count, so a 0 is never mistaken for
+a verdict on your evidence.
 
 ## Next
 

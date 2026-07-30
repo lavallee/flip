@@ -39,6 +39,17 @@ GRADES = ("A", "B", "C", "D", "?")
 INDEPENDENCE = ("independent", "corroborated", "self-reported", "derivative")
 FRESHNESS = ("fresh", "dated")
 
+# Pre-0.8 `independence` vocabulary, kept recognizable on purpose (0.16).
+#
+# The axis changed, not the spelling: pre-0.8 `independence` encoded *custody*
+# ("we hold the original bytes, not a copy"), 0.8 encodes *epistemics* ("is
+# this evidence independent of its own subject"). An exact-commit copy of a
+# project's own README is original custody AND self-reported evidence, so no
+# mechanical translation is honest. A page still carrying one of these values
+# is therefore a MISSING judgment, not a weak one — `judged` says no,
+# `derive_grade` returns "?", and doctor names it.
+PRE_08_INDEPENDENCE = ("original", "republisher", "self-interested")
+
 # The support tuple (SPEC §5.4, design D-A): evidence *description*, authored
 # as the act of judgment; the letter grade is derived from it, never stored
 # as an opinion of its own. `independence` is the tuple's spine and keeps its
@@ -72,10 +83,31 @@ def _support(fm: dict) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def unmigrated(fm: dict) -> bool:
+    """True when a page still carries pre-0.8 `independence` vocabulary.
+
+    See PRE_08_INDEPENDENCE: the value describes custody, not epistemics, so
+    flip cannot read it as a judgment. Callers that show a corroboration count
+    name these sources alongside it — a wrong count is worse than a missing
+    one, because only the missing one prompts a look.
+    """
+    return str(fm.get("independence") or "") in PRE_08_INDEPENDENCE
+
+
 def judged(fm: dict) -> bool:
-    """True when a judgment is recorded: `independence` present (the tuple's
-    spine), or a migration seed standing in for a pre-0.8 authored letter."""
-    return bool(fm.get("independence")) or _support(fm).get("seeded") == "legacy-grade"
+    """True when a judgment flip can actually read is recorded: `independence`
+    in the 0.8 vocabulary (the tuple's spine), or a migration seed standing in
+    for a pre-0.8 authored letter.
+
+    Out-of-vocabulary `independence` is NOT a judgment. Until 0.16 any truthy
+    value counted as one, so a page left on pre-0.8 vocabulary was "judged",
+    displayed a confident A, and corroborated nothing — three surfaces
+    disagreeing in silence.
+    """
+    independence = str(fm.get("independence") or "")
+    if independence:
+        return independence in INDEPENDENCE
+    return _support(fm).get("seeded") == "legacy-grade"
 
 
 def derive_grade(fm: dict) -> str:
@@ -88,16 +120,18 @@ def derive_grade(fm: dict) -> str:
     C: every other recorded judgment (self-reported, synthesis-grade bases,
        undefined base on a quantitative source).
     D: derivative — a lead, never provenance.
-    ?: unjudged. A `support.seeded: legacy-grade` marker returns the stored
-       pre-0.8 letter until a real grading replaces it.
+    ?: unjudged — including a page still carrying pre-0.8 `independence`
+       vocabulary, which is a missing judgment rather than a weak one. A
+       `support.seeded: legacy-grade` marker on an otherwise-current page
+       returns the stored pre-0.8 letter until a real grading replaces it.
     """
+    if not judged(fm):
+        return "?"
     support = _support(fm)
     if support.get("seeded") == "legacy-grade":
         stored = str(fm.get("grade") or "?")
         return stored if stored in GRADES else "?"
     independence = str(fm.get("independence") or "")
-    if not independence:
-        return "?"
     if independence == "derivative":
         return "D"
     if support.get("base_defined") is False:
@@ -108,6 +142,105 @@ def derive_grade(fm: dict) -> str:
     if independence in ("independent", "corroborated") and basis and support.get("method"):
         return "B"
     return "C"
+
+
+# Which support-tuple fields move the letter and which are documentation.
+# Only three fields decide the grade, plus `method` which alone gates B;
+# `n`/`vintage`/`freshness` never move it. That was discoverable only by
+# reading derive_grade, so `flip grade --explain` prints it.
+GRADE_INPUTS = ("independence", "basis", "base_defined", "method")
+GRADE_DOCUMENTATION = ("n", "vintage", "freshness")
+
+
+def explain_grade(fm: dict) -> dict:
+    """Why this source derives the letter it does (`flip grade --explain`).
+
+    Returns {grade, reason, next, inputs, documentation}: `inputs` are the
+    four tuple fields that move the letter, `documentation` the three that
+    never do, `reason` the rule that fired, and `next` the shortest honest
+    path to a higher letter.
+    """
+    support = _support(fm)
+    independence = str(fm.get("independence") or "")
+    basis = str(support.get("basis") or "")
+    grade = derive_grade(fm)
+    strong = ", ".join(_STRONG_BASES)
+    inputs = {
+        "independence": independence or None,
+        "basis": basis or None,
+        "base_defined": support.get("base_defined"),
+        "method": support.get("method") or None,
+    }
+    documentation = {
+        "n": support.get("n") or None,
+        "vintage": support.get("vintage") or None,
+        "freshness": fm.get("freshness") or None,
+    }
+
+    if unmigrated(fm):
+        reason = (
+            f"independence '{independence}' is pre-0.8 vocabulary — it encoded custody, "
+            "not epistemics, so it is a missing judgment rather than a weak one; this "
+            "source corroborates nothing until re-judged"
+        )
+        nxt = f"re-judge it: --independence {'|'.join(INDEPENDENCE)}"
+    elif not judged(fm):
+        reason = (
+            "no judgment recorded — capture is custody, not judgment, and an unjudged "
+            "source counts toward nothing"
+        )
+        nxt = "judge it after reading: --independence … --basis …"
+    elif support.get("seeded") == "legacy-grade":
+        reason = (
+            f"grade {grade} is a migration seed carrying a pre-0.8 authored letter, "
+            "not a derivation from the support tuple"
+        )
+        nxt = "replace the seed with a real judgment: --independence … --basis …"
+    elif independence == "derivative":
+        reason = "independence 'derivative' — a lead, never provenance"
+        nxt = "D is terminal for a republisher; capture the source it republishes instead"
+    elif support.get("base_defined") is False:
+        reason = (
+            "base recorded undefined — the measured quantity itself is unspecified, "
+            "which caps the digest at C whatever else the tuple says"
+        )
+        nxt = "define what is being measured, then re-grade with --base-defined"
+    elif grade == "A":
+        reason = f"independence 'independent' + strong basis '{basis}', base not undefined"
+        nxt = "A is the ceiling"
+    elif grade == "B":
+        reason = (
+            f"independence '{independence}' with basis '{basis}' and a recorded method "
+            "(method alone is what gates B)"
+        )
+        nxt = f"A needs independence 'independent' and a strong basis ({strong})"
+    else:
+        why = []
+        if independence not in ("independent", "corroborated"):
+            why.append(f"independence '{independence}' is neither independent nor corroborated")
+        if not basis:
+            why.append("no basis recorded")
+        elif independence == "independent" and basis not in _STRONG_BASES:
+            why.append(f"basis '{basis}' is not a strong basis ({strong})")
+        if basis and not support.get("method"):
+            why.append("no method recorded, and method alone is what gates B")
+        reason = "; ".join(why) or "no rule above C matched"
+        if independence in ("independent", "corroborated") and basis and not support.get("method"):
+            nxt = "B needs --method (one line on how the evidence was produced)"
+        elif independence == "independent":
+            nxt = f"A needs a strong basis ({strong})"
+        else:
+            nxt = (
+                "C is the honest ceiling for self-reported evidence; corroborate it with "
+                "an independent source rather than upgrading this one"
+            )
+    return {
+        "grade": grade,
+        "reason": reason,
+        "next": nxt,
+        "inputs": inputs,
+        "documentation": documentation,
+    }
 
 # SPEC §9 naming rules: P papers · A articles/web · F files/datasets/documents ·
 # T talks/transcripts · S when unkinded/unknown. D is reserved for decisions —
@@ -188,6 +321,32 @@ def _title_for(target: str, capture_kind: str) -> str:
     return target
 
 
+# A fetcher envelope is untrusted input, and flip is the trust boundary. A
+# configured fetcher that decodes a binary payload and hands back its first
+# bytes as the "title" produced pages named `PK…[Content_Types].xml` (an
+# .xlsx) and `%PDF-1.7 1 0 obj` (a PDF) — six needed hand-retitling. Reject a
+# title that isn't plausibly text and fall back to the target-derived name.
+_BINARY_TITLE_MAGIC = (
+    "%PDF", "PK\x03\x04", "\x89PNG", "\x7fELF", "%!PS", "GIF8", "\x1f\x8b", "\xd0\xcf\x11\xe0",
+)
+
+
+def _plausible_title(value: object) -> str | None:
+    """A fetcher-supplied title, or None when it looks like binary payload."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text or text.startswith(_BINARY_TITLE_MAGIC):
+        return None
+    if "[Content_Types].xml" in text:  # OOXML (.xlsx/.docx/.pptx) read as text
+        return None
+    # A replacement char means bytes were decoded with errors="replace";
+    # control bytes mean they weren't text to begin with. Either way: payload.
+    if "�" in text or any(ch < " " and ch != "\t" for ch in text):
+        return None
+    return text
+
+
 def _hint_note(envelope: dict | None) -> str:
     """Render a fetcher's independence/freshness/status hints as a page note.
 
@@ -238,7 +397,14 @@ def add_source(
     kind = kind or _classify(target)
     source_id = pages.allocate_id(root, _ID_PREFIXES.get(kind, "S"))
 
-    resolved = None if kind == "file" else integrations.resolve("fetchers", kind, via=via)
+    # Route on the TARGET, not only the kind: `--kind dataset ./local.psv` used
+    # to demand a [fetchers] command for a file already on disk, while the same
+    # path with `--kind file` copied fine. A local path never needs a fetcher.
+    local_target = Path(target).expanduser().exists()
+    resolved = (
+        None if kind == "file" or local_target
+        else integrations.resolve("fetchers", kind, via=via)
+    )
     envelope: dict | None = None
     if resolved is None or resolved.template == "builtin:copy":
         files, origin = _capture_copy(root, source_id, target)
@@ -300,9 +466,8 @@ def add_source(
     # flip.json envelope sidecar (which is metadata, not content)
     primary = [f for f in files if f.name != "flip.json"] or files
     largest = max(primary, key=lambda p: p.stat().st_size)
-    env_title = envelope.get("title") if envelope else None
-    title = env_title.strip() if isinstance(env_title, str) and env_title.strip() \
-        else _title_for(target, capture_kind)
+    env_title = _plausible_title(envelope.get("title")) if envelope else None
+    title = env_title or _title_for(target, capture_kind)
     fm: dict = {
         "type": "Source",
         "id": source_id,
@@ -392,6 +557,32 @@ def set_pipeline(root: Path, source_id: str, pipeline: str, evidence: str) -> pa
     manifest.touch_updated(root)
     _regenerate_views(root)
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
+
+
+def retitle_source(root: Path, source_id: str, title: str) -> pages.Page:
+    """Rewrite a source's human-readable `title` (and its `# heading` when the
+    body still carries the old one).
+
+    The write path that keeps a bad capture title out of a text editor: a
+    hand-edited frontmatter title is how an unquoted colon gets into YAML and
+    breaks every reader of the notebook at once. flip's own writer quotes it.
+    The slug is deliberately left alone — that is `flip rename`'s job, because
+    moving a page has to rewrite the links pointing at it.
+    """
+    root = require_notebook_root(root)
+    title = (title or "").strip()
+    if not title:
+        raise SystemExit("empty title; pass the name this source should carry")
+    page = _find_source_page(root, source_id)
+    old = str(page.fm.get("title") or "")
+    page.fm["title"] = title
+    body = page.body
+    if old and body.startswith(f"# {old}"):
+        body = f"# {title}" + body[len(f"# {old}"):]
+    pages.write_page(page.path, page.fm, body)
+    manifest.touch_updated(root)
+    _regenerate_views(root)
+    return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
 def recheck_source(root: Path, source_id: str, via: str | None = None) -> dict:
