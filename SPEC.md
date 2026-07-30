@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.15 · 2026-07-25
+**Status:** draft v0.16 · 2026-07-30
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -255,7 +255,10 @@ authors: ["Yann LeCun"]
 publisher: example.com
 local: sources/raw/A3/page.html
 grade: B
-independence: original
+independence: independent
+support:
+  basis: measured
+  method: "verbatim transcript, timestamped against the recording"
 freshness: fresh
 status: captured
 ---
@@ -292,7 +295,27 @@ tuple (doctor flags drift): `A` = independent + strong basis
 other recorded judgment · `D` = derivative · `?` = unjudged. A pre-0.8
 authored letter survives migration as `support.seeded: legacy-grade` — the
 digest returns it until a real grading replaces the seed (doctor lists
-seeds as expected-until-touched).
+seeds as expected-until-touched). `flip grade --explain` prints the
+derivation: only `independence`, `support.basis` and `support.base_defined`
+move the letter (plus `support.method`, which alone gates B); `support.n`,
+`support.vintage` and `freshness` are documentation.
+
+**Pre-0.8 `independence` is a missing judgment, not a weak one** (v0.16). The
+key changed *axis*, not spelling: pre-0.8 it recorded **custody** ("we hold
+the original bytes, not a copy"), 0.8 records **epistemics** ("is this
+evidence independent of its own subject"). An exact-commit copy of a
+project's own README is original custody *and* self-reported evidence, so the
+translation cannot be made mechanically. A page still carrying `original`,
+`republisher` or `self-interested` is therefore **not judged**: it derives
+`?`, corroborates nothing, and doctor names it. `flip migrate` maps
+`republisher`/`self-interested` (same axis) but only *parks* `original` —
+the authored letter moves to `support.pre_08_grade`, the digest resets to
+`?`, and a human has to re-read the source. This demotes claims that rested
+on such a source, which is the point: a corroboration count drawn from a
+judgment flip could not read was never evidence of anything. Every surface
+that reports a corroboration count also names the sources it could not count,
+because a wrong number is worse than a missing one — only the missing one
+prompts a look.
 
 **Liveness and provenance state** (optional, evidence-backed):
 
@@ -471,6 +494,15 @@ alone (the recomputed count does). `flip claim verify <C#> --method …` writes
 them; doctor's `unaudited-claim` fires only when a load-bearing claim has
 neither corroboration nor any verification record. OKF consumers
 preserve-and-ignore.
+
+`against` is **where the verifying thing is named**, and it is not restricted
+to source ids: a session id, a script path, or a derivation record all belong
+there. A `recomputation` clears the gate on its own, so it has to be
+locatable — doctor's `unlocatable-recomputation` fires on a recomputation
+record with an empty `against`. A recomputation nobody can reach is an
+assertion with better manners, and it is common for the *citations* on such a
+claim to be self-reported sources contributing nothing while the actual
+evidence lives in a session page: `against` is how the claim points at it.
 
 Decisions and questions follow the same shape: `decisions/<slug>.md`
 (`type: Decision` — `question`, decision text, why, `alternatives_rejected`)
@@ -771,6 +803,8 @@ flip find "<question>"               # research: list candidate leads (--capture
 flip ask "<question>"                # research: cited synthesis → sessions/raw/ (a grade-C lead)
 flip recall "<question>"             # knowledge: read what we already hold locally
 flip grade <id> …                    # record judgment on a source page
+flip grade <id> --explain            # why it derives that letter; writes nothing
+flip source retitle <id> "<title>"   # rewrite a capture's title, YAML quoted
 flip log "<text>"                    # append a work-log event (+ regen log.md)
 flip decide|pass|question …          # decisions/questions pages; passed ledger
 flip claim add|status|list …         # claims pages; verification bar enforced
@@ -792,7 +826,9 @@ flip doctor --workspace [--fix]      # lint the shared space instead (§18); --f
                                      #   binds strays, backfills uids, regens aliases
 flip index                           # per-user registry (~/.flip/index.jsonl)
 flip migrate                         # v0.3 ledgers → pages; 0.4 → 0.5 (mint uid,
-                                     #   links.beat '#' → ':')
+                                     #   links.beat '#' → ':'); scans PAGES too —
+                                     #   a current manifest over pre-0.8 source
+                                     #   tuples is still work to do (§5.4)
 flip export bag|csl|okf|json|ro-crate # projections (§17); json = flip-render/1
 ```
 

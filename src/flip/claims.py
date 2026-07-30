@@ -11,11 +11,18 @@ that only survive in the ledgers or the .flip/ids reservation file.
 
 `independent_corroboration` is computed, never hand-set: the count of a
 claim's listed source ids (deduped) whose references/ page is JUDGED — grade
-A/B/C, never "?" — with independence == "original" (SPEC §5.4: ungraded
+A/B/C, never "?" — with independence == "independent" (SPEC §5.4: ungraded
 sources never corroborate; capture is custody, not judgment). It is
 recomputed on every status change so the number tracks the pages as gradings
 evolve. `corroboration_count` is the one shared implementation; doctor's
 under-verified check uses it too.
+
+`uncountable_sources` is its companion, and every surface that shows the
+count must show it too: a cited source carrying pre-0.8 `independence`
+vocabulary can be counted neither for nor against, and reporting it as a
+plain 0 reads as "the evidence is thin" when the truth is "flip cannot read
+this judgment". A wrong number is worse than a missing one — only the missing
+one prompts a look.
 
 Ownership on a claim page (SPEC §6.6): flip owns the frontmatter keys it
 writes plus two generated body parts — the footnote-marker cluster ending
@@ -96,6 +103,22 @@ def corroboration_count(source_fms: list[dict], source_ids: list[str]) -> int:
         for fm in _linked_fms(source_fms, source_ids)
         if sources_mod.judged(fm) and fm.get("independence") == "independent"
     )
+
+
+def uncountable_sources(source_fms: list[dict], source_ids: list[str]) -> list[str]:
+    """The claim's cited source ids that cannot be counted either way, in
+    order: pages still carrying pre-0.8 `independence` vocabulary.
+
+    `corroboration_count` returns a number; this returns the reason that
+    number may understate the evidence. Report them together — an unmigrated
+    source silently dropping out of the count is how four claims failed the
+    `verified` gate for a reason that had nothing to do with their evidence.
+    """
+    return [
+        str(fm.get("id"))
+        for fm in _linked_fms(source_fms, source_ids)
+        if sources_mod.unmigrated(fm)
+    ]
 
 
 def has_gating_verification(fm: dict) -> bool:
@@ -253,9 +276,11 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
     source slugs.
 
     "verified" is gated by the notebook profile's verification bar: at least
-    `claim_min_independent` sources with independence == "original", or — when
-    `claim_grade_a_suffices` — any listed source graded A. Only judged sources
-    count. Refusal writes nothing. Returns the updated page.
+    `claim_min_independent` sources with independence == "independent", or —
+    when `claim_grade_a_suffices` — any listed source graded A. Only judged
+    sources count, and a refusal names any cited source flip could not count
+    at all (pre-0.8 vocabulary) so the number is never read as an evidence
+    verdict. Refusal writes nothing. Returns the updated page.
     """
     root = util.require_notebook_root(root)
     if status not in STATUSES:
@@ -282,13 +307,26 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
             if profile.claim_grade_a_suffices:
                 msg += " and no grade-A source among its sources"
             msg += (
-                f" (sources: {', '.join(cited) or 'none'}); add independent original "
-                "sources to the claim"
+                f" (sources: {', '.join(cited) or 'none'}); add sources whose "
+                "independence is 'independent' to the claim"
             )
             if profile.claim_grade_a_suffices:
                 msg += " or upgrade one to grade A via `flip grade`"
+            # Lead with the cause when there is one: an uncountable source is a
+            # vocabulary problem wearing an evidence problem's clothes, and the
+            # count above understates the evidence rather than measuring it.
+            stale = uncountable_sources(source_fms, cited)
+            if stale:
+                msg += (
+                    f"; {', '.join(stale)} {'carries' if len(stale) == 1 else 'carry'} "
+                    "pre-0.8 independence vocabulary and cannot be counted either way "
+                    "— that count is not a verdict on the evidence; run `flip migrate`, "
+                    "then re-judge with `flip grade`"
+                )
             ungraded = [
-                str(fm.get("id")) for fm in linked if not sources_mod.judged(fm)
+                str(fm.get("id"))
+                for fm in linked
+                if not sources_mod.judged(fm) and not sources_mod.unmigrated(fm)
             ]
             if ungraded:
                 msg += (
@@ -339,9 +377,12 @@ def add_claim_sources(
 
     Unknown ids — no references/ page carries them — are refused before any
     write; this is the post-hoc linker, not a place to invent dangling cites.
-    Returns (page, newly-added ids, warnings) where warnings name any linked
-    source still graded "?" (ungraded sources never count toward the bar,
-    D12/§5.4). Refuses when every given id is already linked.
+    Returns (page, newly-added ids, warnings), where warnings are
+    `(source_id, reason)` pairs for any linked source that won't count toward
+    the bar: `"unjudged"` (graded "?" — capture is custody, not judgment,
+    D12/§5.4) or `"unmigrated"` (pre-0.8 `independence` vocabulary, which
+    needs re-reading rather than first-time judging — a different fix, so a
+    different word). Refuses when every given id is already linked.
     """
     root = util.require_notebook_root(root)
     ids = [str(s) for s in pages.as_list(new_ids)]
@@ -363,7 +404,11 @@ def add_claim_sources(
             f"claim {claim_id} already cites {', '.join(dict.fromkeys(ids))}; nothing to add"
         )
     updated = _write_sources(root, page, current + added)
-    warnings = [s for s in added if not sources_mod.judged(src_by_id[s].fm)]
+    warnings = [
+        (s, "unmigrated" if sources_mod.unmigrated(src_by_id[s].fm) else "unjudged")
+        for s in added
+        if not sources_mod.judged(src_by_id[s].fm)
+    ]
     return updated, added, warnings
 
 

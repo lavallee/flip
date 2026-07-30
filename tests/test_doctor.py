@@ -1162,3 +1162,105 @@ def test_fix_never_rewrites_a_table_with_invalid_handles(tmp_path):
     unreg = [f for f in findings if f.code == "unregistered-notebook"]
     assert unreg and "flip ws add orchard" in unreg[0].message  # suggestion, not bound
     assert (ws / ".flip" / "workspace.toml").read_bytes() == before
+
+
+# --- one cause, many symptoms ---------------------------------------------------
+
+
+def test_vocabulary_drift_leads_with_the_cause(tmp_path):
+    # 272 warnings and 4 errors once had ONE root cause, every warning on its
+    # own line, and the errors looked like an evidence problem when they were a
+    # vocabulary problem. The cause line comes first and names both sides.
+    root = make_notebook(tmp_path)
+    for sid in ("A1", "A2", "A3"):
+        source_page(root, sid, grade="A", independence="original")
+    claim_page(root, "C1", sources=["A1", "A2"])
+    claim_page(root, "C2", sources=["A3"])
+    findings = run_doctor(root)
+    assert findings[0].code == "vocabulary-drift"
+    msg = findings[0].message
+    assert "3 source(s) carry pre-0.8 independence vocabulary" in msg
+    assert "2 claim(s) (C1, C2)" in msg
+    assert "flip migrate" in msg
+    # the per-source symptoms still carry their paths for anything scripted
+    assert codes(findings).count("pre-08-vocabulary") == 3
+
+
+def test_no_cause_line_when_the_vocabulary_is_current(tmp_path):
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent",
+                support={"basis": "survey", "method": "read it"})
+    assert "vocabulary-drift" not in codes(run_doctor(root))
+
+
+def test_parked_source_is_told_to_re_judge_not_to_migrate(tmp_path):
+    # `flip migrate` cannot translate 'original' — it only parks it — so
+    # telling a parked page's owner to migrate is advice that does nothing.
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="?", independence="original",
+                support={"pre_08_grade": "A"})
+    stale = [f for f in run_doctor(root) if f.code == "pre-08-vocabulary"]
+    assert len(stale) == 1
+    assert "no migration can translate it" in stale[0].message
+    assert "the pre-0.8 letter was A" in stale[0].message
+    assert "flip grade A1" in stale[0].message
+
+
+def test_under_verified_says_the_count_is_not_a_verdict(tmp_path):
+    root = make_notebook(tmp_path, min_independent=1, grade_a_suffices=False)
+    source_page(root, "A1", grade="A", independence="original")
+    claim_page(root, "C1", status="verified", load_bearing=True, sources=["A1"])
+    under = [f for f in run_doctor(root) if f.code == "under-verified"]
+    assert len(under) == 1
+    assert "could not be counted either way" in under[0].message
+    assert "understates the evidence" in under[0].message
+
+
+# --- a recorded failure is a finding, not corruption ----------------------------
+
+
+def test_failed_capture_row_is_not_an_orphan(tmp_path):
+    # A fetch failure allocates an id and writes a `status: failed` provenance
+    # row with no page — deliberately, so "searched, gone" stays distinguishable
+    # from "did not look". orphan-provenance used to nag about it forever, with
+    # hand-editing JSONL as the only way to silence it.
+    root = make_notebook(tmp_path)
+    append_jsonl(
+        root / "sources" / "_provenance.jsonl",
+        {"ts": "2026-07-09T14:31:02Z", "source_id": "A7",
+         "url": "https://example.com/gone", "status": "failed",
+         "error": "HTTP 404", "actor": "agent:test"},
+    )
+    assert "orphan-provenance" not in codes(run_doctor(root))
+
+
+def test_a_real_orphan_is_still_reported(tmp_path):
+    root = make_notebook(tmp_path)
+    append_jsonl(root / "sources" / "_provenance.jsonl", prov_event("A7", "sources/raw/A7.html"))
+    assert "orphan-provenance" in codes(run_doctor(root))
+
+
+# --- a recomputation nobody can locate ------------------------------------------
+
+
+def test_recomputation_without_against_is_flagged(tmp_path):
+    root = make_notebook(tmp_path)
+    path = claim_page(root, "C1", sources=[])
+    fm = pages.read_page(path).fm
+    fm["verified"] = [{"by": "agent:test", "at": "2026-07-30T10:00:00Z",
+                       "method": "recomputation"}]
+    pages.write_page(path, fm, "claim C1\n")
+    flagged = [f for f in run_doctor(root) if f.code == "unlocatable-recomputation"]
+    assert len(flagged) == 1
+    assert "session id, script path, or derivation record" in flagged[0].message
+
+
+def test_recomputation_with_against_is_clean(tmp_path):
+    root = make_notebook(tmp_path)
+    path = claim_page(root, "C1", sources=[])
+    fm = pages.read_page(path).fm
+    fm["verified"] = [{"by": "agent:test", "at": "2026-07-30T10:00:00Z",
+                       "method": "recomputation",
+                       "against": ["sessions/2026-07-30-recompute.md"]}]
+    pages.write_page(path, fm, "claim C1\n")
+    assert "unlocatable-recomputation" not in codes(run_doctor(root))

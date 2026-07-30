@@ -4,7 +4,7 @@
 # A worked example to fork: one file is a complete discipline.
 
 id      = "lineage"
-version = "1.1"   # 1.1: adds the refresh-receipt checks (source-drift, drifted-evidence)
+version = "1.2"   # 1.1: refresh-receipt checks · 1.2: vocabulary-drift, unlocatable-recomputation
 kind    = "regime"
 aka     = ["custody", "chain of custody", "provenance discipline"]
 summary = """
@@ -61,3 +61,16 @@ check = "source-drift"
 
 [[check]]
 check = "drifted-evidence"
+
+# A judgment flip cannot read is a lineage problem: the grading slot's whole
+# promise is that the letter follows from the tuple.
+[[check]]
+check = "vocabulary-drift"
+
+[[check]]
+check = "pre-08-vocabulary"
+
+# Corroboration's other path: a recomputation clears the bar on its own, so
+# lineage wants it locatable.
+[[check]]
+check = "unlocatable-recomputation"

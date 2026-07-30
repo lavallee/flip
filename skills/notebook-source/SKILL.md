@@ -18,6 +18,8 @@ didn't capture is a source you don't have.
 | capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
 | recheck the world | `flip source recheck <id>` — re-fetch, hash-compare, receipt; never overwrites custody |
 | grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--n … --base-defined\|--base-undefined]` — the letter is derived |
+| ask why a letter | `flip grade <id> --explain` — the derivation, writes nothing |
+| fix a bad capture title | `flip source retitle <id> "<title>"` — never hand-edit frontmatter |
 | assert a claim | `flip claim add "<text>" --source <id> [--load-bearing]` |
 | link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
 | record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
@@ -76,6 +78,24 @@ archived. They are not problems; don't re-run doctor for reassurance.
    a claim until judged. `flip source list` shows every capture's
    grade/independence/freshness at a glance; sweep it for `?` rows before
    any claim audit.
+
+   **Only three fields move the letter** — `--independence`, `--basis` and
+   `--base-defined` — plus `--method`, which alone gates B. `--n`,
+   `--vintage` and `--freshness` are documentation: real, worth recording,
+   but they never change the grade. Don't reverse-engineer this; run
+   `flip grade <id> --explain` and it will name the rule that fired and what
+   a higher letter would take.
+
+   **On an inherited notebook, check the vocabulary before you trust a
+   letter.** `independence` changed *axis* at 0.8 — it used to record custody
+   ("we hold the original bytes"), it now records epistemics ("independent of
+   its own subject"). A page still carrying the old values is **unjudged**:
+   it derives `?` and corroborates nothing, however confident the letter
+   stored on it looks. `flip doctor` leads with a `vocabulary-drift` line
+   naming how many sources and which claims; `flip migrate` handles what can
+   be translated mechanically and parks the rest for you to re-read. A
+   corroboration count that dropped to 0 across a whole notebook is this,
+   not an evidence problem.
 4. **Public-terminus check.** If the manifest's `citation_rule` is
    `public-terminus`, confirm any load-bearing chain this source joins ends
    at a public, independently verifiable source — a grade-C intermediary

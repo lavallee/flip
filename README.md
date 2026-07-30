@@ -69,6 +69,7 @@ flip add-source ./districts.csv --note "district enrollment table"
 # F1 · sources/raw/F1.csv · references/districts.md (grade ?)
 flip grade F1 --independence independent --basis official-record --base-defined
 # F1 · grade A (derived) — the letter is a digest of the evidence description
+flip grade F1 --explain            # why that letter, and what a higher one would take
 flip claim add "Enrollment fell 4.2% since 2021" --source F1 --load-bearing
 # C1 asserted · sources: F1 · corroboration: 1
 flip claim status C1 verified      # gated: refused until the corroboration bar is met
@@ -82,7 +83,8 @@ Filenames are human slugs (`references/districts.md`); the immutable id
 (`F1`) lives in frontmatter. `flip open F1` resolves an id to its page;
 `flip rename F1 district-enrollment-table` renames the file and rewrites
 every link to it. `flip migrate` upgrades an older notebook in place
-(v0.3 ledgers become pages; a 0.4 manifest gains its `uid`).
+(v0.3 ledgers become pages; a 0.4 manifest gains its `uid`) — it reads the
+*pages*, not just the manifest's version, because the two drift apart.
 
 Many notebooks can share one vault or repo as a **workspace**: `flip ws
 init` at the shared root binds each notebook to a short handle (yours to
@@ -135,9 +137,10 @@ plugin reads the handle table, audits the shared space, and open-by-id
 suggests every bound notebook's entities as `recipes:A3`. The walkthrough
 is [docs/obsidian.md](docs/obsidian.md).
 
-Status: spec draft v0.15 — notebooks are native OKF v0.2 bundles. The CLI
-covers the full surface (`cli`, `new`, `add-source`, `grade`, `log`, `decide`,
-`pass`, `question` (incl. `repose`), `claim` (incl. `verify` / `source add`),
+Status: spec draft v0.16 — notebooks are native OKF v0.2 bundles. The CLI
+covers the full surface (`cli`, `new`, `add-source`, `grade` (incl.
+`--explain`), `log`, `decide`, `pass`, `question` (incl. `repose`), `claim`
+(incl. `verify` / `source add`), `source` (incl. `retitle` / `recheck`),
 `session`, `show`, `open`, `resolve`, `rename`, `doctor`, `index`, `migrate`,
 `export bag|csl|okf|json`), **workspaces** (`flip ws init / list / add /
 rename / rm / show`) that bind many notebooks under one root, plus **beats** —

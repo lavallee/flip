@@ -6,6 +6,85 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-07-30
+
+**Breaking, by design:** the judgment fix below changes verification-bar
+outcomes on existing on-disk notebooks. A claim resting on a source whose
+`independence` predates 0.8 will demote, because that source was never
+carrying a judgment flip could read.
+
+Everything here comes from a field report written after one long research
+day and checked line by line against the implementation: two notebooks, ~40
+sources, 27 claims, and one agent-run spent clearing 4 errors and 272
+warnings out of a notebook that turned out to have a single root cause.
+
+### Fixed
+- **A source could show grade A and count for nothing.** `judged()` treated
+  *any* truthy `independence` as a recorded judgment, including values not in
+  the enum. A notebook carried across the 0.8 vocabulary change therefore had
+  sources that were "judged", displayed a confident stored letter, and
+  contributed **zero** corroboration — three surfaces disagreeing in silence.
+  Worse, `derive_grade`'s `support.seeded: legacy-grade` short-circuit
+  returned the stored letter without ever inspecting `independence`, and the
+  `seeded-grade` notice suppressed the `grade-drift` warning that would have
+  caught it. `judged()` now requires 0.8 vocabulary; pre-0.8 values derive
+  `?`. **This demotes claims that rested on such sources** — intentionally: a
+  corroboration count drawn from a judgment flip could not read was never
+  evidence of anything.
+- **`flip migrate` was a no-op exactly when it was needed.** It refused on the
+  manifest's `flip:` version alone, so a notebook declaring 0.8 while every
+  source page inside carried pre-0.8 tuples was told "already at the current
+  profile" — while doctor's own `pre-08-vocabulary` warning was telling its
+  owner to run precisely that command. Migrate now scans pages too, and
+  "nothing to migrate" requires the manifest *and* the pages.
+- **`migrate` no longer maps `original` → `independent`.** That key changed
+  *axis*, not spelling: pre-0.8 it recorded custody ("we hold the original
+  bytes"), 0.8 records epistemics ("independent of its own subject"). The old
+  map silently promoted every self-reported source to full corroboration
+  weight. `republisher`/`self-interested` still map (same axis); `original` is
+  *parked* — the authored letter moves to `support.pre_08_grade`, the digest
+  resets to `?`, and a human re-reads the source.
+- **A failed capture no longer reads as corruption.** A `status: failed`
+  provenance row has no page by design — "searched, gone" stays
+  distinguishable from "did not look" — but `orphan-provenance` nagged about
+  it forever, with hand-editing JSONL as the only way to silence it.
+- **A local path never routes through a fetcher.** `--kind dataset ./local.psv`
+  demanded a `[fetchers]` command for a file already on disk while `--kind
+  file` copied the same path fine. Capture now routes on the target.
+- **Binary payloads no longer become page titles.** A fetcher handing back a
+  decoded payload's first bytes produced pages named `%PDF-1.7 1 0 obj` and
+  `PK…[Content_Types].xml`. flip is the trust boundary for a fetcher envelope:
+  implausible titles are rejected in favour of the target-derived name.
+
+### Added
+- **`flip grade <id> --explain`.** Writes nothing; prints why the source
+  derives the letter it does. Only `independence`, `basis` and `base_defined`
+  move it — plus `method`, which alone gates B — while `n`, `vintage` and
+  `freshness` are documentation. That was discoverable only by reading
+  `derive_grade`, and an agent regrading 134 sources had to reverse-engineer
+  it.
+- **doctor leads with the cause.** A new `vocabulary-drift` finding replaces a
+  wall of repeats with one line naming the count *and* the claims it explains,
+  and the text renderer collapses any code repeating past three (`--json`
+  keeps every finding). 272 symptoms with one cause read as a deeply unsound
+  notebook; the truth was that one field changed meaning.
+- **Corroboration counts never travel alone.** `claims.uncountable_sources`
+  names the cited sources flip could not count either way, and the `verified`
+  refusal, doctor's `under-verified`, and `flip source list` all report it
+  beside the number. A wrong number is worse than a missing one, because only
+  the missing one prompts a look.
+- **`flip source retitle <id> "<title>"`.** The write path that keeps a bad
+  capture title out of a text editor — flip quotes the YAML, so a title
+  containing a colon can't produce frontmatter that breaks every reader of the
+  notebook at once. The slug stays `flip rename`'s job.
+- **`unlocatable-recomputation`.** A `recomputation` clears the `verified` gate
+  on its own, so it must be locatable: doctor now warns when one records no
+  `against`. `--against` was always free-form — a session id, script path, or
+  derivation record all belong there — but nothing said so and nothing checked.
+- **`flip source list` shows the DERIVED letter**, naming the stored one where
+  they disagree. A stored letter outliving its support tuple is how a source
+  comes to display a confident A while corroborating nothing.
+
 ## [0.15.0] — 2026-07-28
 
 ### Added

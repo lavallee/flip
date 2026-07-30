@@ -21,7 +21,9 @@ notebook.toml is deleted last, so an interrupted migration resumes cleanly:
 re-running converts only what remains — rows whose id already has a page are
 skipped (counted as already migrated), never duplicated — and a uid the
 notebook already carries is never re-minted. Running against an already-
-current notebook is a refusal, not a no-op, so scripted callers notice.
+current notebook is a refusal, not a no-op, so scripted callers notice —
+"current" meaning the manifest AND the pages, checked separately, because the
+two drift apart and only the pages carry the judgment vocabulary.
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ import tomllib
 from pathlib import Path
 
 from . import claims, manifest, pages
+from .sources import PRE_08_INDEPENDENCE
 from .util import ROOT_FILE, is_notebook_root, new_uid, read_jsonl, today
 
 NOTEBOOK_TOML = "notebook.toml"
@@ -154,9 +157,14 @@ def _write_source_page(root: Path, row: dict) -> pages.Page:
     old_ind = str(row.get("independence") or "original")
     fm["grade"] = old_grade if old_grade in ("A", "B", "C", "D") else "?"
     if not (old_ind == "original" and fm["grade"] == "?"):
-        fm["independence"] = _INDEPENDENCE_MAP.get(old_ind, old_ind)
-        if fm["grade"] in ("A", "B", "C"):
-            fm["support"] = {"seeded": "legacy-grade"}
+        if old_ind == "original":
+            # Custody, not epistemics — park the letter, don't translate it.
+            fm["independence"] = old_ind
+            _park_unmigrated(fm, fm["grade"])
+        else:
+            fm["independence"] = _INDEPENDENCE_MAP.get(old_ind, old_ind)
+            if fm["grade"] in ("A", "B", "C"):
+                fm["support"] = {"seeded": "legacy-grade"}
         if row.get("freshness"):
             fm["freshness"] = str(row["freshness"])
     fm["status"] = str(row.get("status") or "captured")
@@ -533,24 +541,86 @@ def _upgrade_pages_okf02(root: Path) -> dict:
 
 # --- support-tuple judgment model (profile 0.8) -----------------------------
 
-# Pre-0.8 → 0.8 independence vocabulary (design D-C).
+# Pre-0.8 → 0.8 independence vocabulary (design D-C, revised 0.16).
+#
+# `original` is deliberately ABSENT. It is the one value whose axis changed
+# rather than its spelling — pre-0.8 it meant custody ("we hold the original
+# bytes"), 0.8 means epistemics ("independent of its own subject") — so the
+# old original → independent mapping silently promoted every self-reported
+# source to full corroboration weight. The custody-to-epistemics translation
+# cannot be made mechanically; a human has to re-read the source. See
+# `_park_unmigrated`.
 _INDEPENDENCE_MAP = {
-    "original": "independent",
     "republisher": "derivative",
-    "derivative": "derivative",
     "self-interested": "self-reported",
 }
+
+
+def _park_unmigrated(fm: dict, old_grade: str) -> None:
+    """Leave `independence: original` in place as the unmigrated marker and
+    reset the digest to "?" — uncountable, not confident.
+
+    The authored letter is parked under `support.pre_08_grade` so whoever
+    re-judges the source keeps the context, but it must stop being the `grade`
+    the notebook displays: a source showing a confident A while corroborating
+    nothing is the one failure mode that can silently corrupt a conclusion.
+    """
+    support = fm.get("support") if isinstance(fm.get("support"), dict) else {}
+    support.pop("seeded", None)  # a seeded letter here would re-hide the problem
+    support.setdefault("pre_08_grade", old_grade)
+    fm["support"] = support
+    fm["grade"] = "?"
+
+
+def _parked(fm: dict) -> bool:
+    """True when a previous run already parked this page: the marker is in
+    place and the digest is "?", so only a human re-reading the source can
+    finish the job. Re-running migrate must leave it alone."""
+    support = fm.get("support") if isinstance(fm.get("support"), dict) else {}
+    return bool(support.get("pre_08_grade")) and str(fm.get("grade") or "?") == "?"
+
+
+def _pre_08_source_pages(root: Path) -> tuple[list[str], list[str]]:
+    """(pages the mechanical pass can still act on, pages parked awaiting a
+    human re-judgment) — both as root-relative paths.
+
+    The manifest's `flip:` version and the page vocabulary drift apart, so this
+    is what decides whether there is work to do: `migrate` used to read the
+    manifest, see the current version, and decline to act while every source
+    page inside carried pre-0.8 tuples.
+    """
+    directory = root / "references"
+    if not directory.is_dir():
+        return [], []
+    needs_pass, parked = [], []
+    for path in sorted(directory.glob("*.md")):
+        if path.name in pages.RESERVED or path.name.startswith("_"):
+            continue
+        try:
+            fm = pages.read_page(path).fm
+        except SystemExit:
+            continue  # a broken page is doctor's finding, not migrate's
+        if str(fm.get("independence") or "") not in PRE_08_INDEPENDENCE:
+            continue
+        (parked if _parked(fm) else needs_pass).append(path.relative_to(root).as_posix())
+    return needs_pass, parked
 
 
 def _upgrade_support_0_8(root: Path) -> dict:
     """Rewrite reference pages to the 0.8 judgment model, in place.
 
-    A judged page (authored letter A/B/C) maps its independence and gains a
-    `support.seeded: legacy-grade` marker so the derived digest returns the
-    authored letter — every existing bar outcome is preserved byte-for-byte
-    until a real re-grading replaces the seed. An unjudged page (grade "?")
-    drops the decorative capture-time defaults (`independence: original`,
-    default `freshness`) and returns to honest unjudged. Idempotent."""
+    `republisher`/`self-interested` map straight across — same axis, different
+    spelling — and a page with an authored letter A/B/C gains a
+    `support.seeded: legacy-grade` marker so the derived digest returns that
+    letter until a real re-grading replaces it.
+
+    `original` is different. An unjudged page (grade "?") drops it as the
+    decorative capture-time default it was. A *judged* page keeps it as an
+    explicit unmigrated marker and has its grade reset to "?" — which will
+    demote claims that were resting on it. That demotion is the point: the
+    letter was never a judgment flip could read, and a claim whose
+    corroboration came from an unreadable judgment was never verified. See
+    `_park_unmigrated`. Idempotent."""
     count = 0
     directory = root / "references"
     if not directory.is_dir():
@@ -561,15 +631,20 @@ def _upgrade_support_0_8(root: Path) -> dict:
         page = pages.read_page(path)
         fm = dict(page.fm)
         old_ind = str(fm.get("independence") or "")
-        if old_ind not in _INDEPENDENCE_MAP:
+        if old_ind not in PRE_08_INDEPENDENCE:
             continue  # already 0.8 vocabulary (or never judged) — untouched
+        if _parked(fm):
+            continue  # waiting on a human, not on another mechanical pass
         old_grade = str(fm.get("grade") or "?")
-        if old_ind == "original" and old_grade == "?":
-            # Capture-time default, never a judgment: under the 0.8 bar a
-            # mapped "independent" would suddenly corroborate — drop it.
-            fm.pop("independence", None)
-            if str(fm.get("freshness") or "") == "fresh":
-                fm.pop("freshness", None)
+        if old_ind == "original":
+            if old_grade == "?":
+                # Capture-time default, never a judgment — drop it and return
+                # the page to honest unjudged.
+                fm.pop("independence", None)
+                if str(fm.get("freshness") or "") == "fresh":
+                    fm.pop("freshness", None)
+            else:
+                _park_unmigrated(fm, old_grade)
         else:
             fm["independence"] = _INDEPENDENCE_MAP[old_ind]
             if old_grade in ("A", "B", "C"):
@@ -613,15 +688,30 @@ def migrate(root: Path) -> dict:
             f"{ROOT_FILE} with flip manifest frontmatter)"
         )
     m = manifest.load_manifest(root)
+    needs_pass, parked = _pre_08_source_pages(root)
     if (m.uid and m.flip_version == manifest.FLIP_PROFILE_VERSION
-            and _beat_link_fix(m.links) is None):
-        raise SystemExit(
+            and _beat_link_fix(m.links) is None and not needs_pass):
+        # The manifest is current AND no page has work left. Only both together
+        # are "nothing to migrate": a manifest-only check declined to act on
+        # notebooks whose every source page still carried pre-0.8 tuples, while
+        # doctor was telling their owners to run exactly this command.
+        msg = (
             f"{root} is already at the current profile (flip "
             f"{manifest.FLIP_PROFILE_VERSION}, uid {m.uid}); nothing to migrate"
         )
+        if parked:
+            msg += (
+                f"\n{len(parked)} source page(s) still carry pre-0.8 independence "
+                "vocabulary, which no migration can translate — it encoded custody, "
+                "not epistemics. They derive grade '?' and corroborate nothing until "
+                "re-read: `flip grade <id> --independence … --basis …`"
+            )
+        raise SystemExit(msg)
     counts = _upgrade_pages_okf02(root)
     counts.update(_upgrade_support_0_8(root))
     counts.update(_upgrade_profile(root))
+    if needs_pass:
+        counts["sources_unmigrated"] = len(_pre_08_source_pages(root)[1])
     _regenerate_views(root)
     return counts
 

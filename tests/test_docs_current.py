@@ -12,6 +12,12 @@ ROOT = Path(__file__).resolve().parent.parent
 DOC_FILES = [
     "README.md",
     "SPEC.md",
+    # The agent-facing contract. It was NOT on this list until 0.16.0 and had
+    # drifted three releases behind — still teaching `--grade A|B|C` (retired
+    # 0.12) and the pre-0.8 independence vocabulary. The surface agents read
+    # is the last one that should rot.
+    "AGENTS.md",
+    "CONTRIBUTING.md",
     "llms.txt",
     *[p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "docs").glob("*.md"))],
     *[p.relative_to(ROOT).as_posix() for p in sorted(ROOT.glob("src/flip/skills/*/SKILL.md"))],
@@ -37,9 +43,19 @@ RETIRED = [
 
 # file -> needles allowed there (each with a reason a reviewer can check).
 ALLOW = {
-    # SPEC's §15 migration notes and CHANGELOG-style history may describe the
-    # old model when explaining what `flip migrate` rewrites.
-    "SPEC.md": {"independence: original", "# Citations", "`supports`"},
+    # §5.4 has to name the pre-0.8 values to state the rule that they are a
+    # MISSING judgment rather than a weak one — the axis changed (custody →
+    # epistemics), so a reader who doesn't know the old spellings can't tell
+    # whether their notebook is affected. The §5.3 example page carries current
+    # vocabulary; the old needles were removed from it in 0.16.0.
+    # Both name the pre-0.8 values to state the rule that they are a MISSING
+    # judgment rather than a weak one — a reader carrying a notebook across the
+    # change can't recognize their own pages without the old spellings.
+    "SPEC.md": {"self-interested`"},
+    "AGENTS.md": {"self-interested`"},
+    # The migration section has to name the value it parks, for the same reason:
+    # a reader carrying a notebook across 0.8 needs to recognize their own pages.
+    "docs/quickstart.md": {"independence: original"},
     "docs/wiki-alignment.md": {"# Citations"},  # describes the v0.1->v0.2 OKF change
 }
 

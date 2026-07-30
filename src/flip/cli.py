@@ -431,6 +431,38 @@ def recall(query: str, via: str | None, record: bool, as_json: bool) -> None:
         click.echo(line)
 
 
+def _explain_grade(source_id: str) -> None:
+    """Print why a source derives the letter it does (`flip grade --explain`).
+
+    Reverse-engineering this from the derivation cost one reader an afternoon
+    of regrading 134 sources, so it names the moving parts explicitly rather
+    than leaving them discoverable only by reading the code.
+    """
+    root = require_notebook_root()
+    row = next((r for r in sources.list_sources(root) if r.get("id") == source_id), None)
+    if row is None:
+        known = ", ".join(str(r.get("id")) for r in sources.list_sources(root)) or "none yet"
+        raise SystemExit(f"unknown source id '{source_id}' in references/ (have: {known})")
+    x = sources.explain_grade(row)
+    click.echo(f"{source_id} · grade {x['grade']} (derived) — {row.get('title') or ''}".rstrip())
+    click.echo(f"  because: {x['reason']}")
+    click.echo(f"  to move it: {x['next']}")
+    click.echo("  moves the letter:")
+    for key in sources.GRADE_INPUTS:
+        value = x["inputs"][key]
+        gates = " (alone gates B)" if key == "method" else ""
+        # booleans render as the flag spelling the user typed, not Python's
+        shown = "—" if value is None else (
+            str(value).lower() if isinstance(value, bool) else value
+        )
+        click.echo(f"    {key}: {shown}{gates}")
+    doc = ", ".join(
+        f"{k}={'—' if x['documentation'][k] is None else x['documentation'][k]}"
+        for k in sources.GRADE_DOCUMENTATION
+    )
+    click.echo(f"  documentation only (never moves the letter): {doc}")
+
+
 @main.command()
 @click.argument("source_id", metavar="SOURCE_ID")
 @click.option("--independence", default=None, type=click.Choice(sources.INDEPENDENCE),
@@ -453,16 +485,28 @@ def recall(query: str, via: str | None, record: bool, as_json: bool) -> None:
 @click.option("--freshness", default=None, type=click.Choice(sources.FRESHNESS),
               help="fresh, or dated past the profile threshold.")
 @click.option("--notes", default=None, help="Judgment notes (why this reading).")
+@click.option("--explain", is_flag=True,
+              help="Explain the source's current letter instead of writing: which "
+                   "tuple fields moved it, which are documentation, and what a "
+                   "higher letter would take. Read-only.")
 @click.option("--grade", "legacy_grade", default=None, hidden=True)
 def grade(source_id: str, independence: str | None, basis: str | None, n: str | None,
           method: str | None, vintage: str | None, base_defined: bool | None,
-          freshness: str | None, notes: str | None, legacy_grade: str | None) -> None:
+          freshness: str | None, notes: str | None, explain: bool,
+          legacy_grade: str | None) -> None:
     """Record the support tuple on a source's page (SPEC §5.4).
 
     Use after actually reading a source; the tuple gates claim verification
     and the letter grade is DERIVED from it, never authored. Only the
     judgment keys change — the rest of the page round-trips.
+
+    `--explain` writes nothing and shows the derivation instead: only
+    independence, basis and base_defined move the letter (plus method, which
+    alone gates B) — n, vintage and freshness are documentation.
     """
+    if explain:
+        _explain_grade(source_id)
+        return
     if legacy_grade is not None:
         raise SystemExit(
             "grades are derived now, not authored (design D-A): describe the evidence "
@@ -505,6 +549,11 @@ def source_list(as_json: bool) -> None:
 
     The quick judgment audit: any line still showing grade "?" is captured
     but unjudged — and ungraded sources never count toward verification.
+
+    The letter shown is the DERIVED digest, not the letter stored on the page;
+    where the two disagree the stored one is named too. A page whose stored
+    letter outlived its support tuple is exactly how a source comes to display
+    a confident A while corroborating nothing.
     """
     rows = sources.list_sources(require_notebook_root())
     if as_json:
@@ -514,10 +563,15 @@ def source_list(as_json: bool) -> None:
         click.echo("no sources captured (references/ is absent or empty)")
         return
     for r in rows:
-        judgment = (f"{r.get('grade', '?')}/{r.get('independence', '?')}"
-                    f"/{r.get('freshness', '?')}")
-        click.echo(f"{r.get('id', '?')} · {judgment} · "
-                   f"{r.get('title') or r.get('local', '')} · {r.get('path', '')}")
+        derived = sources.derive_grade(r)
+        stored = str(r.get("grade") or "?")
+        letter = derived if derived == stored else f"{derived} (stored {stored})"
+        judgment = f"{letter}/{r.get('independence', '?')}/{r.get('freshness', '?')}"
+        line = (f"{r.get('id', '?')} · {judgment} · "
+                f"{r.get('title') or r.get('local', '')} · {r.get('path', '')}")
+        if sources.unmigrated(r):
+            line += " · pre-0.8 vocabulary: corroborates nothing until re-judged"
+        click.echo(line)
 
 
 @source.command("pipeline")
@@ -531,6 +585,22 @@ def source_pipeline(source_id: str, pipeline: str, evidence: str) -> None:
     opposite consumer behavior, so the enum needs its receipt."""
     page = sources.set_pipeline(require_notebook_root(), source_id, pipeline, evidence)
     click.echo(f"{page.id} · pipeline {page.fm['pipeline']} · {page.fm['pipeline_evidence']}")
+
+
+@source.command("retitle")
+@click.argument("source_id", metavar="SOURCE_ID")
+@click.argument("title")
+def source_retitle(source_id: str, title: str) -> None:
+    """Rewrite a source's title (and its `# heading`), quoting it correctly.
+
+    For when a capture lands with a useless name — a fetcher handing back a
+    binary payload's first bytes, say. Use this instead of opening the page in
+    an editor: flip quotes the YAML, so a title containing a colon can't
+    produce frontmatter that breaks every reader of the notebook at once. The
+    filename slug is untouched — that's `flip rename`.
+    """
+    page = sources.retitle_source(require_notebook_root(), source_id, title)
+    click.echo(f"{page.id} · {page.fm['title']} · {page.path.name}")
 
 
 @source.command("recheck")
@@ -810,9 +880,16 @@ def claim_source_add(claim_id: str, source_ids: tuple[str, ...]) -> None:
     click.echo(f"{page.id} · linked {', '.join(added)} · sources: "
                f"{', '.join(claims.source_ids(page.fm)) or 'none'} · "
                f"corroboration: {page.fm.get('independent_corroboration', 0)}")
-    for sid in warnings:
-        click.echo(f"warning: {sid} is still graded '?' — ungraded sources never count "
-                   f"toward the bar; judge it with `flip grade {sid}`", err=True)
+    for sid, reason in warnings:
+        if reason == "unmigrated":
+            click.echo(f"warning: {sid} carries pre-0.8 independence vocabulary — it "
+                       "records custody, not epistemics, so flip can't read it as a "
+                       "judgment and it counts toward nothing; re-read the source and "
+                       f"re-judge it (`flip grade {sid} --explain` for what moves the "
+                       "letter)", err=True)
+        else:
+            click.echo(f"warning: {sid} is still graded '?' — ungraded sources never count "
+                       f"toward the bar; judge it with `flip grade {sid}`", err=True)
 
 
 @claim_source.command("rm")
@@ -832,7 +909,11 @@ def claim_source_rm(claim_id: str, source_id: str) -> None:
               help="adversarial (skeptic pass) · independent-sources (records "
                    "corroboration reasoning) · recomputation (re-derive the result).")
 @click.option("--against", multiple=True, metavar="REF",
-              help="Evidence/ref consulted during the check (repeatable), e.g. --against A7.")
+              help="What did the verifying — repeatable, and not only source ids: a "
+                   "session id, script path, or derivation record all belong here "
+                   "(e.g. --against A7, --against sessions/2026-07-30-recompute.md). "
+                   "Required in practice for --method recomputation: doctor warns on a "
+                   "recomputation nobody can locate.")
 @click.option("--note", default=None, help="What the check found (recorded on the page).")
 def claim_verify(claim_id: str, method: str, against: tuple[str, ...],
                  note: str | None) -> None:
@@ -976,6 +1057,33 @@ def rename(entity_id: str, new_slug: str) -> None:
         click.echo(f"rewrote links in {changed} file(s)")
 
 
+def _collapse_findings(findings: list, show: int = 3) -> list[str]:
+    """Render findings, collapsing any code that repeats past `show`.
+
+    A single cause can produce hundreds of identical-shaped lines — 134 sources
+    on pre-0.8 vocabulary once printed 268 of them — and a wall of repeats reads
+    as "deeply unsound" when it is one fix. The examples still print, the tail
+    is counted, and `--json` keeps every finding for anything scripted.
+    """
+    counts: dict[str, int] = {}
+    for f in findings:
+        counts[f.code] = counts.get(f.code, 0) + 1
+    lines, shown = [], {}
+    for f in findings:
+        seen = shown.get(f.code, 0)
+        if counts[f.code] > show and seen >= show:
+            shown[f.code] = seen + 1
+            continue
+        shown[f.code] = seen + 1
+        lines.append(f"{f.level} {f.code} {f.path} — {f.message}")
+        if counts[f.code] > show and seen + 1 == show:
+            lines.append(
+                f"{f.level} {f.code} … and {counts[f.code] - show} more with the same "
+                "code (--json for all)"
+            )
+    return lines
+
+
 @main.command()
 @click.option("--json", "as_json", is_flag=True, help="Emit findings as JSON.")
 @click.option("--workspace", "workspace_flag", is_flag=True,
@@ -1015,8 +1123,8 @@ def doctor(as_json: bool, workspace_flag: bool, fix: bool) -> None:
     else:
         real = [f for f in findings if not f.expected]
         expected = [f for f in findings if f.expected]
-        for f in real:
-            click.echo(f"{f.level} {f.code} {f.path} — {f.message}")
+        for line in _collapse_findings(real):
+            click.echo(line)
         if not real:
             click.echo("ok: no findings yet")
         if expected:
@@ -1026,8 +1134,8 @@ def doctor(as_json: bool, workspace_flag: bool, fix: bool) -> None:
                 "expected until use (these appear with the work, not problems yet — "
                 "don't re-run doctor for reassurance):"
             )
-            for f in expected:
-                click.echo(f"  {f.level} {f.code} {f.path} — {f.message}")
+            for line in _collapse_findings(expected):
+                click.echo(f"  {line}")
     if any(f.level == "ERROR" for f in findings):
         raise SystemExit(1)
 

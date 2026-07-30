@@ -708,3 +708,155 @@ def test_source_pages_returns_pages(tmp_path):
     got = sources.source_pages(root)
     assert [p.id for p in got] == [page.id]
     assert isinstance(got[0], pages.Page)
+
+
+# --- pre-0.8 vocabulary: a missing judgment, not a weak one ---------------------
+#
+# Regression guard for the one failure that can silently corrupt a conclusion:
+# a source displaying a confident A while corroborating nothing, because
+# `independence` changed axis (custody → epistemics) at 0.8 and any truthy
+# value used to count as a judgment.
+
+
+def test_pre_08_vocabulary_is_not_a_judgment(tmp_path):
+    for value in sources.PRE_08_INDEPENDENCE:
+        fm = {"id": "A1", "grade": "A", "independence": value}
+        assert sources.unmigrated(fm) is True
+        assert sources.judged(fm) is False
+        assert sources.derive_grade(fm) == "?"
+
+
+def test_seeded_grade_does_not_short_circuit_past_unmigrated_vocabulary(tmp_path):
+    # The silent variant: the seed check used to run FIRST and return the stored
+    # letter without ever inspecting `independence`, so this page derived a
+    # confident A while `corroboration_count` scored it zero — and `seeded-grade`
+    # suppressed the grade-drift warning that would have caught it.
+    fm = {"id": "A1", "grade": "A", "independence": "original",
+          "support": {"seeded": "legacy-grade"}}
+    assert sources.derive_grade(fm) == "?"
+    assert sources.judged(fm) is False
+
+
+def test_seed_still_honoured_on_a_migrated_page(tmp_path):
+    # The seed's real job survives: current vocabulary + seed returns the
+    # authored letter until a real grading replaces it.
+    fm = {"id": "A1", "grade": "A", "independence": "independent",
+          "support": {"seeded": "legacy-grade"}}
+    assert sources.judged(fm) is True
+    assert sources.derive_grade(fm) == "A"
+    assert sources.unmigrated(fm) is False
+
+
+def test_judged_rejects_out_of_vocabulary_independence(tmp_path):
+    assert sources.judged({"id": "A1", "independence": "bogus"}) is False
+    assert sources.derive_grade({"id": "A1", "independence": "bogus"}) == "?"
+
+
+def test_grade_source_clears_unmigrated_vocabulary(tmp_path):
+    root = make_notebook(tmp_path)
+    pages.write_page(
+        root / "references" / "old.md",
+        {"type": "Source", "id": "A1", "aliases": ["A1"], "grade": "?",
+         "independence": "original", "support": {"pre_08_grade": "A"}},
+        "# old\n",
+    )
+    page = sources.grade_source(root, "A1", independence="independent",
+                                basis="official-record")
+    assert page.fm["independence"] == "independent"
+    assert page.fm["grade"] == "A"
+    assert sources.unmigrated(page.fm) is False
+
+
+# --- explain_grade -------------------------------------------------------------
+
+
+def test_explain_grade_names_the_rule_that_fired(tmp_path):
+    x = sources.explain_grade({
+        "id": "A1", "independence": "independent",
+        "support": {"basis": "official-record"},
+    })
+    assert x["grade"] == "A"
+    assert "strong basis" in x["reason"]
+    assert x["next"] == "A is the ceiling"
+    # only these four move the letter; the other three are documentation
+    assert set(x["inputs"]) == set(sources.GRADE_INPUTS)
+    assert set(x["documentation"]) == set(sources.GRADE_DOCUMENTATION)
+
+
+def test_explain_grade_points_at_the_missing_method_for_b(tmp_path):
+    x = sources.explain_grade({
+        "id": "A1", "independence": "corroborated", "support": {"basis": "survey"},
+    })
+    assert x["grade"] == "C"
+    assert "method" in x["reason"]
+    assert "--method" in x["next"]
+
+
+def test_explain_grade_explains_unmigrated_and_undefined_base(tmp_path):
+    stale = sources.explain_grade({"id": "A1", "independence": "original", "grade": "A"})
+    assert stale["grade"] == "?"
+    assert "custody" in stale["reason"]
+    assert "--independence" in stale["next"]
+
+    capped = sources.explain_grade({
+        "id": "A2", "independence": "independent",
+        "support": {"basis": "official-record", "base_defined": False},
+    })
+    assert capped["grade"] == "C"
+    assert "base recorded undefined" in capped["reason"]
+
+
+def test_explain_grade_does_not_promise_an_upgrade_for_self_reported(tmp_path):
+    x = sources.explain_grade({
+        "id": "A1", "independence": "self-reported",
+        "support": {"basis": "official-record", "method": "read it"},
+    })
+    assert x["grade"] == "C"
+    assert "corroborate it with an independent source" in x["next"]
+
+
+# --- capture papercuts ---------------------------------------------------------
+
+
+def test_binary_payload_titles_are_rejected(tmp_path):
+    # A fetcher that decodes a binary payload and calls its first bytes a
+    # "title" produced pages named `%PDF-1.7 …` and `PK…[Content_Types].xml`.
+    for bad in ("%PDF-1.7 1 0 obj", "PK\x03\x04 junk", "PK!a[Content_Types].xml",
+                "titl�e", "line\x00null", ""):
+        assert sources._plausible_title(bad) is None
+    assert sources._plausible_title("  A Real Title: With A Colon  ") == \
+        "A Real Title: With A Colon"
+
+
+def test_local_path_never_routes_through_a_fetcher(tmp_path):
+    # `--kind dataset ./local.psv` used to demand a [fetchers] command for a
+    # file already on disk, while `--kind file` copied the same path fine.
+    root = make_notebook(tmp_path)
+    target = tmp_path / "districts.psv"
+    target.write_text("a|b\n1|2\n", encoding="utf-8")
+    page = sources.add_source(root, str(target), kind="dataset")
+    assert page.fm["title"] == "districts.psv"
+    assert page.fm["local"] == "sources/raw/F1.psv"
+    assert "resource" not in page.fm  # a copy's origin lives in provenance
+
+
+def test_retitle_source_quotes_yaml_and_rewrites_the_heading(tmp_path):
+    root = make_notebook(tmp_path)
+    target = tmp_path / "capture.csv"
+    target.write_text("x\n", encoding="utf-8")
+    page = sources.add_source(root, str(target))
+    slug_before = page.path.name
+    updated = sources.retitle_source(root, page.id, "Report: Q3 findings")
+    assert updated.fm["title"] == "Report: Q3 findings"
+    assert updated.body.startswith("# Report: Q3 findings")
+    assert updated.path.name == slug_before  # the slug is `flip rename`'s job
+    # and it round-trips: an unquoted colon here is what broke every reader
+    assert pages.read_page(updated.path).fm["title"] == "Report: Q3 findings"
+
+
+def test_retitle_source_refuses_empty_and_unknown(tmp_path):
+    root, page = _captured_source(tmp_path)
+    with pytest.raises(SystemExit, match="empty title"):
+        sources.retitle_source(root, page.id, "   ")
+    with pytest.raises(SystemExit, match="unknown source id"):
+        sources.retitle_source(root, "A99", "x")

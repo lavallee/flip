@@ -458,7 +458,7 @@ def test_source_add_warns_on_ungraded(sourced: Path):
     claims.add_claim(sourced, "x", ["A1"])
     page, added, warnings = claims.add_claim_sources(sourced, "C1", ["A4"])
     assert added == ["A4"]
-    assert warnings == ["A4"]  # A4 is graded "?" — links, but never counts
+    assert warnings == [("A4", "unjudged")]  # graded "?" — links, but never counts
     assert page.fm["independent_corroboration"] == 1  # still just A1
 
 
@@ -547,3 +547,38 @@ def test_independent_sources_record_does_not_satisfy_gate(sourced: Path):
     claims.verify_claim(sourced, "C1", "independent-sources", note="argued 2 lines up")
     with pytest.raises(SystemExit, match="cannot verify C1"):
         claims.set_claim_status(sourced, "C1", "verified")
+
+
+# --- uncountable sources: a wrong count is worse than a missing one -------------
+
+
+def test_uncountable_sources_names_pre_08_pages():
+    stale = source_fm("A7", "Old", "A", "original")
+    current = source_fm("A8", "New", "A", "independent")
+    fms = [stale, current]
+    assert claims.corroboration_count(fms, ["A7", "A8"]) == 1  # A7 drops out
+    assert claims.uncountable_sources(fms, ["A7", "A8"]) == ["A7"]  # and here is why
+    assert claims.uncountable_sources(fms, ["A8"]) == []
+    assert claims.uncountable_sources(fms, ["A7", "A7"]) == ["A7"]  # deduped
+    assert claims.uncountable_sources(fms, ["ZZ9"]) == []  # dangling: not ours to explain
+
+
+def test_verify_refusal_explains_that_the_count_is_not_a_verdict(root: Path):
+    # The exact shape that cost an agent-run: a claim whose only source shows a
+    # confident A but carries pre-0.8 vocabulary, so corroboration reads 0 and
+    # the refusal used to blame the evidence.
+    pages.write_page(
+        root / "references" / "stale.md",
+        source_fm("A1", "Carried over", "A", "original"),
+        "# Carried over\n",
+    )
+    claims.add_claim(root, "x", ["A1"], load_bearing=True)
+    with pytest.raises(SystemExit) as ei:
+        claims.set_claim_status(root, "C1", "verified")
+    msg = str(ei.value)
+    assert "A1 carries pre-0.8 independence vocabulary" in msg
+    assert "cannot be counted either way" in msg
+    assert "not a verdict on the evidence" in msg
+    assert "flip migrate" in msg
+    # and it is NOT reported as a merely-unjudged source: that advice is wrong here
+    assert "still unjudged" not in msg
