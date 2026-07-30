@@ -6,6 +6,15 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **YouTube video URLs infer the `talk` kind.** `flip add-source
+  https://www.youtube.com/watch?v=…` (also `youtu.be`, `/shorts/`, `/live/`)
+  now classifies as `talk` without `--kind`, routing to the `[fetchers.talk]`
+  lane. Channels, playlists, and every other YouTube surface still classify
+  as `web` — they aren't one capturable spoken record. Born from the first
+  real talk-lane deployment (an 8-video capture run where every command
+  needed the explicit flag).
+
 ## [0.16.0] — 2026-07-30
 
 **Breaking, by design:** the judgment fix below changes verification-bar

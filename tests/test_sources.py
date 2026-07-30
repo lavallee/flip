@@ -71,6 +71,18 @@ def test_classify_x_and_twitter_posts_as_social_but_profiles_as_web():
     assert sources._classify("https://x.com/reporter") == "web"
 
 
+def test_classify_youtube_videos_as_talk_but_channels_as_web():
+    assert sources._classify("https://www.youtube.com/watch?v=rGqHWDAmRIE") == "talk"
+    assert sources._classify("https://m.youtube.com/watch?v=rGqHWDAmRIE&t=120") == "talk"
+    assert sources._classify("https://youtu.be/rGqHWDAmRIE") == "talk"
+    assert sources._classify("https://youtu.be/rGqHWDAmRIE?si=abc") == "talk"
+    assert sources._classify("https://www.youtube.com/shorts/rGqHWDAmRIE") == "talk"
+    assert sources._classify("https://www.youtube.com/live/rGqHWDAmRIE") == "talk"
+    assert sources._classify("https://www.youtube.com/@NJOFSA/videos") == "web"
+    assert sources._classify("https://www.youtube.com/playlist?list=PLx") == "web"
+    assert sources._classify("https://www.youtube.com/watch?list=PLx") == "web"
+
+
 def test_classify_dois_and_arxiv_are_paper():
     assert sources._classify("10.1234/abc.def-5") == "paper"
     assert sources._classify("doi:10.1234/abc") == "paper"

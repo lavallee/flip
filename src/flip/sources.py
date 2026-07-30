@@ -262,6 +262,8 @@ _ARXIV_RE = re.compile(r"^(arxiv:)?\d{4}\.\d{4,5}(v\d+)?$", re.IGNORECASE)
 _X_POST_RE = re.compile(
     r"^/(?:i/web/)?(?:[^/]+/)?status(?:es)?/\d+(?:[/?#]|$)", re.IGNORECASE
 )
+_YT_VIDEO_PATH_RE = re.compile(r"^/(?:shorts|live)/[A-Za-z0-9_-]{11}(?:[/?#]|$)")
+_YT_SHORT_HOST_RE = re.compile(r"^/[A-Za-z0-9_-]{11}(?:[/?#]|$)")
 
 
 def _classify(target: str) -> str:
@@ -273,6 +275,16 @@ def _classify(target: str) -> str:
         host = (parts.hostname or "").lower().removeprefix("www.").removeprefix("mobile.")
         if host in {"x.com", "twitter.com"} and _X_POST_RE.match(parts.path):
             return "social"
+        # A single YouTube video is a talk (id class T); channels, playlists,
+        # and every other YouTube surface stay web — they aren't one
+        # capturable spoken record.
+        if host in {"youtube.com", "m.youtube.com"} and (
+            (parts.path == "/watch" and re.search(r"(?:^|&)v=[A-Za-z0-9_-]{11}(?:&|$)", parts.query))
+            or _YT_VIDEO_PATH_RE.match(parts.path)
+        ):
+            return "talk"
+        if host == "youtu.be" and _YT_SHORT_HOST_RE.match(parts.path):
+            return "talk"
         return "web"
     if target.lower().startswith("doi:") or _DOI_RE.match(target) or _ARXIV_RE.match(target):
         return "paper"
