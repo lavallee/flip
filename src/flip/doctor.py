@@ -107,7 +107,7 @@ CHECK_CODES: frozenset[str] = frozenset({
     "orphan-custody", "unlogged-capture", "bad-enum", "pre-08-vocabulary",
     "enum-without-evidence", "seeded-grade", "grade-drift",
     "orphan-provenance", "stale-freshness", "unregistered-raw",
-    "source-drift", "drifted-evidence",
+    "source-drift", "drifted-evidence", "thin-capture", "unvocabularied-method",
     # claims
     "two-object", "pre-okf02-layout", "corroboration-drift", "under-verified",
     "unaudited-claim", "provenance-open", "unlocatable-recomputation",
@@ -1035,6 +1035,7 @@ def _check_sources(
                         rel,
                     )
                 )
+    _check_capture_fidelity(root, provenance, page_ids, findings)
     for sid in sorted(logged_ids - page_ids):
         findings.append(
             _warn(
@@ -1044,6 +1045,70 @@ def _check_sources(
                 PROVENANCE,
             )
         )
+
+
+def _check_capture_fidelity(
+    root: Path, provenance: list[dict], page_ids: set[str], findings: list[Finding]
+) -> None:
+    """Say what a capture actually achieved (SPEC §5.1).
+
+    A capture that succeeded and brought back 800 bytes of consent wall
+    produces the same sha256, the same ledger row, and the same page at grade
+    "?" as one that brought back the article. Custody looks identical; the
+    evidence is not. This is the same failure shape as a stored grade
+    outliving its support tuple — something that reads as trustworthy while
+    carrying nothing — so it gets named rather than left for a reader to
+    notice.
+
+    Only the LATEST successful event per source is judged: an early thin
+    attempt superseded by a real capture is history, not a finding.
+    """
+    latest: dict[str, dict] = {}
+    for event in provenance:
+        sid = str(event.get("source_id") or "")
+        if not sid or sid not in page_ids or event.get("status") == "failed":
+            continue
+        if not event.get("sha256"):  # a recheck or failure row, not a capture
+            continue
+        # A multi-file capture writes one row per file. The flip.json envelope
+        # is metadata, not content (it is always tiny — judging it would report
+        # every enveloped capture as thin), and among the real files the
+        # largest is the primary artifact, the same rule add_source uses to
+        # pick the page's `local`.
+        if Path(str(event.get("local_path") or "")).name == "flip.json":
+            continue
+        prior = latest.get(sid)
+        same_capture = prior is not None and prior.get("ts") == event.get("ts")
+        if same_capture and (prior.get("bytes") or 0) >= (event.get("bytes") or 0):
+            continue
+        latest[sid] = event
+    for sid, event in sorted(latest.items()):
+        fidelity = sources_mod.capture_fidelity(event)
+        method = str(event.get("strategy") or "")
+        if fidelity == "thin":
+            findings.append(
+                _warn(
+                    "thin-capture",
+                    f"source {sid}: captured {event.get('bytes')} bytes of markup via "
+                    f"'{method}' — too little to be the document. A consent wall, a "
+                    "JS shell, or an error page served as 200 all look like this. "
+                    "Check what landed in custody, then climb the ladder: an archive "
+                    "replay, a publisher API, or a rendering fetcher (SPEC §5.1)",
+                    PROVENANCE,
+                )
+            )
+        elif fidelity == "unknown" and method:
+            findings.append(
+                _warn(
+                    "unvocabularied-method",
+                    f"source {sid}: capture strategy '{method}' is not a capture "
+                    f"method (one of: {', '.join(sources_mod.CAPTURE_METHODS)}) — it "
+                    "reads like a tool name. Methods travel between deployments and "
+                    "tool names don't; have the fetcher report one in its envelope",
+                    PROVENANCE,
+                    expected=True,
+                )
+            )
 
 
 def _check_freshness(

@@ -223,6 +223,46 @@ Two identity keys arrived with profile 0.5:
 - Once captured, a raw file is immutable; recapture creates a new dated
   entry, it does not overwrite.
 
+**Capture methods — the ladder.** `strategy` in the capture log records *how*
+the bytes were obtained, from a fixed vocabulary; the *actor* is already
+recorded separately as `tool`/`tool_version`. Recording the method is what
+makes two notebooks comparable when they were built on different deployments:
+`archive-replay` means the same thing whoever implemented it, while a tool
+name is local trivia. In escalation order:
+
+| method | the bytes came from |
+|---|---|
+| `copy` | a local file, copied verbatim |
+| `http-get` | a plain GET of the live URL |
+| `http-alt-representation` | a canonical/AMP/print/embed variant of the same URL |
+| `archive-replay` | a third-party web archive |
+| `publisher-api` | a publisher or registry API (Crossref, Unpaywall, arXiv…) |
+| `media-extract` | a media/transcript extractor |
+| `browser-render` | a headless browser that executed the page |
+| `browser-session` | a browser render carrying an authenticated session |
+| `self-contained-archive` | one standalone file with assets inlined |
+| `human-in-loop` | a person saved it and handed flip the file |
+
+**The order is a ladder, and a refusal is where the work starts.** A 403 is a
+decision about *this* request, not a verdict on the source: the rungs above it
+exist precisely for that case, and an acquisition that stops at the first one
+has not established that the source is unavailable — only that one method
+didn't work. Statuses that mean *later, not never* (429, 502, 503, 504,
+timeouts) get backoff-retry on the same rung; a 403/404 does not, because
+repeating an unchanged request that was refused is noise. When the ladder is
+genuinely exhausted, that is a finding: `flip pass` records it, and a failed
+acquisition writes its own capture-log row, so "searched, gone" stays
+distinguishable from "did not look".
+
+**Fidelity is derived, never stored** — like the source grade (§5.4). From the
+method plus the recorded size and mime: `faithful` (assets inlined, rendered,
+or a verbatim copy) · `text-only` (the document's text, linked assets not
+captured) · `thin` (succeeded and brought back almost nothing — a consent
+wall, a JS shell, an error page served as 200) · `unknown` (no method, or one
+outside the vocabulary). `thin` is the one that matters: custody, a sha256 and
+a capture row all look identical to a real capture, so doctor names it rather
+than leaving a reader to notice.
+
 ### 5.2 The capture log — `sources/_provenance.jsonl` (append-only)
 
 One line per acquisition event:
@@ -230,7 +270,8 @@ One line per acquisition event:
 ```json
 {"ts":"2026-07-09T14:31:02Z","source_id":"A3","url":"https://…","url_used":"https://…",
  "local_path":"sources/raw/A3/page.html","sha256":"…","bytes":48210,"http_status":200,
- "tool":"single-file","tool_version":"1.22","strategy":"headless","actor":"agent:claude",
+ "tool":"single-file","tool_version":"1.22","strategy":"self-contained-archive",
+ "attempts":2,"actor":"agent:claude",
  "note":"index page lied; probed URL pattern directly"}
 ```
 

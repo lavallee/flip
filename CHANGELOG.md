@@ -6,6 +6,46 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **`flip-fetch` was getting itself blocked.** Its User-Agent identified flip
+  in a bare `flip-fetch (+url)` form that WAFs reject. Measured against live
+  sites: x.com answered it `403` and returned 165KB to a `Mozilla/5.0
+  (compatible; flip-fetch/…; +url)` form of the *same* honest identification;
+  a nasdaq.com "transient timeout" turned out to be the UA too. The default
+  now identifies flip inside a compatibility-shaped string — we do not pretend
+  to be a browser, and the answer to a WAF that blocks any named agent is the
+  archive rung, not a lie. `FLIP_FETCH_UA` overrides per deployment.
+
+### Added
+- **Capture methods: the ladder** (SPEC §5.1). `strategy` in the capture log
+  now records **how** the bytes were obtained, from a fixed vocabulary —
+  `copy` · `http-get` · `http-alt-representation` · `archive-replay` ·
+  `publisher-api` · `media-extract` · `browser-render` · `browser-session` ·
+  `self-contained-archive` · `human-in-loop` — rather than which tool ran.
+  `tool`/`tool_version` already record the actor. Methods make two notebooks
+  comparable when they were built on different deployments; a tool name is
+  local trivia, and an unpublishable one if the tool is private.
+- **`flip-fetch` climbs rungs 1–2.** Backoff-retry on 429/502/503/504 and
+  timeouts, honoring `Retry-After` (capped). A 403/404 is *not* retried — that
+  is a decision, and repeating an unchanged refused request is noise; the
+  error now points up the ladder instead. Neither is a refused connection or
+  an unresolvable name: persistence aimed at the wrong failure is just a
+  slower way to give up. `attempts` lands in the ledger when a retry was
+  needed, so a flaky source is distinguishable from a clean one.
+- **Capture fidelity, derived** — like the source grade, never stored.
+  `faithful` · `text-only` · `thin` · `unknown`, from the method plus the
+  recorded size and mime. New doctor checks: **`thin-capture`** (a capture
+  that succeeded and brought back 800 bytes of consent wall produces the same
+  hash, ledger row and grade `?` as the real document — the same
+  looks-trustworthy-carries-nothing shape as a stored grade outliving its
+  support tuple) and **`unvocabularied-method`** (a `strategy` that reads like
+  a tool name). `lineage@1.3` claims both.
+- **The ladder as a regimen** in the source skill and `flip config init`:
+  named `--via` lanes for the higher rungs, and the rule that a refusal is
+  where acquisition work starts rather than where it stops. When the ladder is
+  genuinely exhausted, `flip pass` records what was tried — "searched, gone"
+  stays distinguishable from "did not look".
+
 ## [0.16.1] — 2026-07-31
 
 ### Added

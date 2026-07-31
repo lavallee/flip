@@ -872,3 +872,50 @@ def test_retitle_source_refuses_empty_and_unknown(tmp_path):
         sources.retitle_source(root, page.id, "   ")
     with pytest.raises(SystemExit, match="unknown source id"):
         sources.retitle_source(root, "A99", "x")
+
+
+# --- capture methods and derived fidelity (SPEC §5.1) ---------------------------
+
+
+def test_capture_fidelity_is_derived_from_the_ledger_row():
+    faithful = {"strategy": "self-contained-archive", "bytes": 900_000, "mime": "text/html"}
+    text_only = {"strategy": "http-get", "bytes": 40_000, "mime": "text/html"}
+    thin = {"strategy": "http-get", "bytes": 800, "mime": "text/html"}
+    assert sources.capture_fidelity(faithful) == "faithful"
+    assert sources.capture_fidelity(text_only) == "text-only"
+    assert sources.capture_fidelity(thin) == "thin"
+
+
+def test_a_tool_name_in_strategy_reads_as_unknown():
+    # The whole point of the vocabulary: methods travel between deployments,
+    # tool names don't. A tool name is not a method.
+    assert sources.capture_fidelity({"strategy": "flip-fetch", "bytes": 40_000}) == "unknown"
+    assert sources.capture_fidelity({"strategy": "", "bytes": 40_000}) == "unknown"
+
+
+def test_small_non_markup_captures_are_not_thin():
+    # a 300-byte CSV is a legitimate capture; only markup gets the thin test
+    assert sources.capture_fidelity(
+        {"strategy": "copy", "bytes": 300, "mime": "text/csv"}
+    ) == "faithful"
+    assert sources.capture_fidelity(
+        {"strategy": "publisher-api", "bytes": 400, "mime": "application/json"}
+    ) == "faithful"
+
+
+def test_every_capture_method_derives_a_known_fidelity():
+    for method in sources.CAPTURE_METHODS:
+        got = sources.capture_fidelity({"strategy": method, "bytes": 50_000, "mime": "text/html"})
+        assert got in ("faithful", "text-only"), (method, got)
+
+
+def test_copy_capture_records_the_method_not_the_tool(tmp_path):
+    root = make_notebook(tmp_path)
+    target = tmp_path / "x.csv"
+    target.write_text("a,b\n", encoding="utf-8")
+    page = sources.add_source(root, str(target))
+    (event,) = [e for e in read_jsonl(root / "sources" / "_provenance.jsonl")
+                if e.get("source_id") == page.id]
+    assert event["strategy"] == "copy"          # the method, in the vocabulary
+    assert event["tool"] == "builtin:copy"      # the actor, recorded separately
+    assert event["strategy"] in sources.CAPTURE_METHODS

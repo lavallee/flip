@@ -17,6 +17,7 @@ didn't capture is a source you don't have.
 | start a notebook | `flip new <slug> --kind <profile>` |
 | capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
 | recheck the world | `flip source recheck <id>` — re-fetch, hash-compare, receipt; never overwrites custody |
+| a capture was refused | climb the ladder (SPEC §5.1): alt representation → archive replay → publisher API → browser render → save-as. A 403 is not a verdict on the source |
 | grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--n … --base-defined\|--base-undefined]` — the letter is derived |
 | ask why a letter | `flip grade <id> --explain` — the derivation, writes nothing |
 | fix a bad capture title | `flip source retitle <id> "<title>"` — never hand-edit frontmatter |
@@ -57,12 +58,41 @@ archived. They are not problems; don't re-run doctor for reassurance.
    public contract. Keep site-specific commands in `$FLIP_HOME/config.toml`
    or a separate private integration repository; portable instructions
    should name source kinds and placeholders, not a deployment's tools.
-2. **Chase the original.** Before grading, check whether this evidence is
+2. **A refusal is where the work starts, not where it ends.** The single
+   most common way an acquisition fails is that the agent stopped at the
+   first 403. It is a decision about *this request*, not a verdict on the
+   source. Climb the ladder (SPEC §5.1 capture methods), and record which
+   rung worked:
+
+   | rung | method | try it when |
+   |---|---|---|
+   | 1 | `http-get` | always — flip-fetch already retries 429/502/503/504 with backoff |
+   | 2 | `http-alt-representation` | a canonical/AMP/print/`?output=embed` variant of the same URL |
+   | 3 | `archive-replay` | 403/401/dead — `web.archive.org/web/2024/<url>`, archive.today, Memento |
+   | 4 | `publisher-api` | scholarly: Crossref → Unpaywall → OpenAlex → arXiv/PMC (all free, no auth) |
+   | 5 | `browser-render` / `browser-session` | JS-only pages, consent walls |
+   | 6 | `self-contained-archive` | the page matters visually, or its assets will rot |
+   | 7 | `human-in-loop` | save it from your own browser, then `flip add-source <file> --kind file` |
+
+   Two rules keep this honest. **Don't repeat an unchanged request that was
+   refused** — a 403 retried identically is noise; change the method, not the
+   patience. And **when the ladder really is exhausted, say so**: `flip pass
+   "<what>" --reason "<rungs tried, what each returned>"`. A failed capture
+   also writes its own ledger row, so "searched, gone" stays distinguishable
+   from "did not look" — which is worth more than a silent gap.
+
+3. **Check what actually landed.** A capture that returns 200 with 800 bytes
+   is a consent wall or a JS shell, and it produces the same hash, the same
+   ledger row, and the same grade `?` as the real document. `flip doctor`
+   flags it as `thin-capture`. Never grade a source you have not confirmed
+   you actually captured.
+
+4. **Chase the original.** Before grading, check whether this evidence is
    independent or derivative. If it republishes another source, capture that
    original too
    and grade the republisher accordingly — republishers and derivatives do
    not count toward claim corroboration.
-3. **Read it, then grade it** (grading is a judgment made after reading, not
+5. **Read it, then grade it** (grading is a judgment made after reading, not
    a formality at capture):
    ```bash
    flip grade <id> --independence independent|corroborated|self-reported|derivative \
@@ -96,11 +126,11 @@ archived. They are not problems; don't re-run doctor for reassurance.
    be translated mechanically and parks the rest for you to re-read. A
    corroboration count that dropped to 0 across a whole notebook is this,
    not an evidence problem.
-4. **Public-terminus check.** If the manifest's `citation_rule` is
+6. **Public-terminus check.** If the manifest's `citation_rule` is
    `public-terminus`, confirm any load-bearing chain this source joins ends
    at a public, independently verifiable source — a grade-C intermediary
    can't be the terminus.
-5. **Wire it in.** Link the source to the claims it backs
+7. **Wire it in.** Link the source to the claims it backs
    (`flip claim add ... --source <id>` or update existing claims), and cite
    it in prose as `[A3]`. Put pull-quotes, misgivings, and capture notes in
    the source page's body — when editing the page, change only what you

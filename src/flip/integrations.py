@@ -79,7 +79,9 @@ STARTER_CONFIG = '''\
 # question · {dest} capture directory. See docs/quickstart.md.
 
 [fetchers]
-# Out-of-the-box web capture via the bundled zero-dependency helper:
+# Out-of-the-box web capture via the bundled zero-dependency helper. It climbs
+# the first two rungs of the capture ladder (SPEC §5.1): an identified GET,
+# and backoff-retry on 429/502/503/504 and timeouts.
 web = "flip-fetch {url} {dest}"
 # ...or swap in a ubiquitous tool, or a purpose-built fetcher:
 # web = "curl --fail --location --silent --show-error {url} --output {dest}/capture.html"
@@ -87,6 +89,25 @@ web = "flip-fetch {url} {dest}"
 # media = "yt-dlp {url} --output {dest}/%(title)s.%(ext)s"
 # social = "your-x-fetcher {url} {dest}"
 # paper = "your-doi-fetcher {id} {dest}"
+
+# Named lanes for the higher rungs, reachable with `--via`. A 403 on the live
+# URL is a decision about that request, not a verdict on the source — these
+# are the methods that get past it. Fill in the ones you install; every tool
+# named here is publicly available, and none is required.
+#
+# [fetchers.web]
+# archive  = "your-archive-replay {url} {dest}"   # rung 3: web.archive.org/web/2024/{url},
+#                                                 #   archive.today, or a Memento aggregator
+# render   = "your-render-fetcher {url} {dest}"   # rung 5: headless browser, executes JS
+# faithful = "your-archiver {url} {dest}"         # rung 6: assets inlined into one file
+#                                                 #   (monolith is CC0; SingleFile CLI is AGPL —
+#                                                 #    both are invoked as subprocesses here)
+#
+# Have a fetcher report `strategy` in its flip.json envelope as a capture
+# METHOD from SPEC §5.1 (`archive-replay`, `browser-render`,
+# `self-contained-archive`, …), never as its own name. Methods travel between
+# deployments; tool names don't, and `tool`/`tool_version` already record the
+# actor. `flip doctor` flags a strategy that reads like a tool name.
 
 # [research]                     # a question -> candidate leads / cited synthesis
 # find = "your-research-tool {query}"

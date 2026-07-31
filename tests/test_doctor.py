@@ -1264,3 +1264,88 @@ def test_recomputation_with_against_is_clean(tmp_path):
                        "against": ["sessions/2026-07-30-recompute.md"]}]
     pages.write_page(path, fm, "claim C1\n")
     assert "unlocatable-recomputation" not in codes(run_doctor(root))
+
+
+# --- capture fidelity: what the capture actually achieved (SPEC §5.1) -----------
+
+
+def capture_event(sid: str, strategy: str, size: int, mime: str = "text/html") -> dict:
+    return {
+        "ts": "2026-07-31T10:00:00Z", "source_id": sid,
+        "local_path": f"sources/raw/{sid}.html", "sha256": "0" * 64,
+        "bytes": size, "mime": mime, "tool": "some-tool", "strategy": strategy,
+        "actor": "agent:test",
+    }
+
+
+def test_thin_capture_is_named(tmp_path):
+    # 800 bytes of markup is a consent wall or a JS shell, not the document —
+    # and it produces the same sha256, ledger row and grade "?" as a real one.
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", prov=False)
+    append_jsonl(root / "sources" / "_provenance.jsonl", capture_event("A1", "http-get", 800))
+    thin = [f for f in run_doctor(root) if f.code == "thin-capture"]
+    assert len(thin) == 1
+    assert "800 bytes" in thin[0].message
+    assert "climb the ladder" in thin[0].message
+
+
+def test_a_real_capture_is_not_flagged(tmp_path):
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", prov=False)
+    append_jsonl(root / "sources" / "_provenance.jsonl", capture_event("A1", "http-get", 40_000))
+    assert "thin-capture" not in codes(run_doctor(root))
+
+
+def test_a_later_real_capture_supersedes_an_early_thin_one(tmp_path):
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", prov=False)
+    append_jsonl(root / "sources" / "_provenance.jsonl", capture_event("A1", "http-get", 800))
+    append_jsonl(root / "sources" / "_provenance.jsonl",
+                 capture_event("A1", "self-contained-archive", 900_000))
+    assert "thin-capture" not in codes(run_doctor(root))  # history, not a finding
+
+
+def test_a_tool_name_in_strategy_is_flagged_as_unvocabularied(tmp_path):
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", prov=False)
+    append_jsonl(root / "sources" / "_provenance.jsonl", capture_event("A1", "flip-fetch", 40_000))
+    found = [f for f in run_doctor(root) if f.code == "unvocabularied-method"]
+    assert len(found) == 1
+    assert "reads like a tool name" in found[0].message
+    assert found[0].expected is True  # legacy rows shouldn't read as breakage
+
+
+def test_failed_capture_rows_are_not_judged_for_fidelity(tmp_path):
+    root = make_notebook(tmp_path)
+    append_jsonl(
+        root / "sources" / "_provenance.jsonl",
+        {"ts": "2026-07-31T10:00:00Z", "source_id": "A9", "status": "failed",
+         "error": "HTTP 403", "actor": "agent:test"},
+    )
+    got = codes(run_doctor(root))
+    assert "thin-capture" not in got and "unvocabularied-method" not in got
+
+
+def test_the_envelope_sidecar_is_not_judged_as_a_capture(tmp_path):
+    # A multi-file capture writes a row per file. flip.json is metadata and
+    # always tiny — judging it reported every enveloped capture as thin.
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", prov=False)
+    real = capture_event("A1", "http-get", 165_231)
+    real["local_path"] = "sources/raw/A1/capture.html"
+    sidecar = capture_event("A1", "http-get", 221, mime="application/json")
+    sidecar["local_path"] = "sources/raw/A1/flip.json"
+    for ev in (real, sidecar):
+        append_jsonl(root / "sources" / "_provenance.jsonl", ev)
+    assert "thin-capture" not in codes(run_doctor(root))
+
+
+def test_the_largest_file_of_one_capture_is_the_one_judged(tmp_path):
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", prov=False)
+    for name, size in (("thumb.html", 400), ("capture.html", 90_000)):
+        ev = capture_event("A1", "http-get", size)
+        ev["local_path"] = f"sources/raw/A1/{name}"
+        append_jsonl(root / "sources" / "_provenance.jsonl", ev)
+    assert "thin-capture" not in codes(run_doctor(root))

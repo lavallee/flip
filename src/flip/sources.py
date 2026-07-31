@@ -66,6 +66,37 @@ BASES = (
 )
 _STRONG_BASES = ("official-record", "platform-data", "measured")
 
+# Capture methods (SPEC §5.1): HOW a capture got its bytes, in escalation
+# order. The provenance ledger already records the *actor* — `tool` and
+# `tool_version` — so `strategy` is where the METHOD belongs.
+#
+# Recording the method rather than the tool is what makes two notebooks
+# comparable when they were built on different deployments: `archive-replay`
+# means the same thing whoever implemented it, while a tool name is local
+# trivia (and, for a private tool, unpublishable). It is also the honest
+# fidelity signal — a capture that stopped at `http-get` with 4KB and one that
+# reached `self-contained-archive` are not the same evidence, and until now
+# they produced identical pages.
+#
+# The order is the ladder an acquisition should climb before giving up: a
+# single 403 is the START of the work, not the end of it.
+CAPTURE_METHODS = (
+    "copy",                    # builtin: a local file copied verbatim
+    "http-get",                # a plain GET of the live URL
+    "http-alt-representation", # canonical/AMP/print/embed variant of the same URL
+    "archive-replay",          # a third-party web archive served the bytes
+    "publisher-api",           # a publisher/registry API (Crossref, Unpaywall, arXiv…)
+    "media-extract",           # a media/transcript extractor
+    "browser-render",          # a headless browser executed the page
+    "browser-session",         # browser render carrying an authenticated session
+    "self-contained-archive",  # assets inlined into one standalone file
+    "human-in-loop",           # a person saved it and handed flip the file
+)
+
+# Methods that produce a page whose linked assets are NOT captured — the bytes
+# are the document's text, not a faithful copy of what a reader saw.
+_TEXT_ONLY_METHODS = ("http-get", "http-alt-representation", "archive-replay")
+
 # Provenance terminal states (SPEC §5.5, design D-B): where the chain-walk
 # behind this source ended. Optional; doctor gates done/published on OPEN.
 PROVENANCE_STATES = (
@@ -81,6 +112,33 @@ PROVENANCE_STATES = (
 def _support(fm: dict) -> dict:
     value = fm.get("support")
     return value if isinstance(value, dict) else {}
+
+
+def capture_fidelity(event: dict) -> str:
+    """What a capture event actually achieved — DERIVED from the ledger row,
+    never stored (the same discipline as `derive_grade`).
+
+    `faithful`   — assets inlined, a rendered page, or a verbatim local copy.
+    `text-only`  — the document's text, but linked assets were not captured.
+    `thin`       — succeeded and brought back almost nothing: a consent wall,
+                   a JS shell, an error page served with status 200. This is
+                   the dangerous one, because custody, a sha256 and a
+                   provenance row all look identical to a real capture.
+    `unknown`    — no method recorded, or one outside the vocabulary.
+
+    Callers pass one provenance event ({strategy, bytes, mime, …}).
+    """
+    method = str(event.get("strategy") or "")
+    if method not in CAPTURE_METHODS:
+        return "unknown"
+    size = event.get("bytes")
+    mime = str(event.get("mime") or "")
+    # A markup response carrying almost no payload didn't capture the document,
+    # whatever the status line said. Non-markup (PDF, CSV) is legitimately small.
+    markup = "html" in mime or "xml" in mime or (not mime and method != "copy")
+    if isinstance(size, int) and markup and size < 2048:
+        return "thin"
+    return "text-only" if method in _TEXT_ONLY_METHODS else "faithful"
 
 
 def unmigrated(fm: dict) -> bool:
@@ -463,7 +521,11 @@ def add_source(
             event["tool_version"] = tool_version
         event["strategy"] = strategy
         if envelope:
-            for key in ("canonical_url", "retrieved_at", "status", "mime", "backend_ref"):
+            # `attempts` records that a lower rung had to be retried before it
+            # held — the difference between "this came back first time" and
+            # "this source is flaky", which only the ledger can remember.
+            for key in ("canonical_url", "retrieved_at", "status", "mime",
+                        "backend_ref", "attempts"):
                 value = envelope.get(key)
                 if value not in (None, "", [], {}):
                     event[key] = value
