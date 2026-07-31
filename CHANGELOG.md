@@ -6,6 +6,8 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.1] — 2026-07-31
+
 ### Added
 - **YouTube video URLs infer the `talk` kind.** `flip add-source
   https://www.youtube.com/watch?v=…` (also `youtu.be`, `/shorts/`, `/live/`)
