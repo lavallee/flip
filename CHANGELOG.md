@@ -7,6 +7,12 @@ versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- **The Claude Code plugin is now named `flip`, not `flip-notebook`.** Install
+  it with `/plugin install flip@lyra-forge`. Anyone who installed under the old
+  name should remove it and reinstall — Claude Code keys installed plugins by
+  name, so the rename reads as a different plugin. Unchanged: the PyPI package
+  is still `flip-notebook` (`uv tool install flip-notebook`), and the Obsidian
+  plugin id is still `flip-notebook` (`.obsidian/plugins/flip-notebook/`).
 - **A stated stance on acquisition conduct** (SPEC §5.1), and `flip-fetch` now
   presents a browser User-Agent. flip's use case is *closely directed* capture
   — a named document a person is about to read, judge and cite — which is an
