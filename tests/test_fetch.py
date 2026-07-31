@@ -247,7 +247,8 @@ def test_exhausted_retries_give_up_and_point_up_the_ladder(tmp_path, monkeypatch
     monkeypatch.setattr(fetch, "urlopen", flaky)
     assert fetch.fetch("https://example.com", tmp_path / "d", sleep=lambda _: None) == 1
     assert flaky.calls == fetch._MAX_ATTEMPTS
-    assert "archive replay" in capsys.readouterr().err
+    # the error names the flag that actually climbs, not a vague suggestion
+    assert "--method archive-replay" in capsys.readouterr().err
 
 
 def test_refused_and_unresolvable_are_not_transient():
@@ -342,3 +343,191 @@ def test_help_documents_that_defaults_are_an_opinion(capsys):
     out = capsys.readouterr().out
     assert "--user-agent" in out and "--min-interval" in out
     assert "not a rule" in out
+
+
+# --- rung 3: archive-replay -----------------------------------------------------
+
+
+class _Routed:
+    """urlopen stand-in routing by URL substring to (body, mime) or an exception."""
+
+    def __init__(self, routes):
+        self.routes, self.seen = routes, []
+
+    def __call__(self, req, timeout=None):
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        self.seen.append(url)
+        for needle, result in self.routes.items():
+            if needle in url:
+                if isinstance(result, Exception):
+                    raise result
+                body, mime = result
+                return _Canned(body, mime, url)
+        raise HTTPError(url, 404, "no route", None, None)
+
+
+class _Canned:
+    def __init__(self, body, mime, url):
+        self._body, self._url = body, url
+        self.headers = _Headers(mime)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        return self._body
+
+    def geturl(self):
+        return self._url
+
+
+class _Headers:
+    def __init__(self, mime):
+        self._mime = mime
+
+    def get_content_type(self):
+        return self._mime
+
+    def get(self, _key):
+        return None
+
+
+AVAIL = json.dumps({"archived_snapshots": {"closest": {
+    "url": "http://web.archive.org/web/20241225054341/https://example.com/gone",
+    "timestamp": "20241225054341", "status": "200", "available": True}}}).encode()
+
+
+def test_archive_replay_fetches_the_raw_snapshot(tmp_path, monkeypatch):
+    routed = _Routed({
+        "archive.org/wayback/available": (AVAIL, "application/json"),
+        "20241225054341id_/": (b"<title>archived</title>" + b"x" * 5000, "text/html"),
+        "web/2024id_/": (b"<title>archived</title>" + b"x" * 5000, "text/html"),
+    })
+    monkeypatch.setattr(fetch, "urlopen", routed)
+    assert fetch.fetch("https://example.com/gone", tmp_path / "d",
+                       method="archive-replay", sleep=lambda _: None) == 0
+    # the RAW form: custody should hold the document, not the archive's viewer
+    assert any("id_/" in u for u in routed.seen)
+    env = json.loads((tmp_path / "d" / "flip.json").read_text())["flip"]
+    assert env["strategy"] == "archive-replay"
+    assert env["canonical_url"] == "https://example.com/gone"  # what the claim cites
+    assert env["archived_at"] == "2024-12-25T05:43:41Z"        # when the evidence is from
+    assert "20241225054341id_/" in env["backend_ref"]          # the exact coordinate fetched
+
+
+def test_archive_replay_reports_no_snapshot_honestly(tmp_path, monkeypatch, capsys):
+    empty = json.dumps({"archived_snapshots": {}}).encode()
+    monkeypatch.setattr(fetch, "urlopen", _Routed({
+        "archive.org/wayback/available": (empty, "application/json")}))
+    assert fetch.fetch("https://example.com/never", tmp_path / "d",
+                       method="archive-replay", sleep=lambda _: None) == 1
+    err = capsys.readouterr().err
+    assert "no archived snapshot" in err
+    assert "flip pass" in err  # an exhausted search is a finding, not silence
+
+
+# --- rung 4: publisher-api ------------------------------------------------------
+
+
+CROSSREF = json.dumps({"message": {"title": ["Reward is enough"]}}).encode()
+UNPAYWALL_OA = json.dumps({"best_oa_location": {"url_for_pdf": "https://oa.example/x.pdf"}}).encode()
+UNPAYWALL_CLOSED = json.dumps({"best_oa_location": None}).encode()
+
+
+def test_publisher_api_prefers_the_open_access_full_text(tmp_path, monkeypatch):
+    monkeypatch.setattr(fetch, "urlopen", _Routed({
+        "api.crossref.org": (CROSSREF, "application/json"),
+        "api.unpaywall.org": (UNPAYWALL_OA, "application/json"),
+        "oa.example/x.pdf": (b"%PDF-1.7 real paper", "application/pdf"),
+    }))
+    assert fetch.fetch("10.1234/abcd", tmp_path / "d", method="publisher-api",
+                       email="me@example.org", sleep=lambda _: None) == 0
+    env = json.loads((tmp_path / "d" / "flip.json").read_text())["flip"]
+    assert env["strategy"] == "publisher-api"
+    assert env["status"] == "success"
+    assert env["canonical_url"] == "https://doi.org/10.1234/abcd"
+    assert (tmp_path / "d" / "capture.pdf").exists()
+
+
+def test_publisher_api_records_metadata_only_as_such(tmp_path, monkeypatch):
+    # No OA copy is a normal answer. The metadata is worth keeping — but it is
+    # NOT the document, and must not be filed as though it were.
+    monkeypatch.setattr(fetch, "urlopen", _Routed({
+        "api.crossref.org": (CROSSREF, "application/json"),
+        "api.unpaywall.org": (UNPAYWALL_CLOSED, "application/json"),
+    }))
+    assert fetch.fetch("10.1234/abcd", tmp_path / "d", method="publisher-api",
+                       email="me@example.org", sleep=lambda _: None) == 0
+    env = json.loads((tmp_path / "d" / "flip.json").read_text())["flip"]
+    assert env["status"] == "metadata-only"
+    assert env["title"] == "Reward is enough"
+    assert sources.capture_fidelity(
+        {"strategy": "publisher-api", "status": "metadata-only",
+         "bytes": 16000, "mime": "application/json"}) == "thin"
+
+
+def test_publisher_api_skips_unpaywall_without_an_email(tmp_path, monkeypatch, capsys):
+    routed = _Routed({"api.crossref.org": (CROSSREF, "application/json")})
+    monkeypatch.setattr(fetch, "urlopen", routed)
+    assert fetch.fetch("10.1234/abcd", tmp_path / "d", method="publisher-api",
+                       sleep=lambda _: None) == 0
+    assert not any("unpaywall" in u for u in routed.seen)  # it 422s without one
+    assert "no --email" in capsys.readouterr().err
+
+
+def test_publisher_api_routes_arxiv_ids_to_arxiv(tmp_path, monkeypatch):
+    routed = _Routed({"arxiv.org/pdf/1706.03762": (b"%PDF-1.7 attention", "application/pdf")})
+    monkeypatch.setattr(fetch, "urlopen", routed)
+    assert fetch.fetch("1706.03762", tmp_path / "d", method="publisher-api",
+                       sleep=lambda _: None) == 0
+    env = json.loads((tmp_path / "d" / "flip.json").read_text())["flip"]
+    assert env["canonical_url"] == "https://arxiv.org/abs/1706.03762"
+    assert env["backend_ref"] == "arxiv:1706.03762"
+    assert not any("crossref" in u for u in routed.seen)
+
+
+def test_method_names_are_the_spec_vocabulary(tmp_path, capsys):
+    for method in fetch._METHODS:
+        assert method in sources.CAPTURE_METHODS
+    assert fetch.fetch("https://x.test", tmp_path / "d", method="teleport") == 2
+    err = capsys.readouterr().err
+    assert "unknown method" in err and "browser-render" in err
+
+
+def test_archive_replay_falls_back_when_the_lookup_api_is_rate_limited(tmp_path, monkeypatch, capsys):
+    # archive.org 429s shared addresses routinely — observed live while building
+    # this. Retrying the same endpoint harder is the mistake the ladder exists to
+    # avoid, so the replay path answers instead and redirects to a snapshot.
+    routed = _Routed({
+        "archive.org/wayback/available": HTTPError("u", 429, "slow down", None, None),
+        "web/2024id_/": (b"<title>from the archive</title>" + b"y" * 9000, "text/html"),
+    })
+    monkeypatch.setattr(fetch, "urlopen", routed)
+    assert fetch.fetch("https://example.com/gone", tmp_path / "d",
+                       method="archive-replay", sleep=lambda _: None) == 0
+    assert "lookup unavailable" in capsys.readouterr().err
+    env = json.loads((tmp_path / "d" / "flip.json").read_text())["flip"]
+    assert env["strategy"] == "archive-replay"
+    assert env["canonical_url"] == "https://example.com/gone"
+
+
+def test_archive_replay_dates_the_snapshot_it_landed_on(tmp_path, monkeypatch):
+    # A partial timestamp redirects; the snapshot we ACTUALLY got is the one
+    # whose date the evidence carries.
+    class _Redirecting(_Routed):
+        def __call__(self, req, timeout=None):
+            resp = super().__call__(req, timeout)
+            resp._url = "https://web.archive.org/web/20200101120000id_/https://example.com/gone"
+            return resp
+
+    monkeypatch.setattr(fetch, "urlopen", _Redirecting({
+        "archive.org/wayback/available": HTTPError("u", 429, "slow", None, None),
+        "web/2024id_/": (b"<title>old</title>" + b"z" * 9000, "text/html"),
+    }))
+    fetch.fetch("https://example.com/gone", tmp_path / "d",
+                method="archive-replay", sleep=lambda _: None)
+    env = json.loads((tmp_path / "d" / "flip.json").read_text())["flip"]
+    assert env["archived_at"] == "2020-01-01T12:00:00Z"  # not the 2024 we asked for

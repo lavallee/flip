@@ -6,6 +6,38 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Two more ladder rungs, bundled and needing no external tool** (SPEC §5.1).
+  `flip-fetch --method` now selects the capture method, using the same
+  vocabulary the ledger records:
+  - **`archive-replay`** — a web archive's copy when the live host won't
+    serve. Fetches the **raw** snapshot (`…/<timestamp>id_/…`) so custody
+    holds the document rather than a rendering of it inside the archive's
+    viewer, and records **`archived_at`**: the evidence is from the snapshot's
+    date, not today, which is a grading fact. The lookup API rate-limits
+    shared addresses hard — observed live while building this — so it falls
+    through to the replay path rather than retrying the same endpoint harder,
+    and a 404 from the archive is reported as "no archived snapshot" rather
+    than a status line.
+  - **`publisher-api`** — Crossref for metadata, then Unpaywall for a legal
+    open-access full text, then arXiv for arXiv ids. All free, no signup;
+    Unpaywall needs `--email` (it refuses without a real address, and the same
+    address opts into Crossref's polite pool). When only a registry record is
+    reachable it is captured and marked **`status: metadata-only`** — worth
+    keeping, not the paper, and derived as `thin` fidelity so doctor says so
+    rather than letting it pass as the article.
+
+  `flip config init` ships both as ready lanes. flip had **no** default
+  `paper` fetcher before this.
+
+### Changed
+- **`http-alt-representation` stays in the vocabulary but ships no generic
+  implementation.** Tested against the hosts that resist rungs 1–2: AMP paths,
+  `?amp=1`, print params and `www` stripping all return the *identical*
+  failure, because the block is at the edge on the whole host rather than
+  per-representation. A purpose-built site-specific lane may legitimately use
+  the method; shipping generic folklore that looks like it works would not.
+
 ## [0.16.2] — 2026-07-31
 
 ### Changed

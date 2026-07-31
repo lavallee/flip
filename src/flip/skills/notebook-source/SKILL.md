@@ -64,15 +64,27 @@ archived. They are not problems; don't re-run doctor for reassurance.
    source. Climb the ladder (SPEC §5.1 capture methods), and record which
    rung worked:
 
-   | rung | method | try it when |
-   |---|---|---|
-   | 1 | `http-get` | always — flip-fetch already retries 429/502/503/504 with backoff |
-   | 2 | `http-alt-representation` | a canonical/AMP/print/`?output=embed` variant of the same URL |
-   | 3 | `archive-replay` | 403/401/dead — `web.archive.org/web/2024/<url>`, archive.today, Memento |
-   | 4 | `publisher-api` | scholarly: Crossref → Unpaywall → OpenAlex → arXiv/PMC (all free, no auth) |
-   | 5 | `browser-render` / `browser-session` | JS-only pages, consent walls |
-   | 6 | `self-contained-archive` | the page matters visually, or its assets will rot |
-   | 7 | `human-in-loop` | save it from your own browser, then `flip add-source <file> --kind file` |
+   | rung | method | try it when | bundled? |
+   |---|---|---|---|
+   | 1 | `http-get` | always — retries 429/502/503/504 and timeouts with backoff | yes, default |
+   | 2 | `archive-replay` | 403/401/dead — a web archive's copy, raw bytes | yes: `--method archive-replay` |
+   | 3 | `publisher-api` | a DOI or arXiv id — Crossref → Unpaywall → arXiv | yes: `--method publisher-api` |
+   | 4 | `browser-render` / `browser-session` | JS-only pages, consent walls, your own logged-in access | needs a fetcher |
+   | 5 | `self-contained-archive` | the page matters visually, or its assets will rot | needs a fetcher |
+   | 6 | `human-in-loop` | save it from your own browser, then `flip add-source <file> --kind file` | you |
+
+   Rungs 1-3 are in the box and need no external tool. Configure them once as
+   named lanes (`flip config init` shows the stanzas) and reach them with
+   `flip add-source <url> --via archive`. `publisher-api` wants `--email`:
+   Unpaywall requires a real address and refuses without one.
+
+   Two notes on what these actually return. `archive-replay` fetches the RAW
+   snapshot, so custody holds the document rather than a rendering of it inside
+   the archive's viewer, and records `archived_at` — **the evidence is from
+   that date, not today**, which is a grading fact. `publisher-api` records
+   `status: metadata-only` when no open-access full text was reachable: the
+   registry record is worth keeping and is NOT the paper, so doctor calls it a
+   thin capture. Don't cite it as though you read the article.
 
    **On conduct** (SPEC §5.1): the shipped default assumes directed capture
    of a named document, not crawling. A User-Agent is a compatibility hint

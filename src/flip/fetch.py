@@ -59,8 +59,9 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
 
 _UA = os.environ.get("FLIP_FETCH_UA") or (
@@ -81,6 +82,8 @@ _MAX_ATTEMPTS = 4
 _BACKOFF_BASE = 1.5   # seconds; doubles per attempt
 _RETRY_AFTER_CAP = 30  # honor the server's number, but never stall a capture
 _TITLE_RE = re.compile(rb"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
+# arXiv ids reach arXiv directly; everything else is treated as a DOI.
+_ARXIV_ID_RE = re.compile(r"^(arxiv:)?\d{4}\.\d{4,5}(v\d+)?$", re.IGNORECASE)
 _MIME_EXT = {
     "text/html": ".html", "application/pdf": ".pdf", "application/json": ".json",
     "text/plain": ".txt", "application/xml": ".xml", "text/xml": ".xml",
@@ -209,24 +212,178 @@ def _get(url: str, timeout: float, sleep=time.sleep) -> tuple[bytes, str, str | 
     raise AssertionError("unreachable")  # pragma: no cover
 
 
-def fetch(url: str, dest: str | Path, timeout: float = 30, sleep=time.sleep) -> int:
-    """GET `url` into `dest/` + a flip.json envelope. Returns a process exit code.
+class Capture(NamedTuple):
+    """One method's result: the bytes, where they canonically came from, and
+    whatever that method wants added to the envelope."""
+
+    body: bytes
+    url: str
+    mime: str | None
+    extra: dict
+
+
+def _method_http_get(target: str, timeout: float, sleep, _email: str | None) -> Capture:
+    """Rung 1-2: the live URL, retried through what is transient."""
+    body, final_url, mime, attempts = _get(target, timeout, sleep=sleep)
+    return Capture(body, final_url, mime, {"attempts": attempts} if attempts > 1 else {})
+
+
+def _method_archive_replay(target: str, timeout: float, sleep, _email: str | None) -> Capture:
+    """Rung 3: a third-party web archive holds what the live host won't serve.
+
+    Fetches the RAW replay (`…/<timestamp>id_/…`), not the rewritten one: the
+    `id_` form returns the bytes as archived, without the archive's own toolbar
+    and link-rewriting injected. Custody should hold the document, not a
+    rendering of it inside someone's viewer.
+    """
+    api = "http://archive.org/wayback/available?url=" + quote(target, safe="")
+    replay = ""
+    try:
+        meta_body, _, _, _ = _get(api, timeout, sleep=sleep)
+        snapshot = (json.loads(meta_body).get("archived_snapshots") or {}).get("closest") or {}
+        replay = str(snapshot.get("url") or "")
+    except (HTTPError, URLError, OSError, ValueError) as exc:
+        # The lookup API rate-limits shared addresses hard (429s are routine).
+        # Retrying it harder is the mistake this ladder exists to avoid, so
+        # fall through to the replay path, which answers when the API won't and
+        # redirects to the nearest snapshot on its own.
+        sys.stderr.write(
+            f"flip-fetch: wayback lookup unavailable ({type(exc).__name__}); "
+            "trying the replay path directly\n"
+        )
+    if not replay:
+        replay = f"https://web.archive.org/web/2024/{target}"
+    # …/web/20241225054341/https://… -> …/web/20241225054341id_/https://…
+    # The `id_` form returns the bytes as archived, without the archive's
+    # toolbar and link-rewriting injected into the document.
+    raw = re.sub(r"(/web/\d+)/", r"\1id_/", replay, count=1)
+    try:
+        body, final_url, mime, attempts = _get(raw, timeout, sleep=sleep)
+    except HTTPError as exc:
+        # 404 from the archive means "we hold nothing for this URL" — report the
+        # fact, not the status line, so the caller knows the search was made.
+        if exc.code == 404:
+            raise LookupError(f"no archived snapshot for {target}") from exc
+        raise
+    # The snapshot we actually landed on — after any redirect from a partial
+    # timestamp — is the authority on when this evidence is from.
+    landed = re.search(r"/web/(\d{4,14})(?:id_)?/", final_url or "")
+    stamp = landed.group(1) if landed else ""
+    extra = {"backend_ref": final_url or replay}
+    if len(stamp) >= 8:
+        # WHEN THE EVIDENCE IS FROM, which is not when we retrieved it. A claim
+        # resting on an archived page rests on the page as it was that day.
+        extra["archived_at"] = (
+            f"{stamp[0:4]}-{stamp[4:6]}-{stamp[6:8]}T{stamp[8:10] or '00'}:"
+            f"{stamp[10:12] or '00'}:{stamp[12:14] or '00'}Z"
+        )
+    if attempts > 1:
+        extra["attempts"] = attempts
+    # the target is what the claim cites; the replay URL is how we reached it
+    return Capture(body, target, mime, extra)
+
+
+def _method_publisher_api(target: str, timeout: float, sleep, email: str | None) -> Capture:
+    """Rung 4: ask the publisher or registry instead of scraping the landing page.
+
+    arXiv ids go to arXiv. DOIs go to Crossref for metadata, then Unpaywall for
+    a legal open-access full text when an operator email is configured
+    (Unpaywall requires one and 422s without a real address). When only
+    metadata is reachable the metadata IS the capture — but it is recorded as
+    `metadata-only`, never as if the document had been retrieved.
+    """
+    bare = target[4:] if target.lower().startswith("doi:") else target
+    if _ARXIV_ID_RE.match(bare):
+        arx = bare.lower().removeprefix("arxiv:")
+        body, final_url, mime, _ = _get(f"https://arxiv.org/pdf/{arx}", timeout, sleep=sleep)
+        return Capture(body, f"https://arxiv.org/abs/{arx}", mime, {"backend_ref": f"arxiv:{arx}"})
+
+    meta_url = f"https://api.crossref.org/works/{quote(bare, safe='/')}"
+    if email:
+        meta_url += f"?mailto={quote(email)}"
+    meta_body, _, _, _ = _get(meta_url, timeout, sleep=sleep)
+    try:
+        work = json.loads(meta_body)["message"]
+    except (ValueError, KeyError) as exc:
+        raise LookupError(f"crossref returned no work for {bare}") from exc
+
+    pdf_url = None
+    if email:
+        try:
+            oa_body, _, _, _ = _get(
+                f"https://api.unpaywall.org/v2/{quote(bare, safe='/')}?email={quote(email)}",
+                timeout, sleep=sleep,
+            )
+            location = json.loads(oa_body).get("best_oa_location") or {}
+            pdf_url = location.get("url_for_pdf") or location.get("url")
+        except (HTTPError, URLError, OSError, ValueError):
+            pdf_url = None  # no OA copy is a normal answer, not a failure
+    if pdf_url:
+        body, final_url, mime, _ = _get(pdf_url, timeout, sleep=sleep)
+        return Capture(body, f"https://doi.org/{bare}", mime,
+                       {"backend_ref": f"unpaywall:{bare}"})
+
+    title = (work.get("title") or [""])[0]
+    sys.stderr.write(
+        f"flip-fetch: only metadata is reachable for {bare}"
+        + ("" if email else " (no --email, so Unpaywall was not consulted)")
+        + "\n  recording it as metadata-only — the document itself is NOT in custody;"
+        " the ladder continues (a rendering fetcher, or save the PDF yourself)\n"
+    )
+    return Capture(
+        json.dumps(work, indent=2).encode("utf-8"),
+        f"https://doi.org/{bare}", "application/json",
+        {"backend_ref": f"crossref:{bare}", "status": "metadata-only",
+         "title": title or None},
+    )
+
+
+_METHODS = {
+    "http-get": _method_http_get,
+    "archive-replay": _method_archive_replay,
+    "publisher-api": _method_publisher_api,
+}
+
+
+def fetch(url: str, dest: str | Path, timeout: float = 30, sleep=time.sleep,
+          method: str = "http-get", email: str | None = None) -> int:
+    """Capture `url` into `dest/` + a flip.json envelope. Returns an exit code.
 
     `sleep` is injectable so the retry rung can be tested without wall time."""
     dest = Path(dest)
     dest.mkdir(parents=True, exist_ok=True)
+    runner = _METHODS.get(method)
+    if runner is None:
+        sys.stderr.write(
+            f"flip-fetch: unknown method {method!r} (implemented here: "
+            f"{', '.join(_METHODS)}). Higher rungs of SPEC §5.1 — browser-render, "
+            "browser-session, self-contained-archive — need a purpose-built fetcher\n"
+        )
+        return 2
     try:
-        body, final_url, mime, attempts = _get(url, timeout, sleep=sleep)
+        body, final_url, mime, extra = runner(url, timeout, sleep, email)
     except HTTPError as e:
         sys.stderr.write(
-            f"flip-fetch: HTTP {e.code} {e.reason} for {url}\n"
-            "  the live URL refused us; the ladder continues above this rung — "
-            "try an archive replay, a publisher API, or a rendering fetcher "
-            "(SPEC §5.1 capture methods)\n"
+            f"flip-fetch: HTTP {e.code} {e.reason} for {url} (method {method})\n"
+            + (
+                "  the live URL refused us; the ladder continues above this rung — "
+                "try --method archive-replay, --method publisher-api, or a "
+                "rendering fetcher (SPEC §5.1)\n"
+                if method == "http-get" else
+                "  this rung could not serve it either; climb further or record the\n"
+                "  exhausted search with `flip pass`\n"
+            )
+        )
+        return 1
+    except LookupError as e:
+        sys.stderr.write(
+            f"flip-fetch: {e}\n  nothing found at this rung — climb further, or "
+            "record the exhausted search with `flip pass` so \"searched, gone\" "
+            "stays distinguishable from \"did not look\"\n"
         )
         return 1
     except (URLError, OSError, ValueError) as e:
-        sys.stderr.write(f"flip-fetch: {url}: {e}\n")
+        sys.stderr.write(f"flip-fetch: {url} (method {method}): {e}\n")
         return 1
 
     (dest / f"capture{_MIME_EXT.get(mime or '', '.bin')}").write_bytes(body)
@@ -236,16 +393,15 @@ def fetch(url: str, dest: str | Path, timeout: float = 30, sleep=time.sleep) -> 
         "mime": mime,
         # The METHOD, not this tool's name: `tool`/`tool_version` in the
         # provenance row already record the actor (SPEC §5.1).
-        "strategy": "http-get",
+        "strategy": method,
         # What we told the server we were. The ledger records the technique
         # even when the technique is a browser UA — provenance that hid this
         # would be the actual problem (SPEC §5.1).
         "user_agent": _UA,
         "status": "success",
         "retrieved_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        **extra,
     }
-    if attempts > 1:
-        envelope["attempts"] = attempts  # the retry rung did work; say so
     envelope = {k: v for k, v in envelope.items() if v}
     (dest / "flip.json").write_text(json.dumps({"flip": envelope}), encoding="utf-8")
     return 0
@@ -262,6 +418,16 @@ _USAGE = """usage: flip-fetch [options] URL DEST
     web = "flip-fetch {url} {dest}"
 
 options:
+  --method NAME         capture method (SPEC §5.1). Implemented here:
+                          http-get         the live URL (default)
+                          archive-replay   a web archive's copy, raw bytes
+                          publisher-api    Crossref/Unpaywall/arXiv for a DOI or
+                                           arXiv id — pass {id}, not {url}
+                        Higher rungs (browser-render, browser-session,
+                        self-contained-archive) need a purpose-built fetcher.
+  --email ADDR          your address, for publisher-api. Unpaywall requires one
+                        and refuses without a real address; it also opts you
+                        into Crossref's polite pool.
   --user-agent STRING   what to present as. The literal word `identify` selects
                         flip-fetch's own name. Default: a browser string — see
                         SPEC §5.1 for the reasoning and its limits.
@@ -276,14 +442,14 @@ capture ledger records what was actually used either way.
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     global _UA, _MIN_HOST_INTERVAL
-    positional, timeout = [], 30.0
+    positional, timeout, method, email = [], 30.0, "http-get", os.environ.get("FLIP_FETCH_EMAIL")
     i = 0
     while i < len(argv):
         arg = argv[i]
         if arg in ("-h", "--help"):
             sys.stdout.write(_USAGE)
             return 0
-        if arg in ("--user-agent", "--min-interval", "--timeout"):
+        if arg in ("--user-agent", "--min-interval", "--timeout", "--method", "--email"):
             if i + 1 >= len(argv):
                 sys.stderr.write(f"flip-fetch: {arg} needs a value\n")
                 return 2
@@ -291,6 +457,10 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 if arg == "--user-agent":
                     _UA = IDENTIFYING_UA if value == "identify" else value
+                elif arg == "--method":
+                    method = value
+                elif arg == "--email":
+                    email = value
                 elif arg == "--min-interval":
                     _MIN_HOST_INTERVAL = float(value)
                 else:
@@ -305,7 +475,8 @@ def main(argv: list[str] | None = None) -> int:
     if len(positional) < 2:
         sys.stderr.write(_USAGE)
         return 2
-    return fetch(positional[0], positional[1], timeout=timeout)
+    return fetch(positional[0], positional[1], timeout=timeout,
+                 method=method, email=email)
 
 
 if __name__ == "__main__":  # pragma: no cover

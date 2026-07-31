@@ -49,6 +49,8 @@ ENVELOPE_KEYS = (
     "user_agent",        # what the fetcher presented itself as, verbatim — the
                          #   record must never lie about the technique (SPEC §5.1)
     "attempts",          # >1 when a transient failure had to be retried through
+    "archived_at",       # for archive-replay: WHEN the captured copy is from,
+                         #   which is not when we retrieved it (SPEC §5.1)
     "status",            # success | paywalled | failed | …
     "mime",              # content type of the primary artifact
     "from_cache",        # True when served from a shared store, not a fresh fetch
@@ -101,18 +103,22 @@ web = "flip-fetch {url} {dest}"
 # web = "wget --quiet --output-document {dest}/capture.html {url}"
 # media = "yt-dlp {url} --output {dest}/%(title)s.%(ext)s"
 # social = "your-x-fetcher {url} {dest}"
-# paper = "your-doi-fetcher {id} {dest}"
 
-# Named lanes for the higher rungs, reachable with `--via`. A 403 on the live
-# URL is a decision about that request, not a verdict on the source — these
-# are the methods that get past it. Fill in the ones you install; every tool
-# named here is publicly available, and none is required.
+# Scholarly capture, no external tool needed. Crossref for metadata, then
+# Unpaywall for a legal open-access full text, then arXiv for arXiv ids.
+# Unpaywall REQUIRES a real address and refuses without one; it also opts you
+# into Crossref's polite pool. Put yours in and uncomment:
+# paper = "flip-fetch --method publisher-api --email you@example.com {id} {dest}"
+
+# Named lanes for the higher rungs, reachable with `--via <name>`. A 403 on the
+# live URL is a decision about that request, not a verdict on the source —
+# these are the methods that get past it.
 #
 # [fetchers.web]
-# archive  = "your-archive-replay {url} {dest}"   # rung 3: web.archive.org/web/2024/{url},
-#                                                 #   archive.today, or a Memento aggregator
-# render   = "your-render-fetcher {url} {dest}"   # rung 5: headless browser, executes JS
-# faithful = "your-archiver {url} {dest}"         # rung 6: assets inlined into one file
+# archive  = "flip-fetch --method archive-replay {url} {dest}"   # bundled: a web
+#                                                 #   archive's copy, raw bytes
+# render   = "your-render-fetcher {url} {dest}"   # headless browser, executes JS
+# faithful = "your-archiver {url} {dest}"         # assets inlined into one file
 #                                                 #   (monolith is CC0; SingleFile CLI is AGPL —
 #                                                 #    both are invoked as subprocesses here)
 #

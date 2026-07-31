@@ -131,6 +131,11 @@ def capture_fidelity(event: dict) -> str:
     method = str(event.get("strategy") or "")
     if method not in CAPTURE_METHODS:
         return "unknown"
+    # A registry record about a document is not the document. `publisher-api`
+    # says so when only metadata was reachable; that is a real capture worth
+    # keeping, and it is not the evidence someone will think it is.
+    if str(event.get("status") or "") == "metadata-only":
+        return "thin"
     size = event.get("bytes")
     mime = str(event.get("mime") or "")
     # A markup response carrying almost no payload didn't capture the document,

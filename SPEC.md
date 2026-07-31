@@ -234,7 +234,7 @@ name is local trivia. In escalation order:
 |---|---|
 | `copy` | a local file, copied verbatim |
 | `http-get` | a plain GET of the live URL |
-| `http-alt-representation` | a canonical/AMP/print/embed variant of the same URL |
+| `http-alt-representation` | a canonical/print/embed variant of the same URL |
 | `archive-replay` | a third-party web archive |
 | `publisher-api` | a publisher or registry API (Crossref, Unpaywall, arXiv…) |
 | `media-extract` | a media/transcript extractor |
@@ -242,6 +242,15 @@ name is local trivia. In escalation order:
 | `browser-session` | a browser render carrying an authenticated session |
 | `self-contained-archive` | one standalone file with assets inlined |
 | `human-in-loop` | a person saved it and handed flip the file |
+
+Two of these carry facts the method itself establishes. `archive-replay`
+records **`archived_at`** — the snapshot's date, which is when the evidence is
+from and is not when it was retrieved; a claim resting on an archived page
+rests on the page as it was that day, and grading should say so. A
+`publisher-api` capture that reached only a registry record, not the full
+text, records **`status: metadata-only`**: the record is worth keeping and is
+not the document, so it derives `thin` fidelity rather than passing as the
+article.
 
 **The order is a ladder, and a refusal is where the work starts.** A 403 is a
 decision about *this* request, not a verdict on the source: the rungs above it
