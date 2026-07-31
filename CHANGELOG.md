@@ -6,6 +6,8 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.2] — 2026-07-31
+
 ### Changed
 - **The Claude Code plugin is now named `flip`, not `flip-notebook`.** Install
   it with `/plugin install flip@lyra-forge`. Anyone who installed under the old
