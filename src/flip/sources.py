@@ -525,7 +525,7 @@ def add_source(
             # held — the difference between "this came back first time" and
             # "this source is flaky", which only the ledger can remember.
             for key in ("canonical_url", "retrieved_at", "status", "mime",
-                        "backend_ref", "attempts"):
+                        "backend_ref", "attempts", "user_agent"):
                 value = envelope.get(key)
                 if value not in (None, "", [], {}):
                     event[key] = value

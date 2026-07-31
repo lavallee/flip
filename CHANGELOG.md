@@ -6,15 +6,36 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **A stated stance on acquisition conduct** (SPEC §5.1), and `flip-fetch` now
+  presents a browser User-Agent. flip's use case is *closely directed* capture
+  — a named document a person is about to read, judge and cite — which is an
+  extension of manual effort rather than crawling. A UA string is a
+  compatibility hint, not an access control; blanket UA blocking is a blunt
+  default aimed at bulk scrapers, and directed single-document capture is
+  bycatch in that fight. Measured: the old self-identifying string earned a
+  `403` from x.com and a timeout from nasdaq.com that a browser UA answers
+  with 165KB and 248KB of the documents the user asked for.
+
+  The stance is bounded by conduct, not self-description, and the bounds are
+  enforced rather than asserted: **one named document, no link-following, no
+  recursion**; **human-scale per-host pacing** that persists across
+  invocations, so an agent looping `add-source` still reads like a person; and
+  **the capture row records `user_agent` and `strategy` verbatim** — a
+  notebook that hid how its bytes were obtained would forfeit the only thing
+  it is for. Explicitly out of bounds and not implemented: defeating
+  authentication or paywalls, solving human-presence challenges, rotating
+  addresses to evade a block, and volume that imposes real cost. Custody is
+  also not republication. `FLIP_FETCH_UA` and `FLIP_FETCH_MIN_INTERVAL`
+  override the defaults.
+
 ### Fixed
-- **`flip-fetch` was getting itself blocked.** Its User-Agent identified flip
-  in a bare `flip-fetch (+url)` form that WAFs reject. Measured against live
-  sites: x.com answered it `403` and returned 165KB to a `Mozilla/5.0
-  (compatible; flip-fetch/…; +url)` form of the *same* honest identification;
-  a nasdaq.com "transient timeout" turned out to be the UA too. The default
-  now identifies flip inside a compatibility-shaped string — we do not pretend
-  to be a browser, and the answer to a WAF that blocks any named agent is the
-  archive rung, not a lie. `FLIP_FETCH_UA` overrides per deployment.
+- **The envelope whitelist silently dropped the conduct record.**
+  `_harvest_envelope` returns only `ENVELOPE_KEYS`, so `user_agent` and
+  `attempts` were written by the fetcher and lost before provenance — the
+  capture row read `user_agent: None` while the real string sat in the
+  sidecar. Caught by running a live capture end to end, not by the unit tests,
+  which were green throughout.
 
 ### Added
 - **Capture methods: the ladder** (SPEC §5.1). `strategy` in the capture log

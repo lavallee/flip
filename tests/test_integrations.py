@@ -205,3 +205,33 @@ def test_fetchers_guidance_points_at_config_init(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as ei:
         integrations.resolve("fetchers", "web")
     assert "flip config init" in str(ei.value)
+
+
+def test_envelope_whitelist_carries_the_conduct_record():
+    """`user_agent` and `attempts` must survive the envelope whitelist.
+
+    Regression guard: both were emitted by flip-fetch and silently dropped
+    here, because _harvest_envelope returns only ENVELOPE_KEYS. The capture row
+    read `user_agent: None` while the fetcher had written the real string — a
+    provenance record quietly losing the technique it used, which is the one
+    thing SPEC §5.1 says it must never do.
+    """
+    from flip import integrations
+
+    for key in ("user_agent", "attempts", "strategy"):
+        assert key in integrations.ENVELOPE_KEYS
+
+
+def test_harvest_keeps_user_agent_and_attempts(tmp_path):
+    import json as _json
+
+    from flip import integrations
+
+    payload = {"flip": {"strategy": "http-get", "user_agent": "Mozilla/5.0 (test)",
+                        "attempts": 3, "not_a_known_key": "dropped"}}
+    envelope_file = tmp_path / "flip.json"
+    envelope_file.write_text(_json.dumps(payload), encoding="utf-8")
+    got = integrations._harvest_envelope([envelope_file], b"")
+    assert got["user_agent"] == "Mozilla/5.0 (test)"
+    assert got["attempts"] == 3
+    assert "not_a_known_key" not in got  # the whitelist still whitelists

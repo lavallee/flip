@@ -45,7 +45,10 @@ ENVELOPE_KEYS = (
     "title",             # human name for the capture
     "canonical_url",     # resolved/canonical location (after redirects)
     "retrieved_at",      # ISO-8601 UTC instant the tool fetched it
-    "strategy",          # which internal strategy/provider succeeded
+    "strategy",          # the capture METHOD used (SPEC §5.1), not the tool's name
+    "user_agent",        # what the fetcher presented itself as, verbatim — the
+                         #   record must never lie about the technique (SPEC §5.1)
+    "attempts",          # >1 when a transient failure had to be retried through
     "status",            # success | paywalled | failed | …
     "mime",              # content type of the primary artifact
     "from_cache",        # True when served from a shared store, not a fresh fetch

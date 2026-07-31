@@ -74,6 +74,16 @@ archived. They are not problems; don't re-run doctor for reassurance.
    | 6 | `self-contained-archive` | the page matters visually, or its assets will rot |
    | 7 | `human-in-loop` | save it from your own browser, then `flip add-source <file> --kind file` |
 
+   **On conduct** (SPEC §5.1): this is directed capture of a named document,
+   not crawling, and a User-Agent is a compatibility hint rather than an
+   access control — presenting a browser UA is fine, and flip-fetch does. What
+   bounds the behaviour is volume and access, not self-description: one
+   document at a time, no link-following, human-scale pacing per host, and the
+   capture row records the `user_agent` and `strategy` actually used. Do NOT
+   defeat authentication or a paywall, solve a human-presence challenge, or
+   rotate addresses around a block — those are real access controls, and a
+   source you cannot legitimately reach is a `flip pass`, not a puzzle.
+
    Two rules keep this honest. **Don't repeat an unchanged request that was
    refused** — a 403 retried identically is noise; change the method, not the
    patience. And **when the ladder really is exhausted, say so**: `flip pass

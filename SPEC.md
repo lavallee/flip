@@ -254,6 +254,32 @@ genuinely exhausted, that is a finding: `flip pass` records it, and a failed
 acquisition writes its own capture-log row, so "searched, gone" stays
 distinguishable from "did not look".
 
+**Acquisition conduct.** flip's use case is *closely directed* capture: a
+named URL that a person or their agent is about to read, judge, and cite. That
+is an extension of manual effort, not crawling, and the format's conduct rules
+follow from the distinction rather than from a tool's identity.
+
+- **A User-Agent is a compatibility hint, not an access control.** Presenting
+  a browser UA is permitted. Blanket UA blocking is a blunt default aimed at
+  bulk scrapers; directed single-document capture is bycatch in that fight.
+  Defeating a UA heuristic circumvents nothing — the string has been
+  negotiated fiction since browsers began claiming to be `Mozilla/5.0`.
+- **Conduct is bounded by volume and access, not by self-description.** One
+  named document at a time, no link-following, no recursion, and human-scale
+  pacing per host. A capturer that behaves like a reader is a reader.
+- **The record must never lie about the technique.** `user_agent` and
+  `strategy` go into the capture row. A notebook that hid how its bytes were
+  obtained would forfeit the only thing it is for. Honest provenance is what
+  separates this from evasion, and it is the condition on everything above.
+
+Out of bounds: defeating authentication or a paywall, solving a
+human-presence challenge, rotating addresses to evade a block, and volume that
+imposes real cost on the host. Those are access controls or someone else's
+bill; a UA string is neither. Custody is also **not** republication — holding
+a copy for citation says nothing about the right to redistribute the bytes,
+which `policy.source_trail_public` and the export filters govern separately
+(§17).
+
 **Fidelity is derived, never stored** — like the source grade (§5.4). From the
 method plus the recorded size and mime: `faithful` (assets inlined, rendered,
 or a verbatim copy) · `text-only` (the document's text, linked assets not

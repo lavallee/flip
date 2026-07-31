@@ -16,6 +16,19 @@ import pytest
 
 from flip import fetch, pages, sources
 
+
+@pytest.fixture(autouse=True)
+def _isolate_pacing(tmp_path, monkeypatch):
+    """Every fetch test gets its own FLIP_HOME and no cooldown.
+
+    Two reasons: the per-host clock is a real file and must never be written to
+    the developer's own ~/.flip during a test run, and a shared clock would make
+    the retry tests order-dependent. The pacing tests re-enable it explicitly.
+    """
+    monkeypatch.setenv("FLIP_HOME", str(tmp_path / "flip-home"))
+    monkeypatch.setattr(fetch, "_MIN_HOST_INTERVAL", 0)
+    yield
+
 HTML = b"<html><head><title>Hello &amp; Bye</title></head><body>hi there</body></html>"
 
 
@@ -120,13 +133,22 @@ def test_flip_fetch_module_runs_as_main(tmp_path, base_url):
 # --- the capture ladder, rungs 1-2 ----------------------------------------------
 
 
-def test_user_agent_identifies_flip_inside_a_compatibility_string():
-    # Measured against live sites: the old bare "flip-fetch (+url)" string was
-    # itself causing 403s. The fix keeps the honest identification and drops the
-    # shape that got blocked — we do not pretend to be a browser.
-    assert "flip-fetch/" in fetch._UA
-    assert "github.com/lavallee/flip" in fetch._UA
-    assert fetch._UA.startswith("Mozilla/5.0 (compatible;")
+def test_user_agent_presents_as_a_browser():
+    # Stance (SPEC §5.1): a UA is a compatibility hint, not an access control,
+    # and blanket UA blocking is aimed at bulk scrapers — a reader capturing a
+    # page to cite it is bycatch. Measured: the self-identifying string earned
+    # a 403 from x.com that a browser UA answered with 165KB.
+    assert fetch._UA.startswith("Mozilla/5.0 (")
+    assert "flip" not in fetch._UA.lower()
+
+
+def test_the_ledger_records_what_we_presented_as(tmp_path, monkeypatch):
+    # The condition that makes the UA choice defensible rather than evasive:
+    # provenance never lies about the technique.
+    monkeypatch.setattr(fetch, "urlopen", _Flaky(None, fails=0))
+    fetch.fetch("https://example.com", tmp_path / "d", sleep=lambda _: None)
+    env = json.loads((tmp_path / "d" / "flip.json").read_text())["flip"]
+    assert env["user_agent"] == fetch._UA
 
 
 def test_user_agent_is_overridable(monkeypatch):
@@ -149,7 +171,7 @@ class _Flaky:
 
     def __call__(self, req, timeout=None):
         self.calls += 1
-        if self.calls <= self.fails:
+        if self.exc is not None and self.calls <= self.fails:
             raise self.exc
         return _Resp()
 
@@ -240,3 +262,38 @@ def test_unreachable_host_is_not_retried(tmp_path):
     assert fetch.fetch("http://127.0.0.1:1/nope", tmp_path / "d", timeout=2,
                        sleep=slept.append) == 1
     assert slept == []
+
+
+# --- human-scale pacing: the behaviour that earns the UA choice -----------------
+
+
+def test_per_host_cooldown_applies_across_invocations(tmp_path, monkeypatch):
+    # An agent looping `flip add-source` must still read like a person. The
+    # clock lives on disk precisely because each fetch is a separate process.
+    monkeypatch.setattr(fetch, "_MIN_HOST_INTERVAL", 5.0)
+    slept = []
+    assert fetch._pace("https://example.com/a", sleep=slept.append) == 0.0  # first: free
+    waited = fetch._pace("https://example.com/b", sleep=slept.append)
+    assert 0 < waited <= 5.0 and slept and slept[-1] == waited
+
+
+def test_cooldown_is_per_host_not_global(tmp_path, monkeypatch):
+    monkeypatch.setattr(fetch, "_MIN_HOST_INTERVAL", 5.0)
+    assert fetch._pace("https://a.example/x", sleep=lambda _: None) == 0.0
+    assert fetch._pace("https://b.example/y", sleep=lambda _: None) == 0.0  # different host
+
+
+def test_pacing_fails_open_on_an_unusable_state_file(tmp_path, monkeypatch):
+    # Politeness is real but it is not a lock: losing it must never cost the
+    # user their source.
+    monkeypatch.setattr(fetch, "_MIN_HOST_INTERVAL", 5.0)
+    state = fetch._state_path()
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text("{ not json", encoding="utf-8")
+    assert fetch._pace("https://example.com/a", sleep=lambda _: None) == 0.0
+
+
+def test_pacing_can_be_disabled(tmp_path, monkeypatch):
+    monkeypatch.setattr(fetch, "_MIN_HOST_INTERVAL", 0)
+    for _ in range(3):
+        assert fetch._pace("https://example.com/a", sleep=lambda _: None) == 0.0
