@@ -32,6 +32,13 @@ STATUSES = ("active", "dormant", "done", "published", "archived")
 # `flip migrate` rewrites 0.4–0.7 notebooks in place. uid gating stays 0.5+.
 FLIP_PROFILE_VERSION = "0.8"
 
+# The OKF version a flip notebook conforms to AT REST — flip is an extension
+# profile of OKF, not an exporter to it (SPEC §3). Named here so prose and code
+# can't disagree: `tests/test_docs_current.py` asserts every doc surface that
+# states an OKF version states this one. Bump it only when notebooks on disk
+# actually conform to a new OKF release.
+OKF_VERSION = "0.2"
+
 # SPEC §3: slugs are filesystem- and cite-safe. Validated at create/save so a
 # bad slug never reaches disk (it names files and every <slug>:<id> cross-ref).
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
@@ -146,7 +153,7 @@ def load_manifest(root: Path) -> Manifest:
 
 
 def manifest_frontmatter(m: Manifest) -> dict:
-    fm: dict = {"okf_version": "0.2", "flip": FLIP_PROFILE_VERSION, "slug": m.slug}
+    fm: dict = {"okf_version": OKF_VERSION, "flip": FLIP_PROFILE_VERSION, "slug": m.slug}
     if m.uid:
         fm["uid"] = m.uid
     if m.title:

@@ -163,7 +163,7 @@ already looks, and where Obsidian shows it as editable properties.
 ```markdown
 ---
 okf_version: "0.2"
-flip: "0.7"                 # flip profile version this notebook conforms to
+flip: "0.8"                 # flip profile version this notebook conforms to
 slug: nj-schools
 uid: nb-7k3m9p2x             # stable machine identity; travels with the bundle
 title: "NJ schools: five years of test-score data"

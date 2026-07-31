@@ -4,7 +4,7 @@ flip is a CLI and plain-file format for **reporter's notebooks**: research
 corpora (sources, claims, decisions, questions, sessions) maintained by
 humans and agents together.
 
-A notebook is one directory and a conformant OKF v0.1 knowledge bundle: a
+A notebook is one directory and a conformant OKF v0.2 knowledge bundle: a
 root `index.md` whose frontmatter is the manifest, `notebook.md` as prose
 working memory, and **one markdown page per entity** with YAML frontmatter —
 `references/`, `claims/`, `decisions/`, `questions/`, `sessions/`. Event

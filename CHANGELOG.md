@@ -14,6 +14,24 @@ versioning follows [Semantic Versioning](https://semver.org/).
   as `web` — they aren't one capturable spoken record. Born from the first
   real talk-lane deployment (an 8-video capture run where every command
   needed the explicit flag).
+- **A docs-consistency release gate** (`tests/test_docs_current.py`, now five
+  checks). Beyond retired vocabulary it asserts prose against the code: OKF
+  version claims match `manifest.OKF_VERSION` (a new named constant, so prose
+  and code share one source of truth), manifest examples match
+  `FLIP_PROFILE_VERSION`, the version SPEC.md and README announce matches
+  `flip.__version__`, and every version declaration agrees — the lockstep bump
+  RELEASING.md used to ask a human to verify by eye.
+  **Prose files are now discovered rather than listed**, which is the real
+  fix: `AGENTS.md` rotted three releases purely because nobody had added it to
+  a hand-maintained list. RELEASING.md documents the gate as a release step.
+
+### Fixed
+- **Docs misstated the OKF version at rest.** `AGENTS.md` opened by calling a
+  notebook "a conformant OKF v0.1 knowledge bundle" — flip has stamped
+  `okf_version: 0.2` into every manifest since 0.11, and AGENTS.md ships in
+  the sdist, so 0.16.0 published that error. The site's design brief carried
+  the same stale claim, and SPEC.md's canonical manifest example still showed
+  `flip: "0.7"` one profile after 0.8 shipped.
 
 ## [0.16.0] — 2026-07-30
 

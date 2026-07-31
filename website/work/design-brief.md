@@ -35,7 +35,7 @@ OKF consumer or markdown editor can already read.
 Each of these resolves against the repository at the deployed revision; the
 build fails the site rather than shipping a stale number.
 
-- A flip notebook is a conformant OKF v0.1 knowledge bundle at rest, not an
+- A flip notebook is a conformant OKF v0.2 knowledge bundle at rest, not an
   export target (SPEC §1 preamble, §3 conformance note).
 - The core has two library dependencies, click and PyYAML, and makes no
   network calls and no LLM calls in the library (SPEC §15).
