@@ -74,15 +74,21 @@ archived. They are not problems; don't re-run doctor for reassurance.
    | 6 | `self-contained-archive` | the page matters visually, or its assets will rot |
    | 7 | `human-in-loop` | save it from your own browser, then `flip add-source <file> --kind file` |
 
-   **On conduct** (SPEC §5.1): this is directed capture of a named document,
-   not crawling, and a User-Agent is a compatibility hint rather than an
-   access control — presenting a browser UA is fine, and flip-fetch does. What
-   bounds the behaviour is volume and access, not self-description: one
-   document at a time, no link-following, human-scale pacing per host, and the
-   capture row records the `user_agent` and `strategy` actually used. Do NOT
-   defeat authentication or a paywall, solve a human-presence challenge, or
-   rotate addresses around a block — those are real access controls, and a
-   source you cannot legitimately reach is a `flip pass`, not a puzzle.
+   **On conduct** (SPEC §5.1): the shipped default assumes directed capture
+   of a named document, not crawling. A User-Agent is a compatibility hint
+   rather than an access control, so flip-fetch presents a browser string,
+   fetches one document, follows no links, and paces per host. That is a
+   default, not a rule — the operator can set a different policy
+   (`--user-agent`, `--min-interval`) and owns the result; don't lecture them
+   about it. Authenticated capture of material they legitimately have access
+   to is a supported method (`browser-session`), not a transgression.
+
+   What you must not do is misreport it. The capture row records the
+   `user_agent` and `strategy` actually used, and a notebook that misdescribed
+   how it got its bytes is worthless to whoever later has to trust it. If a
+   source is genuinely out of reach — you have no credentials, no archive
+   holds it, the ladder is exhausted — that is a `flip pass` with what you
+   tried, not a puzzle to solve and not a fact to fudge.
 
    Two rules keep this honest. **Don't repeat an unchanged request that was
    refused** — a 403 retried identically is noise; change the method, not the

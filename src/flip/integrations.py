@@ -83,9 +83,19 @@ STARTER_CONFIG = '''\
 
 [fetchers]
 # Out-of-the-box web capture via the bundled zero-dependency helper. It climbs
-# the first two rungs of the capture ladder (SPEC §5.1): an identified GET,
-# and backoff-retry on 429/502/503/504 and timeouts.
+# the first two rungs of the capture ladder (SPEC §5.1): a GET, and
+# backoff-retry on 429/502/503/504 and timeouts.
 web = "flip-fetch {url} {dest}"
+
+# flip-fetch's defaults are an opinion for the common case — directed capture
+# of one named document — not a rule (SPEC §5.1). Set your own policy here and
+# it applies to every capture on this lane; the ledger records what was
+# actually used either way. `flip-fetch --help` lists the knobs.
+#
+# web = "flip-fetch --user-agent identify {url} {dest}"   # announce ourselves
+# web = "flip-fetch --user-agent 'AcmeResearchBot/1.0 (+https://acme.example/bot)' {url} {dest}"
+# web = "flip-fetch --min-interval 10 {url} {dest}"       # gentler on a fragile host
+# web = "flip-fetch --min-interval 0 {url} {dest}"        # no pacing (your own infra)
 # ...or swap in a ubiquitous tool, or a purpose-built fetcher:
 # web = "curl --fail --location --silent --show-error {url} --output {dest}/capture.html"
 # web = "wget --quiet --output-document {dest}/capture.html {url}"

@@ -17,17 +17,26 @@ versioning follows [Semantic Versioning](https://semver.org/).
   `403` from x.com and a timeout from nasdaq.com that a browser UA answers
   with 165KB and 248KB of the documents the user asked for.
 
-  The stance is bounded by conduct, not self-description, and the bounds are
-  enforced rather than asserted: **one named document, no link-following, no
-  recursion**; **human-scale per-host pacing** that persists across
-  invocations, so an agent looping `add-source` still reads like a person; and
-  **the capture row records `user_agent` and `strategy` verbatim** — a
-  notebook that hid how its bytes were obtained would forfeit the only thing
-  it is for. Explicitly out of bounds and not implemented: defeating
-  authentication or paywalls, solving human-presence challenges, rotating
-  addresses to evade a block, and volume that imposes real cost. Custody is
-  also not republication. `FLIP_FETCH_UA` and `FLIP_FETCH_MIN_INTERVAL`
-  override the defaults.
+  The default fetches **one named document, follows no links, and paces per
+  host** across invocations, so an agent looping `add-source` still reads like
+  a person rather than a crawler.
+
+  **It is a default, not a constraint.** `flip-fetch --user-agent STRING`
+  (the word `identify` selects flip's own name), `--min-interval SECS`,
+  `--timeout`, and the `FLIP_FETCH_UA` / `FLIP_FETCH_MIN_INTERVAL`
+  equivalents; `flip config init` shows worked alternatives. A deployment that
+  needs to announce itself to a partner API, pace far slower for a fragile
+  host, or move faster against its own infrastructure sets a policy and owns
+  the result. flip enforces no conduct policy over the operator's, and
+  authenticated capture of material you legitimately have access to is a
+  first-class method (`browser-session`), not a transgression.
+
+  **What does not vary is the record.** `user_agent`, `strategy` and
+  `attempts` are written to the capture row as actually used, whatever the
+  policy — not a restriction on conduct but the point of the format: a
+  notebook that misreported how it got its bytes is worthless to whoever later
+  has to trust it, usually its own author. Custody remains distinct from
+  republication (§17).
 
 ### Fixed
 - **The envelope whitelist silently dropped the conduct record.**

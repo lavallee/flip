@@ -16,37 +16,36 @@ a GET, and backoff-retry on the statuses that mean "later, not never". For
 JavaScript-rendered pages, paywalls, cookie auth, or archival fallbacks,
 configure a purpose-built fetcher for the higher rungs.
 
-**On the User-Agent, and the conduct it implies (SPEC §5.1).** flip-fetch
-presents a browser User-Agent by default. The reasoning, because this is a
-choice and not an accident:
+**Default conduct, and how to change it (SPEC §5.1).** flip-fetch ships an
+opinionated default, not a rule. It presents a browser User-Agent, fetches one
+named document with no link-following or recursion, and holds a per-host
+cooldown across invocations.
 
-A UA string is a self-declared compatibility hint, not an access control —
-Chrome still says "Mozilla/5.0" because the string has been negotiated fiction
-since 1994. Blanket UA blocking is a blunt platform default aimed at bulk
-scrapers, and a person capturing a page they are about to read and cite is
-bycatch in that fight, not its target. Measured: the old self-identifying
-string earned a 403 from x.com that a browser UA answered with 165KB of the
-document the user asked for.
+The reasoning, since a default should be arguable: a UA string is a
+self-declared compatibility hint, not an access control — Chrome still says
+"Mozilla/5.0" because the string has been negotiated fiction since 1994.
+Blanket UA blocking is a blunt platform default aimed at bulk scrapers, and a
+person capturing a page they are about to read and cite is bycatch in that
+fight. Measured: the self-identifying string earned a 403 from x.com that a
+browser UA answered with 165KB of the document the user asked for.
 
-What makes that defensible is the rest of the behaviour, which is enforced
-here rather than merely claimed:
+Every part of that is a knob. `--user-agent` (the word `identify` selects
+flip-fetch's own name), `--min-interval`, and the `FLIP_FETCH_UA` /
+`FLIP_FETCH_MIN_INTERVAL` environment equivalents. A deployment whose work
+calls for a different policy — announcing itself to a partner's API, pacing
+far slower for a fragile host, or moving faster against infrastructure it owns
+— sets one and owns the consequences. flip has no opinion it will enforce over
+yours.
 
-- **One URL, no crawl.** flip-fetch follows no links and has no recursion. It
-  structurally cannot strip-mine; it fetches the thing you named.
-- **Human-scale pacing.** A per-host cooldown (`_MIN_HOST_INTERVAL`) applies
-  across invocations, so an agent looping `add-source` still behaves like a
-  reader rather than a crawler.
-- **The ledger records what we presented as.** `user_agent` goes into the
-  capture row. Provenance never lies about the technique — that is the whole
-  point of the notebook, and it is what separates this from evasion.
+What flip-fetch does NOT vary is the record: `user_agent`, `strategy` and
+`attempts` go into the capture row as they were actually used. That is not a
+restriction on the operator, it is what a provenance tool is *for* — a
+notebook that misreported how its bytes were obtained would be worthless to
+the person who later has to trust it, including its own author.
 
-Out of bounds, and not implemented here: defeating authentication or paywalls,
-solving human-presence challenges, rotating addresses to evade a block, and
-volume that imposes real cost. Those are access controls or are someone else's
-bill; a UA heuristic is neither. Custody is also not republication — capturing
-a page for citation says nothing about the right to redistribute its bytes.
-
-`FLIP_FETCH_UA` and `FLIP_FETCH_MIN_INTERVAL` override both defaults.
+The higher rungs are not implemented here rather than forbidden. Authenticated
+capture is a first-class method (`browser-session`) for material you have
+legitimate access to; point a lane at a fetcher that carries your session.
 """
 
 from __future__ import annotations
@@ -252,16 +251,61 @@ def fetch(url: str, dest: str | Path, timeout: float = 30, sleep=time.sleep) -> 
     return 0
 
 
+# The identifying alternative, offered by name so choosing it is one word
+# rather than a string to look up. Nothing prefers it or the default; they are
+# different policies for different situations.
+IDENTIFYING_UA = "flip-fetch (+https://github.com/lavallee/flip)"
+
+_USAGE = """usage: flip-fetch [options] URL DEST
+
+  A minimal stdlib web fetcher for flip's [fetchers] lanes:
+    web = "flip-fetch {url} {dest}"
+
+options:
+  --user-agent STRING   what to present as. The literal word `identify` selects
+                        flip-fetch's own name. Default: a browser string — see
+                        SPEC §5.1 for the reasoning and its limits.
+  --min-interval SECS   per-host cooldown, held across invocations. 0 disables.
+  --timeout SECS        per-attempt socket timeout (default 30).
+
+Defaults are an opinion, not a rule. Set a policy that fits your work; the
+capture ledger records what was actually used either way.
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    if len(argv) < 2:
-        sys.stderr.write(
-            "usage: flip-fetch URL DEST\n"
-            "  a minimal stdlib web fetcher for flip's [fetchers] web lane:\n"
-            '  web = "flip-fetch {url} {dest}"\n'
-        )
+    global _UA, _MIN_HOST_INTERVAL
+    positional, timeout = [], 30.0
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg in ("-h", "--help"):
+            sys.stdout.write(_USAGE)
+            return 0
+        if arg in ("--user-agent", "--min-interval", "--timeout"):
+            if i + 1 >= len(argv):
+                sys.stderr.write(f"flip-fetch: {arg} needs a value\n")
+                return 2
+            value = argv[i + 1]
+            try:
+                if arg == "--user-agent":
+                    _UA = IDENTIFYING_UA if value == "identify" else value
+                elif arg == "--min-interval":
+                    _MIN_HOST_INTERVAL = float(value)
+                else:
+                    timeout = float(value)
+            except ValueError:
+                sys.stderr.write(f"flip-fetch: {arg} expects a number, got {value!r}\n")
+                return 2
+            i += 2
+            continue
+        positional.append(arg)
+        i += 1
+    if len(positional) < 2:
+        sys.stderr.write(_USAGE)
         return 2
-    return fetch(argv[0], argv[1])
+    return fetch(positional[0], positional[1], timeout=timeout)
 
 
 if __name__ == "__main__":  # pragma: no cover

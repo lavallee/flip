@@ -26,7 +26,11 @@ def _isolate_pacing(tmp_path, monkeypatch):
     the retry tests order-dependent. The pacing tests re-enable it explicitly.
     """
     monkeypatch.setenv("FLIP_HOME", str(tmp_path / "flip-home"))
+    # main() sets the policy globals from its flags, as a one-shot CLI process
+    # may; monkeypatch restores both so a --user-agent test can't leak its
+    # string into the next test's expectations.
     monkeypatch.setattr(fetch, "_MIN_HOST_INTERVAL", 0)
+    monkeypatch.setattr(fetch, "_UA", fetch._UA)
     yield
 
 HTML = b"<html><head><title>Hello &amp; Bye</title></head><body>hi there</body></html>"
@@ -297,3 +301,44 @@ def test_pacing_can_be_disabled(tmp_path, monkeypatch):
     monkeypatch.setattr(fetch, "_MIN_HOST_INTERVAL", 0)
     for _ in range(3):
         assert fetch._pace("https://example.com/a", sleep=lambda _: None) == 0.0
+
+
+# --- the default is a policy the operator can replace ---------------------------
+
+
+def test_user_agent_flag_overrides_the_default(tmp_path, monkeypatch):
+    monkeypatch.setattr(fetch, "urlopen", _Flaky(None, fails=0))
+    assert fetch.main(["--user-agent", "AcmeBot/1.0", "https://example.com",
+                       str(tmp_path / "d")]) == 0
+    env = json.loads((tmp_path / "d" / "flip.json").read_text())["flip"]
+    assert env["user_agent"] == "AcmeBot/1.0"  # and the ledger says so
+
+
+def test_identify_selects_flips_own_name(tmp_path, monkeypatch):
+    # Choosing the announcing policy should be one word, not a string to look up.
+    monkeypatch.setattr(fetch, "urlopen", _Flaky(None, fails=0))
+    assert fetch.main(["--user-agent", "identify", "https://example.com",
+                       str(tmp_path / "d")]) == 0
+    env = json.loads((tmp_path / "d" / "flip.json").read_text())["flip"]
+    assert env["user_agent"] == fetch.IDENTIFYING_UA
+    assert "flip-fetch" in env["user_agent"]
+
+
+def test_min_interval_flag_sets_and_disables_pacing(tmp_path, monkeypatch):
+    monkeypatch.setattr(fetch, "urlopen", _Flaky(None, fails=0))
+    fetch.main(["--min-interval", "0", "https://example.com", str(tmp_path / "a")])
+    assert fetch._MIN_HOST_INTERVAL == 0.0
+    fetch.main(["--min-interval", "7.5", "https://example.com", str(tmp_path / "b")])
+    assert fetch._MIN_HOST_INTERVAL == 7.5
+
+
+def test_bad_option_values_are_refused_not_guessed(tmp_path):
+    assert fetch.main(["--min-interval", "soon", "https://x.test", str(tmp_path)]) == 2
+    assert fetch.main(["--user-agent"]) == 2
+
+
+def test_help_documents_that_defaults_are_an_opinion(capsys):
+    assert fetch.main(["--help"]) == 0
+    out = capsys.readouterr().out
+    assert "--user-agent" in out and "--min-interval" in out
+    assert "not a rule" in out
