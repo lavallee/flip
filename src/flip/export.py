@@ -403,6 +403,11 @@ def export_json(root: Path, include_private: bool = False, render_version: int =
     `pipeline`/`pipeline_evidence`, `provenance_state`; claims gain
     `value`/`unit`. Version 1 stays byte-stable for existing consumers.
 
+    `drafts` (version 2) ships only under `include_private`: drafts are
+    unfinished prose that `export okf` already withholds from every
+    outside-facing bundle, so they travel to internal renderers and nowhere
+    else. The key is always present under /2, empty when withheld.
+
     Policy-filtered exactly like `export okf`: refuses unless visibility is
     public or `include_private`; without the full source trail
     (`source_trail_public: false` and not include_private) custody detail —
@@ -503,6 +508,15 @@ def export_json(root: Path, include_private: bool = False, render_version: int =
         out["forecasts"] = forecasts
     if render_version >= 2:
         out["work"] = _work_pages(root)
+        # Drafts arrived after work (flip-render/2, SPEC §11). They are the
+        # notebook's unfinished prose, so they ride the *private* lane only:
+        # `export okf` drops drafts/ from every outside-facing bundle
+        # (okf.EXCLUDE_NAMES), and a draft reaching a public renderer just
+        # because the notebook went public would contradict that. Internal
+        # renderers — agent sites, review surfaces — pass include_private and
+        # get them. Always an array under /2 so consumers can iterate without
+        # a key check; empty when withheld or absent.
+        out["drafts"] = _draft_pages(root) if include_private else []
     return out
 
 
@@ -537,4 +551,52 @@ def _work_pages(root: Path) -> list[dict]:
             if path.name in pages.RESERVED or path.name.startswith("_"):
                 continue
             _add(path, f"analysis/{path.name}", path.stem)
+    return out
+
+
+def _draft_pages(root: Path) -> list[dict]:
+    """The notebook's DRAFTS, for flip-render/2 (SPEC §11): the in-progress
+    prose a reader of an internal surface actually wants to read.
+
+    Two shapes exist in the wild and both ship. SPEC §11 versions drafts
+    explicitly (`drafts/v0/`, `drafts/v1/`, a `current` symlink), while
+    `flip new --kind pursuit` scaffolds a flat `drafts/question-plan.md`.
+    Flat files sort first, then versioned directories in name order.
+
+    `current` (and any other symlinked directory) is skipped: it resolves to
+    a version already emitted, and following it would duplicate every draft
+    under a second path — the same trap `export bag` documents. Each entry
+    carries `slug` so renderers can build a stable route without re-deriving
+    one from the path.
+    """
+    drafts = root / "drafts"
+    if not drafts.is_dir():
+        return []
+    out: list[dict] = []
+
+    def _add(path: Path, rel: str, slug: str, default_title: str) -> None:
+        try:
+            page = pages.read_page(path)
+            title = str(page.fm.get("title") or default_title)
+            body = page.body.strip()
+        except SystemExit:  # a draft without frontmatter — the common case
+            title, body = default_title, path.read_text(encoding="utf-8").strip()
+        out.append({"slug": slug, "path": rel, "title": title, "body": body})
+
+    for path in sorted(drafts.glob("*.md")):
+        if path.name in pages.RESERVED or path.name.startswith("_"):
+            continue
+        _add(path, f"drafts/{path.name}", path.stem, path.stem)
+    for version in sorted(p for p in drafts.iterdir() if p.is_dir()):
+        if version.is_symlink() or version.name.startswith("_"):
+            continue
+        for path in sorted(version.glob("*.md")):
+            if path.name in pages.RESERVED or path.name.startswith("_"):
+                continue
+            _add(
+                path,
+                f"drafts/{version.name}/{path.name}",
+                f"{version.name}-{path.stem}",
+                f"{path.stem} ({version.name})",
+            )
     return out

@@ -625,3 +625,54 @@ def test_render_2_carries_the_work(tmp_path, monkeypatch):
 
     v1 = export_json(root, include_private=True, render_version=1)
     assert "work" not in v1
+
+
+def test_render_2_carries_drafts_on_the_private_lane_only(tmp_path):
+    """flip-render/2 ships drafts/ so internal renderers can show in-progress
+    prose — both the flat shape (`flip new --kind pursuit` scaffolds
+    drafts/question-plan.md) and SPEC §11's versioned shape. They are
+    private-lane only, because `export okf` withholds drafts/ from every
+    outside-facing bundle. Version 1 never grows the key."""
+    from flip import scaffold
+    from flip.export import export_json
+
+    root = scaffold.create_notebook(tmp_path / "dr", "dr", "scout", title="t")
+    drafts = root / "drafts"
+    drafts.mkdir()
+    (drafts / "explainer-v0.1.md").write_text(
+        "---\ntitle: The explainer\n---\nlede paragraph\n", encoding="utf-8"
+    )
+    (drafts / "_scratch.md").write_text("ignored\n", encoding="utf-8")
+    (drafts / "v1").mkdir()
+    (drafts / "v1" / "report.md").write_text("no frontmatter draft\n", encoding="utf-8")
+    (drafts / "current").symlink_to("v1", target_is_directory=True)
+
+    v2 = export_json(root, include_private=True, render_version=2)
+    paths = [d["path"] for d in v2["drafts"]]
+    assert paths == ["drafts/explainer-v0.1.md", "drafts/v1/report.md"]
+    by_path = {d["path"]: d for d in v2["drafts"]}
+    assert by_path["drafts/explainer-v0.1.md"]["title"] == "The explainer"
+    assert by_path["drafts/explainer-v0.1.md"]["slug"] == "explainer-v0.1"
+    assert by_path["drafts/explainer-v0.1.md"]["body"] == "lede paragraph"
+    # a draft without frontmatter still ships, titled from its version+stem
+    assert by_path["drafts/v1/report.md"]["body"] == "no frontmatter draft"
+    assert by_path["drafts/v1/report.md"]["slug"] == "v1-report"
+    assert by_path["drafts/v1/report.md"]["title"] == "report (v1)"
+
+    # the `current` symlink resolves to v1 and must not duplicate it
+    assert sum(1 for p in paths if p.endswith("report.md")) == 1
+
+    # public lane: the notebook is published with its full source trail, and
+    # drafts still stay home.
+    index = root / "index.md"
+    index.write_text(
+        index.read_text(encoding="utf-8")
+        .replace("visibility: internal", "visibility: public")
+        .replace("source_trail_public: false", "source_trail_public: true"),
+        encoding="utf-8",
+    )
+    public = export_json(root, include_private=False, render_version=2)
+    assert public["drafts"] == []
+
+    v1 = export_json(root, include_private=True, render_version=1)
+    assert "drafts" not in v1

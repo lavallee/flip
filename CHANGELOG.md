@@ -7,6 +7,22 @@ versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Notebooks show their drafts.** flip-render/2 gains a `drafts` array
+  (SPEC §11 and §17), so an internal renderer — an agent site, a review
+  surface — can present in-progress prose next to the sources and claims that
+  back it. Previously drafts were invisible to every renderer: `work` carried
+  notebook.md, root prose and `analysis/`, but nothing reached into
+  `drafts/`, so the actual deliverable of a research notebook was the one
+  thing a reader could not open. Both shapes ship — the flat files that
+  `flip new --kind pursuit` scaffolds, and SPEC §11's versioned
+  `drafts/v0/`, `drafts/v1/` — with flat files first, then versions in name
+  order, and a `current` symlink skipped so its target is not emitted twice.
+  Each entry carries `slug`, `path`, `title` and `body`; a draft with no
+  frontmatter is titled from its filename rather than dropped.
+  **Private lane only:** `drafts` is populated under `--include-private` and
+  empty otherwise. `export okf` already excludes `drafts/` from every
+  outside-facing bundle, and a notebook going public should not publish its
+  unfinished work as a side effect. flip-render/1 never grows the key.
 - **Two more ladder rungs, bundled and needing no external tool** (SPEC §5.1).
   `flip-fetch --method` now selects the capture method, using the same
   vocabulary the ledger records:

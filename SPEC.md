@@ -1034,6 +1034,15 @@ documentation, or portable skills.
   to judgment stubs (grade / independence / freshness) — anything derived from
   withheld data is withheld data. Deterministic key order and id-sorted
   entities make it diffable; only `generated` varies.
+  **`flip-render/2`** is a superset (`--render-version 2`): support tuples,
+  pipeline and provenance state on sources; `value`/`unit` on claims;
+  `forecasts`; `work` (§10); and **`drafts`** (§11) — both the flat shape and
+  the versioned `drafts/v1/` shape, with a `current` symlink skipped so a
+  version is never emitted twice. `drafts` rides the private lane only: it is
+  populated under `--include-private` and empty otherwise, because drafts are
+  unfinished prose that `export okf` already withholds from outside-facing
+  bundles, and going public must not publish them. The key is always present
+  under /2 so consumers can iterate without a key check.
 - **BagIt** bag for cold archival (`flip export bag`).
 - **CSL JSON** from references for citation managers (`flip export csl`).
 - **RO-Crate** envelope, **W3C Web Annotation** anchors: future projections.
