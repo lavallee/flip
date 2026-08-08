@@ -19,7 +19,9 @@ page note only — grading stays a judgment made after reading, never auto-set.
 
 from __future__ import annotations
 
+import json
 import re
+import shlex
 import shutil
 import tempfile
 from pathlib import Path
@@ -91,7 +93,27 @@ CAPTURE_METHODS = (
     "browser-session",         # browser render carrying an authenticated session
     "self-contained-archive",  # assets inlined into one standalone file
     "human-in-loop",           # a person saved it and handed flip the file
+    # The terminus, and the only rung that captures no bytes of the document:
+    # custody holds flip's own record of the source and of the attempt. It is
+    # not a rung you climb TO, it is where you stand when the ladder ran out
+    # and the source still has to be citable (SPEC §5.1).
+    "record-only",
 )
+
+# The methods above `record-only`, named in escalation order when an
+# acquisition comes back empty-handed. `copy` is not a rung you can climb to
+# from a URL, and `record-only` is the terminus, not a next step.
+LADDER_RUNGS = tuple(m for m in CAPTURE_METHODS if m not in ("copy", "record-only"))
+
+# Capture-log statuses that mean NO bytes landed. These rows are findings, not
+# custody: they carry no sha256 and have no entity page by design, so every
+# consumer that walks the ledger looking for captures has to skip them.
+#
+#   `failed`        the command could not run, or exited nonzero — an error.
+#   `not-captured`  the command ran clean and found nothing — a finding about
+#                   the document. Distinguishing the two is the whole point:
+#                   one is a broken toolchain, the other is a gated source.
+UNCAPTURED_STATUSES = ("failed", "not-captured")
 
 # Methods that produce a page whose linked assets are NOT captured — the bytes
 # are the document's text, not a faithful copy of what a reader saw.
@@ -109,6 +131,18 @@ PROVENANCE_STATES = (
 )
 
 
+def rungs_above(method: str) -> tuple[str, ...]:
+    """The rungs a capture made with `method` has not tried yet.
+
+    Naming the whole ladder back at someone who already climbed to
+    `browser-render` is noise that teaches them to skip the line. An unknown
+    method — or a `copy`, which is not on the ladder at all — gets the lot.
+    """
+    if method not in LADDER_RUNGS:
+        return LADDER_RUNGS
+    return LADDER_RUNGS[LADDER_RUNGS.index(method) + 1:]
+
+
 def _support(fm: dict) -> dict:
     value = fm.get("support")
     return value if isinstance(value, dict) else {}
@@ -121,9 +155,10 @@ def capture_fidelity(event: dict) -> str:
     `faithful`   — assets inlined, a rendered page, or a verbatim local copy.
     `text-only`  — the document's text, but linked assets were not captured.
     `thin`       — succeeded and brought back almost nothing: a consent wall,
-                   a JS shell, an error page served with status 200. This is
-                   the dangerous one, because custody, a sha256 and a
-                   provenance row all look identical to a real capture.
+                   a JS shell, an error page served with status 200 — or a
+                   `record-only` capture, which never held the document at
+                   all. This is the dangerous one, because custody, a sha256
+                   and a provenance row all look identical to a real capture.
     `unknown`    — no method recorded, or one outside the vocabulary.
 
     Callers pass one provenance event ({strategy, bytes, mime, …}).
@@ -131,6 +166,10 @@ def capture_fidelity(event: dict) -> str:
     method = str(event.get("strategy") or "")
     if method not in CAPTURE_METHODS:
         return "unknown"
+    # A record capture never held the document, whatever its record.json
+    # weighs — the fidelity is a fact about the method, not about the size.
+    if method == "record-only":
+        return "thin"
     # A registry record about a document is not the document. `publisher-api`
     # says so when only metadata was reachable; that is a real capture worth
     # keeping, and it is not the evidence someone will think it is.
@@ -388,6 +427,105 @@ def _capture_copy(root: Path, source_id: str, target: str) -> tuple[list[Path], 
     return [dest], src.resolve().as_uri()
 
 
+def _capture_record(
+    root: Path, source_id: str, target: str, kind: str, note: str
+) -> tuple[list[Path], str]:
+    """builtin:record — the ladder's terminus written down (SPEC §5.1).
+
+    No bytes of the document are obtained, because none were reachable. What
+    lands in custody is flip's own record of the source and of the attempt:
+    the coordinate, when it was recorded, by whom, and the note saying what was
+    tried. That is a real artifact — it is the finding — and it is emphatically
+    not the document, which is why the row derives `thin` fidelity and the page
+    says so above the fold.
+    """
+    dest = root / "sources" / "raw" / source_id
+    dest.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "flip_record": 1,
+        "target": target,
+        "kind": kind,
+        "recorded_at": utc_now(),
+        "actor": detect_actor(),
+        "note": note,
+        "document_in_custody": False,
+    }
+    path = dest / "record.json"
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return [path], target
+
+
+def lane_inventory(kind: str, via: str | None) -> list[str]:
+    """What else this machine has configured for capture, as guidance lines.
+
+    flip cannot know what fills a lane (SPEC §16), but it can read the
+    operator's own config and name the lanes, the kinds, and the binary behind
+    the one that just came back empty. Naming the binary is the point: flip
+    wires exactly ONE verb of whatever tool fills a role, and an agent that has
+    only ever seen that verb will improvise around the tool instead of asking
+    it for the rest of its surface.
+    """
+    lanes = integrations.capture_lanes()
+    lines: list[str] = []
+    used = via or "default"
+    variants = [v for v in lanes.get(kind, []) if v != used]
+    if variants:
+        lines.append(
+            f"    lanes configured for '{kind}' on this machine: "
+            + ", ".join(f"--via {v}" for v in variants)
+        )
+    others = sorted(k for k in lanes if k != kind)
+    if others:
+        lines.append(
+            f"    other kinds configured here: {', '.join(others)} — the same document "
+            "often has a second coordinate"
+        )
+    return lines
+
+
+def _empty_capture_guidance(
+    exc: integrations.EmptyCapture, target: str, kind: str, via: str | None
+) -> str:
+    """The four moves that follow an empty-handed acquisition (SPEC §5.1).
+
+    Climb, ask the tool for more, record it, or close it. Every one of them is
+    a sanctioned move; none of them is "improvise your own fetch", which is
+    what an agent does when the only thing flip says is that something might be
+    wrong with the config.
+    """
+    quoted = shlex.quote(target)
+    kind_flag = f" --kind {kind}"
+    lines = [
+        "the work goes on from here — SPEC §5.1, the ladder:",
+        "  climb: the ladder, in escalation order — " + ", ".join(LADDER_RUNGS),
+        *lane_inventory(kind, via),
+        f"  ask the tool for more: this lane runs `{exc.tool}`, and flip wires one verb "
+        f"of it. `{exc.tool} --help` may know how to search for, resolve, or route around "
+        f"what this asked for; run it yourself and hand the result over with "
+        f"`flip add-source <file>{kind_flag}`.",
+        f"  record it: `flip add-source {quoted}{kind_flag} --record --note \"<rungs tried, "
+        "what each returned>\"` opens a citable page for a document you do NOT hold — "
+        "fidelity thin, grade ?, corroborating nothing until custody holds the document.",
+        f"  close it: `flip pass {quoted} --reason \"<rungs tried, what each returned>\"` "
+        "when the ladder is genuinely exhausted. \"Searched, gone\" is a finding, and it "
+        "is worth more than a silent gap.",
+    ]
+    if exc.captures_stdout:
+        lines.append(
+            f"(the command in {integrations.config_path()} has no {{dest}} placeholder, so "
+            f"flip watched {exc.tool}'s stdout for the artifact and it was empty. Add "
+            "{dest} if it captures to a path of its own.)"
+        )
+    else:
+        lines.append(
+            f"(flip watched {exc.dest} and nothing appeared there. If {exc.tool} ignores "
+            f"the {{dest}} it was passed and writes somewhere of its own choosing, fix that "
+            f"in {integrations.config_path()} — but a clean exit with no output is more "
+            "often the tool telling you it found nothing.)"
+        )
+    return "\n".join(lines)
+
+
 def _regenerate_views(root: Path) -> None:
     """Refresh the generated index.md bodies / log.md after a mutation (SPEC §10)."""
     from . import views
@@ -470,6 +608,7 @@ def add_source(
     via: str | None = None,
     strategy: str | None = None,
     extra_fm: dict | None = None,
+    record: bool = False,
 ) -> pages.Page:
     """Capture a source into the notebook; returns its new entity page.
 
@@ -489,9 +628,35 @@ def add_source(
     information is obliged to say so). Fetched captures report their own
     method and ignore this. `extra_fm` adds caller-owned frontmatter keys to
     the new page ahead of the custody keys.
+
+    `record=True` skips acquisition entirely and writes a **record capture**
+    (method `record-only`, SPEC §5.1): the ladder's terminus, for a source that
+    exists and has to be citable but whose bytes are out of reach. It needs a
+    `note` — the assertion "this was unreachable" is worthless without its
+    receipt — and derives `thin` fidelity, so nothing downstream mistakes the
+    record for the document.
     """
     root = require_notebook_root(root)
     kind = kind or _classify(target)
+    if record:
+        if not (note or "").strip():
+            raise SystemExit(
+                "a record capture needs --note: it asserts that the document itself was "
+                "out of reach, and an assertion without its receipt is not a record. Say "
+                "what was tried and what each rung returned, so the next reader (usually "
+                "you) knows whether it is worth trying again"
+            )
+        if via is not None:
+            raise SystemExit(
+                f"--record does not run a fetcher, so --via {via!r} has nothing to select; "
+                "drop one of them — --via to record the source, --record to stop trying"
+            )
+        if Path(target).expanduser().exists():
+            raise SystemExit(
+                f"'{target}' is a file on this machine — capture it (drop --record). A "
+                "record capture says the document was out of reach, and this one is right "
+                "here; recording it instead would put a falsehood in the ledger"
+            )
     if strategy is not None and strategy not in CAPTURE_METHODS:
         raise SystemExit(
             f"invalid capture method '{strategy}' (one of: {', '.join(CAPTURE_METHODS)})"
@@ -503,11 +668,16 @@ def add_source(
     # path with `--kind file` copied fine. A local path never needs a fetcher.
     local_target = Path(target).expanduser().exists()
     resolved = (
-        None if kind == "file" or local_target
+        None if record or kind == "file" or local_target
         else integrations.resolve("fetchers", kind, via=via)
     )
     envelope: dict | None = None
-    if resolved is None or resolved.template == "builtin:copy":
+    if record:
+        files, url = _capture_record(root, source_id, target, kind, str(note))
+        tool, tool_version, capture_kind, strategy = (
+            "builtin:record", None, "record", "record-only",
+        )
+    elif resolved is None or resolved.template == "builtin:copy":
         files, origin = _capture_copy(root, source_id, target)
         tool, tool_version, capture_kind, strategy, url = (
             "builtin:copy", None, "copy", strategy or "copy", origin,
@@ -515,6 +685,28 @@ def add_source(
     else:
         try:
             run = integrations.run_capture(resolved, root, source_id, target)
+        except integrations.EmptyCapture as exc:
+            # The tool ran fine and found nothing. That is a finding ABOUT THE
+            # DOCUMENT — gated, withdrawn, not served to us — and the honest
+            # ledger status is `not-captured`, not `failed`: nothing here is
+            # broken. The refusal still propagates, carrying the ladder with it.
+            append_jsonl(
+                root / "sources" / "_provenance.jsonl",
+                {
+                    "ts": utc_now(),
+                    "source_id": source_id,
+                    "url": target,
+                    "status": "not-captured",
+                    "tool": exc.tool,
+                    **({"via": resolved.name} if resolved.name else {}),
+                    "finding": str(exc),
+                    "actor": detect_actor(),
+                    **({"note": note} if note else {}),
+                },
+            )
+            raise SystemExit(
+                f"{exc}\n{_empty_capture_guidance(exc, target, kind, via)}"
+            ) from None
         except SystemExit as exc:
             # A failed acquisition is a finding, not just an error (L5): the
             # attempt lands in the ledger — "searched, gone" is distinguishable
@@ -582,9 +774,10 @@ def add_source(
     }
     if extra_fm:
         fm.update({k: v for k, v in extra_fm.items() if v not in (None, "", [], {})})
-    if capture_kind == "config":
+    if capture_kind in ("config", "record"):
         canonical = envelope.get("canonical_url") if envelope else None
-        # for copies the origin URI lives in provenance, not the page
+        # for copies the origin URI lives in provenance, not the page; a record
+        # capture is nothing BUT the coordinate, so it always carries it
         fm["resource"] = canonical.strip() if isinstance(canonical, str) and canonical.strip() \
             else url
     fm.update(
@@ -594,7 +787,10 @@ def add_source(
             # No independence/freshness at capture: those are judgment keys
             # and capture confers nothing (SPEC §5.4). `flip grade` writes
             # them as the act of judgment.
-            "status": "captured",
+            #
+            # `recorded` is not `captured`, and the page says so at rest: what
+            # is in custody is the record of a source, not the source.
+            "status": "recorded" if capture_kind == "record" else "captured",
             "generated": {"by": actor, "at": utc_now()},
         }
     )
@@ -606,6 +802,16 @@ def add_source(
     slug_source = Path(title).stem if capture_kind == "copy" else title
     slug = pages.unique_slug(ref_dir, pages.slugify(slug_source, fallback=source_id.lower()))
     body = f"# {title}\n" + (f"\n{note}\n" if note else "")
+    if capture_kind == "record":
+        # Above the fold, in the reader's own words-per-minute: the one thing
+        # that must not be missed about this page is what is NOT behind it.
+        body += (
+            "\n> **Record capture — the document itself is not in custody.** What is "
+            "held is flip's record of the source and of the attempt (`record-only`, "
+            "SPEC §5.1), which derives `thin` fidelity. Do not cite this as though you "
+            "read it. If a rung above opens later, capture the document and this page "
+            "is superseded by that capture.\n"
+        )
     hint = _hint_note(envelope)
     if hint:
         body += ("\n" if not body.endswith("\n") else "") + hint
@@ -613,6 +819,32 @@ def add_source(
     manifest.touch_updated(root)
     _regenerate_views(root)
     return pages.Page(path=path, fm=fm, body=body)
+
+
+def latest_capture_event(root: Path, source_id: str) -> dict | None:
+    """The capture-log row for a source's PRIMARY artifact, most recent first —
+    the row `capture_fidelity` should be asked about.
+
+    Same rule `add_source` uses to pick the page's `local`: the `flip.json`
+    envelope is metadata rather than content, and among the real files the
+    largest is the document. Rows with no bytes (a failed or empty
+    acquisition, a recheck receipt) are not captures and are skipped.
+    """
+    best: dict | None = None
+    for event in read_jsonl(root / "sources" / "_provenance.jsonl"):
+        if str(event.get("source_id") or "") != source_id or not event.get("sha256"):
+            continue
+        if str(event.get("status") or "") in UNCAPTURED_STATUSES:
+            continue
+        if Path(str(event.get("local_path") or "")).name == "flip.json":
+            continue
+        if best is None or str(event.get("ts") or "") > str(best.get("ts") or ""):
+            best = event
+        elif event.get("ts") == best.get("ts") and (event.get("bytes") or 0) > (
+            best.get("bytes") or 0
+        ):
+            best = event
+    return best
 
 
 def source_pages(root: Path) -> list[pages.Page]:

@@ -252,7 +252,31 @@ re-fetch what you already hold. Omit the envelope and nothing changes.
 Integration commands are operator configuration, not part of flip's public
 contract. Keep site-specific commands in `$FLIP_HOME/config.toml` or a separate
 private integration repository; the public package, documentation, and skills
-deal only in kinds/verbs and the placeholder protocol above.
+deal only in kinds/verbs and the placeholder protocol above. `flip config show`
+prints the lanes configured on *this* machine and the command behind each —
+the answer to "what tooling do I actually have here?", and the place to find
+the binary whose `--help` may know more than the one verb flip wires.
+
+**When a fetcher comes back empty-handed.** A command that exits 0 having
+written nothing has *found nothing* — the document is gated, withdrawn, or not
+served to you. That is a finding, not a broken config, and flip says so, naming
+the rungs above (SPEC §5.1), the other lanes you have configured, and two ways
+to close the loop:
+
+```console
+$ flip add-source 10.1017/S0140525X04000056 --kind paper --record \
+    --note "fetcher: found, no full text; archive: no snapshot; publisher API: no OA copy"
+P1 · sources/raw/P1/record.json · references/10-1017-s0140525x04000056.md (grade ?)
+recorded, not captured — the document is not in custody, so P1 corroborates nothing.
+```
+
+`--record` is the ladder's terminus: a citable page for a source that is real,
+wanted, and out of reach. It takes no bytes of the document — custody holds
+flip's own record of the attempt — so it derives `thin` fidelity and the page
+warns above the fold. Use `flip pass` instead when the source is *ruled out*
+rather than merely unreachable. And when a capture does land, watch for
+`warning: thin capture`: 800 bytes of markup is a consent wall or a JavaScript
+shell, and it produces the same hash and the same page as the real document.
 
 **Leads vs. evidence.** `flip find "<q>"` lists candidate sources (capture one
 with `--capture <n>` or `flip add-source <url>`). `flip ask "<q>"` returns cited

@@ -1234,6 +1234,23 @@ def test_failed_capture_row_is_not_an_orphan(tmp_path):
     assert "orphan-provenance" not in codes(run_doctor(root))
 
 
+def test_an_empty_handed_capture_row_is_not_an_orphan_either(tmp_path):
+    # `not-captured` is the third state: the tool ran fine and the document was
+    # not there. Like `failed` it has an id and no page BY DESIGN — the row is
+    # the finding — so doctor must not read it as a missing page.
+    root = make_notebook(tmp_path)
+    append_jsonl(
+        root / "sources" / "_provenance.jsonl",
+        {"ts": "2026-07-09T14:31:02Z", "source_id": "P3",
+         "url": "10.1017/S0140525X04000056", "status": "not-captured",
+         "tool": "papertool", "finding": "ran clean and brought nothing back",
+         "actor": "agent:test"},
+    )
+    got = codes(run_doctor(root))
+    assert "orphan-provenance" not in got
+    assert "thin-capture" not in got  # no bytes landed, so there is no fidelity
+
+
 def test_a_real_orphan_is_still_reported(tmp_path):
     root = make_notebook(tmp_path)
     append_jsonl(root / "sources" / "_provenance.jsonl", prov_event("A7", "sources/raw/A7.html"))
@@ -1288,6 +1305,25 @@ def test_thin_capture_is_named(tmp_path):
     assert len(thin) == 1
     assert "800 bytes" in thin[0].message
     assert "climb the ladder" in thin[0].message
+
+
+def test_a_record_capture_is_named_as_what_it_is(tmp_path):
+    """A record capture is thin by construction and thin on purpose — someone
+    said out loud that the document was out of reach. Doctor still names it,
+    because a record must never quietly read as the thing it stands for, but
+    the wording is a description rather than an accusation and it sits under
+    "expected until use" instead of reading as breakage."""
+    root = make_notebook(tmp_path)
+    source_page(root, "P1", prov=False)
+    ev = capture_event("P1", "record-only", 280, mime="application/json")
+    append_jsonl(root / "sources" / "_provenance.jsonl", ev)
+    thin = [f for f in run_doctor(root) if f.code == "thin-capture"]
+    assert len(thin) == 1
+    assert "record capture" in thin[0].message
+    assert "corroborates nothing" in thin[0].message
+    assert "flip pass" in thin[0].message
+    assert thin[0].expected is True
+    assert "bytes of markup" not in thin[0].message  # not the consent-wall text
 
 
 def test_a_real_capture_is_not_flagged(tmp_path):

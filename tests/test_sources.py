@@ -1,7 +1,9 @@
 """Tests for flip.sources: classification, capture, provenance, entity pages,
 grading (round-trip rule), and id allocation over pages + provenance."""
 
+import json
 import stat
+from pathlib import Path
 
 import pytest
 
@@ -254,7 +256,7 @@ def test_stdout_is_not_mistaken_for_capture_when_template_promises_dest(tmp_path
     script = make_fetcher(tmp_path, 'printf "log only"\n')
     make_flip_home(tmp_path, monkeypatch, {"paper": f"{script} {{id}} {{dest}}"})
 
-    with pytest.raises(SystemExit, match="wrote nothing"):
+    with pytest.raises(SystemExit, match="brought nothing back"):
         sources.add_source(root, "doi:10.1234/missing")
 
 
@@ -334,13 +336,80 @@ def test_fetcher_nonzero_exit_errors(tmp_path, monkeypatch):
     assert not (root / "references").exists()  # no page opened on failure
 
 
-def test_fetcher_producing_no_files_errors(tmp_path, monkeypatch):
+def test_empty_handed_fetcher_is_a_finding_about_the_document_not_the_config(
+    tmp_path, monkeypatch
+):
+    """A tool that exits 0 having found nothing has reported a FINDING.
+
+    This is the misdiagnosis that sent a real session off the rails: flip used
+    to answer "wrote nothing … make sure its command uses the {dest}
+    placeholder", which reads as "your config is broken". The operator's config
+    was fine; the paper was paywalled. Told to debug a non-problem, the agent
+    abandoned the configured tool and improvised its own fetches — which is
+    exactly what custody discipline exists to prevent.
+    """
     root = make_notebook(tmp_path)
     script = make_fetcher(tmp_path, "exit 0\n")
     make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}} {{dest}}"})
     with pytest.raises(SystemExit) as ei:
         sources.add_source(root, "https://example.com/x")
-    assert "wrote nothing" in str(ei.value)
+    msg = str(ei.value)
+
+    # what happened, said plainly, with no accusation against the config
+    assert "ran clean (exit 0)" in msg
+    assert "brought nothing back" in msg
+    # and the four sanctioned next moves, in flip's own vocabulary
+    assert "SPEC §5.1" in msg
+    assert "archive-replay" in msg and "browser-render" in msg
+    assert str(script) in msg and "--help" in msg      # the tool has more surface
+    assert "--record" in msg                           # keep a citable record
+    assert "flip pass" in msg                          # close an exhausted search
+
+
+def test_empty_handed_fetcher_lands_a_not_captured_row_not_a_failure(tmp_path, monkeypatch):
+    """"Searched, found nothing" is a third state, distinct from "did not look"
+    AND from "the toolchain broke" — so the ledger spells it differently."""
+    root = make_notebook(tmp_path)
+    script = make_fetcher(tmp_path, "exit 0\n")
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}} {{dest}}"})
+    with pytest.raises(SystemExit):
+        sources.add_source(root, "https://example.com/x", note="needed for the ladder claim")
+
+    (event,) = read_jsonl(root / "sources" / "_provenance.jsonl")
+    assert event["status"] == "not-captured"   # not "failed": nothing here is broken
+    assert event["url"] == "https://example.com/x"
+    assert event["tool"] == str(script)
+    assert "brought nothing back" in event["finding"]
+    assert event["note"] == "needed for the ladder claim"
+    assert "error" not in event
+    assert not (root / "references").exists()  # no page opened on an empty capture
+
+
+def test_empty_capture_guidance_names_the_lanes_this_machine_actually_has(
+    tmp_path, monkeypatch
+):
+    """flip may not know what fills a lane (SPEC §16) — but it can read the
+    operator's own config and name what is there. An agent that has only ever
+    seen `add-source` cannot otherwise discover that a `--via browser` lane and
+    a paper fetcher are sitting right there."""
+    root = make_notebook(tmp_path)
+    script = make_fetcher(tmp_path, "exit 0\n")
+    home = tmp_path / "fliphome"
+    home.mkdir(exist_ok=True)
+    (home / "config.toml").write_text(
+        f'[fetchers]\npaper = "{script} {{id}} {{dest}}"\n'
+        f'[fetchers.web]\ndefault = "{script} {{url}} {{dest}}"\n'
+        f'browser = "{script} --render {{url}} {{dest}}"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("FLIP_HOME", str(home))
+
+    with pytest.raises(SystemExit) as ei:
+        sources.add_source(root, "https://example.com/x")
+    msg = str(ei.value)
+    assert "--via browser" in msg          # the lane it hasn't tried
+    assert "--via default" not in msg      # not the one that just came back empty
+    assert "other kinds configured here: paper" in msg
 
 
 def test_fetcher_command_not_found_errors(tmp_path, monkeypatch):
@@ -906,7 +975,11 @@ def test_small_non_markup_captures_are_not_thin():
 def test_every_capture_method_derives_a_known_fidelity():
     for method in sources.CAPTURE_METHODS:
         got = sources.capture_fidelity({"strategy": method, "bytes": 50_000, "mime": "text/html"})
-        assert got in ("faithful", "text-only"), (method, got)
+        # `record-only` is the one method whose fidelity is a fact about the
+        # method rather than the payload: no size of record.json ever makes it
+        # the document.
+        expected = ("thin",) if method == "record-only" else ("faithful", "text-only")
+        assert got in expected, (method, got)
 
 
 def test_copy_capture_records_the_method_not_the_tool(tmp_path):
@@ -919,3 +992,120 @@ def test_copy_capture_records_the_method_not_the_tool(tmp_path):
     assert event["strategy"] == "copy"          # the method, in the vocabulary
     assert event["tool"] == "builtin:copy"      # the actor, recorded separately
     assert event["strategy"] in sources.CAPTURE_METHODS
+
+
+# --- record captures: the ladder's terminus, written down (SPEC §5.1) -------
+
+
+def test_record_capture_needs_its_receipt(tmp_path, monkeypatch):
+    """A record capture ASSERTS that the document was out of reach. flip's
+    standing rule for an assertion is that the enum is never enough on its own
+    (the same reason `pipeline` demands `--evidence`) — so a record without a
+    note is refused."""
+    root = make_notebook(tmp_path)
+    make_flip_home(tmp_path, monkeypatch, {})
+    with pytest.raises(SystemExit) as ei:
+        sources.add_source(root, "https://example.com/gated", record=True)
+    assert "needs --note" in str(ei.value)
+    assert not (root / "references").exists()
+
+
+def test_record_capture_keeps_the_source_citable_without_pretending_to_hold_it(
+    tmp_path, monkeypatch
+):
+    """The move that was missing: a paywalled paper you cannot fetch is still a
+    thing the notebook has to be able to name. A record capture gives it an id
+    and a page, and makes it impossible to mistake for the document — thin
+    fidelity, grade '?', and a warning above the fold."""
+    root = make_notebook(tmp_path)
+    make_flip_home(tmp_path, monkeypatch, {})  # no paper fetcher at all
+    page = sources.add_source(
+        root, "10.1017/S0140525X04000056", kind="paper", record=True,
+        note="fetcher: found, no PDF; archive: no snapshot; publisher API: no OA copy",
+    )
+
+    assert page.fm["id"] == "P1"
+    assert page.fm["grade"] == "?"
+    assert page.fm["status"] == "recorded"        # not "captured": it wasn't
+    assert page.fm["resource"] == "10.1017/S0140525X04000056"
+    assert page.fm["local"] == "sources/raw/P1/record.json"
+    assert "the document itself is not in custody" in page.body
+
+    (event,) = read_jsonl(root / "sources" / "_provenance.jsonl")
+    assert event["strategy"] == "record-only"     # in the method vocabulary
+    assert event["tool"] == "builtin:record"
+    assert event["sha256"] and event["bytes"]     # ordinary custody of the record
+    assert sources.capture_fidelity(event) == "thin"
+
+    record = json.loads((root / "sources" / "raw" / "P1" / "record.json").read_text())
+    assert record["document_in_custody"] is False
+    assert record["target"] == "10.1017/S0140525X04000056"
+    assert record["note"].startswith("fetcher: found, no PDF")
+
+
+def test_record_capture_needs_no_fetcher_because_that_is_the_point(tmp_path, monkeypatch):
+    """It has to work when nothing else does: no config.toml, no lane, no
+    network. Requiring a working fetcher to record that the fetchers failed
+    would be a circular rule."""
+    root = make_notebook(tmp_path)
+    make_flip_home(tmp_path, monkeypatch, fetchers=None)  # no config.toml at all
+    page = sources.add_source(root, "https://example.com/gated", record=True,
+                              note="403 on GET, no archive snapshot")
+    assert page.fm["id"] == "A1"
+    assert page.fm["status"] == "recorded"
+
+
+def test_rungs_above_names_only_what_is_left_to_try():
+    """Reciting the whole ladder to someone already standing on browser-render
+    teaches them to skip the line."""
+    assert sources.rungs_above("http-get")[0] == "http-alt-representation"
+    assert "http-get" not in sources.rungs_above("archive-replay")
+    assert sources.rungs_above("human-in-loop") == ()
+    # off-ladder methods (copy, an unknown string) get the whole thing
+    assert sources.rungs_above("copy") == sources.LADDER_RUNGS
+    assert sources.rungs_above("") == sources.LADDER_RUNGS
+
+
+def test_latest_capture_event_picks_the_document_not_the_sidecar(tmp_path, monkeypatch):
+    """The row worth judging is the one for the PRIMARY artifact — the same
+    rule `add_source` uses to pick the page's `local`. A flip.json envelope is
+    always tiny, so judging it would report every enveloped capture as thin."""
+    root = make_notebook(tmp_path)
+    script = make_fetcher(
+        tmp_path,
+        'printf "<html>%s</html>" "$(head -c 4000 /dev/zero | tr "\\0" "x")" > "$2/page.html"\n'
+        'printf \'{"flip":{"strategy":"http-get","mime":"text/html"}}\' > "$2/flip.json"\n',
+    )
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}} {{dest}}"})
+    page = sources.add_source(root, "https://example.com/x")
+
+    event = sources.latest_capture_event(root, page.id)
+    assert Path(event["local_path"]).name == "page.html"
+    assert sources.capture_fidelity(event) == "text-only"
+
+    # an empty-handed attempt afterwards is not a capture and must not win
+    script2 = make_fetcher(tmp_path, "exit 0\n")
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script2} {{url}} {{dest}}"})
+    append_jsonl(root / "sources" / "_provenance.jsonl",
+                 {"ts": "2099-01-01T00:00:00Z", "source_id": page.id,
+                  "url": "https://example.com/x", "status": "not-captured"})
+    assert Path(sources.latest_capture_event(root, page.id)["local_path"]).name == "page.html"
+
+
+def test_record_refuses_the_contradictions(tmp_path, monkeypatch):
+    """Both refusals protect the same thing: a record capture is an ASSERTION
+    that the document was out of reach, so flip won't let it be recorded about
+    a file sitting on disk, and won't pretend a fetcher lane was involved."""
+    root = make_notebook(tmp_path)
+    make_flip_home(tmp_path, monkeypatch, {})
+    here = tmp_path / "already-have-it.pdf"
+    here.write_bytes(b"%PDF real bytes")
+
+    with pytest.raises(SystemExit) as ei:
+        sources.add_source(root, str(here), record=True, note="tried everything")
+    assert "drop --record" in str(ei.value)
+
+    with pytest.raises(SystemExit) as ei:
+        sources.add_source(root, "https://example.com/x", record=True,
+                           note="tried everything", via="browser")
+    assert "--via" in str(ei.value) and "nothing to select" in str(ei.value)

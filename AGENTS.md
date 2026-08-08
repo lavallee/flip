@@ -165,6 +165,8 @@ group. The leaves you reach for most:
 |---|---|
 | start a notebook | `flip new <slug> --kind <profile>` (kinds: `flip profiles`) |
 | capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
+| see what tooling you have | `flip config show` — the lanes configured on this machine, and the command behind each |
+| record what you couldn't get | `flip add-source <target> --record --note "<rungs tried>"` — citable page, no custody of the document |
 | grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--method … --base-defined\|--base-undefined]` — the letter is derived |
 | ask why a letter | `flip grade <id> --explain` — the derivation; writes nothing |
 | fix a capture's title | `flip source retitle <id> "<title>"` — never hand-edit frontmatter |
@@ -278,7 +280,21 @@ Each capture opens a `references/<slug>.md` page — custody and judgment in
 frontmatter, your capture notes in the body. URL/DOI capture needs a
 `[fetchers]` entry in `$FLIP_HOME/config.toml` (default `~/.flip/config.toml`)
 — see [docs/quickstart.md](docs/quickstart.md). If the fetcher isn't
-configured, flip's error prints a schematic stanza to adapt.
+configured, flip's error prints a schematic stanza to adapt; `flip config show`
+lists the lanes that *are* configured, and the command behind each.
+
+**When a capture comes back empty-handed, the tool is reporting, not
+malfunctioning** (SPEC §5.1). A fetcher that exits 0 having written nothing has
+found the document gated or absent — that is a finding, and flip names the four
+moves that follow: climb the ladder (`--via <lane>`, another `--kind`); ask the
+tool directly, because flip wires exactly one verb of it and its own `--help`
+often has more; `flip add-source <target> --record --note "<rungs tried>"` to
+keep a citable page for a document you do not hold (`thin` fidelity, grade `?`);
+or `flip pass` when the search is genuinely exhausted. Improvising a fetch
+outside flip is the one wrong answer — no custody, no hash, no record of what
+was tried. A capture that *does* land but reads `warning: thin capture` is the
+same problem wearing a success: open the file in `sources/raw/` before citing
+it.
 `self-reported`/`derivative` sources don't count toward corroboration — prefer
 an independent one — and neither does anything still graded `?`. On a notebook
 carried across the 0.8 judgment change, watch for a third case: `independence`

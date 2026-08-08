@@ -16,8 +16,11 @@ didn't capture is a source you don't have.
 |---|---|
 | start a notebook | `flip new <slug> --kind <profile>` |
 | capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
+| see what tooling you have | `flip config show` — the lanes configured on this machine and the command behind each |
 | recheck the world | `flip source recheck <id>` — re-fetch, hash-compare, receipt; never overwrites custody |
 | a capture was refused | climb the ladder (SPEC §5.1): alt representation → archive replay → publisher API → browser render → save-as. A 403 is not a verdict on the source |
+| the fetcher came back empty-handed | it found nothing — a finding about the document, not a broken config. Climb, ask the tool directly, `--record`, or `flip pass` |
+| you can't get it but must cite it | `flip add-source <target> --record --note "<rungs tried, what each returned>"` — a citable page, honestly thin |
 | grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--n … --base-defined\|--base-undefined]` — the letter is derived |
 | ask why a letter | `flip grade <id> --explain` — the derivation, writes nothing |
 | fix a bad capture title | `flip source retitle <id> "<title>"` — never hand-edit frontmatter |
@@ -72,6 +75,7 @@ archived. They are not problems; don't re-run doctor for reassurance.
    | 4 | `browser-render` / `browser-session` | JS-only pages, consent walls, your own logged-in access | needs a fetcher |
    | 5 | `self-contained-archive` | the page matters visually, or its assets will rot | needs a fetcher |
    | 6 | `human-in-loop` | save it from your own browser, then `flip add-source <file> --kind file` | you |
+   | — | `record-only` | the terminus: `flip add-source <target> --record --note "…"` when it is real, wanted, and out of reach | builtin |
 
    Rungs 1-3 are in the box and need no external tool. Configure them once as
    named lanes (`flip config init` shows the stanzas) and reach them with
@@ -109,11 +113,46 @@ archived. They are not problems; don't re-run doctor for reassurance.
    also writes its own ledger row, so "searched, gone" stays distinguishable
    from "did not look" — which is worth more than a silent gap.
 
+   **A fetcher that came back empty-handed found nothing — it is not broken,
+   and neither is your config.** A configured command that exits 0 having
+   written nothing has reported a finding about the document: gated,
+   withdrawn, not served to us. flip says so and names the moves that remain.
+   Four are sanctioned, and one is not:
+
+   - **Climb.** The rungs above the one that just ran, and any other lane the
+     operator configured — `flip config show` lists them, `--via <name>`
+     reaches them. A second `--kind` often has a second coordinate for the
+     same document.
+   - **Ask the tool for more.** flip wires exactly ONE verb of whatever fills
+     a lane. `flip config show` prints the command; that binary's `--help`
+     frequently has search, resolution, reference-walking or alternate-source
+     verbs flip never calls. Run it yourself, then hand the result back
+     through `flip add-source <file> --kind <kind>` so custody, hash and
+     provenance still happen.
+   - **Record it.** `flip add-source <target> --record --note "<rungs tried,
+     what each returned>"` opens a citable page for a document you do NOT
+     hold: `record-only` method, `thin` fidelity, grade `?`, and a warning at
+     the top of the page. Use it when the source is real, wanted, and out of
+     reach — you need to name it in prose and must not imply you read it.
+   - **Close it.** `flip pass "<what>" --reason "<rungs tried>"` when the
+     ladder is genuinely exhausted and the source is ruled out rather than
+     merely unreachable.
+
+   What is **not** sanctioned: improvising your own fetch — a hand-rolled
+   HTTP call, a scraped URL pasted into prose, a "captured" publisher page
+   that is really a JavaScript shell. It leaves no custody, no hash, and no
+   row saying what was tried, which is the exact hole the notebook exists to
+   close. If flip's tooling genuinely can't reach something, that is a finding
+   to record, not a rule to route around.
+
 3. **Check what actually landed.** A capture that returns 200 with 800 bytes
    is a consent wall or a JS shell, and it produces the same hash, the same
-   ledger row, and the same grade `?` as the real document. `flip doctor`
-   flags it as `thin-capture`. Never grade a source you have not confirmed
-   you actually captured.
+   ledger row, and the same grade `?` as the real document. `flip add-source`
+   says `warning: thin capture` the moment it lands, and `flip doctor` keeps
+   naming it as `thin-capture` until custody holds the document. Both are
+   telling you to open the file in `sources/raw/` *now* — the warning is
+   useless once the thin bytes have been cited. Never grade a source you have
+   not confirmed you actually captured.
 
 4. **Chase the original.** Before grading, check whether this evidence is
    independent or derivative. If it republishes another source, capture that

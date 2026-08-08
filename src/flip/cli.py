@@ -14,6 +14,7 @@ from __future__ import annotations
 import difflib
 import json
 import re
+import shlex
 from dataclasses import asdict
 from pathlib import Path
 
@@ -259,6 +260,41 @@ def _autobind_new_notebook(path: Path, slug: str) -> None:
 # ---------------------------------------------------------------- sources
 
 
+def _warn_if_thin(root: Path, source_id: str, target: str, kind: str | None,
+                  via: str | None) -> None:
+    """Say at CAPTURE time that a capture is thin — not only at doctor time.
+
+    A JS shell captured as 200 is the failure that reads as a success: same
+    sha256, same ledger row, same page at grade "?". `flip doctor` has always
+    named it, but doctor runs later, and by then the thin bytes have been cited.
+    The moment to look in `sources/raw/` is the moment it lands.
+    """
+    event = sources.latest_capture_event(root, source_id)
+    if not event or sources.capture_fidelity(event) != "thin":
+        return
+    method = str(event.get("strategy") or "?")
+    if str(event.get("status") or "") == "metadata-only":
+        head = (f"warning: thin capture — {source_id} holds a registry RECORD, not the "
+                f"document ('{method}' reported status metadata-only). It is worth "
+                "keeping and it is not the article; do not cite it as though you read it.")
+    else:
+        head = (f"warning: thin capture — {source_id} holds {event.get('bytes')} bytes via "
+                f"'{method}', too little to be the document. A consent wall, a JS shell, or "
+                "an error page served as 200 all look exactly like this in custody.")
+    above = sources.rungs_above(method)
+    lines = [
+        head,
+        f"  look at {event.get('local_path')} before you cite it (`flip doctor` will keep "
+        "naming this until custody holds the document).",
+        "  if it is not the document, climb (SPEC §5.1): "
+        + (", ".join(above) if above else "nothing above this rung — record it or pass"),
+        *sources.lane_inventory(kind or "web", via),
+        f"  or record what you could not get: flip add-source {shlex.quote(target)} --record "
+        '--note "<rungs tried, what each returned>"',
+    ]
+    click.echo("\n".join(lines), err=True)
+
+
 @main.command("add-source")
 @click.argument("target")
 @click.option("--kind", default=None,
@@ -269,12 +305,23 @@ def _autobind_new_notebook(path: Path, slug: str) -> None:
               help="Named fetcher variant to use, from [fetchers.<kind>] in config.toml "
                    "(e.g. --via browser).")
 @click.option("--note", default=None, help="Capture note, recorded in provenance and on the page.")
-def add_source(target: str, kind: str | None, via: str | None, note: str | None) -> None:
+@click.option("--record", is_flag=True,
+              help="Record the source without its bytes (method record-only): the ladder's "
+                   "terminus, for a document that is out of reach but has to be citable. "
+                   "Requires --note saying what was tried; derives thin fidelity.")
+def add_source(target: str, kind: str | None, via: str | None, note: str | None,
+               record: bool) -> None:
     """Capture a source: fetch/copy into sources/raw/, hash it, open a page.
 
     Use the moment you rely on something external — URL, DOI, or local file.
     The references/ page opens at grade "?"; judge it with `flip grade` once
     read — ungraded sources never count toward claim verification.
+
+    When a fetcher comes back empty-handed, that is a finding about the
+    document, not a broken config: climb the ladder (SPEC §5.1), or record
+    what you could not get with `--record`, or close the search with
+    `flip pass`. Improvising a fetch outside flip is the one wrong answer —
+    it leaves no custody, no hash, and no row saying what was tried.
     """
     root = require_notebook_root()
     if kind == "lookup":
@@ -286,9 +333,21 @@ def add_source(target: str, kind: str | None, via: str | None, note: str | None)
         )
         _emit_ask(root, target, via, as_json=False)
         return
-    page = sources.add_source(root, target, kind=kind, note=note, via=via)
+    page = sources.add_source(root, target, kind=kind, note=note, via=via, record=record)
     rel = page.path.relative_to(root).as_posix()
     click.echo(f"{page.id} · {page.fm.get('local', '')} · {rel} (grade ?)")
+    if record:
+        # No "judge it after reading" here: there is nothing to read. A record
+        # stays at grade "?" and corroborates nothing, which is the honest
+        # state until the document itself is in custody.
+        click.echo(
+            f"recorded, not captured — the document is not in custody, so {page.id} "
+            "corroborates nothing. Say where the chain-walk stopped: flip source "
+            f"provenance {page.id} PRIMARY-GATED|PRIMARY-LOST|PRIMARY-EXISTS-PRIVATE "
+            '--note "…"'
+        )
+        return
+    _warn_if_thin(root, page.id or "", target, kind, via)
     click.echo(f"judge it after reading: flip grade {page.id} "
                f"--independence independent|corroborated|self-reported|derivative "
                f"--basis … [--n … --base-defined|--base-undefined]")
@@ -320,6 +379,51 @@ def config_init(force: bool) -> None:
         )
     click.echo(f"wrote {path}")
     click.echo('next: flip add-source https://example.com  (captures via the bundled flip-fetch)')
+
+
+@config.command("show")
+@click.option("--json", "as_json", is_flag=True, help="Emit the lanes as JSON.")
+def config_show(as_json: bool) -> None:
+    """List the integration lanes configured on this machine — what flip can run.
+
+    The answer to "what tooling do I actually have here?", which is otherwise
+    discoverable only by reading config.toml. Each row is a lane flip will
+    route to, and the command behind it is the operator's own — flip wires
+    exactly ONE verb of whatever tool fills a role, so when a lane comes back
+    empty-handed this is where you find the binary to ask `--help` of.
+    """
+    path = integrations.config_path()
+    lanes = integrations.configured_lanes()
+    if as_json:
+        click.echo(json.dumps({"config": str(path), "exists": path.is_file(),
+                               "lanes": lanes}, ensure_ascii=False, indent=2))
+        return
+    if not path.is_file():
+        raise SystemExit(
+            f"{path} does not exist — `flip config init` writes a starter config whose "
+            "web lane runs the bundled flip-fetch, so capture works with no external tool"
+        )
+    if not lanes:
+        raise SystemExit(
+            f"{path} exists but configures no lanes — add a [fetchers]/[research]/"
+            "[knowledge] stanza (`flip config init --force` rewrites the starter file)"
+        )
+    click.echo(str(path))
+    width = max(len(f"{r['key']}{'/' + r['variant'] if r['variant'] else ''}") for r in lanes)
+    role = None
+    for row in lanes:
+        if row["role"] != role:
+            role = row["role"]
+            click.echo(f"[{role}]")
+        name = row["key"] + (f"/{row['variant']}" if row["variant"] else "")
+        needs = f"  (needs: {', '.join(row['needs'])})" if row["needs"] else ""
+        via = f"  --via {row['variant']}" if row["variant"] else ""
+        click.echo(f"  {name:<{width}}  {row['command']}{needs}{via}")
+    click.echo(
+        "flip runs these verbatim and reads only the placeholders ({url} {id} {query} "
+        "{dest}). Each lane is one verb of whatever fills it — ask the tool itself for "
+        "the rest of its surface before working around it."
+    )
 
 
 # ---------------------------------------------------------------- research / knowledge
@@ -369,6 +473,7 @@ def find(query: str, via: str | None, capture_n: int | None, as_json: bool) -> N
         page = sources.add_source(root, url)
         rel = page.path.relative_to(root).as_posix()
         click.echo(f"captured candidate {capture_n}: {page.id} · {url} · {rel} (grade ?)")
+        _warn_if_thin(root, page.id or "", url, None, None)
         return
     if as_json:
         click.echo(json.dumps(

@@ -235,3 +235,89 @@ def test_harvest_keeps_user_agent_and_attempts(tmp_path):
     assert got["user_agent"] == "Mozilla/5.0 (test)"
     assert got["attempts"] == 3
     assert "not_a_known_key" not in got  # the whitelist still whitelists
+
+
+# --- the empty-handed capture: a finding, not a defect ----------------------
+
+
+def test_clean_but_empty_capture_raises_empty_capture_not_a_plain_failure(
+    tmp_path, monkeypatch
+):
+    """Exit 0 with nothing written is a report, not a malfunction.
+
+    Two very different events used to arrive at the same error text: a command
+    that could not run, and a command that ran perfectly and found the document
+    gated. Only the first is anyone's fault, and only the second is where the
+    capture ladder (SPEC §5.1) applies — so they are now different exceptions,
+    with `EmptyCapture` carrying what a caller needs to say something useful.
+    """
+    tool = make_tool(tmp_path, "exit 0\n")
+    write_config(tmp_path, monkeypatch, f'[fetchers]\nweb = "{tool} {{url}} {{dest}}"\n')
+    resolved = integrations.resolve("fetchers", "web")
+    with pytest.raises(integrations.EmptyCapture) as ei:
+        integrations.run_capture(resolved, tmp_path, "A1", "https://example.com/x")
+
+    exc = ei.value
+    assert isinstance(exc, SystemExit)   # every existing caller is unaffected
+    assert exc.key == "web"
+    assert exc.tool == str(tool)
+    assert exc.captures_stdout is False  # the template promised {dest}
+    assert "ran clean (exit 0)" in str(exc)
+    assert "brought nothing back" in str(exc)
+    # the old text sent the reader to debug a config that was fine
+    assert "make sure its command" not in str(exc)
+
+
+def test_a_command_that_fails_is_still_an_ordinary_failure(tmp_path, monkeypatch):
+    """The distinction only means something if the other side keeps its shape:
+    a nonzero exit is not an EmptyCapture and must not offer the ladder."""
+    tool = make_tool(tmp_path, 'echo "connection refused" >&2\nexit 7\n')
+    write_config(tmp_path, monkeypatch, f'[fetchers]\nweb = "{tool} {{url}} {{dest}}"\n')
+    resolved = integrations.resolve("fetchers", "web")
+    with pytest.raises(SystemExit) as ei:
+        integrations.run_capture(resolved, tmp_path, "A1", "https://example.com/x")
+    assert not isinstance(ei.value, integrations.EmptyCapture)
+    assert "exit 7" in str(ei.value)
+
+
+# --- reading the operator's own lanes back (SPEC §16) -----------------------
+
+
+def test_configured_lanes_reports_every_role_key_and_variant(tmp_path, monkeypatch):
+    """flip may not know what fills a role, but it can read the config the
+    operator wrote and say what is there — which is the only honest way to
+    point an agent at tooling flip is forbidden to name."""
+    write_config(
+        tmp_path, monkeypatch,
+        '[fetchers]\n'
+        'paper = "your-fetcher {id} {dest}"\n'
+        'social = { cmd = "x-fetch {url}", needs = ["cookies"] }\n'
+        '[fetchers.web]\n'
+        'default = "plain {url} {dest}"\n'
+        'browser = "render {url} {dest}"\n'
+        '[research]\n'
+        'find = "your-research-tool {query}"\n',
+    )
+    lanes = integrations.configured_lanes()
+    assert {(r["role"], r["key"], r["variant"]) for r in lanes} == {
+        ("fetchers", "paper", None),
+        ("fetchers", "social", None),
+        ("fetchers", "web", "default"),
+        ("fetchers", "web", "browser"),
+        ("research", "find", None),
+    }
+    social = next(r for r in lanes if r["key"] == "social")
+    assert social["command"] == "x-fetch {url}" and social["needs"] == ["cookies"]
+    assert integrations.capture_lanes() == {
+        "paper": [], "social": [], "web": ["default", "browser"],
+    }
+
+
+def test_configured_lanes_never_raises_on_a_broken_config(tmp_path, monkeypatch):
+    """Every caller is either reporting what exists or building an error
+    message. Neither may fail on top of the failure it is describing."""
+    write_config(tmp_path, monkeypatch, "this is not = valid toml [[[\n")
+    assert integrations.configured_lanes() == []
+    monkeypatch.setenv("FLIP_HOME", str(tmp_path / "nothing-here"))
+    assert integrations.configured_lanes() == []
+    assert integrations.capture_lanes() == {}

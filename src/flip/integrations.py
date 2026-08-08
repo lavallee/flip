@@ -14,7 +14,9 @@ All three share one runner. Placeholders substituted into a command template:
 ``{url}`` the target as given · ``{id}`` the target with a leading ``doi:``
 stripped · ``{query}`` a research/recall question · ``{dest}`` the capture
 directory. A command that writes files uses ``{dest}``; a stdout-only command
-may omit it and flip preserves stdout. Every failure is a one-line SystemExit.
+may omit it and flip preserves stdout. A command that cannot run, or fails, is
+a one-line SystemExit; a command that *succeeds* and brings nothing back is an
+``EmptyCapture`` — a finding about the target, not a defect in the config.
 
 Config forms per key (all back-compat with the bare-string 0.6 form):
   ``web = "your-fetcher {url} {dest}"``            bare string
@@ -68,6 +70,9 @@ _ROLE_TOOL = {
     "research": "your-research-tool",
     "knowledge": "your-knowledge-tool",
 }
+
+
+ROLES = ("fetchers", "research", "knowledge")
 
 
 def config_path() -> Path:
@@ -252,6 +257,57 @@ def resolve(role: str, key: str, via: str | None = None) -> Resolved:
     return _normalize_entry(role, key, entry, via)
 
 
+def configured_lanes() -> list[dict]:
+    """Every (role, key, variant) lane the operator has configured, in order.
+
+    Read-only introspection of `$FLIP_HOME/config.toml`: one row per lane with
+    ``role``, ``key``, ``variant`` (None for a single command), ``command``
+    (the template verbatim) and ``needs``. Never raises — a missing or
+    unparseable config is simply no lanes — because every caller is either
+    *reporting* what exists (`flip config show`) or building an error message,
+    and neither may fail on top of the failure it is describing.
+
+    This is how flip names what IS available on a machine without knowing what
+    fills a role (SPEC §16): the command it prints is the operator's own.
+    """
+    try:
+        data = _load_config() or {}
+    except SystemExit:
+        return []
+    rows: list[dict] = []
+    for role in ROLES:
+        table = data.get(role)
+        if not isinstance(table, dict):
+            continue
+        for key, entry in table.items():
+            try:
+                if isinstance(entry, dict) and "cmd" not in entry:
+                    for variant in entry:
+                        r = _normalize_entry(role, key, entry, via=variant)
+                        rows.append({"role": role, "key": key, "variant": variant,
+                                     "command": r.template, "needs": r.needs})
+                    continue
+                r = _normalize_entry(role, key, entry, via=None)
+                rows.append({"role": role, "key": key, "variant": None,
+                             "command": r.template, "needs": r.needs})
+            except SystemExit:
+                continue  # a malformed lane is `flip doctor`'s problem, not this one
+    return rows
+
+
+def capture_lanes() -> dict[str, list[str]]:
+    """`[fetchers]` as {kind: [variant names]} — the capture lanes on this
+    machine. A kind configured as a single command maps to an empty list."""
+    lanes: dict[str, list[str]] = {}
+    for row in configured_lanes():
+        if row["role"] != "fetchers":
+            continue
+        names = lanes.setdefault(row["key"], [])
+        if row["variant"]:
+            names.append(row["variant"])
+    return lanes
+
+
 def _tokenize_template(template: str) -> list[str]:
     """Split a command template into argv tokens.
 
@@ -323,6 +379,31 @@ def _harvest_envelope(files: list[Path], stdout: bytes) -> dict | None:
     return None
 
 
+class EmptyCapture(SystemExit):
+    """A capture command that ran clean (exit 0) and brought nothing back.
+
+    Deliberately NOT the same event as a failure. A tool that exits 0 having
+    written no files and printed nothing has *reported a finding*: at this rung,
+    for this target, there was nothing to capture — gated, withdrawn, or simply
+    not served to us. Until 0.17 flip called this a configuration error and sent
+    the reader to debug a config that was fine, which is the one reading that
+    makes the ladder (SPEC §5.1) invisible at the exact moment it is needed.
+
+    A SystemExit subclass so every existing caller — and the CLI's exit code —
+    behaves exactly as before; callers that can say something useful about
+    *what to do next* catch it specifically and enrich the message.
+    """
+
+    def __init__(self, message: str, *, key: str, dest: Path, tool: str,
+                 template: str, captures_stdout: bool) -> None:
+        super().__init__(message)
+        self.key = key
+        self.dest = dest
+        self.tool = tool
+        self.template = template
+        self.captures_stdout = captures_stdout
+
+
 @dataclass
 class CaptureRun:
     files: list[Path]
@@ -339,6 +420,10 @@ def run_capture(resolved: Resolved, root: Path, source_id: str, target: str) -> 
     nothing and its template omits ``{dest}``, its stdout is preserved as
     ``capture.json`` / ``capture.txt``. Returns the new files plus the tool's
     identity and any harvested return envelope.
+
+    Raises ``EmptyCapture`` when the command succeeded and produced nothing —
+    a finding about the target, distinct from the ``SystemExit`` raised when
+    the command could not run or failed.
     """
     dest = root / "sources" / "raw" / source_id
     dest.mkdir(parents=True, exist_ok=True)
@@ -356,10 +441,11 @@ def run_capture(resolved: Resolved, root: Path, source_id: str, target: str) -> 
         captured.write_bytes(proc.stdout)
         new = [captured]
     if not new:
-        raise SystemExit(
-            f"fetcher for '{resolved.key}' wrote nothing to {dest} and emitted no "
-            f"stdout — make sure its command in {config_path()} uses the {{dest}} "
-            "placeholder or emits the captured artifact on stdout"
+        raise EmptyCapture(
+            f"fetcher for '{resolved.key}' ran clean (exit 0) and brought nothing back "
+            f"for {target!r} — it looked, and there was nothing here to capture",
+            key=resolved.key, dest=dest, tool=argv[0], template=template,
+            captures_stdout=captures_stdout,
         )
     envelope = _harvest_envelope(new, proc.stdout)
     strategy = "config"

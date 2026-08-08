@@ -7,6 +7,39 @@ versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **`flip add-source --record` — the ladder's terminus, written down** (SPEC
+  §5.1). A source that cannot be captured may still have to be *citable*. A
+  record capture takes no bytes of the document, because none were reachable;
+  what enters custody is flip's own record of the source and of the attempt,
+  under the new capture method **`record-only`**. It requires `--note` saying
+  what was tried and what each rung returned — an assertion that something was
+  unreachable is worthless without its receipt — always derives `thin`
+  fidelity whatever the record weighs, opens at grade `?` so it corroborates
+  nothing, writes `status: recorded` rather than `captured`, and says above the
+  fold that the document is not in custody. `flip doctor` names it as a
+  `thin-capture` in its own words, labeled expected-until-use rather than as
+  breakage. `flip pass` remains the move for a source ruled *out*; a record is
+  for one that is real, wanted, and out of reach.
+- **Thin captures are loud at capture time, not only at doctor time** (SPEC
+  §5.1). A JavaScript shell captured as 200 is the failure that reads as a
+  success — same sha256, same ledger row, same page at grade `?`. doctor has
+  always named it, but doctor runs later, and by then the thin bytes have been
+  cited. `flip add-source` now prints `warning: thin capture` the moment it
+  lands, with the file to open, the rungs still *above* the method that ran
+  (not the whole ladder recited back), the lanes configured here, and the
+  `--record` alternative.
+- **`flip config show`** — the lanes configured on this machine and the command
+  behind each, `--json` for agents. "What tooling do I actually have here?" had
+  no answer short of reading `config.toml` by hand, which is a large part of why
+  a stuck agent improvises instead of reaching for a lane sitting right there.
+  flip still never names a deployment's tools (SPEC §16); it reads the
+  operator's own configuration back to them, and says plainly that each lane is
+  one verb of whatever fills it.
+- The `notebook-source` skill teaches all of the above — the empty-handed case,
+  the four moves, and that internal tools have more surface than the one verb
+  flip wires. `notebook-audit` gains the rule that nothing load-bearing may rest
+  on a thin capture, in either flavor.
+
 - **Transcripts: the conversation kept, and citable by the passage** (SPEC §8,
   §9). SPEC §8 has always said a session page carries a "pointer to the raw
   transcript when kept" — nothing implemented it, and the gap was not a
@@ -41,16 +74,6 @@ versioning follows [Semantic Versioning](https://semver.org/).
     `dangling-excerpt` (a claim cites a label nothing pins, so the citation
     quietly widens from one exchange to the whole conversation).
 
-### Fixed
-- **A short handed-over file is no longer reported as a thin capture**
-  (SPEC §5.1). `capture_fidelity` inferred "markup" from a missing mime for
-  every method except `copy`, so any brief transcript tripped the
-  consent-wall/JS-shell heuristic and doctor called a complete capture thin.
-  The size test only means something for bytes a *fetch* brought back;
-  `human-in-loop` now sits alongside `copy` as handed-over. A declared markup
-  mime is still tested whatever the method.
-
-### Added
 - **Notebooks show their drafts.** flip-render/2 gains a `drafts` array
   (SPEC §11 and §17), so an internal renderer — an agent site, a review
   surface — can present in-progress prose next to the sources and claims that
@@ -97,6 +120,42 @@ versioning follows [Semantic Versioning](https://semver.org/).
   failure, because the block is at the edge on the whole host rather than
   per-representation. A purpose-built site-specific lane may legitimately use
   the method; shipping generic folklore that looks like it works would not.
+
+### Fixed
+- **A fetcher that comes back empty-handed is reporting, not malfunctioning**
+  (SPEC §5.1, §5.2). A configured command that exited 0 having written nothing
+  was answered with `fetcher for 'paper' wrote nothing to <dest> and emitted no
+  stdout — make sure its command in ~/.flip/config.toml uses the {dest}
+  placeholder or emits the captured artifact on stdout`. That is a
+  misdiagnosis: the config was fine, the paper was paywalled, and the tool had
+  correctly found nothing downloadable. Sent to debug a non-problem, an agent
+  in a real session abandoned the configured tooling and improvised — raw HTTP
+  calls, a hand-written REST query, and finally two JavaScript shells captured
+  as if they were papers. Nothing in the message named a next rung, the record
+  option, or `flip pass`, so none of them happened.
+  - `integrations.run_capture` now raises `EmptyCapture` (a `SystemExit`
+    subclass, so every existing caller is unchanged) for the clean-but-empty
+    case, distinct from the failure raised when a command cannot run or exits
+    nonzero. Only one of those is anyone's fault.
+  - `flip add-source` answers it with the four sanctioned moves: **climb** (the
+    rungs above, plus the lanes and kinds this machine actually has
+    configured), **ask the tool for more** (flip wires exactly one verb of
+    whatever fills a lane — the binary's own `--help` often has search,
+    resolution or alternate-source verbs flip never calls), **record it**, and
+    **close it** with `flip pass`. The `{dest}`/stdout note survives as a
+    parenthetical, where it belongs.
+  - The capture log distinguishes the two: `status: not-captured` (ran clean,
+    found nothing — a fact about the document) alongside `status: failed` (a
+    broken toolchain). Both are rows without bytes and without a page, by
+    design; doctor reads neither as corruption.
+
+- **A short handed-over file is no longer reported as a thin capture**
+  (SPEC §5.1). `capture_fidelity` inferred "markup" from a missing mime for
+  every method except `copy`, so any brief transcript tripped the
+  consent-wall/JS-shell heuristic and doctor called a complete capture thin.
+  The size test only means something for bytes a *fetch* brought back;
+  `human-in-loop` now sits alongside `copy` as handed-over. A declared markup
+  mime is still tested whatever the method.
 
 ## [0.16.2] — 2026-07-31
 

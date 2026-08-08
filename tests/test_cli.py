@@ -1057,3 +1057,108 @@ def test_doctor_collapses_repeated_codes_but_json_keeps_all(tmp_path):
     payload = json.loads(invoke(["--notebook", str(root), "doctor", "--json"]).output)
     assert len([f for f in payload if f["code"] == "pre-08-vocabulary"]) == 5
     assert payload[0]["code"] == "vocabulary-drift"  # the cause still leads
+
+
+# --- what an agent sees when capture comes back empty-handed --------------------
+
+
+def _fetcher(tmp_path: Path, name: str, body: str) -> Path:
+    script = tmp_path / name
+    script.write_text("#!/bin/sh\n" + body, encoding="utf-8")
+    script.chmod(script.stat().st_mode | 0o100)
+    return script
+
+
+def _config(tmp_path: Path, text: str) -> Path:
+    home = tmp_path / "fliphome"
+    home.mkdir(exist_ok=True)
+    (home / "config.toml").write_text(text, encoding="utf-8")
+    return home / "config.toml"
+
+
+def test_add_source_empty_handed_points_at_the_ladder_not_at_the_config(tmp_path):
+    """The failure that started this: an agent asked for a paywalled paper, was
+    told its configuration was probably broken, went off and improvised raw
+    HTTP calls of its own. Nothing in the message named a next rung, the record
+    option, or `flip pass` — so none of them happened."""
+    root = make_notebook(tmp_path / "nb")
+    tool = _fetcher(tmp_path, "papertool", "exit 0\n")
+    _config(tmp_path, f'[fetchers]\npaper = "{tool} get {{id}} {{dest}}"\n')
+
+    result = invoke(["--notebook", str(root), "add-source", "10.1017/S0140525X04000056",
+                     "--kind", "paper"])
+    assert result.exit_code == 1
+    out = result.output
+    assert "ran clean (exit 0)" in out and "brought nothing back" in out
+    assert "archive-replay" in out and "publisher-api" in out
+    assert f"{tool} --help" in out          # the tool has more verbs than flip wires
+    assert "--record" in out
+    assert "flip pass" in out
+    assert "make sure its command" not in out   # the old misdiagnosis, retired
+
+
+def test_add_source_record_opens_a_citable_page_for_what_it_could_not_get(tmp_path):
+    root = make_notebook(tmp_path / "nb")
+    result = invoke(["--notebook", str(root), "add-source", "10.1017/S0140525X04000056",
+                     "--kind", "paper", "--record",
+                     "--note", "fetcher found it, no full text; no archive snapshot"])
+    assert result.exit_code == 0, result.output
+    assert "P1" in result.output
+    assert "recorded, not captured" in result.output
+    assert "corroborates nothing" in result.output
+    # no "judge it after reading" prompt: there is nothing to read
+    assert "judge it after reading" not in result.output
+    page = pages.read_page(root / "references" / "10-1017-s0140525x04000056.md")
+    assert page.fm["status"] == "recorded" and page.fm["grade"] == "?"
+
+
+def test_add_source_says_a_capture_is_thin_when_it_lands_not_only_at_doctor_time(tmp_path):
+    """A JS shell captured as 200 is the failure that reads as a success. doctor
+    has always named it — but doctor runs later, and by then the thin bytes have
+    been cited. The moment to look in sources/raw/ is the moment it lands."""
+    root = make_notebook(tmp_path / "nb")
+    tool = _fetcher(
+        tmp_path, "shellfetch",
+        'printf "<html><body><noscript>enable JS</noscript></body></html>" > "$2/p.html"\n'
+        'printf \'{"flip":{"strategy":"http-get","mime":"text/html"}}\' > "$2/flip.json"\n',
+    )
+    _config(tmp_path, f'[fetchers]\nweb = "{tool} {{url}} {{dest}}"\n')
+
+    result = invoke(["--notebook", str(root), "add-source", "https://example.com/paper"])
+    assert result.exit_code == 0, result.output
+    assert "warning: thin capture" in result.output
+    assert "sources/raw/A1/p.html" in result.output      # go and look at it
+    assert "archive-replay" in result.output             # rungs still above us
+    assert "http-get" not in result.output.split("climb (SPEC §5.1):")[1]
+    assert "--record" in result.output
+
+
+def test_config_show_names_the_lanes_this_machine_has(tmp_path):
+    """"What tooling do I actually have here?" had no answer short of reading
+    config.toml — so an agent that hit a wall improvised instead of reaching for
+    a lane sitting right there."""
+    _config(
+        tmp_path,
+        '[fetchers]\npaper = "papertool get {id} {dest}"\n'
+        '[fetchers.web]\ndefault = "webtool {url} {dest}"\n'
+        'browser = "rendertool {url} {dest}"\n'
+        '[knowledge]\nrecall = "localcorpus {query}"\n',
+    )
+    result = invoke(["config", "show"])
+    assert result.exit_code == 0, result.output
+    assert "[fetchers]" in result.output and "[knowledge]" in result.output
+    assert "papertool get {id} {dest}" in result.output
+    assert "--via browser" in result.output
+    assert "one verb of whatever fills it" in result.output
+
+    payload = json.loads(invoke(["config", "show", "--json"]).output)
+    assert payload["exists"] is True
+    assert {(r["key"], r["variant"]) for r in payload["lanes"]} == {
+        ("paper", None), ("web", "default"), ("web", "browser"), ("recall", None),
+    }
+
+
+def test_config_show_without_a_config_says_how_to_get_one(tmp_path):
+    result = invoke(["config", "show"])
+    assert result.exit_code == 1
+    assert "flip config init" in result.output

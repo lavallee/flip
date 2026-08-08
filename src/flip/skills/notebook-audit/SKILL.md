@@ -71,6 +71,11 @@ archived. They are not problems; don't re-run doctor for reassurance.
      `citation_rule = "public-terminus"` — no synthesis-basis (LLM/vendor)
      terminus
    - freshness: a `dated` source can't carry a present-tense claim
+   - nothing load-bearing rests on a **thin capture** — doctor names both
+     flavors: a JS shell or consent wall that landed as 200, and a
+     `record-only` page whose custody is flip's record of a document it never
+     held. Climb the ladder for the real bytes (SPEC §5.1) or reword the
+     claim; do not let a record stand in for the thing it records.
 4. **Record verifications where they apply.** Beyond corroboration, a claim
    earns `verified` through a recorded check — `flip claim verify C7 --method
    <method> [--against <ref>…] [--note …]` (append-only; records are added,

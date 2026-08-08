@@ -242,6 +242,7 @@ name is local trivia. In escalation order:
 | `browser-session` | a browser render carrying an authenticated session |
 | `self-contained-archive` | one standalone file with assets inlined |
 | `human-in-loop` | a person saved it and handed flip the file |
+| `record-only` | nowhere — the document was out of reach; custody holds flip's own record of the source and of the attempt |
 
 Two of these carry facts the method itself establishes. `archive-replay`
 records **`archived_at`** — the snapshot's date, which is when the evidence is
@@ -262,6 +263,31 @@ repeating an unchanged request that was refused is noise. When the ladder is
 genuinely exhausted, that is a finding: `flip pass` records it, and a failed
 acquisition writes its own capture-log row, so "searched, gone" stays
 distinguishable from "did not look".
+
+**An empty-handed capture tool is reporting, not malfunctioning.** A configured
+command that exits 0 having written nothing has said something specific: at
+this rung, for this target, there was nothing to capture. That is a finding
+about the *document* — gated, withdrawn, not served to us — and it is not the
+same event as a command that could not run or exited nonzero. An implementation
+must not present the first as a configuration defect: doing so points the
+reader at a config that is fine, and the predictable result is that they
+abandon the configured tooling and improvise an acquisition with no custody, no
+hash, and no record of what was tried. What it must do instead is name the
+moves that remain: the rungs above, the lanes the operator has actually
+configured (the only tooling flip is permitted to know about — §16), the record
+capture below, and `flip pass`.
+
+**`record-only` — the ladder's terminus, written down.** A source that cannot
+be captured may still have to be *citable*: named, given an id, and pointed at.
+A record capture takes no bytes of the document, because none were reachable;
+what enters custody is flip's own record of the source and of the attempt,
+which must carry a note saying what was tried and what each rung returned. It
+is not a rung anything climbs *to* — it is where the work stands when the
+ladder ran out. It always derives `thin` fidelity whatever the record weighs,
+its page opens at grade `?` (so it corroborates nothing), and the page says
+above the fold that the document is not in custody. A later capture of the
+document supersedes it. `flip pass` remains the move for a source ruled *out*;
+a record is for one that is real, wanted, and out of reach.
 
 **Acquisition conduct — a default stance, not a constraint.** flip's own
 tooling ships one opinion about how to fetch. It is a starting position chosen
@@ -323,6 +349,18 @@ One line per acquisition event:
 This is the fixity record — hash at capture, per file. `flip export bag`
 emits a real BagIt bag for cold archival.
 
+Rows for acquisitions that landed **no bytes** carry no `sha256` and have no
+entity page, by design — the row *is* the finding — and `status` says which
+kind of nothing happened:
+
+| `status` | what it records |
+|---|---|
+| `failed` | the command could not run, or exited nonzero — a broken toolchain |
+| `not-captured` | the command ran clean and found nothing — a fact about the document |
+
+Consumers that walk the ledger looking for captures skip both; doctor does not
+read either as a missing page.
+
 ### 5.3 The source entity page — `references/<slug>.md`
 
 The canonical record of a source is its page; frontmatter carries what a
@@ -356,7 +394,9 @@ should know before trusting it.
 
 `aliases` always contains the id, so typing `[[A3` suggests this page in
 wikilink-aware editors while the filename stays readable (§9 on what aliases
-honestly buy).
+honestly buy). `status: captured` says bytes of the source are in custody; a
+**record capture** (§5.1) writes `status: recorded` instead and says so in the
+body, because what is held is the record of a source, not the source.
 
 ### 5.4 Source-quality model — the support tuple
 
@@ -930,10 +970,14 @@ actor flag.
 flip cli [--json]                    # compact map of every command (group path,
                                      #   purpose, key flags), generated from the tree
 flip config init                     # write a starter config.toml (bundled flip-fetch web lane)
+flip config show [--json]            # the lanes configured on this machine — what flip
+                                     #   can actually run, and the command behind each
 flip new <slug> --kind <profile>     # scaffold manifest + notebook.md (auto-binds
                                      #   under a workspace root)
 flip add-source <url|doi|file|->     # capture: fetch/copy → raw/, hash, provenance,
                                      #   open a references/ page at grade "?" (--via <variant>)
+flip add-source <target> --record    # the ladder's terminus: a citable page for a
+            --note "<rungs tried>"   #   document that is out of reach (§5.1, thin)
 flip find "<question>"               # research: list candidate leads (--capture <n>)
 flip ask "<question>"                # research: cited synthesis → sessions/raw/ (a grade-C lead)
 flip recall "<question>"             # knowledge: read what we already hold locally
@@ -995,6 +1039,14 @@ what you configure.
   `web` fetcher. Whatever runs, the tool, best-effort version, and strategy land
   in `_provenance.jsonl` automatically — principle 9 costs nothing when the tool
   does it.
+  flip may not know what fills a lane, but it may **read the operator's config
+  back to them**: `flip config show` lists the configured lanes and the command
+  behind each, and a capture that comes back empty-handed names the lanes and
+  kinds that exist on that machine (§5.1). This is the only honest way to point
+  an agent at tooling flip is forbidden to name — and it is the moment to say
+  that flip wires exactly ONE verb of whatever fills a role, so a tool with more
+  surface should be asked directly and its result handed back through
+  `flip add-source`.
 - **`[research]` — acquire.** A *question* → candidate leads (`flip find`) or
   cited synthesis (`flip ask`). Synthesis is a **lead, grade C, not evidence**:
   its raw output lands under `sessions/raw/` for custody and a log breadcrumb is

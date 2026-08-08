@@ -896,15 +896,18 @@ def _check_links(root: Path, by_dir: dict[str, list[pages.Page]], findings: list
 def _check_sources(
     root: Path, source_pages: list[pages.Page], provenance: list[dict], findings: list[Finding]
 ) -> None:
-    # A `status: failed` row is a recorded *finding* — "searched, gone" is
+    # A row that landed no bytes is a recorded *finding* — "searched, gone" is
     # deliberately distinguishable from "did not look" (L5) — so it has no page
     # by design and must not read as corruption. Excluding it here is what stops
     # orphan-provenance from nagging about an id whose whole point is the
-    # absence, with hand-editing JSONL as the only way to silence it.
+    # absence, with hand-editing JSONL as the only way to silence it. Both
+    # flavors count: `failed` (the tool broke) and `not-captured` (the tool ran
+    # fine and the document was not there).
     logged_ids = {
         str(p.get("source_id"))
         for p in provenance
-        if p.get("source_id") and p.get("status") != "failed"
+        if p.get("source_id")
+        and str(p.get("status") or "") not in sources_mod.UNCAPTURED_STATUSES
     }
     page_ids = {p.id for p in source_pages if p.id}
     for page in source_pages:
@@ -1071,7 +1074,9 @@ def _check_capture_fidelity(
     latest: dict[str, dict] = {}
     for event in provenance:
         sid = str(event.get("source_id") or "")
-        if not sid or sid not in page_ids or event.get("status") == "failed":
+        if not sid or sid not in page_ids:
+            continue
+        if str(event.get("status") or "") in sources_mod.UNCAPTURED_STATUSES:
             continue
         if not event.get("sha256"):  # a recheck or failure row, not a capture
             continue
@@ -1090,7 +1095,23 @@ def _check_capture_fidelity(
     for sid, event in sorted(latest.items()):
         fidelity = sources_mod.capture_fidelity(event)
         method = str(event.get("strategy") or "")
-        if fidelity == "thin":
+        if fidelity == "thin" and method == "record-only":
+            # Declared, not discovered: someone said out loud that the document
+            # was out of reach. Naming it anyway is the point of the check —
+            # a record must never quietly read as the thing it stands for —
+            # but it is expected-until-use, not a defect to chase.
+            findings.append(
+                _warn(
+                    "thin-capture",
+                    f"source {sid} is a record capture: custody holds flip's record of the "
+                    "source, not the source. Honest and citable, and it corroborates "
+                    "nothing — if a claim comes to rest on it, climb the ladder again or "
+                    "close the search with `flip pass` (SPEC §5.1)",
+                    PROVENANCE,
+                    expected=True,
+                )
+            )
+        elif fidelity == "thin":
             findings.append(
                 _warn(
                     "thin-capture",
