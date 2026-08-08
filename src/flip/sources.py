@@ -140,7 +140,15 @@ def capture_fidelity(event: dict) -> str:
     mime = str(event.get("mime") or "")
     # A markup response carrying almost no payload didn't capture the document,
     # whatever the status line said. Non-markup (PDF, CSV) is legitimately small.
-    markup = "html" in mime or "xml" in mime or (not mime and method != "copy")
+    #
+    # The size test only makes sense for bytes a FETCH brought back: it is
+    # looking for a consent wall or a JS shell standing in for the document.
+    # Methods where a file was handed over — `copy`, and `human-in-loop` (a
+    # person saved it, e.g. a short conversation) — have no such failure mode,
+    # and inferring markup from a missing mime flagged every brief transcript
+    # as thin. A declared markup mime still gets tested whatever the method.
+    handed_over = method in ("copy", "human-in-loop")
+    markup = "html" in mime or "xml" in mime or (not mime and not handed_over)
     if isinstance(size, int) and markup and size < 2048:
         return "thin"
     return "text-only" if method in _TEXT_ONLY_METHODS else "faithful"
@@ -317,6 +325,9 @@ _ID_PREFIXES = {
     "document": "F",
     "talk": "T",
     "transcript": "T",
+    # A conversation is a spoken/written record like a talk, so it shares the
+    # T class: the thing cited is an exchange, not a document (SPEC §8).
+    "conversation": "T",
     "social": "A",
 }
 
@@ -457,6 +468,8 @@ def add_source(
     kind: str | None = None,
     note: str | None = None,
     via: str | None = None,
+    strategy: str | None = None,
+    extra_fm: dict | None = None,
 ) -> pages.Page:
     """Capture a source into the notebook; returns its new entity page.
 
@@ -467,9 +480,22 @@ def add_source(
     references/<slug>.md at grade "?", touches the manifest. Local copies carry
     their origin file:// URI in provenance only; fetched targets also land on
     the page as `resource` (the fetcher's canonical_url when it reports one).
+
+    `strategy` overrides the recorded capture method on the copy path only,
+    for callers that know something the copy itself cannot show: a transcript
+    handed over by the person who was in the conversation is `human-in-loop`,
+    not the `copy` that moving the bytes would suggest (SPEC §5.1 — the record
+    describes how the bytes were obtained, and a caller with better
+    information is obliged to say so). Fetched captures report their own
+    method and ignore this. `extra_fm` adds caller-owned frontmatter keys to
+    the new page ahead of the custody keys.
     """
     root = require_notebook_root(root)
     kind = kind or _classify(target)
+    if strategy is not None and strategy not in CAPTURE_METHODS:
+        raise SystemExit(
+            f"invalid capture method '{strategy}' (one of: {', '.join(CAPTURE_METHODS)})"
+        )
     source_id = pages.allocate_id(root, _ID_PREFIXES.get(kind, "S"))
 
     # Route on the TARGET, not only the kind: `--kind dataset ./local.psv` used
@@ -484,7 +510,7 @@ def add_source(
     if resolved is None or resolved.template == "builtin:copy":
         files, origin = _capture_copy(root, source_id, target)
         tool, tool_version, capture_kind, strategy, url = (
-            "builtin:copy", None, "copy", "copy", origin,
+            "builtin:copy", None, "copy", strategy or "copy", origin,
         )
     else:
         try:
@@ -554,6 +580,8 @@ def add_source(
         "title": title,
         "description": note or f"{kind} source",
     }
+    if extra_fm:
+        fm.update({k: v for k, v in extra_fm.items() if v not in (None, "", [], {})})
     if capture_kind == "config":
         canonical = envelope.get("canonical_url") if envelope else None
         # for copies the origin URI lives in provenance, not the page

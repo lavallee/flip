@@ -24,6 +24,7 @@ mode. doctor imports workspace; workspace never imports doctor.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -51,6 +52,7 @@ from .util import (
     is_notebook_root,
     new_uid,
     read_jsonl,
+    split_ref,
 )
 
 PROVENANCE = "sources/_provenance.jsonl"
@@ -111,6 +113,8 @@ CHECK_CODES: frozenset[str] = frozenset({
     # claims
     "two-object", "pre-okf02-layout", "corroboration-drift", "under-verified",
     "unaudited-claim", "provenance-open", "unlocatable-recomputation",
+    # transcripts: pinned passages
+    "dangling-excerpt", "excerpt-drift", "unbacked-excerpt",
     # shared causes — one line that explains many symptoms
     "vocabulary-drift",
     # forecasts & clusters
@@ -174,6 +178,7 @@ def run_doctor(root: Path) -> list[Finding]:
     _check_raw(root, provenance, findings)
     claim_pages = [p for p in by_dir.get("claims", []) if p.fm.get("type") == "Claim"]
     _check_claims(root, claim_pages, source_pages, profile, findings)
+    _check_transcripts(root, source_pages, claim_pages, findings)
     _check_forecasts(root, by_dir, findings)
     _check_provenance_open(root, manifest, claim_pages, source_pages, findings)
     _check_kind_contract(root, manifest, findings)
@@ -1310,6 +1315,86 @@ def _check_claims(
                     rel,
                 )
             )
+
+
+# --- transcripts: pinned passages (SPEC §8) --------------------------------------
+
+
+def _check_transcripts(
+    root: Path,
+    source_pages: list[pages.Page],
+    claim_pages: list[pages.Page],
+    findings: list[Finding],
+) -> None:
+    """Excerpt integrity on transcript sources (SPEC §8).
+
+    Three ways a pinned passage stops meaning what it said:
+
+    `unbacked-excerpt` — the transcript's raw capture is gone, so no pin on it
+    can be checked at all (ERROR: custody is the whole basis of the quote).
+    `excerpt-drift` — the quote stored on the page no longer hashes to the
+    recorded sha256, which on an immutable capture means the page was
+    hand-edited (ERROR: a quotation flip vouches for must be one it can check).
+    `dangling-excerpt` — a claim cites `T1§label` that the transcript does not
+    pin (WARN, consistent with the dangling-citation policy). The citation
+    still resolves to the source, which is the danger: it reads as one exchange
+    and rests on the whole conversation.
+    """
+    from .claims import source_refs
+
+    transcript_pages = [
+        p for p in source_pages if str(p.fm.get("medium") or "") == "conversation"
+    ]
+    pinned: dict[str, set[str]] = {}
+    for page in transcript_pages:
+        records = [e for e in pages.as_list(page.fm.get("excerpts")) if isinstance(e, dict)]
+        pinned[page.id] = {str(e.get("label")) for e in records}
+        if not records:
+            continue
+        local = str(page.fm.get("local") or "")
+        raw = root / local if local else None
+        if not local or raw is None or not raw.is_file():
+            findings.append(
+                _error(
+                    "unbacked-excerpt",
+                    f"{page.id} pins {len(records)} passage(s) but its capture "
+                    f"({local or 'no `local` recorded'}) is missing; the quotes on this "
+                    "page cannot be checked against anything — restore custody or unpin",
+                    _rel(page, root),
+                )
+            )
+            continue
+        lines = raw.read_text(encoding="utf-8", errors="replace").splitlines()
+        for record in records:
+            span = pages.as_list(record.get("lines"))
+            if len(span) != 2:
+                continue
+            start, end = int(span[0]), int(span[1])
+            quoted = "\n".join(lines[start - 1 : end])
+            actual = hashlib.sha256(quoted.encode("utf-8")).hexdigest()
+            if actual != str(record.get("sha256")):
+                findings.append(
+                    _error(
+                        "excerpt-drift",
+                        f"{page.id}§{record.get('label')} no longer hashes to its recorded "
+                        "sha256; raw captures are immutable, so the excerpt record was "
+                        "hand-edited — re-pin it rather than editing the quote",
+                        _rel(page, root),
+                    )
+                )
+    for page in claim_pages:
+        for ref in source_refs(page.fm):
+            base, label = split_ref(ref)
+            if label and label not in pinned.get(base, set()):
+                findings.append(
+                    _warn(
+                        "dangling-excerpt",
+                        f"cites {ref} but {base} pins no passage '{label}'; the citation "
+                        f"falls back to the whole of {base} while reading as one exchange "
+                        f"— pin it with `flip transcript excerpt {base} --label {label} …`",
+                        _rel(page, root),
+                    )
+                )
 
 
 # --- forecasts & clusters (SPEC §7) ---------------------------------------------

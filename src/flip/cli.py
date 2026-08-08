@@ -38,12 +38,14 @@ from . import (
     scaffold,
     sessions,
     sources,
+    transcripts as transcripts_mod,
     views,
     workspace as workspace_mod,
 )
 from .util import (
     find_notebook_root_pinned,
     find_workspace_root,
+    format_excerpt_ref,
     require_notebook_root,
     set_cli_overrides,
 )
@@ -794,7 +796,8 @@ def claim() -> None:
 @claim.command("add")
 @click.argument("text")
 @click.option("--source", "source_ids", multiple=True, metavar="SOURCE_ID",
-              help="Backing source id (a references/ page, e.g. A3); repeatable.")
+              help="Backing source id (a references/ page, e.g. A3), or a pinned "
+                   "transcript passage (T1§relevance-null); repeatable.")
 @click.option("--load-bearing", is_flag=True,
               help="The piece falls over if this claim is wrong; doctor audits these.")
 @click.option("--notes", default=None, help="Caveats, e.g. 'single vendor study'.")
@@ -970,6 +973,114 @@ def session_end(slug_or_path: str, summary: str) -> None:
     """
     path = sessions.end_session(require_notebook_root(), slug_or_path, summary)
     click.echo(f"ended {path}")
+
+
+@session.command("transcript")
+@click.argument("slug_or_path", metavar="SLUG_OR_PATH")
+@click.option("--file", "file", required=True, type=click.Path(exists=True, dir_okay=False),
+              help="The conversation, written to a markdown or text file.")
+@click.option("--title", default=None, help="Human title for the transcript page.")
+@click.option("--participant", "participants", multiple=True,
+              help="Who was in the conversation (repeatable), e.g. 'human:marc'.")
+@click.option("--model", default=None, help="Model on the other side, e.g. 'claude-opus-5'.")
+@click.option("--note", default=None, help="Capture note, recorded in provenance and on the page.")
+def session_transcript(slug_or_path: str, file: str, title: str | None,
+                       participants: tuple[str, ...], model: str | None,
+                       note: str | None) -> None:
+    """Keep this session's conversation verbatim, as a citable source.
+
+    Claims and graded sources are the residue of thinking, not the thinking:
+    a transcript is where the position actually got built. Captured under
+    normal custody (immutable bytes, sha256, provenance) with a T# id, so
+    `flip transcript excerpt` can pin the exchange a claim rests on.
+    """
+    root = require_notebook_root()
+    page = transcripts_mod.capture_transcript(
+        root, file, title=title, participants=list(participants) or None,
+        model=model, note=note,
+    )
+    source_id, local = page.fm["id"], str(page.fm.get("local") or "")
+    session_path = sessions.attach_transcript(
+        root, slug_or_path, source_id, local, page.path.stem
+    )
+    click.echo(f"{local}  ({page.fm.get('lines')} lines)")
+    click.echo(f"captured as {source_id}  {page.path}")
+    click.echo(f"linked from {session_path}")
+    click.echo(f"pin a passage: flip transcript excerpt {source_id} --lines A-B --label <label>")
+
+
+# ---------------------------------------------------------------- transcripts
+
+
+@main.group(cls=SuggestGroup)
+def transcript() -> None:
+    """Transcripts: conversations kept verbatim and cited by the passage.
+
+    A notebook that keeps only claims and sources keeps the conclusions and
+    loses the reasoning. Capture with `flip session transcript`, then pin the
+    exchanges that matter — a claim citing `T1§relevance-null` carries the
+    words it came from (SPEC §8).
+    """
+
+
+def _parse_lines(spec: str) -> tuple[int, int]:
+    m = re.match(r"^\s*(\d+)\s*[-–:]\s*(\d+)\s*$", spec or "")
+    if not m:
+        raise SystemExit(f"invalid --lines {spec!r}: expected a range like 88-104")
+    return int(m.group(1)), int(m.group(2))
+
+
+@transcript.command("excerpt")
+@click.argument("source_id", metavar="ID")
+@click.option("--lines", "lines", required=True, metavar="A-B",
+              help="Line range in the captured transcript, 1-indexed, inclusive.")
+@click.option("--label", required=True,
+              help="Slug naming the passage; becomes the ref suffix and page anchor.")
+@click.option("--note", default=None, help="One line on why this passage is worth pinning.")
+def transcript_excerpt(source_id: str, lines: str, label: str, note: str | None) -> None:
+    """Pin lines A-B of a transcript under LABEL, and print the ref to cite.
+
+    The quote is read out of the immutable capture and hashed — never taken
+    from you — so a pinned passage is always the words it says it is.
+    """
+    start, end = _parse_lines(lines)
+    record = transcripts_mod.add_excerpt(
+        require_notebook_root(), source_id, label, start, end, note=note
+    )
+    ref = format_excerpt_ref(source_id, label)
+    click.echo(ref)
+    click.echo(f"  lines {start}-{end}, {record['words']} words, sha256 {record['sha256'][:12]}")
+    click.echo(f"  cite it: flip claim add \"…\" --source {ref}")
+
+
+@transcript.command("list")
+@click.argument("source_id", metavar="ID")
+@click.option("--json", "as_json", is_flag=True, help="Emit the pinned passages as JSON.")
+def transcript_list(source_id: str, as_json: bool) -> None:
+    """Every passage pinned on a transcript, in the order they were pinned."""
+    records = transcripts_mod.excerpts(require_notebook_root(), source_id)
+    if as_json:
+        click.echo(json.dumps(records, ensure_ascii=False, indent=2))
+        return
+    if not records:
+        click.echo(f"{source_id} pins no passages yet — see `flip transcript excerpt --help`")
+        return
+    for record in records:
+        span = record.get("lines") or []
+        where = f"{span[0]}-{span[1]}" if len(span) == 2 else "?"
+        line = f"{format_excerpt_ref(source_id, str(record.get('label')))}  lines {where}"
+        if record.get("note"):
+            line += f"  — {record['note']}"
+        click.echo(line)
+
+
+@transcript.command("unpin")
+@click.argument("source_id", metavar="ID")
+@click.argument("label")
+def transcript_unpin(source_id: str, label: str) -> None:
+    """Drop a pinned passage. Refuses while a claim still cites it."""
+    transcripts_mod.remove_excerpt(require_notebook_root(), source_id, label)
+    click.echo(f"unpinned {format_excerpt_ref(source_id, label)}")
 
 
 # ---------------------------------------------------------------- views / navigation

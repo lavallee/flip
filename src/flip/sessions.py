@@ -100,6 +100,43 @@ def _find_session(root: Path, path_or_slug: Path | str) -> Path:
     )
 
 
+def attach_transcript(
+    root: Path, path_or_slug: Path | str, source_id: str, local: str, slug: str
+) -> Path:
+    """Point a session page at the transcript captured for it (SPEC §8).
+
+    Sets `transcript: {id, local}` in the frontmatter — current-state metadata
+    any OKF consumer can read — and fills the `## Transcript` stub with a link
+    to the source page. The session keeps the summary; the transcript keeps
+    the conversation; the id is what lets a claim cite the second while the
+    first stays a working record.
+
+    The prose link goes to the references/ page rather than to the raw bytes:
+    that page is where the pinned passages are readable, and the raw path is
+    one line below it for anyone who wants the file itself.
+    """
+    root = util.require_notebook_root(root)
+    path = _find_session(root, path_or_slug)
+    page = pages.read_page(path)
+    page.fm["transcript"] = {"id": source_id, "local": local}
+    pointer = (
+        f"Captured verbatim as [{source_id}](../references/{slug}.md) — "
+        f"cite passages as `{source_id}§<label>`.\n\nRaw bytes: `{local}`"
+    )
+    body = page.body.strip("\n")
+    if "## Transcript" in body:
+        head, _, tail = body.partition("## Transcript")
+        rest = tail.split("\n## ", 1)
+        following = f"\n## {rest[1]}" if len(rest) > 1 else ""
+        body = f"{head}## Transcript\n\n{pointer}\n{following}"
+    else:
+        body = (body + "\n\n" if body else "") + f"## Transcript\n\n{pointer}\n"
+    pages.write_page(path, page.fm, body)
+    manifest.touch_updated(root)
+    views.regenerate(root)
+    return path
+
+
 def end_session(root: Path, path_or_slug: Path | str, summary: str) -> Path:
     """Close a session: set `ended` in the frontmatter, append `## Summary`.
 

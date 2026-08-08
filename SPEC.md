@@ -660,10 +660,49 @@ declaring it is worth anything.
   false statement about the world.
 - **`sessions/<stamp>-<slug>.md`** — one entity page per working episode
   (`type: Work Session`; frontmatter: `generated: {by, at}`, `model`,
-  `tools`, `started`, `ended`): the goal, the prompt (or pointer), key
-  outputs, pointer to the
+  `tools`, `started`, `ended`, `transcript: {id, local}`): the goal, the
+  prompt (or pointer), key outputs, pointer to the
   raw transcript when kept. LLM synthesis recorded here is a **lead**, grade
   `C`, until promoted through `references/`.
+
+### Transcripts — the conversation, kept and citable
+
+Claims and graded sources are the **residue** of thinking, not the thinking. A
+conversation is where a position actually got built: where the objection
+landed, where the framing turned over, which of two readings survived. A
+notebook that keeps only conclusions cannot later show anyone — including its
+own author — why the conclusion has the shape it does.
+
+So a transcript is kept as a **source**, not as an attachment:
+
+- The bytes land in `sources/raw/` under ordinary custody (§5.1): immutable,
+  hashed, one capture row. The method is **`human-in-loop`** — a person was in
+  the conversation and handed flip the file, which `copy` alone would
+  understate.
+- The page carries `medium: conversation` (the marker transcript-aware
+  commands route on), optional `participants` and `model`, and a `T#` id — the
+  talk/transcript class, because what is cited is an exchange, not a document.
+- Grading is unchanged. A transcript is `self-reported` evidence about the
+  world and grades `C` at best. What it is genuinely *primary* evidence of is
+  the conversation itself, which is what it gets cited for.
+
+**Excerpts** pin a named passage inside the capture, so a claim rests on the
+exchange that produced it rather than on the whole file. An excerpt records
+`{label, lines, sha256, words}` in the page's `excerpts:` list, and its quote
+is **derived from the raw file, never authored** — an excerpt a writer could
+hand-edit would be a quotation flip vouched for and could not check. Because
+raw captures are immutable, the line range stays meaningful for the life of
+the notebook and the stored hash is what proves the copy on the page is the
+passage that was pinned. The label doubles as the page anchor, so
+`references/<slug>.md#<label>` resolves in any renderer that slugifies
+headings.
+
+Labels are stable, because claims cite them: re-pinning an existing label is
+refused, and unpinning is refused while any claim still cites it. `flip doctor`
+names the three ways a pin stops meaning what it said — `unbacked-excerpt`
+(custody gone), `excerpt-drift` (stored quote no longer hashes), and
+`dangling-excerpt` (a claim cites a label nothing pins, so the citation
+quietly widens from one exchange to the whole conversation).
 - Provenance and derivation ledgers stay under `sources/` and `derived/`
   (§5.2, and `derived/_derivations.jsonl` records inputs → tool/cmd/params →
   outputs with hashes, a deliberately small PROV profile).
@@ -689,6 +728,16 @@ declaring it is worth anything.
   edges.
 - `flip rename <id> <new-slug>` is the only sanctioned rename: it moves the
   file and rewrites every relative link and listing entry notebook-wide.
+- **Excerpt refs are `<id>§<label>`** (`T1§relevance-null`): a citation of one
+  pinned passage inside a transcript (§8). `§` is the separator because `:` is
+  taken by handles and `#` was retired as a ref separator in 0.10; labels are
+  slug-shaped so they double as page anchors. Qualified and pinned compose in
+  that order (`muse:T1§relevance-null`). An excerpt ref **collapses to its
+  base id** everywhere evidence is counted: a claim resting on two passages of
+  one conversation has two citations and one source, and only the second
+  number reaches corroboration (§7). A malformed label is an error rather than
+  a dropped suffix — silently dropping it would cite the whole transcript
+  while reading as one exchange.
 - **Cross-notebook references are `<handle>:<id>`** (`recipes:A3`), where
   the handle is a name *you* bound in the enclosing workspace table (§18) —
   not the notebook's slug, though the slug is the default suggestion.

@@ -7,6 +7,50 @@ versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Transcripts: the conversation kept, and citable by the passage** (SPEC §8,
+  §9). SPEC §8 has always said a session page carries a "pointer to the raw
+  transcript when kept" — nothing implemented it, and the gap was not a
+  missing file field. Claims and graded sources are the *residue* of thinking,
+  not the thinking: a conversation is where a position actually gets built,
+  and a notebook that keeps only the conclusions cannot later show anyone —
+  including its own author — why the conclusion has the shape it does.
+  - `flip session transcript <session> --file <path>` captures the
+    conversation under ordinary custody (immutable bytes, sha256, one capture
+    row) and gives it a `T#` id, so it is cited like any other evidence. The
+    method recorded is **`human-in-loop`**: a person was in the conversation
+    and handed flip the file, which `copy` alone would understate. The page
+    carries `medium: conversation`, plus `participants`/`model` when given;
+    the session page gains `transcript: {id, local}` and a filled
+    `## Transcript` section.
+  - `flip transcript excerpt T1 --lines 88-104 --label relevance-null` pins a
+    named passage. A claim then cites **`T1§relevance-null`** and travels with
+    the words it came from. The quote is read out of the immutable capture and
+    hashed — never taken from the caller — so a pinned passage is always the
+    words it says it is; the label doubles as the page anchor, so a claim's
+    `resource` deep-links to it. `flip transcript list` and
+    `flip transcript unpin` round out the surface.
+  - Excerpt refs **collapse to their base id wherever evidence is counted**: a
+    claim resting on two passages of one conversation has two citations and
+    one source, and only the second number reaches corroboration. `source_ids`
+    keeps its existing contract for every downstream consumer; the new
+    `source_refs` is what answers "which words".
+  - Labels are stable because claims cite them: re-pinning a label is refused,
+    and unpinning is refused while a claim still cites it. `flip doctor` gains
+    `unbacked-excerpt` (custody gone), `excerpt-drift` (the stored quote no
+    longer hashes — on an immutable capture that means a hand edit), and
+    `dangling-excerpt` (a claim cites a label nothing pins, so the citation
+    quietly widens from one exchange to the whole conversation).
+
+### Fixed
+- **A short handed-over file is no longer reported as a thin capture**
+  (SPEC §5.1). `capture_fidelity` inferred "markup" from a missing mime for
+  every method except `copy`, so any brief transcript tripped the
+  consent-wall/JS-shell heuristic and doctor called a complete capture thin.
+  The size test only means something for bytes a *fetch* brought back;
+  `human-in-loop` now sits alongside `copy` as handed-over. A declared markup
+  mime is still tested whatever the method.
+
+### Added
 - **Notebooks show their drafts.** flip-render/2 gains a `drafts` array
   (SPEC §11 and §17), so an internal renderer — an agent site, a review
   surface — can present in-progress prose next to the sources and claims that

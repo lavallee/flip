@@ -38,7 +38,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from . import manifest, pages, profiles, util
+from . import manifest, pages, profiles, transcripts, util
 from . import sources as sources_mod
 
 STATUSES = (
@@ -72,12 +72,44 @@ _DESCRIPTION_MAX = 160
 def source_ids(fm: dict) -> list[str]:
     """A claim's cited source ids, in order. Entries are OKF v0.2 `sources`
     maps ({id, resource, title}); bare strings (hand edits, pre-0.7 pages)
-    are tolerated as ids. The one accessor every reader goes through."""
+    are tolerated as ids. The one accessor every reader goes through.
+
+    Ids are always BASE ids — an entry pinning transcript passages carries
+    them in its own `excerpts` key, so corroboration, grading and every
+    downstream consumer keep counting sources rather than citations. Use
+    `source_refs` when the passage matters.
+    """
     out: list[str] = []
     for entry in pages.as_list(fm.get("sources")):
         sid = str(entry.get("id", "")) if isinstance(entry, dict) else str(entry)
         if sid.strip():
             out.append(sid.strip())
+    return out
+
+
+def source_refs(fm: dict) -> list[str]:
+    """A claim's citations as refs, in order — `T1§relevance-null` where a
+    transcript passage was pinned, a bare id everywhere else.
+
+    The counterpart to `source_ids`: that answers "which sources does this
+    rest on", this answers "which words". A source cited with two pinned
+    passages yields two refs and one id.
+    """
+    out: list[str] = []
+    for entry in pages.as_list(fm.get("sources")):
+        if not isinstance(entry, dict):
+            sid = str(entry).strip()
+            if sid:
+                out.append(sid)
+            continue
+        sid = str(entry.get("id", "")).strip()
+        if not sid:
+            continue
+        labels = [str(x) for x in pages.as_list(entry.get("excerpts")) if str(x).strip()]
+        if labels:
+            out.extend(util.format_excerpt_ref(sid, label) for label in labels)
+        else:
+            out.append(sid)
     return out
 
 
@@ -157,30 +189,57 @@ def _description(text: str) -> str:
     return text[: _DESCRIPTION_MAX - 1].rstrip() + "…"
 
 
+def _group_refs(cited: list[str]) -> dict[str, list[str]]:
+    """Citation refs grouped base-id → pinned excerpt labels, both deduped and
+    in first-seen order. `["T1§a", "A2", "T1§b"]` → `{"T1": ["a","b"], "A2": []}`.
+
+    Grouping is what keeps one source one source: a claim resting on two
+    passages of the same conversation has two citations and one piece of
+    evidence, and only the second number may reach corroboration.
+    """
+    grouped: dict[str, list[str]] = {}
+    for ref in cited:
+        base, label = util.split_ref(str(ref))
+        labels = grouped.setdefault(base, [])
+        if label and label not in labels:
+            labels.append(label)
+    return grouped
+
+
 def _attribution(
     src_by_id: dict[str, pages.Page], cited: list[str]
 ) -> tuple[list[dict], list[str]]:
     """(OKF `sources` entries, footnote-definition lines) for a claim's cited
-    ids, deduped, in order.
+    refs, deduped, in order.
 
     Resolvable ids get a followable bundle-absolute `resource`, the page
     title, and a relative-linked definition; dangling ids keep just the id
     and a plain-text definition — dangling is legal (SPEC §6.1), doctor
     counts them.
+
+    A ref pinning a transcript passage (`T1§relevance-null`) contributes its
+    label to the entry's `excerpts` list and deep-links `resource` at the
+    passage anchor. Footnote labels stay base-id-shaped (`[^T1]`) whatever is
+    pinned: they are markdown labels, and one source keeps one marker.
     """
     entries: list[dict] = []
     defs: list[str] = []
-    for sid in dict.fromkeys(str(s) for s in cited):
+    for sid, labels in _group_refs(cited).items():
         page = src_by_id.get(sid)
         entry: dict = {"id": sid}
+        if labels:
+            entry["excerpts"] = list(labels)
         if page is None:
             defs.append(f"[^{sid}]: {sid} (not captured)")
         else:
-            entry["resource"] = f"/references/{page.slug}.md"
+            anchor = f"#{transcripts.anchor_for(labels[0])}" if len(labels) == 1 else ""
+            entry["resource"] = f"/references/{page.slug}.md{anchor}"
             title = str(page.fm.get("title") or "")
             if title:
                 entry["title"] = title
-            defs.append(f"[^{sid}]: [{title or sid}](../references/{page.slug}.md)")
+            link = f"[{title or sid}](../references/{page.slug}.md{anchor})"
+            passages = f" — {', '.join(labels)}" if labels else ""
+            defs.append(f"[^{sid}]: {link}{passages}")
         entries.append(entry)
     return entries, defs
 
@@ -193,7 +252,7 @@ def _apply_attribution(body: str, cited: list[str], defs: list[str]) -> str:
     text = re.sub(r"\n{3,}", "\n\n", text)
     head, sep, rest = text.partition("\n\n")
     head = _MARKER_TAIL_RE.sub("", head.rstrip())
-    head += "".join(f"[^{sid}]" for sid in dict.fromkeys(str(s) for s in cited))
+    head += "".join(f"[^{sid}]" for sid in _group_refs([str(s) for s in cited]))
     text = head + sep + rest if rest else head
     if defs:
         text = (text + "\n\n" if text else "") + "\n".join(defs)
@@ -227,6 +286,7 @@ def add_claim(
     if not text:
         raise SystemExit("empty claim text; state the assertion in one sentence")
     cited = [str(s) for s in pages.as_list(sources)]
+    cited_ids = list(_group_refs(cited))  # excerpt refs collapse to their source
     claim_id = pages.allocate_id(root, "C")
     src_by_id = _source_pages_by_id(root)
     entries, defs = _attribution(src_by_id, cited)
@@ -240,7 +300,7 @@ def add_claim(
         "load_bearing": bool(load_bearing),
         "sources": entries,
         "independent_corroboration": corroboration_count(
-            [p.fm for p in src_by_id.values()], cited
+            [p.fm for p in src_by_id.values()], cited_ids
         ),
         "first_asserted": util.today(),
         "generated": util.generated_now(),
@@ -254,7 +314,7 @@ def add_claim(
     if notes:
         fm["notes"] = notes
 
-    markers = "".join(f"[^{sid}]" for sid in dict.fromkeys(cited))
+    markers = "".join(f"[^{sid}]" for sid in cited_ids)
     parts = [text + markers]
     if notes:
         parts.append(f"_{notes}_")
@@ -286,6 +346,10 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
     if status not in STATUSES:
         raise SystemExit(f"invalid claim status '{status}' (one of: {', '.join(STATUSES)})")
     page = _find_claim(root, claim_id)
+    # Refs drive regeneration (they carry the pinned passages); ids drive the
+    # evidence bar. Regenerating from ids alone silently unpinned every
+    # excerpt the moment a claim changed status.
+    cited_refs = source_refs(page.fm)
     cited = source_ids(page.fm)
     src_by_id = _source_pages_by_id(root)
     source_fms = [p.fm for p in src_by_id.values()]
@@ -338,12 +402,12 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
                 "--method adversarial|recomputation`"
             )
             raise SystemExit(msg)
-    entries, defs = _attribution(src_by_id, cited)
+    entries, defs = _attribution(src_by_id, cited_refs)
     page.fm["status"] = status
     page.fm["independent_corroboration"] = corroboration
     page.fm["sources"] = entries
     page.fm.pop("supports", None)  # pre-0.7 key; the entries carry the paths now
-    body = _apply_attribution(page.body, cited, defs)
+    body = _apply_attribution(page.body, cited_refs, defs)
     pages.write_page(page.path, page.fm, body)
     manifest.touch_updated(root)
     _regenerate_views(root)
@@ -351,18 +415,20 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
 
 
 def _write_sources(root: Path, page: pages.Page, cited: list[str]) -> pages.Page:
-    """Persist a claim's new cited-source list: regenerate the OKF `sources`
+    """Persist a claim's new citation list: regenerate the OKF `sources`
     entries + footnote attribution against current source slugs and recompute
-    independent_corroboration. The prose round-trips (SPEC §6.6)."""
-    ids = [str(s) for s in cited]
+    independent_corroboration. Takes refs (`T1§label` or bare ids); the
+    evidence bar counts the base ids behind them. The prose round-trips
+    (SPEC §6.6)."""
+    refs = [str(s) for s in cited]
     src_by_id = _source_pages_by_id(root)
-    entries, defs = _attribution(src_by_id, ids)
+    entries, defs = _attribution(src_by_id, refs)
     page.fm["sources"] = entries
     page.fm.pop("supports", None)
     page.fm["independent_corroboration"] = corroboration_count(
-        [p.fm for p in src_by_id.values()], ids
+        [p.fm for p in src_by_id.values()], list(_group_refs(refs))
     )
-    body = _apply_attribution(page.body, ids, defs)
+    body = _apply_attribution(page.body, refs, defs)
     pages.write_page(page.path, page.fm, body)
     manifest.touch_updated(root)
     _regenerate_views(root)
@@ -385,46 +451,72 @@ def add_claim_sources(
     different word). Refuses when every given id is already linked.
     """
     root = util.require_notebook_root(root)
-    ids = [str(s) for s in pages.as_list(new_ids)]
-    if not ids:
+    refs = [str(s) for s in pages.as_list(new_ids)]
+    if not refs:
         raise SystemExit("no source ids given; pass at least one references/ id, e.g. A3")
     page = _find_claim(root, claim_id)
     src_by_id = _source_pages_by_id(root)
-    unknown = [s for s in dict.fromkeys(ids) if s not in src_by_id]
+    grouped = _group_refs(refs)
+    unknown = [s for s in grouped if s not in src_by_id]
     if unknown:
         known = ", ".join(sorted(src_by_id)) or "none captured yet"
         raise SystemExit(
             f"unknown source id(s) {', '.join(unknown)}: no references/ page carries them "
             f"(known: {known}); capture the source with `flip add-source` first"
         )
-    current = source_ids(page.fm)
-    added = [s for s in dict.fromkeys(ids) if s not in current]
+    # An unpinned label is refused here for the same reason an unknown id is:
+    # this is the post-hoc linker, and a ref that resolves to nothing would
+    # read as a passage citation while resting on the whole conversation.
+    for sid, labels in grouped.items():
+        for label in labels:
+            if transcripts.find_excerpt(root, sid, label) is None:
+                pinned = ", ".join(
+                    str(e.get("label")) for e in pages.as_list(src_by_id[sid].fm.get("excerpts"))
+                    if isinstance(e, dict)
+                ) or "none pinned"
+                raise SystemExit(
+                    f"{sid} pins no excerpt '{label}' (pinned: {pinned}); "
+                    f"pin it with `flip transcript excerpt {sid} --label {label} --lines A-B`"
+                )
+    current = source_refs(page.fm)
+    added = [s for s in dict.fromkeys(refs) if s not in current]
     if not added:
         raise SystemExit(
-            f"claim {claim_id} already cites {', '.join(dict.fromkeys(ids))}; nothing to add"
+            f"claim {claim_id} already cites {', '.join(dict.fromkeys(refs))}; nothing to add"
         )
     updated = _write_sources(root, page, current + added)
     warnings = [
-        (s, "unmigrated" if sources_mod.unmigrated(src_by_id[s].fm) else "unjudged")
-        for s in added
-        if not sources_mod.judged(src_by_id[s].fm)
+        (ref, "unmigrated" if sources_mod.unmigrated(src_by_id[base].fm) else "unjudged")
+        for ref in added
+        for base in [util.split_ref(ref)[0]]
+        if not sources_mod.judged(src_by_id[base].fm)
     ]
     return updated, added, warnings
 
 
 def remove_claim_source(root: Path, claim_id: str, source_id: str) -> pages.Page:
-    """Unlink a source id from a claim (A1): drop it from `sources:`, regenerate
-    the footnote attribution, recompute corroboration. Refuses when the claim
-    does not cite that id."""
+    """Unlink a citation from a claim (A1): drop it from `sources:`, regenerate
+    the footnote attribution, recompute corroboration.
+
+    Takes a ref or a bare id, and the two mean different things on a source
+    cited by passage: `T1§relevance-null` drops that one pin and leaves the
+    claim's other passages standing, while `T1` drops the source and every
+    passage of it at once. Refuses when the claim cites neither.
+    """
     root = util.require_notebook_root(root)
-    sid = str(source_id)
+    ref = str(source_id)
+    base, label = util.split_ref(ref)
     page = _find_claim(root, claim_id)
-    current = source_ids(page.fm)
-    if sid not in current:
+    current = source_refs(page.fm)
+    if label:
+        keep = [s for s in current if s != ref]
+    else:
+        keep = [s for s in current if util.split_ref(s)[0] != base]
+    if len(keep) == len(current):
         raise SystemExit(
-            f"claim {claim_id} does not cite {sid} (sources: {', '.join(current) or 'none'})"
+            f"claim {claim_id} does not cite {ref} (cites: {', '.join(current) or 'none'})"
         )
-    return _write_sources(root, page, [s for s in current if s != sid])
+    return _write_sources(root, page, keep)
 
 
 def verify_claim(

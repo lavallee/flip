@@ -58,6 +58,18 @@ HANDLE_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 # are still rewritten by `flip migrate`).
 REF_RE = re.compile(r"^(?:(?P<handle>[a-z][a-z0-9-]*):)?(?P<id>[A-Z]+\d+)$")
 
+# Excerpt refs (SPEC §9): "T1§relevance-null" pins a named passage inside a
+# source — the exchange a claim actually rests on, not the whole transcript.
+# '§' is the separator because ':' is taken by handles and '#' was retired as a
+# ref separator in 0.10; a label is slug-shaped so it doubles as a markdown
+# anchor (`references/<slug>.md#relevance-null`).
+EXCERPT_SEP = "§"
+EXCERPT_LABEL_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+EXCERPT_REF_RE = re.compile(
+    r"^(?P<base>(?:[a-z][a-z0-9-]*:)?[A-Z]+\d+)"
+    rf"(?:{EXCERPT_SEP}(?P<label>[a-z0-9][a-z0-9-]*))?$"
+)
+
 
 def new_uid(rng: random.Random | None = None) -> str:
     """Mint a notebook uid like nb-7k3m9p2x. Pass a seeded Random in tests."""
@@ -85,6 +97,34 @@ def parse_ref(ref: str) -> tuple[str | None, str]:
 def format_ref(handle: str | None, entity_id: str) -> str:
     """"A3" or "recipes:A3" — the canonical textual form of a reference."""
     return f"{handle}:{entity_id}" if handle else entity_id
+
+
+def split_ref(ref: str) -> tuple[str, str | None]:
+    """Split an excerpt ref into (base ref, excerpt label).
+
+    "T1" -> ("T1", None); "T1§relevance-null" -> ("T1", "relevance-null");
+    "muse:T1§x" -> ("muse:T1", "x"). The base is returned unparsed so callers
+    that only care about the entity keep using parse_ref on it — the one place
+    excerpt-awareness enters is where a passage is being pinned or displayed.
+
+    Anything off the grammar exits with the grammar in the message; an empty
+    or malformed label is an error rather than a silently-dropped suffix,
+    because a dropped label would cite the whole transcript while reading as
+    though it cited one exchange.
+    """
+    m = EXCERPT_REF_RE.match(ref or "")
+    if not m:
+        raise SystemExit(
+            f"invalid reference {ref!r}: expected an id like T1, a qualified form "
+            "like muse:T1, or an excerpt ref like T1§relevance-null (label = "
+            "lowercase letters, digits, hyphens)"
+        )
+    return m.group("base"), m.group("label")
+
+
+def format_excerpt_ref(base: str, label: str | None) -> str:
+    """"T1" or "T1§relevance-null" — the canonical form of an excerpt ref."""
+    return f"{base}{EXCERPT_SEP}{label}" if label else base
 
 
 def is_notebook_root(directory: Path) -> bool:
