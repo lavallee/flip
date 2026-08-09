@@ -815,3 +815,33 @@ def test_cli_exposure_on_an_unknown_claim_names_what_exists(root: Path):
     claims.add_claim(root, "a claim", [])
     result = invoke(["claim", "exposure", "C9"], root)
     assert result.exit_code != 0 and "known: C1" in result.output
+
+
+# --- regressions found by dogfooding (2026-08-09) ----------------------------
+
+
+def test_a_holder_cited_on_a_later_stance_clears_the_unsourced_finding(root: Path):
+    """The list is append-only, so the unsourced first attempt stays on the page.
+
+    Reading every record meant the finding could never be cleared: it fired on a
+    real notebook AFTER the evidence had been cited, naming a defect already
+    fixed and recommending the command that had just fixed it. Only the last
+    record per holder is the holder's current position.
+    """
+    claims.add_claim(root, "a claim", [])
+    claims.set_stance(root, "C1", "holding", because="first pass, nothing to hand",
+                      holder="readers online")
+    assert stance.unsourced_holders(fm_of(root, "C1")) == ["readers online"]
+
+    claims.set_stance(root, "C1", "holding", because="now with a receipt",
+                      holder="readers online", sources=["A1"])
+    assert stance.unsourced_holders(fm_of(root, "C1")) == []
+    # and the unsourced record still stands — that is what append-only is for
+    assert len(stance.foreign_stances(fm_of(root, "C1"))) == 2
+
+
+def test_one_holder_being_cited_does_not_excuse_another(root: Path):
+    claims.add_claim(root, "a claim", [])
+    claims.set_stance(root, "C1", "holding", because="cited", holder="a", sources=["A1"])
+    claims.set_stance(root, "C1", "holding", because="not cited", holder="b")
+    assert stance.unsourced_holders(fm_of(root, "C1")) == ["b"]

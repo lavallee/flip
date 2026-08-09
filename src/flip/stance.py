@@ -310,18 +310,27 @@ def foreign_stances(fm: dict) -> list[dict]:
 
 
 def unsourced_holders(fm: dict) -> list[str]:
-    """Holders of a foreign stance with nothing cited to show they hold it.
+    """Holders whose CURRENT foreign stance cites nothing to show they hold it.
 
     "People believe X" is an assertion about people, and flip has no way to
     make a free-text `holder` answerable to anything. Naming the ones with no
     receipt is the honest half of what it can do; the other half is saying so
     in the docs (SPEC §7.1) rather than pretending the field is evidence.
+
+    Only the LAST record per holder counts. The list is append-only, so a
+    stance first written without a receipt and later rewritten with one leaves
+    both on the page — and reading every record meant the finding could never
+    be cleared. It fired on a real notebook after the evidence had been cited,
+    naming a defect that had already been fixed and pointing at the exact
+    command that had just fixed it. A lint nobody can satisfy is one everybody
+    learns to skip. The superseded record still stands on the page, which is
+    the point of append-only: it says the notebook once asserted this with
+    nothing behind it.
     """
-    return [
-        str(r.get("holder") or "?")
-        for r in foreign_stances(fm)
-        if not pages.as_list(r.get("sources"))
-    ]
+    latest: dict[str, dict] = {}
+    for r in foreign_stances(fm):
+        latest[str(r.get("holder") or "?")] = r
+    return [h for h, r in latest.items() if not pages.as_list(r.get("sources"))]
 
 
 def unpriced_stances(fm: dict) -> list[dict]:

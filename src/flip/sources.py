@@ -1201,6 +1201,26 @@ def extract_text(
         o for r in prior for o in (r.get("outputs") or []) if isinstance(o, dict)
     ]
 
+    # Something is at the output path and it is not a file. An extractor whose
+    # flags were misread can make one: a lane configured with a tool whose `-o`
+    # means output DIRECTORY created sources/text/<id>.txt as a directory, and
+    # the next run died inside the tool on IsADirectoryError — a stack trace
+    # where a flip refusal belonged, blaming the retry for what the first run
+    # left behind. Neither --force nor the hand-edit guard below covers this,
+    # because the question is not whose bytes those are; there are no bytes.
+    if out.exists() and not out.is_file():
+        kind = "a directory" if out.is_dir() else "not a regular file"
+        raise SystemExit(
+            f"sources/text/{source_id}.txt exists and is {kind}, so nothing can be "
+            "written there. flip did not create it — an extractor did, and almost "
+            "always because a lane passes {out} to a flag that means output DIRECTORY "
+            "rather than output file.\n"
+            f"  check the lane: flip config show  (the [extractors].{family} entry)\n"
+            f"  then clear the path: rm -r {out.relative_to(root).as_posix()}\n"
+            "  a tool that only writes to a directory, or only to stdout, still fits: "
+            "omit {out} from the template and flip preserves stdout"
+        )
+
     if out.is_file() and not force:
         if sha256_file(out) not in {o.get("sha256") for o in known_outputs}:
             raise SystemExit(

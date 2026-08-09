@@ -6,6 +6,39 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **Four defects found by using the thing.** All four came out of one
+  afternoon's real research in a sibling notebook, and each was a check that
+  misdescribed the situation rather than one that failed to fire.
+  - `unsourced-holder` **could never be cleared**. Stances are append-only, so
+    a foreign stance first written without a receipt and later rewritten with
+    one leaves both records on the page — and the check read every record. It
+    fired *after* the evidence had been cited, naming a defect that was already
+    fixed and recommending the exact command that had just fixed it. Only the
+    last record per holder is that holder's current position now; the
+    unsourced one still stands on the page, which is what append-only is for.
+  - `unaudited-claim` **could not see the tests axis**. It read corroboration
+    and `verified` only, so it fired on a claim carrying a *severe attribution
+    test* and told the author to "record a check" — which they had, with
+    `flip claim test`, a command the message did not mention. A severe test is
+    an audit; what it FOUND is `flip claim exposure`'s business, not this
+    check's. Silence here is the absence of the thing the check is about, never
+    approval. A bent test still buys nothing, per SIST p.5.
+  - `missing-derivative` **was silenced by a broken lane**. Any derivation row
+    counted as an attempt, including `status: failed`. A misconfigured html
+    lane failed twice and doctor then reported nothing missing while nothing
+    had been extracted. Only outputs, or a clean `not-extracted` run, settle
+    it: the first means there is a derivative, the second is a finding about
+    the document. A `failed` row settles nothing, and that distinction was
+    already in the format — the check just wasn't using it.
+  - **A non-file at the output path is a refusal, not a stack trace.** A lane
+    that passes `{out}` to a flag meaning output *directory* creates one, and
+    the next run died inside the tool on `IsADirectoryError`, blaming the retry
+    for what the first run left behind. `flip extract` now checks the path
+    first and names the lane, since that is where the fault is. Neither
+    `--force` nor the hand-edit guard covered this: the question is not whose
+    bytes those are, there are none.
+
 ### Added
 - **Text derivatives — `sources/text/` finally has tooling** (SPEC §5.5).
   `sources/text/` ("readable derivatives of raw/, 1:1 by source id") has been in

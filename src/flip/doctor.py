@@ -1231,7 +1231,18 @@ def _check_derivatives(
                 logged_hashes.add(str(out["sha256"]))
         if not sid or sid not in page_ids:
             continue
-        attempted.add(sid)
+        # Only a row that SETTLES the question stops the missing-derivative
+        # notice: outputs (there is a derivative) or `not-extracted` (the tool
+        # ran clean and there was no text in the document — a finding about the
+        # document, and the honest end of the matter).
+        #
+        # A `failed` row settles nothing. The extraction never happened; the
+        # toolchain broke. Counting it as an attempt let a misconfigured lane
+        # silence the notice permanently — observed on a real notebook, where a
+        # bad html lane failed twice and doctor then reported nothing missing
+        # while nothing had been extracted.
+        if row.get("outputs") or str(row.get("status") or "") == "not-extracted":
+            attempted.add(sid)
         if str(row.get("kind") or "") != "text" or not row.get("outputs"):
             continue
         prior = latest.get(sid)
@@ -1482,19 +1493,28 @@ def _check_claims(
                         "so that count understates the evidence rather than measuring it"
                     )
                 findings.append(_error("under-verified", msg, rel))
-        elif status == "asserted" and corroboration == 0 and not pages.as_list(
-            page.fm.get("verified")
+        elif (
+            status == "asserted"
+            and corroboration == 0
+            and not pages.as_list(page.fm.get("verified"))
+            # A severe test IS an audit — it went looking for a specific error and
+            # either found it or didn't. Reading only corroboration and `verified`
+            # meant this fired on a claim carrying a severe attribution test and
+            # told its author to "record a check", which they had. What the result
+            # WAS is not this check's business: a refuted claim held in the open is
+            # `flip claim exposure`'s to talk about, and silence here is not
+            # approval, only the absence of the thing this check is about.
+            and stance.derive_exposure(page.fm) == "bent"
         ):
-            # A2: fire only when a load-bearing claim has *neither* corroboration
-            # *nor* any verification record — ending the permanently-unsatisfiable
-            # nag. Some corroboration or any recorded check silences it.
             findings.append(
                 _warn(
                     "unaudited-claim",
-                    f"load-bearing claim {cid} is 'asserted' with no corroboration or "
-                    f"verification; link independent sources (`flip claim source add "
-                    f"{cid} <src>`), record a check (`flip claim verify {cid} --method "
-                    "adversarial`), or set status needs-2nd",
+                    f"load-bearing claim {cid} is 'asserted' with no corroboration, no "
+                    f"verification, and nothing on record that went looking for the error; "
+                    f"link independent sources (`flip claim source add {cid} <src>`), test "
+                    f"it (`flip claim test {cid} --probe attribution|substance|scope …`), "
+                    f"record a check (`flip claim verify {cid} --method adversarial`), or "
+                    "set status needs-2nd",
                     rel,
                 )
             )

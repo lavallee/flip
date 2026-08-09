@@ -760,3 +760,63 @@ def test_cli_record_and_extract_together_are_refused(nb, tmp_path, monkeypatch):
                      "--note", "tried three rungs", "--extract"])
     assert result.exit_code == 1
     assert "has nothing to read" in result.output
+
+
+# --- regressions found by dogfooding (2026-08-09) ----------------------------
+
+
+def test_a_failed_extraction_does_not_silence_the_missing_derivative_notice(
+    root, tmp_path, monkeypatch
+):
+    """A broken lane settled nothing, so the text is still missing.
+
+    Counting any row as an attempt let a misconfigured lane quiet the notice
+    permanently: on a real notebook an html lane failed twice — wrong tool, then
+    wrong flag — and doctor then reported nothing missing while nothing had been
+    extracted. Only outputs, or a clean `not-extracted` run, settle it.
+    """
+    broken = make_script(tmp_path, "brokenext", "exit 3\n")
+    set_config(tmp_path, monkeypatch, f'[extractors]\npdf = "{broken} {{src}} {{out}}"\n')
+    capture(root, "F1")
+    add_page(root, "F1", "sources/raw/F1.pdf")
+    with pytest.raises(SystemExit):
+        sources.extract_text(root, "F1")
+    assert len(codes(doctor.run_doctor(root), "missing-derivative")) == 1
+
+
+def test_a_clean_run_that_found_no_text_does_settle_it(root, tmp_path, monkeypatch):
+    """The counterpart: `not-extracted` is a finding ABOUT the document — there
+    is no text layer in it — and re-asking every run would be nagging for a fact
+    already established."""
+    empty = make_script(tmp_path, "emptyext", ': > "$2"\n')
+    set_config(tmp_path, monkeypatch, f'[extractors]\npdf = "{empty} {{src}} {{out}}"\n')
+    capture(root, "F1")
+    add_page(root, "F1", "sources/raw/F1.pdf")
+    with pytest.raises(SystemExit):
+        sources.extract_text(root, "F1")
+    assert codes(doctor.run_doctor(root), "missing-derivative") == []
+
+
+def test_a_directory_at_the_output_path_is_a_flip_refusal_not_a_stack_trace(
+    root, tmp_path, monkeypatch
+):
+    """An extractor whose {out} lands on a flag meaning output DIRECTORY makes
+    one. That happened on a real notebook, and the NEXT run died inside the tool
+    on IsADirectoryError — blaming the retry for what the first run left. Neither
+    --force nor the hand-edit guard covers it: the question is not whose bytes
+    those are, there are no bytes."""
+    tool = words_script(tmp_path, 50)
+    set_config(tmp_path, monkeypatch, f'[extractors]\npdf = "{tool} {{src}} {{out}}"\n')
+    capture(root, "F1")
+    add_page(root, "F1", "sources/raw/F1.pdf")
+    (root / "sources" / "text" / "F1.txt").mkdir(parents=True)
+
+    with pytest.raises(SystemExit) as e:
+        sources.extract_text(root, "F1")
+    msg = str(e.value)
+    assert "is a directory" in msg
+    assert "flip config show" in msg          # the lane is where the fault is
+    assert "omit {out}" in msg                # and the shape that fits such a tool
+    # --force is about replacing bytes, and cannot help here
+    with pytest.raises(SystemExit, match="is a directory"):
+        sources.extract_text(root, "F1", force=True)

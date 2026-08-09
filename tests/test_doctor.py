@@ -1393,3 +1393,40 @@ def test_the_largest_file_of_one_capture_is_the_one_judged(tmp_path):
         ev["local_path"] = f"sources/raw/A1/{name}"
         append_jsonl(root / "sources" / "_provenance.jsonl", ev)
     assert "thin-capture" not in codes(run_doctor(root))
+
+
+def test_unaudited_claim_sees_a_recorded_test(tmp_path):
+    """A severe test IS an audit, and reading only corroboration missed it.
+
+    On a real notebook this fired on a claim carrying a severe attribution test
+    and told its author to "record a check" — which they had, moments earlier,
+    with the command the message did not mention. What the test FOUND is not
+    this check's business; silence here is the absence of the thing it is about,
+    not approval.
+    """
+    from flip import claims as claims_mod
+
+    root = make_notebook(tmp_path)
+    claims_mod.add_claim(root, "a load-bearing claim", [], load_bearing=True)
+    assert "unaudited-claim" in codes(run_doctor(root))
+
+    claims_mod.record_test(
+        root, "C1", probe="attribution",
+        error="that the source does not contain this",
+        would_detect="a string search of the captured text returning nothing",
+        if_absent="the sentence present verbatim, which is what was found",
+        against=["A1"], result="survived",
+    )
+    assert "unaudited-claim" not in codes(run_doctor(root))
+
+
+def test_a_bent_test_does_not_count_as_an_audit(tmp_path):
+    """Mayo's bipartition, enforced: a probe that cannot say what it would have
+    seen otherwise is bad evidence, no test — and must not buy silence."""
+    from flip import claims as claims_mod
+
+    root = make_notebook(tmp_path)
+    claims_mod.add_claim(root, "a load-bearing claim", [], load_bearing=True)
+    claims_mod.record_test(root, "C1", probe="substance", error="vague unease",
+                           result="survived")
+    assert "unaudited-claim" in codes(run_doctor(root))
