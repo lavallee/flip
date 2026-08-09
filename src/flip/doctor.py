@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import pages, workspace
+from . import pages, stance, workspace
 from . import sources as sources_mod
 from .beat import find_beat_root, load_beat
 from .claims import STATUSES as CLAIM_STATUSES  # claim status enum (SPEC §7)
@@ -113,6 +113,10 @@ CHECK_CODES: frozenset[str] = frozenset({
     # claims
     "two-object", "pre-okf02-layout", "corroboration-drift", "under-verified",
     "unaudited-claim", "provenance-open", "unlocatable-recomputation",
+    # stance & exposure (SPEC §7.1)
+    "unpriced-stance", "unsourced-holder", "stored-exposure",
+    "misattributed-citation", "unexamined-position",
+    "losing-to-a-rival", "no-declared-rival",
     # transcripts: pinned passages
     "dangling-excerpt", "excerpt-drift", "unbacked-excerpt",
     # shared causes — one line that explains many symptoms
@@ -178,6 +182,7 @@ def run_doctor(root: Path) -> list[Finding]:
     _check_raw(root, provenance, findings)
     claim_pages = [p for p in by_dir.get("claims", []) if p.fm.get("type") == "Claim"]
     _check_claims(root, claim_pages, source_pages, profile, findings)
+    _check_stance(root, manifest, claim_pages, findings)
     _check_transcripts(root, source_pages, claim_pages, findings)
     _check_forecasts(root, by_dir, findings)
     _check_provenance_open(root, manifest, claim_pages, source_pages, findings)
@@ -1333,6 +1338,250 @@ def _check_claims(
                     f"verification; link independent sources (`flip claim source add "
                     f"{cid} <src>`), record a check (`flip claim verify {cid} --method "
                     "adversarial`), or set status needs-2nd",
+                    rel,
+                )
+            )
+
+
+# --- stance & exposure (SPEC §7.1) ------------------------------------------------
+
+
+def _check_stance(
+    root: Path,
+    manifest: Manifest | None,
+    claim_pages: list[pages.Page],
+    findings: list[Finding],
+) -> None:
+    """Lint the attitude axis (SPEC §7.1) — and lint it only where it is used.
+
+    Every check here is silent on a claim carrying neither `stances:` nor
+    `tests:`, which is most claims in most notebooks. That is deliberate:
+    the axis is opt-in, and a lint that fires the moment a feature EXISTS
+    teaches operators to tune doctor out (E3) — the thing that makes the
+    findings that matter unreadable. A notebook that never records a stance
+    sees nothing new here.
+
+    Seven findings, in the order they cost you something:
+
+    - `stored-exposure` — a page storing the derived verdict. ERROR always:
+      an exposure at rest is a verdict frozen out of the record it summarizes,
+      and it will be wrong the day the next test lands (the same reason a
+      letter grade is derived, §5.4).
+    - `unpriced-stance` — `pursuing` or `rejecting` with no falsifier. flip
+      refuses to WRITE one, so finding one means the page was hand-edited or
+      arrived from elsewhere, and the notebook is holding a position with no
+      stated way out.
+    - `misattributed-citation` — a claim a severe attribution test found wrong
+      about a source, still citing that source. This is the muse failure as a
+      lint, and the only one here that hardens to ERROR when the notebook
+      closes: shipping a claim whose own record says it misquotes its source
+      is the failure a reader can neither see nor forgive.
+    - `unexamined-position` — the notebook taking a position on a load-bearing
+      claim whose exposure is `bent`. **Both `holding` and `pursuing` count**,
+      and an earlier draft of this check is the reason that has to be said
+      twice: it fired on `holding` only, so switching the stance to `pursuing`
+      silenced the notebook's only warning about untested belief — and
+      `pursuing` was, at the time, a state with no exit. The design had a
+      gradient running downhill toward the one place nothing could reach it.
+      Now the stance changes only the advice, never whether the finding fires,
+      and the single way to clear it is to record a test.
+    - `losing-to-a-rival` — the notebook is still working from a claim a severe
+      test found wrong, while a claim it has itself declared a rival is
+      severely tested. Lakatos's criterion (p.69), reported and never enforced.
+    - `no-declared-rival` — a load-bearing claim being pursued with nothing on
+      record that could have beaten it. The honest limits of this one are in
+      its own message.
+    - `unsourced-holder` — a belief attributed to someone with nothing cited
+      to show they hold it.
+    """
+    closed = manifest is not None and manifest.status in CLOSED_STATUSES
+    exposures = {
+        str(p.fm.get("id")): stance.derive_exposure(p.fm)
+        for p in claim_pages if p.fm.get("id")
+    }
+    for page in claim_pages:
+        fm = page.fm
+        records = stance.stance_records(fm)
+        tests = stance.test_records(fm)
+        if not records and not tests and not stance.rival_records(fm):
+            continue
+        cid = page.id or "?"
+        rel = _rel(page, root)
+
+        for key in ("exposure", "severity"):
+            if key in fm:
+                findings.append(
+                    _error(
+                        "stored-exposure",
+                        f"claim {cid} stores '{key}' — exposure and severity are DERIVED "
+                        "from the `tests:` record and never written to a page (SPEC §7.1, "
+                        "the rule that makes `grade` a summary rather than an opinion); "
+                        f"drop the key and read it with `flip claim exposure {cid}`",
+                        rel,
+                    )
+                )
+        for record in records:
+            value = str(record.get("stance") or "")
+            if value not in stance.STANCES:
+                findings.append(
+                    _error(
+                        "bad-enum",
+                        f"claim {cid}: stance '{value}' invalid "
+                        f"(one of: {', '.join(stance.STANCES)})",
+                        rel,
+                    )
+                )
+        for record in tests:
+            for name, value, allowed in (
+                ("probe", str(record.get("probe") or ""), stance.TEST_PROBES),
+                ("result", str(record.get("result") or ""), stance.TEST_RESULTS),
+            ):
+                if value not in allowed:
+                    findings.append(
+                        _error(
+                            "bad-enum",
+                            f"claim {cid}: test {name} '{value}' invalid "
+                            f"(one of: {', '.join(allowed)})",
+                            rel,
+                        )
+                    )
+
+        unpriced = stance.unpriced_stances(fm)
+        if unpriced:
+            words = ", ".join(dict.fromkeys(str(r.get("stance")) for r in unpriced))
+            msg = (
+                f"claim {cid} is '{words}' with no falsifier — that is a position taken "
+                "ahead of, or against, the evidence, and the licence to hold one costs a "
+                "written account of what would move you off it. Re-record it: "
+                f"`flip claim stance {cid} {unpriced[0].get('stance')} --because … "
+                "--falsifier …`"
+            )
+            findings.append(
+                _error("unpriced-stance", msg, rel) if fm.get("load_bearing")
+                else _warn("unpriced-stance", msg, rel)
+            )
+
+        exposure = stance.derive_exposure(fm)
+        if exposure == "misattributed":
+            cited = set(claim_source_ids(fm))
+            still = sorted(s for s in stance.failed_attribution_sources(fm) if s in cited)
+            if still:
+                msg = (
+                    f"claim {cid} failed a severe attribution test against "
+                    f"{', '.join(still)} and still cites {'it' if len(still) == 1 else 'them'}"
+                    " — the claim is not what that source says. Restate the claim in the "
+                    f"source's own words, or unlink it (`flip claim source rm {cid} "
+                    f"{still[0]}`) and assert the claim the source does support. This is a "
+                    "citation failure and says nothing about whether the claim is true"
+                )
+                findings.append(
+                    _error("misattributed-citation", msg, rel) if closed
+                    else _warn("misattributed-citation", msg, rel)
+                )
+
+        own = stance.notebook_stance(fm)
+        own_stance = str((own or {}).get("stance") or "")
+        unexamined = (
+            own_stance in ("holding", "pursuing")
+            and exposure == "bent"
+            and bool(fm.get("load_bearing"))
+        )
+        if unexamined:
+            # The two stances get the same finding and different advice. That
+            # is the whole point: an operator who reads "switch to pursuing"
+            # as the fix has been handed a way to make the warning go away
+            # without asking anything of the claim, and a warning with a
+            # cheaper exit than the work it asks for is a warning that trains
+            # people to take the exit.
+            if own_stance == "pursuing":
+                tail = (
+                    "You have written a falsifier for it; run a test that could have come "
+                    "out the other way and record what it found: "
+                    f"`flip claim test {cid} --probe … --error … --would-detect … "
+                    "--if-absent … --against … --result …`. Pursuing a claim with no reading "
+                    "on it is legitimate and is exactly what this axis exists to let you "
+                    "say; pursuing one indefinitely without ever getting a reading is the "
+                    "thing that looks identical from the outside"
+                )
+            else:
+                tail = (
+                    f"Holding is a defended position. Either test it (`flip claim test "
+                    f"{cid} --probe … --error … --would-detect … --if-absent … --against … "
+                    f"--result …`) or say plainly that the evidence has not reached it yet "
+                    f"(`flip claim stance {cid} pursuing --because … --falsifier …`) — "
+                    "which changes the wording of this finding and nothing else, because "
+                    "the claim is exactly as untested either way"
+                )
+            findings.append(
+                _warn(
+                    "unexamined-position",
+                    f"the notebook is '{own_stance}' load-bearing claim {cid} and its "
+                    f"exposure is 'bent' — {stance.bent_reason(fm)}. {tail}",
+                    rel,
+                )
+            )
+
+        rivals = stance.rival_ids(fm)
+        beating = [r for r in rivals if exposures.get(r) == "severely-tested"]
+        if own_stance in ("holding", "pursuing") and exposure in stance.REFUTING_EXPOSURES \
+                and beating:
+            findings.append(
+                _warn(
+                    "losing-to-a-rival",
+                    f"the notebook is '{own_stance}' claim {cid} (exposure: {exposure} — a "
+                    f"severe test found the error), while {', '.join(beating)}, declared to "
+                    f"answer the same question, {'is' if len(beating) == 1 else 'are'} "
+                    "severely tested. That is the comparison Lakatos says a decision to let "
+                    "go actually rests on: 'a degenerating problemshift is no more a "
+                    "sufficient reason to eliminate a research programme than some "
+                    "old-fashioned refutation… such an objective reason is provided by a "
+                    "rival research programme which explains the previous success of its "
+                    f"rival' (p.69). Concede if that is what happened (`flip claim supersede "
+                    f"{cid} --by {beating[0]} --because …`), or say what {cid} still "
+                    f"explains that {beating[0]} does not — flip cannot check the second "
+                    "half of his criterion and is not making this call for you",
+                    rel,
+                )
+            )
+
+        # Q3, the open problem: rival comparison relocates the burden onto
+        # declaring your own competition, and the operator most likely to be
+        # stuck is the least likely to name a rival. This check is the honest
+        # part of what a tool can do about that — it reports a fact about the
+        # RECORD ("you have never named anything that could win"), never a
+        # fact about the world ("there is no alternative"), and its own message
+        # says so. It is a WARN forever and it is suppressed when
+        # `unexamined-position` already fired, because a claim nobody has
+        # tested has a nearer problem than a claim nobody has a challenger for,
+        # and two findings on one line is how a doctor run stops being read.
+        if own_stance == "pursuing" and fm.get("load_bearing") and not rivals \
+                and not unexamined:
+            findings.append(
+                _warn(
+                    "no-declared-rival",
+                    f"the notebook is pursuing load-bearing claim {cid} and has never "
+                    "named a claim that answers the same question. This is a fact about "
+                    "the notebook, not about the world: it does not say no alternative "
+                    "exists, only that nothing on record could ever have won, so no "
+                    f"amount of evidence can make {cid} lose to anything. Write the best "
+                    "alternative you can state — even one you think is wrong — and link "
+                    f"it (`flip claim add \"…\"` then `flip claim rival {cid} <C#> "
+                    "--because \"<the question both answer>\"`). If you genuinely cannot "
+                    "state one, that is worth knowing on its own, and the honest place to "
+                    f"put it is the `--because` on the stance",
+                    rel,
+                )
+            )
+
+        for holder in stance.unsourced_holders(fm):
+            findings.append(
+                _warn(
+                    "unsourced-holder",
+                    f"claim {cid} records a stance held by '{holder}' with nothing cited "
+                    "to show they hold it. That someone believes something is an "
+                    "assertion about them and needs evidence like any other; cite it "
+                    f"(`flip claim stance {cid} … --holder \"{holder}\" --source <id>`), or "
+                    "assert the prevalence as its own claim and cite that",
                     rel,
                 )
             )

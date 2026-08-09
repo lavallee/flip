@@ -7,6 +7,133 @@ versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Stance and exposure — the attitude, separated from the truth-status**
+  (SPEC §7.1). `status` is truth-tracking and right for facts, and it fuses two
+  things a notebook has to keep apart: what a claim's evidential situation is,
+  and what position the notebook takes toward it. The cost of the fusion is
+  concrete — a claim whose cited paper turns out not to contain it and a claim
+  nobody has ever tested both sit outside `verified` and render identically,
+  so a citation failure reads as a hypothesis failure. Three new axes, all
+  optional and all silent in a notebook that does not use them. Every framework
+  sentence below was read against a captured primary and carries its page;
+  where flip departs from a source, SPEC §7.1 says so in flip's own voice
+  rather than borrowing the name.
+  - **`flip claim test <C#>`** records a test that was run against a claim,
+    *including one that found the error* — which `flip claim verify` structurally
+    cannot, because `verified:` is OKF v0.2 §5.2's key and its entries are
+    confirmations. Each record names the `--probe` (`attribution` · `substance`
+    · `scope` — three, because each has a different repair; failing one says
+    nothing about the others), the `--error` it looked for, how it
+    `--would-detect` it, what it would have shown `--if-absent`, what it ran
+    `--against`, and the `--result` (`survived` · `failed` · `inconclusive` ·
+    `untestable`). Append-only.
+  - **A test is `severe` only when it could have come out the other way.** Four
+    authored fields, and each is one sentence of Mayo's: `error`, because a
+    severe test is one the claim "probably would have failed, if false *in a
+    specified manner*" (SIST p.65); `would_detect` and `if_absent`, the two
+    halves of "a very high capability of signaling the error, *if and only if*
+    it is present" (SIST p.16); and `against`, so the thing that did the
+    testing is locatable. A probe that fires whether or not the error is there
+    discriminates nothing, and `--if-absent` is the field that says so.
+  - **`exposure` is derived from that record and never stored**, the same
+    discipline as `derive_grade` and `capture_fidelity`: `bent` ·
+    `severely-tested` · `misattributed` · `refuted` · `untestable`. **`flip
+    claim exposure <C#>`** prints the whole derivation, the twin of `flip grade
+    --explain`, and on a `bent` claim it prints *which* of the three roads into
+    bent was taken — because SIST p.201 asks for "low, along with an
+    explanation as to why", and the explanation is the half that gets dropped.
+  - **`flip claim stance <C#> pursuing|holding|abstaining|rejecting`** records
+    what is *done* with the claim, and by whom. `--because` is always required
+    (a stance word alone is an enum without evidence); `pursuing` and
+    `rejecting` are refused without a **`--falsifier`** — Peirce's verifiability
+    condition, CP 5.197, asking for the prediction that would be "otherwise
+    least likely to be true" (CP 2.89). flip cannot audit whether a falsifier is
+    any good and does not pretend to; it refuses the stance until one is written
+    and asks for the right thing while refusing. The falsifier is the promise,
+    `flip claim test` is the receipt.
+  - **`--holder` defaults to the reserved value `notebook`.** Naming anyone
+    else records a belief the notebook does not share — the notebook's
+    `rejecting` and a population's `holding` on the same page, without either
+    overwriting the other. A widely-held false belief is a causal force whose
+    structure points at interventions, and it belongs in the corpus as data.
+  - **`flip claim rival <C#> <C#> --because …` and `flip claim supersede <C#>
+    --by <C#>`** — the unit of comparison, and the only route to `status:
+    superseded`. Lakatos, p.69: "a degenerating problemshift is no more a
+    sufficient reason to eliminate a research programme than some old-fashioned
+    'refutation' or a Kuhnian 'crisis'… such an objective reason is provided by
+    a rival research programme which explains the previous success of its rival
+    and supersedes it by a further display of heuristic power." Nothing here
+    fires on a timer; a claim is let go of by naming what beat it. `flip claim
+    status <C#> superseded` is now refused, because a bare status change records
+    only that the notebook got tired of a claim.
+  - `flip claim status <C#> verified` is now **refused when the exposure is
+    `misattributed` or `refuted`**: a severe test that went looking for the
+    error and found it outranks any count of sources agreeing, and a plausible
+    citation is exactly what makes a source countable. Tests can only close
+    that gate, never open it — a described test must not be able to verify a
+    notebook against itself.
+  - `flip claim list` gains `--stance` and `--exposure` filters and shows
+    `exposure/stance` on claims that carry the keys; `flip show --claims`, the
+    JSON list and the render-2 export carry them too.
+  - Seven doctor checks, every one silent on a claim carrying none of the three
+    keys: `stored-exposure`, `unpriced-stance`, `misattributed-citation` (a
+    claim still citing the source a severe attribution test found it wrong
+    about — WARN while active, ERROR once done/published), `unexamined-position`
+    (the notebook `holding` **or `pursuing`** a load-bearing claim that reads
+    `bent`), `losing-to-a-rival`, `no-declared-rival`, `unsourced-holder`.
+  - **No credence lives on a claim**, and the changelog entry says so on
+    purpose: the two-object rule stands, and the honest way to price a belief
+    is to open the forecast that would settle it (`bears_on: claim:C#`), which
+    costs a resolution date and an annulment clause.
+- **The §7.1 vocabulary, corrected against its own citations.** The design was
+  built on framework summaries nobody had read against a primary, and an audit
+  of all five summaries used across this project found an error in every one,
+  every error leaning the same way — toward making the framework more
+  permissive than its source. Four corrections landed here, and each **removes**
+  something rather than adding to it; exposure went from seven terms to five and
+  the probe enum from four to three.
+  - `untested` and `weakly-tested` were two rungs of a gradient attributed to
+    Mayo. She has no gradient. SIST p.5 puts "nothing has been done to rule out
+    ways the claim may be false" and a method that "had little or no capability
+    of finding flaws with C even if they exist" into **one** verdict: bad
+    evidence, no test. Both are `bent` now, which is her acronym, and a test's
+    severity is `severe`/`bent` where it was `severe`/`weak` — `weak` read as a
+    rung below severe and invited exactly the ladder she refuses.
+  - **An unrecorded severity rendered as the neutral-sounding `untested`.**
+    SIST p.201: "if it cannot be computed, it's also awful, since the onus on
+    the researcher is to satisfy the minimal requirement for evidence… I'll say
+    it's low, along with an explanation as to why." A claim nobody has tested
+    now reads as the worst state on the axis, with its reason attached wherever
+    the verdict appears — in `flip claim exposure`, in the note printed when a
+    stance is taken on a bent claim, and in the doctor finding.
+  - `contested` is gone. Two severe tests of one probe disagreeing is not a
+    stable middle an operator can sit in; at least one of them is not the test
+    it claims to be, and Mayo is explicit that the readings assume a test "has
+    passed (or would pass) an audit, else these computations go out the window"
+    (SIST p.201). A failed audit is the absence of a reading, so it reads
+    `bent` with that as its stated reason. A failure recorded by a blunt
+    instrument reads `bent` too, for the symmetric half of the same sentence.
+  - **The falsifier gate was justified by the wrong Peirce.** It was charged as
+    "the economy of research", which cannot gate anything: CP 1.136, immediately
+    after "Do not block the way of inquiry", says "there is no positive sin
+    against logic in trying any theory which may come into our heads", and CP
+    7.220 makes cheapness a reason to give a hypothesis *precedence* "even if it
+    be barely admissible for other reasons". Economy is a sort key. The gate is
+    CP 5.197's verifiability condition, and it asks for something sharper than
+    "what would move you" — which is where it meets Mayo's second severity
+    condition coming the other way, and that convergence is the only joint
+    result §7.1 claims.
+- **Fixed a perverse incentive the design's own test suite certified.**
+  `unexamined-position` fired on `holding` and not on `pursuing`, so switching
+  the stance word to `pursuing` was the documented way to silence the
+  notebook's only warning about untested belief — and `pursuing` was terminal,
+  with nothing pointing out of it and no tests required to stay in it. A
+  gradient ran downhill toward the design's blind spot. The finding is now
+  about the claim's exposure rather than the stance word: both positions fire
+  it, the stance changes the advice and nothing else, and the only exit is to
+  record a test that could have come out the other way. `superseded_by` and
+  `rivals:` make `pursuing` non-terminal in the other direction, by giving a
+  pursued claim somewhere to lose to.
 - **`flip add-source --record` — the ladder's terminus, written down** (SPEC
   §5.1). A source that cannot be captured may still have to be *citable*. A
   record capture takes no bytes of the document, because none were reachable;
@@ -122,6 +249,10 @@ versioning follows [Semantic Versioning](https://semver.org/).
   the method; shipping generic folklore that looks like it works would not.
 
 ### Fixed
+- `flip claim list` printed each claim's OKF `sources` entries as raw YAML maps
+  (`{'id': 'P1', 'resource': …, 'title': …}`) instead of source ids, which made
+  the one view built for scanning unscannable at more than one source per
+  claim. It prints ids now, like every other surface.
 - **A fetcher that comes back empty-handed is reporting, not malfunctioning**
   (SPEC §5.1, §5.2). A configured command that exited 0 having written nothing
   was answered with `fetcher for 'paper' wrote nothing to <dest> and emitted no

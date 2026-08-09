@@ -24,6 +24,14 @@ plain 0 reads as "the evidence is thin" when the truth is "flip cannot read
 this judgment". A wrong number is worse than a missing one — only the missing
 one prompts a look.
 
+`status` says what is KNOWN about a claim. Two orthogonal axes say what has
+been asked of it and what the notebook does with it, and both live in
+`stance` (SPEC §7.1): the authored, append-only `stances:` and `tests:`
+lists, and the derived `exposure` computed off the second. The write paths
+are here (`set_stance`, `record_test`) because they need the claim lookup and
+the view regeneration; the vocabulary and every derivation are there, so
+nothing that only wants to READ an exposure has to import this module.
+
 Ownership on a claim page (SPEC §6.6): flip owns the frontmatter keys it
 writes plus two generated body parts — the footnote-marker cluster ending
 the lead paragraph and the footnote-definition lines (both regenerated on
@@ -38,7 +46,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from . import manifest, pages, profiles, transcripts, util
+from . import manifest, pages, profiles, stance, transcripts, util
 from . import sources as sources_mod
 
 STATUSES = (
@@ -330,22 +338,114 @@ def add_claim(
     return pages.Page(path=path, fm=fm, body=body)
 
 
+def _refuse_verified_against_tests(claim_id: str, fm: dict) -> None:
+    """Refuse `verified` on a claim a severe test found wrong (SPEC §7.1).
+
+    The corroboration bar counts sources; it has no way to notice that
+    somebody went looking for the error and found it. A claim can clear the
+    count and still be misattributed — that is precisely the shape of the
+    failure this axis exists for, since a plausible citation is what makes a
+    source *countable* in the first place.
+
+    Tests can only ever CLOSE this gate, never open it: a test record is
+    authored by the same hand that authored the claim, and letting a described
+    test satisfy the bar would let a notebook verify itself by writing a
+    sentence. Blocking is safe in a way that opening is not.
+    """
+    exposure = stance.derive_exposure(fm)
+    if exposure not in stance.REFUTING_EXPOSURES:
+        return
+    failed = [
+        r for r in stance.test_records(fm)
+        if str(r.get("result")) == "failed" and stance.test_severity(r) == "severe"
+    ]
+    probes = ", ".join(dict.fromkeys(str(r.get("probe")) for r in failed))
+    errors = "; ".join(str(r.get("error") or "").strip() for r in failed if r.get("error"))
+    msg = (
+        f"cannot verify {claim_id}: its exposure is '{exposure}' — a severe {probes} test "
+        "went looking for the error and found it, and no count of independent sources "
+        "outvotes that"
+    )
+    if errors:
+        msg += f" (the error found: {errors})"
+    if exposure == "misattributed":
+        cited = stance.failed_attribution_sources(fm)
+        msg += (
+            f"; this is a citation failure, not a verdict on whether the claim is true — "
+            f"restate it in {', '.join(cited) or 'the source'}'s own words, or "
+            f"`flip claim source rm {claim_id} {cited[0] if cited else '<id>'}` and assert "
+            "the claim the source does support"
+        )
+    else:
+        msg += (
+            f"; name the claim that survives what this one failed and concede to it "
+            f"(`flip claim supersede {claim_id} --by <C#>`), or set status needs-2nd and "
+            f"say what the notebook still does with it (`flip claim stance {claim_id} "
+            "pursuing --because … --falsifier …`)"
+        )
+    msg += f". `flip claim exposure {claim_id}` shows the derivation"
+    raise SystemExit(msg)
+
+
+def _refuse_superseded_without_a_successor(claim_id: str, fm: dict) -> None:
+    """Refuse `status: superseded` on a claim that does not say what superseded
+    it (SPEC §7.1).
+
+    Lakatos, p.69: "a degenerating problemshift is no more a sufficient reason
+    to eliminate a research programme than some old-fashioned 'refutation' or a
+    Kuhnian 'crisis'… such an objective reason is provided by a rival research
+    programme which explains the previous success of its rival and supersedes
+    it by a further display of heuristic power." Letting go is comparative. A
+    bare `superseded` is the non-comparative move wearing the comparative
+    word's clothes: it records that the notebook got tired of a claim, and
+    getting tired is exactly what he says is not a reason.
+
+    The practical half is just as strong. A tombstone with no forwarding
+    address makes the next reader re-derive the successor from scratch, and
+    the successor is the only part of the episode worth keeping.
+    """
+    if stance.superseded_by(fm):
+        return
+    raise SystemExit(
+        f"cannot set {claim_id} to 'superseded' directly: superseding is comparative, and "
+        "this would record only that the notebook let go, not what it let go TO. Use "
+        f"`flip claim supersede {claim_id} --by <C#> --because \"<what both claims answer, "
+        "and why the successor wins>\"`, which sets the status, writes the pointer and "
+        "registers the two as rivals in one move. If nothing has replaced it, the honest "
+        f"statuses are 'retracted' (the notebook withdraws it) or 'unconfirmed'; and if it "
+        f"is wrong but still worth keeping, `flip claim stance {claim_id} rejecting "
+        "--because … --falsifier …` keeps it as data"
+    )
+
+
 def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
     """Move a claim to a new status, recomputing independent_corroboration and
     refreshing the `sources` entries + footnote attribution against current
     source slugs.
 
-    "verified" is gated by the notebook profile's verification bar: at least
-    `claim_min_independent` sources with independence == "independent", or —
-    when `claim_grade_a_suffices` — any listed source graded A. Only judged
-    sources count, and a refusal names any cited source flip could not count
-    at all (pre-0.8 vocabulary) so the number is never read as an evidence
-    verdict. Refusal writes nothing. Returns the updated page.
+    Two statuses are gated by the attitude axis (SPEC §7.1). `superseded` is
+    refused unless the page already names its successor, because letting go is
+    comparative (Lakatos p.69) — `flip claim supersede` is the way in.
+
+    "verified" is gated twice. First by the claim's own test record: a claim
+    whose exposure is `misattributed` or `refuted` is refused
+    before the count is even taken, because a severe test that found the error
+    is a stronger fact than any number of sources agreeing. Then by the
+    notebook profile's verification bar: at least `claim_min_independent`
+    sources with independence == "independent", or — when
+    `claim_grade_a_suffices` — any listed source graded A. Only judged sources
+    count, and a refusal names any cited source flip could not count at all
+    (pre-0.8 vocabulary) so the number is never read as an evidence verdict.
+    Refusal writes nothing. Returns the updated page.
     """
     root = util.require_notebook_root(root)
     if status not in STATUSES:
         raise SystemExit(f"invalid claim status '{status}' (one of: {', '.join(STATUSES)})")
     page = _find_claim(root, claim_id)
+    if status == "verified":
+        _refuse_verified_against_tests(claim_id, page.fm)
+    if status == "superseded":
+        _refuse_superseded_without_a_successor(claim_id, page.fm)
     # Refs drive regeneration (they carry the pinned passages); ids drive the
     # evidence bar. Regenerating from ids alone silently unpinned every
     # excerpt the moment a claim changed status.
@@ -558,19 +658,368 @@ def verify_claim(
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 
+def set_stance(
+    root: Path,
+    claim_id: str,
+    stance_value: str,
+    because: str,
+    holder: str = stance.NOTEBOOK_HOLDER,
+    falsifier: str | None = None,
+    sources: list[str] | None = None,
+) -> tuple[pages.Page, list[str]]:
+    """Record a stance on a claim (SPEC §7.1): append a {stance, holder,
+    because, falsifier?, sources?, at, by} record to the `stances:` list.
+
+    Append-only, like `verified:` — a stance is an act with a date and an
+    actor, and the fact that the notebook used to think otherwise is usually
+    the most interesting thing on the page.
+
+    `because` is always required: a stance without its reasoning is an enum
+    without evidence, which is the error `pipeline` already learned. A
+    `falsifier` is required for `pursuing` and `rejecting` — the two stances
+    that run ahead of, or against, the evidence.
+
+    That requirement is Peirce's verifiability condition and NOT, as an earlier
+    draft of this design claimed, his economy of research. Economy cannot gate
+    anything: CP 1.136, immediately after "Do not block the way of inquiry",
+    says "there is no positive sin against logic in trying any theory which may
+    come into our heads", and CP 7.220 makes cheapness a reason to give a
+    hypothesis *precedence*, not a bar to clear. What does gate is CP 5.197 —
+    a hypothesis is admissible "provided it be capable of experimental
+    verification, and only insofar as it is capable of such verification" — and
+    what it asks for is sharper than "what would move you": CP 2.89 wants the
+    predictions "otherwise least likely to be true", CP 1.120 that "the best
+    hypothesis… is the one which can be the most readily refuted if it is
+    false." flip cannot check that a falsifier is any of that; it can refuse
+    the stance until one is written, and it can ask for the right thing in the
+    flag help and in the refusal.
+
+    `holder` defaults to the reserved value `notebook` — the notebook's own
+    position. Any other holder records that SOMEONE ELSE takes this position,
+    which is how a belief the notebook rejects gets kept as data rather than
+    argued with. Returns (page, warnings), where warnings name foreign holders
+    with nothing cited to show they hold it: "people believe X" is an
+    assertion about people and deserves a source like any other.
+    """
+    root = util.require_notebook_root(root)
+    if stance_value not in stance.STANCES:
+        raise SystemExit(
+            f"invalid stance '{stance_value}' (one of: {', '.join(stance.STANCES)}); "
+            "the stance says what is DONE with the claim — `status` still says what is "
+            "known about it, and the two are deliberately independent"
+        )
+    because = (because or "").strip()
+    if not because:
+        raise SystemExit(
+            f"a stance needs --because: '{stance_value}' on its own is an enum without "
+            "evidence, and the next reader (usually you) needs the reasoning that made "
+            "it the right position, not just the word"
+        )
+    holder = (holder or stance.NOTEBOOK_HOLDER).strip()
+    if not holder:
+        raise SystemExit(
+            "empty --holder; name who takes this position, or omit the flag for the "
+            f"notebook's own stance (the reserved holder '{stance.NOTEBOOK_HOLDER}')"
+        )
+    falsifier = (falsifier or "").strip()
+    if stance_value in stance.PRICED_STANCES and not falsifier:
+        raise SystemExit(
+            f"'{stance_value}' needs --falsifier: it is a position taken ahead of, or "
+            "against, the evidence, and a hypothesis is admissible only insofar as it is "
+            "capable of experimental verification (Peirce, CP 5.197). Do not write down "
+            "the vaguest thing that would unsettle you — write the observation this "
+            "position predicts that would be LEAST likely to come out that way if the "
+            "position were wrong (CP 2.89), because that is the only kind whose failure "
+            f"decides anything. Then run it: `flip claim test {claim_id} …`, and the "
+            "exposure will say what it found. (`holding` and `abstaining` need no "
+            "falsifier: they track the evidence, so the evidence is already their exit.)"
+        )
+    page = _find_claim(root, claim_id)
+    record: dict = {
+        "stance": stance_value,
+        "holder": holder,
+        "because": because,
+    }
+    if falsifier:
+        record["falsifier"] = falsifier
+    refs = [str(s).strip() for s in pages.as_list(sources) if str(s).strip()]
+    if refs:
+        record["sources"] = refs
+    record["at"] = util.utc_now()
+    record["by"] = util.detect_actor()
+    records = pages.as_list(page.fm.get("stances"))
+    records.append(record)
+    page.fm["stances"] = records
+    pages.write_page(page.path, page.fm, page.body)
+    manifest.touch_updated(root)
+    _regenerate_views(root)
+    updated = pages.Page(path=page.path, fm=page.fm, body=page.body)
+    return updated, stance.unsourced_holders(page.fm)
+
+
+def record_test(
+    root: Path,
+    claim_id: str,
+    probe: str,
+    error: str,
+    result: str,
+    would_detect: str | None = None,
+    if_absent: str | None = None,
+    against: list[str] | None = None,
+    note: str | None = None,
+) -> pages.Page:
+    """Record a test against a claim (SPEC §7.1): append a {probe, error,
+    would_detect?, if_absent?, result, against?, note?, at, by} record to
+    `tests:`.
+
+    This is the axis `verified:` cannot carry. `verified:` is OKF v0.2 §5.2's
+    key and OKF defines its entries as *verification* events — a test that
+    found the error is not a verification, and writing one there would make
+    every OKF consumer read a refutation as a confirmation. So failures live
+    in flip's own `tests:` list, append-only, and the two keys stay honest.
+
+    `probe` names WHICH error class was looked for, and that is the whole
+    reason the axis exists: an attribution failure ("the paper does not say
+    this") and a substance failure ("the world is not like this") are
+    different findings with different repairs, and a notebook that renders
+    them identically will read one as the other.
+
+    `error`, `would_detect`, `if_absent` and `against` are what make a test
+    severe — see `stance.severity_gaps` for which sentence of Mayo's each one
+    is. Only `error` is required at the write path, because a bent test
+    honestly recorded is worth more than no record and because refusing the
+    write would just get the fields filled in with noise. The other three are
+    what a survival needs before it means anything, and `flip claim exposure`
+    names every one that is missing, on every test that is missing it.
+
+    `if_absent` is the field an earlier draft of this design did not have, and
+    its absence was a real hole: severity's capability condition is "a very
+    high capability of signaling the error, **if and only if** it is present"
+    (SIST p.16), and a probe with no answer to "what would this have shown had
+    the error not been there?" may well be one that fires either way — which
+    discriminates nothing, however carefully it was run.
+    """
+    root = util.require_notebook_root(root)
+    if probe not in stance.TEST_PROBES:
+        raise SystemExit(
+            f"invalid probe '{probe}' (one of: {', '.join(stance.TEST_PROBES)}); the probe "
+            "names the class of error the test went looking for, and failing one says "
+            "nothing about the others"
+        )
+    if result not in stance.TEST_RESULTS:
+        raise SystemExit(
+            f"invalid test result '{result}' (one of: {', '.join(stance.TEST_RESULTS)})"
+        )
+    error = (error or "").strip()
+    if not error:
+        raise SystemExit(
+            "a test needs --error naming what it went looking for. A test with no stated "
+            "error is not a test — it is a reading, and it cannot be severe, because "
+            "severity is always severity FOR a particular way of being wrong"
+        )
+    page = _find_claim(root, claim_id)
+    record: dict = {"probe": probe, "error": error}
+    detect = (would_detect or "").strip()
+    if detect:
+        record["would_detect"] = detect
+    absent = (if_absent or "").strip()
+    if absent:
+        record["if_absent"] = absent
+    record["result"] = result
+    refs = [str(a).strip() for a in pages.as_list(against) if str(a).strip()]
+    if refs:
+        record["against"] = refs
+    if note:
+        record["note"] = note
+    record["at"] = util.utc_now()
+    record["by"] = util.detect_actor()
+    records = pages.as_list(page.fm.get("tests"))
+    records.append(record)
+    page.fm["tests"] = records
+    pages.write_page(page.path, page.fm, page.body)
+    manifest.touch_updated(root)
+    _regenerate_views(root)
+    return pages.Page(path=page.path, fm=page.fm, body=page.body)
+
+
+def _append_rival(page: pages.Page, other_id: str, because: str) -> bool:
+    """Add `other_id` to one page's `rivals:` list unless it is already there.
+    Returns whether anything changed. Caller writes the page."""
+    if other_id in stance.rival_ids(page.fm):
+        return False
+    records = pages.as_list(page.fm.get("rivals"))
+    records.append(
+        {
+            "claim": other_id,
+            "because": because,
+            "at": util.utc_now(),
+            "by": util.detect_actor(),
+        }
+    )
+    page.fm["rivals"] = records
+    return True
+
+
+def declare_rivals(root: Path, claim_id: str, other_id: str, because: str) -> list[pages.Page]:
+    """Declare two claims rivals — they answer the same question (SPEC §7.1).
+
+    This is the unit of comparison the design otherwise lacks. A stance sits on
+    one claim, so "C7 is doing worse than C12" means nothing until something
+    says the two are answering the same question, and no tool can infer that:
+    two claims can share every source and answer different questions, or share
+    none and answer the same one. So it is authored, and `because` carries the
+    question in the operator's words.
+
+    Written to BOTH pages. A comparison only one side can see is not a
+    comparison — and the practical failure of a one-way link is that the
+    incumbent claim, which is the page anyone worried about the incumbent
+    opens, is the one that stays silent about its challenger.
+
+    Lakatos, p.69, is the reason this exists at all: an objective reason to let
+    go of a programme "is provided by a rival research programme which explains
+    the previous success of its rival and supersedes it by a further display of
+    heuristic power." Elimination is comparative. flip cannot check the
+    "explains the previous success" half — that is a judgment about content —
+    so doctor reports the comparison and never makes the call.
+    """
+    root = util.require_notebook_root(root)
+    because = (because or "").strip()
+    if not because:
+        raise SystemExit(
+            "declaring two claims rivals needs --because naming the question they both "
+            "answer. Without it the link is unreadable six months later and unfalsifiable "
+            "now: two claims can share every source and answer different questions, so "
+            "flip cannot work the question out and will not guess at it"
+        )
+    if claim_id == other_id:
+        raise SystemExit(
+            f"{claim_id} cannot be its own rival; name the other claim that answers the "
+            "same question (`flip claim list` to find it, `flip claim add` if it does not "
+            "exist yet — an unwritten alternative is the one that never wins)"
+        )
+    page = _find_claim(root, claim_id)
+    other = _find_claim(root, other_id)
+    changed = [p for p in (page, other) if _append_rival(
+        p, other_id if p is page else claim_id, because)]
+    if not changed:
+        raise SystemExit(
+            f"{claim_id} and {other_id} are already declared rivals; `flip claim exposure "
+            f"{claim_id}` shows how the two compare on the evidence"
+        )
+    for p in changed:
+        pages.write_page(p.path, p.fm, p.body)
+    manifest.touch_updated(root)
+    _regenerate_views(root)
+    return [pages.Page(path=p.path, fm=p.fm, body=p.body) for p in (page, other)]
+
+
+def supersede_claim(
+    root: Path, claim_id: str, successor_id: str, because: str
+) -> tuple[pages.Page, str]:
+    """Concede a claim to its successor: write `superseded_by`, register the
+    two as rivals, and set `status: superseded` (SPEC §7.1).
+
+    The only route to `superseded`, because Lakatos's elimination criterion is
+    comparative (p.69) and a bare status change is the non-comparative move
+    wearing the comparative word. You do not let go because a claim has been
+    embarrassing for long enough; you let go when you can name what beats it.
+
+    Returns (page, note) where `note` is a warning about the comparison when
+    there is one to make — most usefully when the successor is no better tested
+    than the claim it is replacing, which is a swap rather than a supersession
+    and is worth seeing before it is written rather than after. It is a note
+    and not a refusal: Lakatos's criterion also requires that the successor
+    explain the predecessor's successes, which flip has no access to, so the
+    operator may perfectly well know something the exposure comparison does
+    not.
+    """
+    root = util.require_notebook_root(root)
+    if claim_id == successor_id:
+        raise SystemExit(f"{claim_id} cannot supersede itself")
+    page = _find_claim(root, claim_id)
+    successor = _find_claim(root, successor_id)
+    because = (because or "").strip()
+    if not because:
+        raise SystemExit(
+            f"superseding needs --because saying what {claim_id} and {successor_id} both "
+            "answer and why the successor wins. That sentence is the whole content of the "
+            "move — the status change is just bookkeeping — and it is what tells the next "
+            "reader whether to trust the swap or reopen it"
+        )
+    old = stance.superseded_by(page.fm)
+    if old and old != successor_id:
+        raise SystemExit(
+            f"{claim_id} already records {old} as its successor. Superseding twice would "
+            f"lose the chain; supersede {old} with {successor_id} instead, so the notebook "
+            "keeps the order the positions were let go of in"
+        )
+    _append_rival(page, successor_id, because)
+    if _append_rival(successor, claim_id, because):
+        pages.write_page(successor.path, successor.fm, successor.body)
+    page.fm["superseded_by"] = successor_id
+    pages.write_page(page.path, page.fm, page.body)
+    updated = set_claim_status(root, claim_id, "superseded")
+
+    mine = stance.derive_exposure(page.fm)
+    theirs = stance.derive_exposure(successor.fm)
+    note = ""
+    if theirs != "severely-tested":
+        note = (
+            f"note: {successor_id}'s exposure is '{theirs}', so nothing on record says it "
+            f"survives what {claim_id} ('{mine}') failed. That is a swap, not yet a "
+            "supersession — a degenerating problemshift is no more a sufficient reason to "
+            "eliminate a claim than an old-fashioned refutation (Lakatos p.69); the "
+            f"objective reason is a rival that wins. Test it: `flip claim test "
+            f"{successor_id} --probe … --error … --would-detect … --if-absent … --against "
+            "… --result …`"
+        )
+    return updated, note
+
+
 def _id_sort_key(fm: dict) -> tuple:
     m = re.match(r"^([A-Z]+)(\d+)$", str(fm.get("id", "")))
     return (0, m.group(1), int(m.group(2))) if m else (1, str(fm.get("id", "")), 0)
 
 
-def list_claims(root: Path, status: str | None = None) -> list[dict]:
-    """All claims as frontmatter dicts (+ slug and root-relative path),
-    optionally filtered by status. Read-only."""
+def list_claims(
+    root: Path,
+    status: str | None = None,
+    stance_value: str | None = None,
+    exposure: str | None = None,
+) -> list[dict]:
+    """All claims as frontmatter dicts (+ slug, root-relative path, and the
+    derived `exposure`), optionally filtered by status, by the notebook's own
+    stance, or by exposure. Read-only.
+
+    `exposure` rides along as a computed view field, next to `slug` and
+    `path` and for the same reason: it is not on the page and must never be
+    written back to one (SPEC §7.1 — verdicts are derived, never stored), but
+    every caller that lists claims wants it, and recomputing it in four places
+    is how the four drift apart.
+    """
     if status is not None and status not in STATUSES:
         raise SystemExit(f"invalid claim status '{status}' (one of: {', '.join(STATUSES)})")
-    out = [
-        {**p.fm, "slug": p.slug, "path": p.path.relative_to(root).as_posix()}
-        for p in _claim_pages(root)
-        if status is None or p.fm.get("status") == status
-    ]
+    if stance_value is not None and stance_value not in stance.STANCES:
+        raise SystemExit(
+            f"invalid stance '{stance_value}' (one of: {', '.join(stance.STANCES)})"
+        )
+    if exposure is not None and exposure not in stance.EXPOSURES:
+        raise SystemExit(
+            f"invalid exposure '{exposure}' (one of: {', '.join(stance.EXPOSURES)})"
+        )
+    out = []
+    for p in _claim_pages(root):
+        if status is not None and p.fm.get("status") != status:
+            continue
+        derived = stance.derive_exposure(p.fm)
+        if exposure is not None and derived != exposure:
+            continue
+        own = stance.notebook_stance(p.fm)
+        if stance_value is not None and (own or {}).get("stance") != stance_value:
+            continue
+        row = {**p.fm, "slug": p.slug, "path": p.path.relative_to(root).as_posix()}
+        row["exposure"] = derived
+        if own:
+            row["stance"] = str(own.get("stance"))
+        out.append(row)
     return sorted(out, key=_id_sort_key)

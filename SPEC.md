@@ -630,6 +630,307 @@ assertion with better manners, and it is common for the *citations* on such a
 claim to be self-reported sources contributing nothing while the actual
 evidence lives in a session page: `against` is how the claim points at it.
 
+### 7.1 Stance and exposure — the attitude, and the test record
+
+`status` is truth-tracking and is right for facts. It cannot say two things a
+reporter's notebook has to say, and both failures are the same failure: it
+fuses **what a claim's evidential situation is** with **what position the
+notebook takes toward it**.
+
+- *Every un-verified claim reads alike.* A claim whose cited paper turns out
+  not to contain it and a claim nobody has ever tested both sit outside
+  `verified` and render identically. They are not the same situation and the
+  next actions are opposite — repair the citation, versus run the experiment.
+  A notebook that flattens them will read a citation failure as a hypothesis
+  failure.
+- *There is no room to hold a position the evidence has not reached.* Pursuing
+  an original line of thinking is neither asserting a fact nor retracting one;
+  it is putting a hypothesis on Peirce's "docket of cases to be tried" (CP
+  5.602), the ordinary way inquiry starts. Nor can the notebook record that
+  someone **else** believes something it takes to be false — and a widely-held
+  false belief is a real causal force whose structure points at interventions,
+  so it is data.
+
+Two orthogonal axes, both optional, both silent in a notebook that does not
+use them:
+
+| axis | key | authored or derived |
+|---|---|---|
+| **exposure** — what has been asked of the claim | `tests:` (authored, append-only) → `exposure` (derived, never stored) | described, then computed |
+| **stance** — what position is taken, and by whom | `stances:` (authored, append-only) | authored |
+| **rivalry** — what answers the same question | `rivals:` (authored) and `superseded_by:` | authored |
+
+#### Reading the sources, and where flip departs from them
+
+Everything below cites a captured primary with a page or paragraph number.
+That is not decoration. An earlier draft of this section attributed to Mayo a
+graded spectrum she does not have and to Peirce an admission gate he explicitly
+denies, and both errors made the design more permissive than its sources. The
+rule the project now runs on: a framework name with no captured quote behind it
+is a lead, never a justification, and where flip departs it says so in its own
+voice.
+
+**Mayo has one failing verdict, not a ladder.** *Statistical Inference as
+Severe Testing* p.5, the weak severity requirement: "One does not have evidence
+for a claim if nothing has been done to rule out ways the claim may be false.
+If data x agree with a claim C but the method used is practically guaranteed to
+find such agreement, and had little or no capability of finding flaws with C
+even if they exist, then we have bad evidence, no test (BENT)." Both halves of
+that sentence — nobody looked, and somebody looked with something blunt — land
+in one verdict. flip's word for it is her acronym: `bent`.
+
+**An unrecorded severity grades low, not neutral.** SIST p.201: "But if it
+cannot be computed, it's also awful, since the onus on the researcher is to
+satisfy the minimal requirement for evidence… If we cannot compute the severity
+even approximately, I'll say it's low, along with an explanation as to why:
+It's low because we don't have a clue how to compute it!" So a claim nobody has
+tested does not render as a blank waiting to be filled in. It renders as the
+worst reading this axis has, and every surface that shows the verdict shows the
+reason with it — the second half of her prescription and the half that is easy
+to drop.
+
+**Severity is relative to a specified error, and the capability condition runs
+both ways.** SIST p.65: an inference is warranted "having passed a severe test
+(a test that C probably would have failed, if false *in a specified manner*)."
+SIST p.16, Arguing from Error: "There is evidence an error is absent to the
+extent that a procedure with a very high capability of signaling the error, *if
+and only if* it is present, nevertheless detects no error." The "only if" is a
+second, separate condition: a probe that fires whether or not the error is
+there discriminates nothing, however carefully it was run.
+
+**Peirce's price is verifiability, not economy.** The economy of research
+cannot gate anything, and reading it as a gate inverts him. CP 1.136, the
+sentence immediately after "Do not block the way of inquiry": "Although it is
+better to be methodical in our investigations, and to consider the economics of
+research, yet there is no positive sin against logic in trying any theory which
+may come into our heads." CP 7.220 makes cheapness a reason to give a
+hypothesis *precedence* in the inductive procedure "even if it be barely
+admissible for other reasons." What does gate is CP 5.197: "Any hypothesis,
+therefore, may be admissible… provided it be capable of experimental
+verification, and only insofar as it is capable of such verification." And it
+asks for something sharper than "what would move you" — CP 2.89: verification
+"must consist in basing upon the hypothesis predictions as to the results of
+experiments, especially those of such predictions as appear to be otherwise
+least likely to be true"; CP 1.120: "The best hypothesis… is the one which can
+be the most readily refuted if it is false. This far outweighs the trifling
+merit of being likely."
+
+**The joint result, and the reason both are cited at all.** Peirce wants the
+prediction that would be least likely to come out right if the hypothesis were
+false. Mayo wants the probe that would not have signalled had the error been
+absent. Those are one condition approached from opposite ends, seventy years
+apart, by people with nothing else in common: **a claim owes an observation
+that comes out differently depending on whether it is right.** `falsifier` on a
+stance is that observation promised; `if_absent` on a test is that observation
+delivered. Nothing else in this section is a joint result and nothing else is
+claimed to be.
+
+**Letting go is comparative.** Lakatos, *Falsification and the Methodology of
+Scientific Research Programmes*, p.69: "a degenerating problemshift is no more a
+sufficient reason to eliminate a research programme than some old-fashioned
+'refutation' or a Kuhnian 'crisis'… such an objective reason is provided by a
+rival research programme which explains the previous success of its rival and
+supersedes it by a further display of heuristic power." Nothing in this section
+fires on a timer. A claim is let go of by naming what beat it.
+
+**Where flip departs from all three, in its own voice.** (1) The probe taxonomy
+is flip's. Mayo has no notion of an attribution error, because in her setting
+the claim and its evidence are the same object; separating "the paper does not
+say this" from "the world is not like this" is this section's own contribution
+and its whole origin. (2) `untestable` is Peirce's admissibility condition (CP
+5.197), not a degree of Mayo's severity: it says the claim as posed does not go
+on the docket. (3) flip checks the *presence* of `error`, `would_detect`,
+`if_absent` and `against`, never their truth — no more than it can check
+`support.method`. A severe test here means somebody wrote four specific things,
+and somebody who writes four plausible lies gets a severe test. (4) Lakatos
+also requires the successor to explain its predecessor's successes; that is a
+judgment about content, so flip reports every rival comparison and enforces
+none of them.
+
+#### The test record
+
+`tests:`, one entry per test run, append-only:
+
+| field | what it is |
+|---|---|
+| `probe` | the class of error looked for: `attribution` (does the cited source contain the proposition?) · `substance` (is it true of the world?) · `scope` (does it hold outside the conditions its evidence covers?) |
+| `error` | the specific way of being wrong. **Required** — severity is severity for a specified error (SIST p.65) |
+| `would_detect` | how the error would have shown up had it been present (SIST p.16, the "if") |
+| `if_absent` | what the probe would have shown *instead*, had the error not been there (SIST p.16, the "and only if") |
+| `result` | `survived` · `failed` · `inconclusive` · `untestable` (the claim *as posed* admits no test) |
+| `against` | what did the testing: a source id, a session page, a script path |
+| `note`, `at`, `by` | documentation |
+
+Three probes, not four. `derivation` was a fourth and is gone: a claim true of
+its inputs that does not follow from them is a real failure, but its repair is
+`substance`'s repair, and an enum value that changes nothing about the next
+action is a word the operator learns for free. The three that remain each have
+a *different* repair — fix the citation, supersede the claim, narrow the claim
+— which is the test a value has to pass to stay.
+
+`tests:` is **not** `verified:`. That key is OKF v0.2 §5.2's and its entries are
+verification *events*, so a test that found the error cannot live there without
+an OKF consumer reading a refutation as a confirmation.
+
+**A test's `severity` is derived**, and it has two values: `severe` when all
+four authored conditions are present and the test reached a verdict, and
+`bent` otherwise. `bent` is Mayo's word and it is deliberately not a softer one
+— an earlier draft called it `weak`, which reads as a rung below severe and
+invites exactly the gradient SIST p.5 refuses. `inconclusive` and `untestable`
+are always bent.
+
+**`exposure` is derived, never stored** (the rule that makes `grade` a summary
+rather than an opinion, §5.4). Five values:
+
+| exposure | means |
+|---|---|
+| `bent` | no severe test on record — nobody looked, or what ran could not have caught the error, or two severe tests of one probe contradict each other so the audit itself failed. One verdict for all three, and the **worst** reading here, not a neutral floor |
+| `severely-tested` | a test that would probably have caught the error ran, and did not catch it. The strongest thing this axis says |
+| `misattributed` | a severe **attribution** test failed: wrong about what a source says, and *silent* on whether the proposition is true |
+| `refuted` | a severe substance or scope test failed: wrong about the world, or about its own reach |
+| `untestable` | an attempt concluded the claim as posed admits no test — Peirce's admissibility, not a degree of testedness |
+
+Precedence: a severe failure with no severe survival on the same probe decides,
+and which probe failed decides the word; a probe that both severely failed and
+severely survived is a failed audit and reads `bent`; then severe survivals;
+then `untestable`; then `bent`. `flip claim exposure <C#>` prints the
+derivation the way `flip grade --explain` does, **including which road into
+`bent` was taken**, because a verdict without its reason is the half of SIST
+p.201 that is easy to ship. A page that **stores** `exposure` or `severity` is
+a doctor ERROR (`stored-exposure`).
+
+Three exposure terms were removed when this section was corrected, and each
+removal is a correction rather than a tidy-up: `untested` and `weakly-tested`
+merged into `bent` because Mayo gives them one verdict, and `contested`
+disappeared because two severe tests disagreeing is not a stable middle an
+operator can sit in — it is a failed audit, and the readings "go out the window"
+(SIST p.201) until somebody says which test was not the test it claimed to be.
+
+#### Stance
+
+`stances:`, append-only, `{stance, holder, because, falsifier?, sources?, at,
+by}` — what is *done* with the claim:
+
+| stance | means | falsifier |
+|---|---|---|
+| `pursuing` | worked from ahead of the evidence, because it would explain something | **required** |
+| `holding` | the notebook's position; it would defend this | optional |
+| `abstaining` | a position considered and deliberately *not* taken — distinct from no stance, which means nobody has decided | optional |
+| `rejecting` | taken to be false, and kept because someone holds it or its failure is informative — **not** `status: retracted`, which withdraws the notebook's own assertion | **required** |
+
+`because` is always required: a stance word alone is an enum without evidence.
+**`pursuing` and `rejecting` cost a `falsifier`**, on the ground given above —
+CP 5.197's verifiability condition, asking for CP 2.89's prediction "otherwise
+least likely to be true", not the economy of research. The rejecting half is
+CP 1.135's corollary read in the other direction: a rejection with no way back
+barricades the road exactly as a dogma does. flip cannot audit whether a
+falsifier is any good, and does not pretend to; it refuses the stance until one
+is written and it asks for the right thing while refusing. The falsifier is the
+promise; `flip claim test` is the receipt.
+
+**`holder` defaults to the reserved value `notebook`.** Any other holder
+records that *someone else* takes this position, which is how a belief the
+notebook rejects is kept as data rather than argued with: the notebook's
+`rejecting` and a population's `holding` sit on one page without overwriting
+each other. The limit is honest and stated: a free-text holder is an assertion
+*about* those people, so `sources` on the record is where the evidence that
+they hold it goes (doctor's `unsourced-holder`), and a **prevalence** — "62% of
+X believe P" — is its own Claim with its own sources and grades, cited from
+here. Stance records who, not how many.
+
+#### Rivalry, and how a claim is let go of
+
+`rivals:` is a list of `{claim, because, at, by}` — other claims the notebook
+has named as answering the same question. It exists because a stance sits on
+one claim, so "C7 is doing worse than C12" is meaningless until something says
+the two are answering the same thing, and no tool can infer that: two claims
+can share every source and answer different questions, or share none and answer
+the same one. `because` carries the question in the operator's words. The link
+is written to **both** pages — a comparison only one side can see is not a
+comparison, and the incumbent is the page anyone worried about the incumbent
+opens.
+
+`superseded_by:` names the claim that won. **`status: superseded` cannot be
+reached any other way:** `flip claim status <C#> superseded` is refused, and
+`flip claim supersede <C#> --by <C#> --because …` writes the pointer, registers
+the rivalry and sets the status in one move. That refusal is Lakatos p.69 as a
+CLI behaviour — a bare status change records only that the notebook got tired
+of a claim, and getting tired is the one reason he says is not a reason. If
+nothing has replaced it, the honest statuses are `retracted` or `unconfirmed`;
+if it is wrong but worth keeping, `rejecting` keeps it as data. Superseding by
+a claim that is not itself severely tested is allowed and *named* in a note:
+that is a swap, and the operator may know something the exposures do not.
+
+#### Interaction with the rest of §7
+
+The two axes are independent of `status` and of each other by construction: a
+claim can be `severely-tested` *and* `rejecting`, or `bent` *and* `pursuing`,
+and both are ordinary. Two interactions are enforced. **`flip claim status <C#>
+verified` is refused when the exposure is `misattributed` or `refuted`** — a
+severe test that went looking for the error and found it is a stronger fact
+than any count of sources agreeing, and a plausible citation is exactly what
+makes a source *countable*. Tests can only ever close that gate, never open it:
+a test record is authored by the same hand that authored the claim, and letting
+a described test satisfy the bar would let a notebook verify itself by writing
+a sentence. And **`superseded` requires a successor**, above.
+
+**No credence lives here**, and the two-object rule is why. Claims carry
+grades, never probabilities (a `probability` on a Claim is doctor ERROR
+`two-object`), and a Forecast earns its number by being *resolvable* — dated,
+with `resolution_criteria` and a mandatory `annul_if`, scored on resolution. A
+credence on a standing claim resolves never, accrues no credibility, and can
+only ever flatter. It would also re-flatten what this section un-flattens:
+0.3 can mean "nobody has looked" or "severely tested and it half-failed", and
+those need different next actions. The honest way to price a belief in a claim
+is to open the forecast that would settle it (`bears_on: claim:C7`), which
+costs a resolution date and an annulment clause.
+
+#### doctor
+
+All seven are silent on a claim carrying none of `stances:`, `tests:` or
+`rivals:` — the axis is opt-in, and a lint that fires because a feature exists
+teaches operators to tune doctor out.
+
+| code | level | fires when |
+|---|---|---|
+| `stored-exposure` | ERROR | a page stores `exposure` or `severity` |
+| `unpriced-stance` | ERROR on load-bearing, else WARN | `pursuing` or `rejecting` with no falsifier (hand-edited: flip refuses to write one) |
+| `misattributed-citation` | WARN active, ERROR once done/published | a claim a severe attribution test found wrong about a source, still citing it |
+| `unexamined-position` | WARN | the notebook is `holding` **or `pursuing`** a load-bearing claim whose exposure is `bent` |
+| `losing-to-a-rival` | WARN | the notebook is still working from a claim a severe test found wrong, while a **declared** rival is `severely-tested` |
+| `no-declared-rival` | WARN | a load-bearing claim is being pursued with nothing on record that could have beaten it |
+| `unsourced-holder` | WARN | a belief attributed to someone with nothing cited to show they hold it |
+
+Plus `bad-enum` on any out-of-vocabulary stance, probe or result.
+
+Two of those deserve their reasoning in the spec rather than only in the code.
+
+**`unexamined-position` fires on both positions on purpose.** An earlier
+version fired on `holding` alone, so an operator could silence the notebook's
+only warning about untested belief by switching the stance word to `pursuing` —
+which at the time was a state with no exit, nothing pointing out of it and no
+tests required to stay in it. The design had an incentive gradient running
+downhill toward its own blind spot, and its test suite certified the gradient.
+The finding is now about the claim's *exposure*; the stance changes the wording
+of the advice and nothing else, and the only way to clear it is to record a
+test that could have come out the other way.
+
+**`no-declared-rival` is a fact about the record, and says so.** Comparative
+elimination relocates the burden onto declaring your own competition, and the
+operator most likely to be stuck is the least likely to name a rival: Lakatos
+could rely on a community to supply rivals, a solo notebook cannot. So the
+check does not claim "there is no alternative" — it cannot know that. It says
+*nothing on record could ever have won*, so no amount of evidence can make this
+claim lose to anything, which is a true statement about the notebook and is the
+condition under which the comparative criterion is inoperable. It is a WARN
+forever, it asks for the best alternative the operator can state *even one they
+think is wrong*, and it is suppressed when `unexamined-position` already fired,
+because a claim nobody has tested has a nearer problem than a claim nobody has
+a challenger for. What it cannot do is make a named rival a real one; a
+placeholder satisfies it, exactly as a ritual falsifier satisfies the stance
+gate, and the answer is the same in both cases — flip records presence, the
+reader judges content, and the record is at least inspectable.
+
 Decisions and questions follow the same shape: `decisions/<slug>.md`
 (`type: Decision` — `question`, decision text, why, `alternatives_rejected`)
 and `questions/<slug>.md` (`type: Question` — `status: open | answered`,

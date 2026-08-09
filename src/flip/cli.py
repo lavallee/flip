@@ -39,6 +39,7 @@ from . import (
     scaffold,
     sessions,
     sources,
+    stance as stance_mod,
     transcripts as transcripts_mod,
     views,
     workspace as workspace_mod,
@@ -943,27 +944,57 @@ def claim_status(claim_id: str, status: str) -> None:
     page = claims.set_claim_status(require_notebook_root(), claim_id, status)
     click.echo(f"{page.id} → {page.fm.get('status', '?')} · "
                f"corroboration: {page.fm.get('independent_corroboration', 0)}")
+    own = stance_mod.notebook_stance(page.fm)
+    if status == "verified" and own and str(own.get("stance")) == "pursuing":
+        click.echo(f"note: the notebook's stance on {page.id} is still 'pursuing' — the "
+                   "pursuit is discharged now that the claim is verified; record the "
+                   f"position it became (`flip claim stance {page.id} holding --because …`)",
+                   err=True)
 
 
 @claim.command("list")
 @click.option("--status", default=None, type=click.Choice(claims.STATUSES),
               help="Only claims in this status.")
+@click.option("--stance", "stance_value", default=None, type=click.Choice(stance_mod.STANCES),
+              help="Only claims the NOTEBOOK takes this stance on (SPEC §7.1).")
+@click.option("--exposure", default=None, type=click.Choice(stance_mod.EXPOSURES),
+              help="Only claims whose derived exposure is this — e.g. --exposure bent for "
+                   "everything no test would have caught an error in, --exposure "
+                   "misattributed for claims wrong about what their source says.")
 @click.option("--json", "as_json", is_flag=True,
-              help="Emit the page frontmatter (+ slug, path) as JSON.")
-def claim_list(status: str | None, as_json: bool) -> None:
-    """List claims, optionally filtered by status (grouped view: `flip show --claims`)."""
-    rows = claims.list_claims(require_notebook_root(), status=status)
+              help="Emit the page frontmatter (+ slug, path, derived exposure) as JSON.")
+def claim_list(status: str | None, stance_value: str | None, exposure: str | None,
+               as_json: bool) -> None:
+    """List claims, optionally filtered by status, stance or exposure.
+
+    The line carries `status` and, where the claim has one, `exposure/stance` —
+    three answers to three different questions. `status` says what is known,
+    `exposure` says what has been asked of it, `stance` says what the notebook
+    does with it. Grouped view: `flip show --claims`.
+    """
+    rows = claims.list_claims(require_notebook_root(), status=status,
+                              stance_value=stance_value, exposure=exposure)
     if as_json:
         click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
         return
     if not rows:
-        click.echo("no claims" + (f" with status '{status}'" if status else " recorded"))
+        filters = [f"{k} '{v}'" for k, v in
+                   (("status", status), ("stance", stance_value), ("exposure", exposure))
+                   if v]
+        click.echo("no claims" + (f" with {' and '.join(filters)}" if filters else " recorded"))
         return
     for r in rows:
         flag = " [load-bearing]" if r.get("load_bearing") else ""
-        srcs = ", ".join(str(s) for s in r.get("sources", [])) or "none"
-        click.echo(f"{r.get('id', '?')} · {r.get('status', '?')}{flag} · "
-                   f"{r.get('description', '')} · sources: {srcs}")
+        # source_ids, not the raw entries: `sources` holds OKF v0.2 maps, and
+        # str()ing one prints a YAML dict into a list view nobody can scan.
+        srcs = ", ".join(claims.source_ids(r)) or "none"
+        line = (f"{r.get('id', '?')} · {r.get('status', '?')}{flag} · "
+                f"{r.get('description', '')} · sources: {srcs}")
+        if r.get("stances") or r.get("tests") or r.get("rivals"):
+            line += f" · {r['exposure']}"
+            if r.get("stance"):
+                line += f"/{r['stance']}"
+        click.echo(line)
 
 
 @claim.group("source", cls=SuggestGroup)
@@ -1038,6 +1069,253 @@ def claim_verify(claim_id: str, method: str, against: tuple[str, ...],
     if method == "independent-sources":
         click.echo("note: independent-sources records the reasoning but does not satisfy "
                    "the verified gate alone — the recomputed source count does", err=True)
+
+
+@claim.command("stance")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.argument("stance_value", metavar="STANCE", type=click.Choice(stance_mod.STANCES))
+@click.option("--because", required=True,
+              help="Why this position, in one or two lines. Always required — a stance "
+                   "word on its own is an enum without evidence.")
+@click.option("--falsifier", default=None,
+              help="The observation this position predicts that would be LEAST likely to "
+                   "come out that way if the position were wrong (Peirce, CP 2.89). "
+                   "REQUIRED for pursuing and rejecting: a hypothesis is admissible only "
+                   "insofar as it is capable of experimental verification (CP 5.197).")
+@click.option("--holder", default=stance_mod.NOTEBOOK_HOLDER, show_default=True,
+              help="Who takes this position. Defaults to the reserved holder 'notebook'; "
+                   "name someone else to record a belief the notebook does not share.")
+@click.option("--source", "source_ids", multiple=True, metavar="REF",
+              help="Evidence that the holder holds it — repeatable. Only meaningful for a "
+                   "foreign holder; doctor warns on one with nothing cited.")
+def claim_stance(claim_id: str, stance_value: str, because: str, falsifier: str | None,
+                 holder: str, source_ids: tuple[str, ...]) -> None:
+    """Record what is DONE with a claim, as opposed to what is known about it.
+
+    The attitude axis (SPEC §7.1), orthogonal to `status` and to `exposure` on
+    purpose:
+
+    \b
+      pursuing    worked from on explanatory promise, ahead of the evidence
+      holding     the notebook's position; it would defend this
+      abstaining  a position considered and deliberately not taken
+      rejecting   taken to be false, and kept because someone holds it
+
+    Append-only: a new stance is added, never edited over, so the record of
+    what the notebook used to think survives. `--holder` is how a widely-held
+    belief the notebook rejects gets kept as data — the notebook's own
+    `rejecting` and someone else's `holding` sit on the same page without
+    either overwriting the other.
+    """
+    page, unsourced = claims.set_stance(
+        require_notebook_root(), claim_id, stance_value, because,
+        holder=holder, falsifier=falsifier, sources=list(source_ids),
+    )
+    exposure = stance_mod.derive_exposure(page.fm)
+    click.echo(f"{page.id} · {stance_value} (held by {holder}) · exposure: {exposure} · "
+               f"{len(stance_mod.stance_records(page.fm))} stance(s) on record")
+    bent = stance_mod.bent_reason(page.fm)
+    if bent and holder == stance_mod.NOTEBOOK_HOLDER and stance_value in ("pursuing", "holding"):
+        click.echo(f"note: {page.id} reads 'bent' — {bent}. Taking a position does not "
+                   "change what the record is worth: the falsifier you just wrote is the "
+                   f"promise, `flip claim test {page.id} …` is the receipt", err=True)
+    for name in unsourced:
+        click.echo(f"warning: nothing cited for '{name}' holding this — that someone "
+                   "believes something is an assertion about them, and it needs evidence "
+                   "like any other. Cite it with --source, or assert the prevalence as "
+                   "its own claim and cite that", err=True)
+
+
+@claim.command("test")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.option("--probe", required=True, type=click.Choice(stance_mod.TEST_PROBES),
+              help="Which class of error you went looking for: attribution (does the "
+                   "source contain this?) · substance (is it true of the world?) · "
+                   "scope (does it hold outside the conditions its evidence covers?). "
+                   "Three, because each one has a different repair.")
+@click.option("--error", required=True,
+              help="The specific way of being wrong this test looked for. Required, and a "
+                   "severity input: a severe test is one the claim would probably have "
+                   "failed 'if false in a specified manner' (Mayo, SIST p.65).")
+@click.option("--result", required=True, type=click.Choice(stance_mod.TEST_RESULTS),
+              help="survived · failed · inconclusive · untestable (the claim as posed "
+                   "admits no test).")
+@click.option("--would-detect", "would_detect", default=None,
+              help="How the error would have shown up had it been there — the 'if it is "
+                   "present' half of the capability condition (SIST p.16).")
+@click.option("--if-absent", "if_absent", default=None,
+              help="What this probe would have shown INSTEAD, had the error not been "
+                   "there — the 'and only if' half (SIST p.16). A probe that fires either "
+                   "way discriminates nothing, however carefully it was run.")
+@click.option("--against", multiple=True, metavar="REF",
+              help="What did the testing — repeatable, and not only source ids: a session "
+                   "id, a script path, or a dataset all belong here.")
+@click.option("--note", default=None, help="What the test found, in the tester's words.")
+def claim_test(claim_id: str, probe: str, error: str, result: str,
+               would_detect: str | None, if_absent: str | None,
+               against: tuple[str, ...], note: str | None) -> None:
+    """Record a test run against a claim — including one that found the error.
+
+    The evidential axis (SPEC §7.1). `flip claim verify` records that
+    something was CONFIRMED and is OKF v0.2's key; a test that found the error
+    is not a confirmation, so it lives in flip's own append-only `tests:` list
+    and can say so plainly.
+
+    What the record buys is the difference between "the paper does not say
+    this" and "the world is not like this" and "nobody has looked" — three
+    situations flip used to render as one non-verified state, with three
+    different next actions. `flip claim exposure <C#>` shows what the record
+    adds up to and why.
+
+    A test is SEVERE when four things are on the record: the error it looked
+    for, how that error would have shown up, what it would have shown had the
+    error been absent, and what did the testing. Anything less is bent — bad
+    evidence, no test — and that is one verdict, not a rung on a ladder.
+    """
+    page = claims.record_test(require_notebook_root(), claim_id, probe, error, result,
+                              would_detect=would_detect, if_absent=if_absent,
+                              against=list(against), note=note)
+    record = stance_mod.test_records(page.fm)[-1]
+    severity = stance_mod.test_severity(record)
+    click.echo(f"{page.id} · {probe} test {result} ({severity}) · exposure: "
+               f"{stance_mod.derive_exposure(page.fm)}")
+    gaps = stance_mod.severity_gaps(record)
+    if severity == "bent" and result in ("survived", "failed") and gaps:
+        flags = ", ".join("--" + g.replace("_", "-") for g in gaps)
+        click.echo(f"note: this test is bent — {flags} not recorded, so flip cannot tell "
+                   "whether it would have caught the error, or whether it would have said "
+                   "anything different if there had been no error to catch. A test that "
+                   "could have missed it, or that fires either way, neither confirms nor "
+                   "refutes", err=True)
+
+
+@claim.command("exposure")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.option("--json", "as_json", is_flag=True, help="Emit the derivation as JSON.")
+def claim_exposure(claim_id: str, as_json: bool) -> None:
+    """Explain what a claim's test record adds up to, and why. Read-only.
+
+    The twin of `flip grade --explain`, and for the same reason: exposure is
+    DERIVED from the `tests:` list and never stored, so a derivation nobody
+    can see is a verdict wearing a computation's clothes. Prints each test
+    with its severity and why it landed there, the rule that fired, and the
+    shortest honest path to a stronger exposure.
+    """
+    root = require_notebook_root()
+    page = pages.find_by_id(root, claim_id)
+    if page is None or str(page.fm.get("type", "")) != "Claim":
+        known = ", ".join(str(r.get("id")) for r in claims.list_claims(root)) or "none yet"
+        raise SystemExit(
+            f"no claim '{claim_id}' in claims/ (known: {known}); add it with `flip claim add`"
+        )
+    x = stance_mod.explain_exposure(page.fm)
+    if as_json:
+        click.echo(json.dumps(x, ensure_ascii=False, indent=2))
+        return
+    click.echo(f"{claim_id} · exposure {x['exposure']} (derived, never stored) · "
+               f"status {page.fm.get('status', '?')}")
+    click.echo(f"  because: {x['reason']}")
+    if x["tests"]:
+        click.echo("  tests on record:")
+        for t in x["tests"]:
+            head = f"    {t['probe']} · {t['result']} · {t['severity']}"
+            click.echo(f"{head} — {t['why']}")
+            if t["error"]:
+                click.echo(f"      looked for: {t['error']}")
+            if t["against"]:
+                click.echo(f"      against: {', '.join(t['against'])}")
+    else:
+        click.echo("  tests on record: none")
+    own = x["stance"]
+    if own:
+        line = f"  notebook stance: {own.get('stance')} — {own.get('because', '')}"
+        click.echo(line)
+        if own.get("falsifier"):
+            click.echo(f"    would be moved by: {own['falsifier']}")
+    else:
+        click.echo("  notebook stance: none recorded (nobody has decided, which is not "
+                   "the same as abstaining)")
+    for other in x["holders"]:
+        cites = ", ".join(str(s) for s in pages.as_list(other.get("sources"))) or "nothing cited"
+        click.echo(f"  held by {other.get('holder')}: {other.get('stance')} — "
+                   f"{other.get('because', '')} [{cites}]")
+    if x["rivals"]:
+        click.echo("  rivals (claims answering the same question):")
+        for rival in x["rivals"]:
+            rid = str(rival.get("claim"))
+            other_page = pages.find_by_id(root, rid)
+            other_exposure = (
+                stance_mod.derive_exposure(other_page.fm) if other_page is not None
+                else "no such claim"
+            )
+            click.echo(f"    {rid} · {other_exposure} — {rival.get('because', '')}")
+    elif x["exposure"] in stance_mod.REFUTING_EXPOSURES:
+        click.echo("  rivals: none declared — nothing on record could have won this")
+    if x["superseded_by"]:
+        click.echo(f"  superseded by: {x['superseded_by']}")
+    click.echo(f"  next: {x['next']}")
+
+
+@claim.command("rival")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.argument("other_id", metavar="RIVAL_ID")
+@click.option("--because", required=True,
+              help="The question both claims answer, in your own words. Required: flip "
+                   "cannot infer it, and two claims can share every source and answer "
+                   "different questions.")
+def claim_rival(claim_id: str, other_id: str, because: str) -> None:
+    """Declare two claims rivals — they answer the same question.
+
+    The unit of comparison (SPEC §7.1). Lakatos, p.69: "a degenerating
+    problemshift is no more a sufficient reason to eliminate a research
+    programme than some old-fashioned 'refutation' or a Kuhnian 'crisis'…
+    such an objective reason is provided by a rival research programme which
+    explains the previous success of its rival and supersedes it by a further
+    display of heuristic power." Letting go is comparative: you let go when
+    something better exists, not when a claim has been embarrassing for long
+    enough. Nothing in flip fires on a timer.
+
+    Written to both pages, because a comparison only one side can see is not
+    a comparison. What flip does with it: `flip claim exposure` shows how the
+    rivals compare on the evidence, doctor names a pursued claim that is
+    losing to one, and doctor names a load-bearing pursued claim that has
+    never declared any.
+    """
+    page, other = claims.declare_rivals(require_notebook_root(), claim_id, other_id, because)
+    left = stance_mod.derive_exposure(page.fm)
+    right = stance_mod.derive_exposure(other.fm)
+    click.echo(f"{page.id} ({left}) ⇄ {other.id} ({right}) · rivals on: {because}")
+    if left == right == "bent":
+        click.echo("note: neither claim has a severe test on record, so there is nothing "
+                   "to compare them on yet. A rivalry between two untested positions is a "
+                   "preference; test one of them and it becomes a result", err=True)
+
+
+@claim.command("supersede")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.option("--by", "successor_id", required=True, metavar="CLAIM_ID",
+              help="The claim that replaces this one.")
+@click.option("--because", required=True,
+              help="What both claims answer, and why the successor wins. This sentence is "
+                   "the content of the move; the status change is bookkeeping.")
+def claim_supersede(claim_id: str, successor_id: str, because: str) -> None:
+    """Concede a claim to the one that replaced it.
+
+    The only route to `status: superseded`, and the reason is Lakatos's
+    elimination criterion (p.69): eliminating a position is comparative, so a
+    bare status change — "this one stopped working out" — is the move he says
+    is not available. Writes `superseded_by`, registers the two claims as
+    rivals, and sets the status, in one go.
+
+    The claim keeps its page and its id forever, as every let-go claim does.
+    What changes is that the next reader arrives at a forwarding address
+    instead of a tombstone.
+    """
+    page, note = claims.supersede_claim(
+        require_notebook_root(), claim_id, successor_id, because)
+    click.echo(f"{page.id} → superseded by {successor_id} · {because}")
+    if note:
+        click.echo(note, err=True)
 
 
 # ---------------------------------------------------------------- sessions

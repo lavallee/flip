@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 from . import claims as claims_mod
-from . import pages
+from . import pages, stance
 from .manifest import load_manifest
 from .util import ROOT_FILE, is_notebook_root, read_jsonl, sha256_file, today, utc_now
 
@@ -322,6 +322,19 @@ def _claim_projection(page: pages.Page, source_fms: list[dict],
             out["value"] = str(fm.get("value"))
             if fm.get("unit"):
                 out["unit"] = str(fm.get("unit"))
+        # Stance and exposure travel only when the notebook used them (SPEC
+        # §7.1). `exposure` is recomputed here rather than copied: it is
+        # derived, so the export is a projection of the record, never a
+        # carrier for a stored verdict.
+        if stance.stance_records(fm) or stance.test_records(fm) or stance.rival_records(fm):
+            out["exposure"] = stance.derive_exposure(fm)
+            out["stances"] = [dict(r) for r in stance.stance_records(fm)]
+            out["tests"] = [
+                {**r, "severity": stance.test_severity(r)} for r in stance.test_records(fm)
+            ]
+            out["rivals"] = stance.rival_ids(fm)
+            if stance.superseded_by(fm):
+                out["superseded_by"] = stance.superseded_by(fm)
     return out
 
 

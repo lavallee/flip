@@ -22,7 +22,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import claims, pages
+from . import claims, pages, stance
 from . import sources as sources_mod
 from .manifest import Manifest, load_manifest, save_manifest
 from .profiles import Profile, load_profile
@@ -195,6 +195,17 @@ def _claim_line(c: dict, with_status: bool = False) -> str:
     sources = claims.source_ids(c)
     parts.append("sources: " + (", ".join(sources) if sources else "none"))
     parts.append(f"corroboration: {c.get('independent_corroboration', 0)}")
+    # The attitude axis rides along only where it is used (SPEC §7.1). A claim
+    # in a notebook that has never recorded a stance, a test or a rivalry says
+    # nothing new, and appending "bent" to every line in every notebook would
+    # make the word mean "ordinary" — which is the inversion this design was
+    # corrected for, arriving from the other direction.
+    if c.get("stances") or c.get("tests") or c.get("rivals"):
+        own = stance.notebook_stance(c)
+        parts.append(
+            stance.derive_exposure(c)
+            + (f"/{own.get('stance')}" if own else "")
+        )
     return " · ".join(parts)
 
 
