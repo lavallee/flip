@@ -58,7 +58,11 @@ _OUTCOMES = {
 
 # bears_on entries are typed edges — the type keeps class purity checkable
 # (a claim citing a forecast without a typed edge draws a doctor finding).
-BEARS_ON_RE = re.compile(r"^(claim|cluster|question):\S+$")
+# `belief:` joined the grammar with the Belief class (SPEC §7.1): "will X's
+# prevalence exceed 40% by 2028" is a bet about believers, resolvable on a
+# survey, and it is the one honest way a forecast can bear on a belief without
+# anything ever counting toward the proposition believed.
+BEARS_ON_RE = re.compile(r"^(claim|cluster|question|belief):\S+$")
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _DESCRIPTION_MAX = 160
@@ -169,8 +173,9 @@ def add_forecast(
     conditions are mandatory: most real forecasts need one, and discovering
     that at resolution time is too late), a probability/confidence outside
     [0, 1], or a `bears_on` entry that isn't a typed ref
-    (claim:/cluster:/question:). `base_rate` stays a string — it carries its
-    own numerator and denominator as stated, never a bare number (SPEC §7).
+    (claim:/cluster:/question:/belief:). `base_rate` stays a string — it
+    carries its own numerator and denominator as stated, never a bare number
+    (SPEC §7).
     """
     root = util.require_notebook_root(root)
     question = _require_text(
@@ -203,7 +208,8 @@ def add_forecast(
         if not BEARS_ON_RE.match(entry):
             raise SystemExit(
                 f"bears_on entry {entry!r} is not a typed ref — every edge names "
-                "its class (claim:<ref>, cluster:<ref>, question:<ref>) so class "
+                "its class (claim:<ref>, cluster:<ref>, question:<ref>, belief:<ref>) "
+                "so class "
                 "purity stays checkable (SPEC §7)"
             )
     vias = [str(s) for s in pages.as_list(resolves_via) if str(s).strip()]

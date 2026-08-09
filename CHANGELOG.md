@@ -7,6 +7,75 @@ versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Beliefs are first-class entities — `beliefs/<slug>.md`, ids `B#`** (SPEC
+  §7.1). *A belief is a claim about believers, not about the world.* "38% of
+  school board members think test scores fell" is measurable, checkable and
+  gradeable; whether scores fell is a different fact with different evidence,
+  and its answer changes nothing about the first. flip had one vocabulary for
+  both, which cost twice. It could not record a belief that contradicts the
+  evidence *as data* — and those are the ones worth custody, because a belief
+  people act on is a live cause whatever the proposition turns out to be. And
+  it could not record holding a hypothesis: everything not-yet-verified landed
+  in one undifferentiated non-verified state, so "a source we captured does
+  not contain the proposition attributed to it" and "nobody has ever tested
+  this" wore the same badge, and a notebook whose *citations* failed an audit
+  read as a notebook whose *thesis* had failed.
+  A Belief page carries two axes that were previously collapsed into one.
+  `status` (`active | dormant | retracted`) is custody of the record of who
+  believes what; `retracted` is the only value asserting an error, the error
+  is in our record of the *believing*, and it requires a note for exactly that
+  reason. There is deliberately no `verified`, `false-positive` or
+  `superseded`: those are verdicts on a proposition. `stance` (`unexamined |
+  contested | supported | contradicted | mixed`) is the notebook's relation to
+  the proposition, moves append-only through `stance_history` with a
+  `because`, and never touches the belief record — a belief the evidence now
+  cuts against is not retracted and not demoted.
+- **Two belief kinds, and the field each one owes.** `attributed` records what
+  someone else holds and must name its **`function`** — what the belief
+  explains, protects, or licenses for the holder. Prevalence sizes the room;
+  function is what an intervention is built from, and the assumption that a
+  wrong belief is an information shortfall curable by supplying facts is the
+  one that reliably fails, since better-informed holders of identity-loaded
+  beliefs are frequently *more* polarized rather than less. `working` records
+  what this notebook holds as a live hypothesis and must name its
+  **`falsified_by`** — the same rule §13's scout profile has demanded per
+  hypothesis since before the class existed. Both refusals say why, and say
+  why the *other* kind is exempt.
+- **A belief never corroborates anything, and flip refuses before writing.**
+  `flip claim add` and `flip claim source add` reject a `B#` citation with the
+  reason ("counting one toward a claim is how \"many people think X\" becomes
+  \"X\"") rather than the useless truth that the id is not in `references/`;
+  doctor's `belief-as-evidence` (ERROR) catches hand edits and foreign tools.
+  `about:` links a belief to the Claim stating the same proposition as a fact
+  about the world and is a deliberately inert pointer — it never moves the
+  claim's status, corroboration, or sources. What *is* graded is the
+  **measurement**: a survey is a source like any other, so `flip belief
+  measure` records `{value, of, as_of, sources}` and
+  `measurement_corroboration` is computed by the same
+  `claims.corroboration_count` the claim bar uses. The key is named apart from
+  `independent_corroboration` on purpose, and every surface that prints the
+  number also prints the sources it could not count.
+- **A belief that turns out true is still a belief.** There is no promotion
+  path, by design: the proposition earns `verified` on its own Claim, the
+  stance moves to `supported`, and the record of who believed it stands
+  unchanged.
+- **`flip belief add|measure|stance|status|about|list`** and **`flip show
+  --beliefs`** — the last being the view the whole split exists for, printing
+  each belief beside what the notebook's own record says about its
+  proposition. Beliefs join the two-object rule as a third column
+  (`belief-two-object` ERROR on `grade`, `probability`, `load_bearing`,
+  `independent_corroboration`, a page-level `sources`, …), and doctor gains
+  `unfunctioned-belief`, `unfalsifiable-belief`, `unmeasured-prevalence`
+  (which explains a zero rather than leaving it standing — zero because nobody
+  judged the sources and zero because the population is the only witness to
+  its own beliefs are different situations), `measurement-drift`,
+  `dangling-about`, `impure-about`, and **`untested-belief`**: a working
+  belief still `active` at stance `unexamined` with nothing that would ever
+  move it. That state is legal and is the point of the class; it is also the
+  state a live hypothesis quietly dies in, so it is named as a standing
+  hypothesis, never as breakage. A forecast may now carry
+  `bears_on: belief:B3` — a bet on prevalence is a bet about believers,
+  resolvable on a survey.
 - **`flip add-source --record` — the ladder's terminus, written down** (SPEC
   §5.1). A source that cannot be captured may still have to be *citable*. A
   record capture takes no bytes of the document, because none were reachable;

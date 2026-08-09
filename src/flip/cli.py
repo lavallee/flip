@@ -1198,20 +1198,25 @@ def transcript_unpin(source_id: str, label: str) -> None:
               help="What went cold: dated sources, open questions, stuck claims.")
 @click.option("--forecasts", "forecasts_flag", is_flag=True,
               help="Open forecasts (due first) and the calibration record.")
+@click.option("--beliefs", "beliefs_flag", is_flag=True,
+              help="Beliefs held, each beside what the record says about its "
+                   "proposition — the hold-both-things view.")
 @click.option("--json", "as_json", is_flag=True, help="Emit the view as JSON.")
-def show(claims_flag: bool, stale_flag: bool, forecasts_flag: bool, as_json: bool) -> None:
+def show(claims_flag: bool, stale_flag: bool, forecasts_flag: bool,
+         beliefs_flag: bool, as_json: bool) -> None:
     """Show a computed view of the notebook; default is the hot view.
 
     The hot view is the resume-here screen: open questions, claims needing
     work, recent log, latest session. Views are computed from the pages and
     ledgers, never stored (SPEC §10).
     """
-    if sum([claims_flag, stale_flag, forecasts_flag]) > 1:
-        raise SystemExit("pass at most one of --claims/--stale/--forecasts")
+    if sum([claims_flag, stale_flag, forecasts_flag, beliefs_flag]) > 1:
+        raise SystemExit("pass at most one of --claims/--stale/--forecasts/--beliefs")
     root = require_notebook_root()
     fn = (views.claims_view if claims_flag
           else views.stale_view if stale_flag
           else views.forecasts_view if forecasts_flag
+          else views.beliefs_view if beliefs_flag
           else views.hot_view)
     out = fn(root, as_data=as_json)
     click.echo(json.dumps(out, ensure_ascii=False, indent=2) if as_json else out)
@@ -2223,7 +2228,7 @@ def forecast() -> None:
               help="How forecastable this domain is at all.")
 @click.option("--bears-on", "bears_on", multiple=True, metavar="TYPE:REF",
               help="Typed edge to what this bet informs (claim:<ref>, "
-                   "cluster:<ref>, question:<ref>); repeatable.")
+                   "cluster:<ref>, question:<ref>, belief:<ref>); repeatable.")
 @click.option("--generated-by", "generated_by", default=None,
               help="What emitted this forecast (a generator name, or a person).")
 @click.option("--horizon", default=None,
@@ -2351,6 +2356,218 @@ def forecast_list(as_json: bool) -> None:
                    f"{r.get('resolves_by', '?')} · "
                    f"p={r.get('probability', '?')}/c={r.get('confidence', '?')} · "
                    f"{r.get('description', '')}")
+
+
+# ---------------------------------------------------------------- belief
+
+
+from . import beliefs as beliefs_mod  # noqa: E402 — appended by section, like forecast
+
+
+@main.group(cls=SuggestGroup)
+def belief() -> None:
+    """Beliefs as pages (beliefs/<slug>.md, ids B#): claims about believers.
+
+    "38% of X hold P" is measurable, checkable and gradeable; whether P is
+    true is a different fact with different evidence, and the answer changes
+    nothing about the first. flip keeps them apart mechanically: a belief
+    never appears in a claim's sources (`flip claim add` refuses it, doctor's
+    `belief-as-evidence` catches hand edits), its `about:` link to the claim
+    stating P is an inert pointer, and only its *measurements* are graded —
+    a survey is a source like any other.
+
+    Two kinds, and their required fields are the difference. `attributed`
+    records what someone else holds and must name its **function** (what the
+    belief explains, protects or licenses for the holder — the field an
+    intervention is built from). `working` records what this notebook holds,
+    as a live hypothesis, and must name its **falsifier**. `flip show
+    --beliefs` is the view that shows a belief beside the record's verdict on
+    what it says.
+    """
+
+
+@belief.command("add")
+@click.argument("proposition")
+@click.option("--kind", "belief_kind", required=True,
+              type=click.Choice(beliefs_mod.BELIEF_KINDS),
+              help="attributed = somebody else holds it (needs --function); "
+                   "working = this notebook holds it as a live hypothesis "
+                   "(needs --falsified-by).")
+@click.option("--holders", default=None,
+              help="Who holds it — a population, a role, a named person. "
+                   "Required for an attributed belief; defaults to the acting "
+                   "actor for a working one.")
+@click.option("--function", default=None,
+              help="What the belief explains, protects, or licenses for the "
+                   "holder. Required on an attributed belief: prevalence sizes "
+                   "the room, function points at an intervention.")
+@click.option("--falsified-by", "falsified_by", default=None,
+              help="What would make this notebook drop it. Required on a "
+                   "working belief — a hypothesis nothing could dislodge is a "
+                   "commitment wearing a hypothesis's clothes.")
+@click.option("--about", default=None, metavar="CLAIM_ID",
+              help="The Claim stating this proposition as a fact about the "
+                   "world. An inert pointer: it never corroborates the claim.")
+@click.option("--stance", default="unexamined", show_default=True,
+              type=click.Choice(beliefs_mod.STANCES),
+              help="This notebook's relation to the proposition — never a "
+                   "verdict on the believing.")
+@click.option("--notes", default=None, help="Caveats, provenance of the observation.")
+def belief_add(proposition: str, belief_kind: str, holders: str | None,
+               function: str | None, falsified_by: str | None, about: str | None,
+               stance: str, notes: str | None) -> None:
+    """Record a belief at status "active", allocating the next B#."""
+    page = beliefs_mod.add_belief(
+        require_notebook_root(), proposition, belief_kind, holders=holders,
+        function=function, falsified_by=falsified_by, about=about, stance=stance,
+        notes=notes,
+    )
+    about_txt = f" · about {page.fm['about']}" if page.fm.get("about") else ""
+    click.echo(
+        f"{page.id} {page.fm['belief_kind']} · active · stance "
+        f"{page.fm['stance']}{about_txt} · held by {page.fm['holders']}"
+    )
+
+
+@belief.command("measure")
+@click.argument("belief_id", metavar="BELIEF_ID")
+@click.option("--value", required=True, metavar="TEXT",
+              help="The number AS STATED, a string — '38%', '3 of 11 board "
+                   "members'; an integer masquerades as the base.")
+@click.option("--of", "of", default=None, metavar="POPULATION",
+              help="The population measured, as the instrument defined it.")
+@click.option("--as-of", "as_of", default=None, metavar="YYYY[-MM]",
+              help="When the measurement is from — not when you read it.")
+@click.option("--source", "sources", multiple=True, required=True, metavar="SOURCE_ID",
+              help="A captured references/ id behind the number (repeatable). "
+                   "A survey is a source like any other.")
+@click.option("--note", default=None, help="Instrument caveats, wording effects.")
+def belief_measure(belief_id: str, value: str, of: str | None, as_of: str | None,
+                   sources: tuple[str, ...], note: str | None) -> None:
+    """Append a prevalence measurement; recomputes measurement_corroboration.
+
+    Append-only, and counted by the same bar as a claim's evidence — judged,
+    independent sources only. What it corroborates is that people hold the
+    proposition, never the proposition.
+    """
+    page, uncountable = beliefs_mod.measure_belief(
+        require_notebook_root(), belief_id, value, of=of, as_of=as_of,
+        sources=list(sources), note=note,
+    )
+    n = len(pages.as_list(page.fm.get("measurements")))
+    line = (
+        f"{page.id} · {n} measurement(s) · "
+        f"{page.fm.get('measurement_corroboration', 0)} independent source(s)"
+    )
+    if uncountable:
+        line += (
+            f" · {', '.join(uncountable)} could not be counted either way "
+            "(pre-0.8 independence vocabulary — run `flip migrate`, then re-judge)"
+        )
+    click.echo(line)
+
+
+@belief.command("stance")
+@click.argument("belief_id", metavar="BELIEF_ID")
+@click.argument("stance", type=click.Choice(beliefs_mod.STANCES))
+@click.option("--because", multiple=True, metavar="REF",
+              help="What moved it — a claim, source, session or forecast ref "
+                   "(repeatable). Refused if it resolves to nothing.")
+@click.option("--note", default=None, help="The reasoning, recorded on the page.")
+def belief_stance(belief_id: str, stance: str, because: tuple[str, ...],
+                  note: str | None) -> None:
+    """Move the notebook's stance on the proposition, append-only.
+
+    Nothing about the belief record changes: the holders still hold it, the
+    measurements still stand. A belief the evidence now cuts against is not
+    retracted and not demoted — if people define situations as real, they are
+    real in their consequences, and that belief is a live cause whatever the
+    proposition turns out to be.
+    """
+    page = beliefs_mod.set_stance(require_notebook_root(), belief_id, stance,
+                                 because=list(because), note=note)
+    history = pages.as_list(page.fm.get("stance_history"))
+    click.echo(
+        f"{page.id} · stance {page.fm['stance']} · {len(history)} stance record(s); "
+        f"status still '{page.fm.get('status', 'active')}' — the believing is "
+        "unchanged"
+    )
+
+
+@belief.command("status")
+@click.argument("belief_id", metavar="BELIEF_ID")
+@click.argument("status", type=click.Choice(beliefs_mod.STATUSES))
+@click.option("--note", default=None,
+              help="Why. Required for 'retracted' — the error being asserted "
+                   "is in our record of the believing, not in the proposition.")
+def belief_status(belief_id: str, status: str, note: str | None) -> None:
+    """Move a belief's record status: active | dormant | retracted.
+
+    Custody of the record of who believes what, and nothing else. There is no
+    'verified' and no 'false-positive' here: those are verdicts on a
+    proposition, and a belief page is not where a proposition is judged.
+    """
+    page = beliefs_mod.set_status(require_notebook_root(), belief_id, status, note=note)
+    click.echo(f"{page.id} → {page.fm['status']} · stance still "
+               f"'{page.fm.get('stance', 'unexamined')}'")
+
+
+@belief.command("about")
+@click.argument("belief_id", metavar="BELIEF_ID")
+@click.argument("claim_id", metavar="CLAIM_ID", required=False)
+@click.option("--clear", is_flag=True, help="Remove the link instead of setting it.")
+def belief_about(belief_id: str, claim_id: str | None, clear: bool) -> None:
+    """Point a belief at the Claim stating its proposition (or --clear it).
+
+    A pointer, deliberately inert: it never changes the claim's status, never
+    adds to its corroboration, and never lets a measurement's sources count
+    toward it. What it buys is that both records are reachable from either
+    side — which is the whole ask.
+    """
+    if clear and claim_id:
+        raise SystemExit("pass a CLAIM_ID or --clear, not both")
+    if not clear and not claim_id:
+        raise SystemExit(
+            "no CLAIM_ID given; name the claim that states this proposition as a "
+            "fact about the world, or pass --clear to remove an existing link"
+        )
+    page = beliefs_mod.link_about(require_notebook_root(), belief_id,
+                                 None if clear else claim_id)
+    target = page.fm.get("about")
+    click.echo(
+        f"{page.id} → about {target} (a pointer; {target} keeps its own sources "
+        "and corroboration)" if target else f"{page.id} · about link cleared"
+    )
+
+
+@belief.command("list")
+@click.option("--kind", "belief_kind", default=None,
+              type=click.Choice(beliefs_mod.BELIEF_KINDS),
+              help="Only beliefs of this kind.")
+@click.option("--stance", default=None, type=click.Choice(beliefs_mod.STANCES),
+              help="Only beliefs at this stance.")
+@click.option("--json", "as_json", is_flag=True,
+              help="Emit the page frontmatter (+ slug, path, about_status) as JSON.")
+def belief_list(belief_kind: str | None, stance: str | None, as_json: bool) -> None:
+    """List beliefs: id · kind · status · stance · holders · proposition."""
+    rows = beliefs_mod.list_beliefs(require_notebook_root(), belief_kind=belief_kind,
+                                    stance=stance)
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        click.echo("no beliefs recorded (beliefs/ is absent or empty)")
+        return
+    for r in rows:
+        about = str(r.get("about") or "")
+        world = f" · about {about}" if about else ""
+        if about and r.get("about_status"):
+            world += f" ({r['about_status']})"
+        click.echo(
+            f"{r.get('id', '?')} · {r.get('belief_kind', '?')} · "
+            f"{r.get('status', 'active')} · stance {r.get('stance', 'unexamined')}"
+            f"{world} · {r.get('holders', 'unrecorded')} · {r.get('description', '')}"
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover

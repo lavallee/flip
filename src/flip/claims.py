@@ -164,6 +164,38 @@ def has_gating_verification(fm: dict) -> bool:
     )
 
 
+def refuse_belief_citations(root: Path, cited_ids: list[str]) -> None:
+    """Refuse any cited id that resolves to a beliefs/ page (SPEC §7.1).
+
+    A belief is a claim about *believers*: "38% of X hold P" is measurable and
+    checkable, and its truth is entirely independent of P's. Citing the belief
+    as evidence for P is the category error in the direction that does damage
+    — a true fact about believing quietly becoming a claim about the world.
+    Every other guard against it runs late (doctor's `belief-as-evidence`);
+    this one runs before anything is written, so nothing has to be un-done.
+
+    Dangling citations stay legal (SPEC §6.1): an id no page carries is a
+    counted dangling cite, not a refusal. Only an id flip can *see* is a
+    belief is refused, because only then does it know the mistake was made.
+    """
+    from . import beliefs as beliefs_mod
+
+    held = beliefs_mod.belief_ids(root)
+    offenders = [s for s in dict.fromkeys(cited_ids) if s in held]
+    if not offenders:
+        return
+    listed = ", ".join(offenders)
+    is_are = "is a belief" if len(offenders) == 1 else "are beliefs"
+    raise SystemExit(
+        f"cannot cite {listed} as a source: that {is_are} (beliefs/), and a belief is "
+        "evidence about BELIEVERS, never about what they believe. Counting one toward "
+        'a claim is how "many people think X" becomes "X". Cite the survey the '
+        "measurement rests on if the measurement is what you want; to link the two "
+        f"records instead, run `flip belief about {offenders[0]} <C#>` — the belief "
+        "points at the claim and corroborates nothing"
+    )
+
+
 def _source_pages_by_id(root: Path) -> dict[str, pages.Page]:
     return {p.id: p for p in pages.iter_pages(root, "references") if p.id}
 
@@ -287,6 +319,7 @@ def add_claim(
         raise SystemExit("empty claim text; state the assertion in one sentence")
     cited = [str(s) for s in pages.as_list(sources)]
     cited_ids = list(_group_refs(cited))  # excerpt refs collapse to their source
+    refuse_belief_citations(root, cited_ids)
     claim_id = pages.allocate_id(root, "C")
     src_by_id = _source_pages_by_id(root)
     entries, defs = _attribution(src_by_id, cited)
@@ -457,6 +490,9 @@ def add_claim_sources(
     page = _find_claim(root, claim_id)
     src_by_id = _source_pages_by_id(root)
     grouped = _group_refs(refs)
+    # Beliefs first: "unknown source id" would be true and useless here — the
+    # id resolves perfectly, to a page that must never count as evidence.
+    refuse_belief_citations(root, list(grouped))
     unknown = [s for s in grouped if s not in src_by_id]
     if unknown:
         known = ", ".join(sorted(src_by_id)) or "none captured yet"

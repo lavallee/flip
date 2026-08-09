@@ -50,6 +50,7 @@ LOG_MD = "log.md"
 _DIR_TITLES = {
     "references": "References",
     "claims": "Claims",
+    "beliefs": "Beliefs",
     "decisions": "Decisions",
     "questions": "Questions",
     "forecasts": "Forecasts",
@@ -363,6 +364,84 @@ def forecasts_view(root: Path, as_data: bool = False) -> str | dict:
     return "\n".join(lines)
 
 
+def beliefs_view(root: Path, as_data: bool = False) -> str | dict:
+    """Beliefs held, and — side by side — what the notebook's own record says
+    about each proposition (SPEC §7.1).
+
+    This is the surface the class exists for: the whole point of separating a
+    belief from the claim it is about is that you can then hold both at once,
+    and holding both is worth nothing if no view ever shows them together. Two
+    columns per row: the belief's own standing (kind · status ·
+    measurement_corroboration) and the notebook's stance, with the linked
+    claim's status printed beside the stance when `about` resolves.
+
+    Working beliefs sort first — a live hypothesis is the thing a returning
+    reader most needs to see is still open — and the count of uncountable
+    measurement sources rides with every corroboration number, for the reason
+    it always does: a wrong number is worse than a missing one.
+    """
+    from . import beliefs as beliefs_mod
+
+    load_manifest(root)  # fail early with an actionable error if this isn't a notebook
+    rows = beliefs_mod.list_beliefs(root)
+    source_fms = [p.fm for p in _pages(root, "references")]
+    for row in rows:
+        uncountable = beliefs_mod.uncountable_measurement_sources(source_fms, row)
+        if uncountable:
+            row["uncountable_measurement_sources"] = uncountable
+    if as_data:
+        return {"beliefs": rows}
+    if not rows:
+        return "no beliefs recorded (beliefs/ is absent or empty)"
+    lines: list[str] = []
+    for want, heading in (("working", "HELD HERE"), ("attributed", "ATTRIBUTED")):
+        group = [r for r in rows if r.get("belief_kind") == want]
+        if not group:
+            continue
+        lines.append(heading)
+        for r in group:
+            stance = str(r.get("stance", "unexamined"))
+            about = str(r.get("about") or "")
+            world = (
+                f"{about} is {r['about_status']}"
+                if about and r.get("about_status")
+                else (f"{about} (unresolved)" if about else "no claim states it")
+            )
+            lines.append(
+                f"  {r.get('id', '?')} · {r.get('status', 'active')} · "
+                f"stance {stance} · {world} · {_trunc(r.get('description', ''))}"
+            )
+            lines.append(f"      held by: {_one_line(r.get('holders', 'unrecorded'))}")
+            reason = r.get("function") or r.get("falsified_by") or ""
+            label = "function" if r.get("function") else "falsified by"
+            if reason:
+                lines.append(f"      {label}: {_trunc(reason)}")
+            measurements = [
+                m for m in pages.as_list(r.get("measurements")) if isinstance(m, dict)
+            ]
+            if measurements:
+                latest = measurements[-1]
+                uncountable = r.get("uncountable_measurement_sources") or []
+                tail = (
+                    f", {len(uncountable)} uncountable ({', '.join(uncountable)})"
+                    if uncountable
+                    else ""
+                )
+                lines.append(
+                    f"      measured: {latest.get('value', '?')} of "
+                    f"{latest.get('of', 'unstated population')} "
+                    f"({latest.get('as_of', 'undated')}) · "
+                    f"{r.get('measurement_corroboration', 0)} independent"
+                    f"{tail} · {len(measurements)} measurement(s) on record"
+                )
+        lines.append("")
+    lines.append(
+        "A belief is a claim about believers: nothing above corroborates the "
+        "proposition it states."
+    )
+    return "\n".join(lines)
+
+
 # --- workspace roster (SPEC §18) ---------------------------------------------
 
 
@@ -636,6 +715,11 @@ def _root_body(root: Path, m: Manifest, events: list[dict]) -> str:
     if "claims" in counts:
         bullets.append(
             f"* [Claims](claims/) - {_count(counts['claims'], 'claim')} with status and citations"
+        )
+    if "beliefs" in counts:
+        bullets.append(
+            f"* [Beliefs](beliefs/) - {_count(counts['beliefs'], 'belief')} held, "
+            "with holders and stance"
         )
     if "decisions" in counts:
         bullets.append(

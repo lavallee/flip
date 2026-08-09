@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import beliefs as beliefs_mod
 from . import pages, workspace
 from . import sources as sources_mod
 from .beat import find_beat_root, load_beat
@@ -61,7 +62,7 @@ LEDGERS = (PROVENANCE, "derived/_derivations.jsonl", "log/log.jsonl", "log/passe
 
 # Entity directories whose pages must carry a compact id; sessions are entity
 # pages too but have no id scheme (SPEC §8), so they are exempt here.
-_ID_DIRS = ("references", "claims", "decisions", "questions", "forecasts")
+_ID_DIRS = ("references", "claims", "beliefs", "decisions", "questions", "forecasts")
 _DIR_PREFIXES: dict[str, tuple[str, ...]] = {
     d: tuple(sorted(p for p, dd in pages.PREFIX_DIR.items() if dd == d)) for d in _ID_DIRS
 }
@@ -113,6 +114,10 @@ CHECK_CODES: frozenset[str] = frozenset({
     # claims
     "two-object", "pre-okf02-layout", "corroboration-drift", "under-verified",
     "unaudited-claim", "provenance-open", "unlocatable-recomputation",
+    # beliefs — a claim about believers, never about the world (SPEC §7.1)
+    "belief-as-evidence", "belief-two-object", "unfunctioned-belief",
+    "unfalsifiable-belief", "unmeasured-prevalence", "measurement-drift",
+    "dangling-about", "impure-about", "untested-belief",
     # transcripts: pinned passages
     "dangling-excerpt", "excerpt-drift", "unbacked-excerpt",
     # shared causes — one line that explains many symptoms
@@ -177,7 +182,9 @@ def run_doctor(root: Path) -> list[Finding]:
     _check_freshness(root, source_pages, profile, findings)
     _check_raw(root, provenance, findings)
     claim_pages = [p for p in by_dir.get("claims", []) if p.fm.get("type") == "Claim"]
+    belief_pages = [p for p in by_dir.get("beliefs", []) if p.fm.get("type") == "Belief"]
     _check_claims(root, claim_pages, source_pages, profile, findings)
+    _check_beliefs(root, belief_pages, claim_pages, source_pages, by_dir, findings)
     _check_transcripts(root, source_pages, claim_pages, findings)
     _check_forecasts(root, by_dir, findings)
     _check_provenance_open(root, manifest, claim_pages, source_pages, findings)
@@ -1338,6 +1345,302 @@ def _check_claims(
             )
 
 
+# --- beliefs: a claim about believers (SPEC §7.1) --------------------------------
+
+
+# Keys that are verdicts on a proposition or on evidence for one. None of them
+# belongs on a Belief page: the belief's own evidence is its measurements, and
+# the proposition is judged on a Claim or never.
+_BELIEF_FORBIDDEN = {
+    "grade": "a source grade — beliefs are not sources; the survey behind a "
+             "measurement is, and it is graded on its own references/ page",
+    "independence": "a source judgment; grade the measurement's source instead",
+    "support": "a source support tuple; it belongs to the measurement's source",
+    "probability": "a forecast's scalar — a bet on the world lives on a Forecast",
+    "confidence": "a forecast's scalar — a bet on the world lives on a Forecast",
+    "load_bearing": "a claim's flag; what rests on evidence is the claim, and a "
+                    "belief is never evidence for its own proposition",
+    "independent_corroboration": "the claim key, meaning 'evidence for this "
+                                 "assertion about the world' — no number on a "
+                                 "belief page ever means that; the belief's own "
+                                 "number is `measurement_corroboration`",
+    "verified": "a claim's verification-event list; what could be verified here "
+                "is the measurement, and it is counted, not attested",
+    "sources": "OKF provenance, which on this page would read as 'sources for "
+               "the proposition'; a belief's evidence hangs off each entry of "
+               "`measurements`, never off the page as a whole",
+}
+
+
+def _check_beliefs(
+    root: Path,
+    belief_pages: list[pages.Page],
+    claim_pages: list[pages.Page],
+    source_pages: list[pages.Page],
+    by_dir: dict[str, list[pages.Page]],
+    findings: list[Finding],
+) -> None:
+    """Belief checks (SPEC §7.1). The separation, mechanized.
+
+    `belief-as-evidence` is the one that matters and the only ERROR that fires
+    on a *claim*: a claim whose `sources` list a `B#` is counting a fact about
+    believers toward a fact about the world. The write paths refuse it
+    (claims.refuse_belief_citations), so reaching doctor means it was written
+    by hand or by another tool — which is exactly the case doctor exists for.
+
+    `belief-two-object` is the mirror, from the belief side: the two-object
+    rule (SPEC §7) already keeps grades off forecasts and probabilities off
+    claims, and beliefs join it with a third column. A grade, a probability, a
+    `load_bearing` flag or an `independent_corroboration` count on a belief
+    page all say the same wrong thing — that the page's proposition has been
+    weighed here.
+
+    The rest are advisory and name the field the kind owes:
+    `unfunctioned-belief` (an attributed belief with no function — prevalence
+    sizes the room, function points at an intervention), `unfalsifiable-belief`
+    (a working belief nothing could dislodge), `unmeasured-prevalence` (a
+    measurement citing nothing judged — capture is custody, not judgment,
+    SPEC §5.4), `measurement-drift` (stored count ≠ recomputed, exactly like
+    `corroboration-drift`), `dangling-about`/`impure-about` (the world-side
+    pointer), and `untested-belief` — a working belief the notebook holds with
+    stance `unexamined` and nothing anywhere that would ever move it.
+    """
+    held = {p.id: p for p in belief_pages if p.id}
+    # 1. The dangerous direction, checked on the claims.
+    for page in claim_pages:
+        cited = [s for s in dict.fromkeys(claim_source_ids(page.fm)) if s in held]
+        if not cited:
+            continue
+        findings.append(
+            _error(
+                "belief-as-evidence",
+                f"claim {page.id or '?'} cites {', '.join(cited)} as a source, but "
+                f"{'that is a belief' if len(cited) == 1 else 'those are beliefs'} "
+                "(beliefs/): a belief is evidence about BELIEVERS, never about what "
+                'they believe, and counting one here is how "many people think X" '
+                f"becomes \"X\". Drop it (`flip claim source rm {page.id or '<C#>'} "
+                f"{cited[0]}`) and link the pair instead (`flip belief about "
+                f"{cited[0]} {page.id or '<C#>'}`); if the measurement is what the "
+                "claim rests on, cite the survey it rests on",
+                _rel(page, root),
+            )
+        )
+    if not belief_pages:
+        return
+
+    claim_names = {p.id for p in claim_pages if p.id}
+    forecast_names = {
+        p.id for p in by_dir.get("forecasts", []) if p.id and p.fm.get("type") == "Forecast"
+    }
+    source_fms = [p.fm for p in source_pages]
+    # Every `belief:` edge a forecast declares — a bet on prevalence is a bet
+    # about believers, and it counts as something that would move the belief.
+    borne_on = {
+        str(entry).partition(":")[2]
+        for p in by_dir.get("forecasts", [])
+        for entry in pages.as_list(p.fm.get("bears_on"))
+        if str(entry).startswith("belief:")
+    }
+
+    for page in belief_pages:
+        bid = page.id or "?"
+        rel = _rel(page, root)
+        fm = page.fm
+        kind = fm.get("belief_kind")
+        if kind is not None and kind not in beliefs_mod.BELIEF_KINDS:
+            findings.append(
+                _error(
+                    "bad-enum",
+                    f"belief {bid}: belief_kind '{kind}' invalid "
+                    f"(one of: {', '.join(beliefs_mod.BELIEF_KINDS)})",
+                    rel,
+                )
+            )
+        stance = fm.get("stance")
+        if stance is not None and stance not in beliefs_mod.STANCES:
+            findings.append(
+                _error(
+                    "bad-enum",
+                    f"belief {bid}: stance '{stance}' invalid "
+                    f"(one of: {', '.join(beliefs_mod.STANCES)})",
+                    rel,
+                )
+            )
+        status = fm.get("status")
+        if status is not None and status not in beliefs_mod.STATUSES:
+            findings.append(
+                _error(
+                    "bad-enum",
+                    f"belief {bid}: status '{status}' invalid (one of: "
+                    f"{', '.join(beliefs_mod.STATUSES)}) — a belief's status is "
+                    "custody of the record of WHO BELIEVES WHAT; verdicts on the "
+                    "proposition ('verified', 'false-positive', 'superseded') live "
+                    "on Claim pages, and the notebook's own relation to the "
+                    "proposition is `stance`",
+                    rel,
+                )
+            )
+        for key, why in _BELIEF_FORBIDDEN.items():
+            if key in fm:
+                findings.append(
+                    _error(
+                        "belief-two-object",
+                        f"belief {bid} carries '{key}' — {why} (the two-object rule "
+                        "extended to beliefs, SPEC §7.1). A belief is a claim about "
+                        "believers; nothing on its page weighs the proposition. "
+                        "Remove the key, and put the proposition in claims/ if it "
+                        f"needs judging (`flip claim add …`, then `flip belief about "
+                        f"{bid} <C#>`)",
+                        rel,
+                    )
+                )
+        if kind == "attributed" and not str(fm.get("function") or "").strip():
+            findings.append(
+                _warn(
+                    "unfunctioned-belief",
+                    f"attributed belief {bid} names no `function` — what it explains, "
+                    "protects, or licenses for the holder. Prevalence sizes the room; "
+                    "function is the field an intervention is built from, and the "
+                    "assumption that a wrong belief is an information shortfall "
+                    "curable by supplying facts is the one that reliably fails on "
+                    "identity-loaded topics. Add it to the page's frontmatter",
+                    rel,
+                )
+            )
+        if kind == "working" and not str(fm.get("falsified_by") or "").strip():
+            findings.append(
+                _warn(
+                    "unfalsifiable-belief",
+                    f"working belief {bid} names no `falsified_by` — what would make "
+                    "this notebook drop it. Holding a hypothesis here costs nothing "
+                    "(it corroborates nothing and gates nothing), which is exactly "
+                    "why the falsifier is the price of admission: without one the "
+                    "page is a commitment wearing a hypothesis's clothes (SPEC §13)",
+                    rel,
+                )
+            )
+        about = str(fm.get("about") or "")
+        if about:
+            if about in held or about in forecast_names:
+                findings.append(
+                    _error(
+                        "impure-about",
+                        f"belief {bid}: about '{about}' points at a "
+                        f"{'belief' if about in held else 'forecast'}, not a Claim — "
+                        "`about` names the record that states this proposition as a "
+                        "fact about the WORLD, and only a Claim gets sources and a "
+                        "verification bar (class purity, SPEC §7). Write the claim "
+                        "and point here",
+                        rel,
+                    )
+                )
+            elif about not in claim_names:
+                findings.append(
+                    _warn(
+                        "dangling-about",
+                        f"belief {bid}: about '{about}' resolves to no claims/ page; "
+                        "add the claim (`flip claim add`) or clear the link "
+                        f"(`flip belief about {bid} --clear`)",
+                        rel,
+                    )
+                )
+        # The measurement is the only thing on this page evidence bears on, and
+        # it is graded exactly like a claim's: judged, independent, deduped.
+        measurements = [
+            m for m in pages.as_list(fm.get("measurements")) if isinstance(m, dict)
+        ]
+        if measurements:
+            recomputed = beliefs_mod.measurement_corroboration(source_fms, fm)
+            stored = fm.get("measurement_corroboration")
+            if stored is not None and stored != recomputed:
+                findings.append(
+                    _warn(
+                        "measurement-drift",
+                        f"belief {bid}: stored measurement_corroboration {stored} != "
+                        f"recomputed {recomputed}; it is computed from the "
+                        "measurements' sources, never hand-set — re-record the "
+                        f"measurement (`flip belief measure {bid} …`) to refresh it",
+                        rel,
+                    )
+                )
+            uncountable = beliefs_mod.uncountable_measurement_sources(source_fms, fm)
+            by_source = {str(s.get("id")): s for s in source_fms}
+            cited = [
+                sid
+                for sid in beliefs_mod.measurement_source_ids(fm)
+                if sid in by_source
+            ]
+            unjudged = [
+                sid
+                for sid in cited
+                if not sources_mod.judged(by_source[sid])
+                and not sources_mod.unmigrated(by_source[sid])
+            ]
+            dependent = [
+                f"{sid} ({by_source[sid].get('independence')})"
+                for sid in cited
+                if sources_mod.judged(by_source[sid])
+                and by_source[sid].get("independence") != "independent"
+            ]
+            if recomputed == 0 and cited:
+                # Never let a zero stand alone. Zero for "nobody has judged
+                # these yet" and zero for "the population is the only witness to
+                # its own beliefs" are different situations with different
+                # fixes, and the second one is often the honest ceiling.
+                msg = (
+                    f"belief {bid} records {len(measurements)} measurement(s) that no "
+                    "judged, independent source supports — a prevalence number is a "
+                    "measurement like any other, and the bar it clears is the claim "
+                    "bar (SPEC §5.4). This is a statement about the measurement, "
+                    "never about the proposition"
+                )
+                if unjudged:
+                    msg += (
+                        f". {', '.join(unjudged)} unjudged, and unjudged sources never "
+                        "corroborate — judge them with `flip grade`"
+                    )
+                if dependent:
+                    msg += (
+                        f". {', '.join(dependent)} recorded as not independent, which "
+                        "for a belief is frequently the honest ceiling: a population "
+                        "reporting its own beliefs is primary evidence that it holds "
+                        "them and self-reported evidence about everything else. Add an "
+                        "independent instrument if one exists, or leave the count at 0 "
+                        "knowing what it means"
+                    )
+                if uncountable:
+                    msg += (
+                        f". {', '.join(uncountable)} "
+                        f"{'carries' if len(uncountable) == 1 else 'carry'} pre-0.8 "
+                        "independence vocabulary and could not be counted either way, "
+                        "so that count understates the evidence rather than measuring "
+                        "it — run `flip migrate`, then re-judge"
+                    )
+                findings.append(_warn("unmeasured-prevalence", msg, rel))
+        if (
+            kind == "working"
+            and str(fm.get("status", "active")) == "active"
+            and str(fm.get("stance", "unexamined")) == "unexamined"
+            and not about
+            and bid not in borne_on
+        ):
+            since = str(fm.get("first_recorded") or "an unrecorded date")
+            findings.append(
+                _warn(
+                    "untested-belief",
+                    f"working belief {bid} has been held since {since} with stance "
+                    "'unexamined', and nothing in this notebook would ever move it — "
+                    "no claim it is `about`, no forecast bearing on it. That is a "
+                    "legal state and it is the point of the class; it is also the "
+                    "state a live hypothesis quietly dies in. Name the test: write "
+                    f"the claim the proposition would become (`flip claim add`, then "
+                    f"`flip belief about {bid} <C#>`), or open a dated bet "
+                    f"(`flip forecast add … --bears-on belief:{bid}`)",
+                    rel,
+                )
+            )
+
+
 # --- transcripts: pinned passages (SPEC §8) --------------------------------------
 
 
@@ -1455,8 +1758,12 @@ def _check_forecasts(
     )
     cluster_names = _ids_and_slugs(cluster_pages)
     forecast_names = _ids_and_slugs(forecast_pages)
+    belief_names = _ids_and_slugs(
+        [p for p in by_dir.get("beliefs", []) if p.fm.get("type") == "Belief"]
+    )
     target_names = {
         "claim": claim_names, "cluster": cluster_names, "question": question_names,
+        "belief": belief_names,
     }
     today = datetime.now(timezone.utc).date().isoformat()
 
@@ -1537,7 +1844,7 @@ def _check_forecasts(
                     _error(
                         "untyped-ref",
                         f"forecast {fid}: bears_on entry '{entry}' is not a typed ref "
-                        "(claim:<ref>, cluster:<ref>, question:<ref>) — every "
+                        "(claim:<ref>, cluster:<ref>, question:<ref>, belief:<ref>) — every "
                         "cross-class edge names its class (SPEC §7)",
                         rel,
                     )

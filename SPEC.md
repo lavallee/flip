@@ -80,6 +80,9 @@ from its local files alone.
 - **Derivation** — a file produced from sources by a recorded process.
 - **Claim** — a discrete assertion the work makes or relies on, linked to
   sources and a verification status.
+- **Belief** — a record that some party *holds* a proposition. A claim about
+  believers, never about the world: its truth and the proposition's are
+  independent facts with independent evidence (§7.1).
 - **Session** — one recorded human/agent working episode.
 - **Render** — a downstream artifact generated from the notebook.
 - **Beat** — an optional grouping layer above notebooks: a standing mission
@@ -97,6 +100,7 @@ from its local files alone.
     <slug>.md              #   type: Source; custody + judgment frontmatter
     index.md               #   generated listing
   claims/<slug>.md         # type: Claim (+ generated index.md)
+  beliefs/<slug>.md        # type: Belief (B#) — claims about believers, §7.1
   decisions/<slug>.md      # type: Decision (+ generated index.md)
   questions/<slug>.md      # type: Question (+ generated index.md)
   forecasts/<slug>.md      # type: Forecast (FC#) / Cluster (CL#) — §7
@@ -508,7 +512,10 @@ Extension vocabulary summary — flip's frontmatter keys beyond OKF v0.2's
 `independence`, `freshness`, `local`, `sha256` (on export), `date`,
 `authors`, `publisher`, `load_bearing`, `independent_corroboration`,
 `first_asserted`, `question`, `alternatives_rejected`, `model`, `tools`,
-`started`, `ended` — plus extension keys *inside* OKF structures: `method`,
+`started`, `ended`, and on beliefs (§7.1) `belief_kind`, `holders`,
+`proposition`, `function`, `falsified_by`, `about`, `stance`,
+`stance_history`, `measurements`, `measurement_corroboration`,
+`first_recorded` — plus extension keys *inside* OKF structures: `method`,
 `against`, and `note` on `verified` events. flip's `status` vocabularies
 (claim and question statuses, notebook lifecycle) extend OKF §5.4's
 advisory `draft|stable|deprecated` values. OKF consumers must preserve and
@@ -645,6 +652,139 @@ lead, while the superseded text is preserved in a `formulations:` history list
 full journey.
 
 
+### 7.1 Beliefs — `beliefs/<slug>.md` (B#)
+
+**A belief is a claim about believers, not about the world.** "38% of school
+board members think test scores fell" is measurable, checkable, and gradeable
+like any other fact; whether scores actually fell is a *different* fact,
+established by different evidence, and its answer changes nothing about the
+first. Recording a belief as a claim conflates the two, and the direction that
+does damage is the one that runs quietly: a true fact about believing
+drifting into a claim about the world.
+
+Two things forced the class. First, beliefs that contradict the record are
+worth custody *as data*. If people define situations as real, they are real in
+their consequences — a false belief is a live causal force whatever the
+proposition turns out to be, and it is the thing an intervention must address.
+Second, the claim statuses could not express holding a hypothesis. Everything
+not-yet-verified landed in one undifferentiated non-verified state, so "a
+source we captured does not contain the proposition attributed to it" and
+"nobody has ever tested this" wore the same badge — and a notebook whose
+*citations* failed an audit read as a notebook whose *thesis* had failed.
+
+```markdown
+---
+type: Belief
+id: B3
+aliases: [B3]
+description: "The muse notebook contains twenty-two claims, four of them superseded"
+belief_kind: attributed
+holders: "the muse notebook's own Handoff section, as of 2026-08-08"
+proposition: "The muse notebook contains twenty-two claims, four of them superseded"
+function: "Lets a returning reader size the audit without recounting — and,
+  being written the day the four supersessions landed, records the notebook's
+  self-image at the moment its citations failed rather than its state now."
+about: C1
+stance: contradicted
+stance_history:
+  - { stance: unexamined, at: 2026-08-08T18:57:15Z, by: human:marc }
+  - { stance: contradicted, at: 2026-08-08T18:57:16Z, by: human:marc,
+      because: [C1, F2], note: "claims/ holds 24 pages, not 22, and five carry
+      status: superseded, not four. The belief record stands unchanged." }
+measurements:
+  - { at: 2026-08-08T18:57:15Z, by: human:marc, value: "1 of 1 handoff summary",
+      of: "the Handoff section of muse's notebook.md", as_of: 2026-08,
+      sources: [F1], note: "notebook.md line 220" }
+measurement_corroboration: 0
+status: active
+first_recorded: 2026-08-08
+generated: { by: human:marc, at: 2026-08-08T18:57:15Z }
+---
+```
+
+**Two axes, kept apart.** `status` is custody of the record of *who believes
+what*: `active | dormant | retracted`. `retracted` is the only value asserting
+an error, and the error it asserts is in our record of the believing —
+misattributed, misread, wrong population — never in the proposition; it
+requires a note for exactly that reason. There is deliberately no `verified`,
+`false-positive` or `superseded` here: those are verdicts on a proposition,
+they live on Claims, and letting them onto a belief page is the category error
+the class exists to prevent. `stance` is the *notebook's* relation to the
+proposition — `unexamined` (the default, and usually the true one) `|
+contested | supported | contradicted | mixed` — and moves append-only through
+`stance_history`, each entry naming what moved it. A belief the record now
+contradicts is not retracted and not demoted; it is a belief with a stance.
+
+**Two kinds, and their required fields are the difference.**
+
+- `attributed` — somebody else holds it. Must name **`holders`** and
+  **`function`**: what the belief explains, protects, or licenses for the
+  holder. Prevalence sizes the room; function is the field an intervention is
+  built from. The assumption that a wrong belief is an information shortfall
+  curable by supplying facts is the one that reliably fails — on
+  identity-loaded topics better-informed holders are frequently *more*
+  polarized, not less — so a percentage is the number that looks actionable
+  and is not.
+- `working` — this notebook holds it, as a live hypothesis. Must name
+  **`falsified_by`**: what would make us drop it. Holding one costs nothing
+  here (it corroborates nothing and gates nothing), which is why the falsifier
+  is the price of admission; §13's scout profile has demanded a named
+  falsifier per hypothesis since before the class existed.
+
+The asymmetry is the honest part. An attributed belief needs no falsifier
+because we are not the ones betting on it, and a working belief needs no
+function because we already know why we are entertaining it — both refusals
+say so. `holders` defaults to the acting actor on a `working` belief.
+
+**A belief never corroborates anything.** `flip claim add` and `flip claim
+source add` refuse a `B#` citation before any write, and doctor's
+`belief-as-evidence` (ERROR) catches what another tool or a hand edit put
+there. `about` names the Claim stating the same proposition as a fact about
+the world, and is a deliberately inert pointer: linking never changes the
+claim's status, never adds to its corroboration, and never lets a
+measurement's sources count toward it. What it buys is that both records are
+reachable from either side — which is the whole ask. It must resolve to a
+Claim (`impure-about` when it points at a belief or forecast — class purity,
+as with a cluster's `inference_link`).
+
+**What *is* graded is the measurement.** A survey is a source like any other:
+captured, judged, and counted by the same implementation the claim bar uses,
+so `measurement_corroboration` is computed from each measurement's `sources`
+and never hand-set (`measurement-drift` when it disagrees). The key is named
+apart from a claim's `independent_corroboration` on purpose — that key means
+"evidence for this assertion about the world", and no number on a belief page
+ever means that. `value` stays a string ("38%", "3 of 11 board members") for
+the reason a claim's does. Zero is explained rather than left standing
+(`unmeasured-prevalence`): zero because nobody judged the sources and zero
+because the population is the only witness to its own beliefs are different
+situations with different fixes, and the second is frequently the honest
+ceiling.
+
+**A belief that turns out true is still a belief.** There is no promotion
+path, by design: the proposition earns `verified` on its own Claim through the
+ordinary machinery, the stance moves to `supported`, and the record of who
+believed it — and when, and what it did for them — stands unchanged. Adding a
+promotion would be the category error running the other way.
+
+Beliefs join the two-object rule as a third column, machine-enforced:
+`belief-two-object` (ERROR) fires on `grade`, `independence`, `support`,
+`probability`, `confidence`, `load_bearing`, `independent_corroboration`,
+`verified`, or a page-level `sources` key — every one of them says the same
+wrong thing, that the page's proposition has been weighed here. The advisory
+findings are `unfunctioned-belief`, `unfalsifiable-belief`, `dangling-about`,
+and **`untested-belief`**: a working belief still `active` at stance
+`unexamined` with nothing that would ever move it — no claim it is `about`, no
+forecast bearing on it. That state is legal and is the point of the class; it
+is also the state a live hypothesis quietly dies in, so doctor names it as a
+standing hypothesis rather than as breakage. A forecast may carry
+`bears_on: belief:B3` — "will prevalence exceed 40% by 2028" is a bet about
+believers, resolvable on a survey, and the one honest way a forecast reaches a
+belief.
+
+`flip belief add|measure|stance|status|about|list` writes them; `flip show
+--beliefs` is the view the split exists for, printing each belief beside what
+the notebook's own record says about its proposition.
+
 ### Forecasts — `forecasts/<slug>.md` (FC#) and clusters (CL#)
 
 A backward notebook fights staleness; a forward notebook **accrues
@@ -751,9 +891,9 @@ quietly widens from one exchange to the whole conversation).
 
 - Every entity has a compact, immutable id in frontmatter: `P#/A#/F#/T#/S#`
   sources (papers / articles / files-datasets / talks / unkinded) · `C#`
-  claims · `D#` decisions · `Q#` questions · `H#` hypotheses. Prefixes are
-  disjoint, so a bare `[A3]` or `[D2]` cite is unambiguous. Ids are never
-  reused, even after retraction.
+  claims · `B#` beliefs · `D#` decisions · `Q#` questions · `H#` hypotheses.
+  Prefixes are disjoint, so a bare `[A3]` or `[D2]` cite is unambiguous. Ids
+  are never reused, even after retraction.
 - **Filenames are slugs; ids resolve through frontmatter.** Prose cites ids
   in brackets (`[A3]`, `[C7]`) — greppable both directions; `flip open A3`
   and any frontmatter scan resolve them. **Honest aliases:** `aliases:
@@ -987,8 +1127,11 @@ flip source retitle <id> "<title>"   # rewrite a capture's title, YAML quoted
 flip log "<text>"                    # append a work-log event (+ regen log.md)
 flip decide|pass|question …          # decisions/questions pages; passed ledger
 flip claim add|status|list …         # claims pages; verification bar enforced
+flip belief add|measure|stance …     # beliefs pages (B#): claims about believers
+          |status|about|list         #   graded measurements, never corroboration (§7.1)
 flip session start|end …             # session pages
-flip show [--hot|--claims|--stale]   # computed views (--json for agents)
+flip show [--hot|--claims|--stale    # computed views (--json for agents)
+          |--forecasts|--beliefs]
 flip open <ref>                      # resolve a ref (A3, recipes:A3) to its page path
 flip resolve <ref> [--json]          # same resolution with provenance: id, handle,
                                      #   path, notebook root/slug, uid, title (§9)

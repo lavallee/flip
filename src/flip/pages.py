@@ -27,7 +27,9 @@ FM_DELIM = "---"
 RESERVED = {"index.md", "log.md"}
 
 # Entity directories and the id-prefix → directory routing (SPEC §9).
-ENTITY_DIRS = ("references", "claims", "decisions", "questions", "forecasts", "sessions")
+ENTITY_DIRS = (
+    "references", "claims", "beliefs", "decisions", "questions", "forecasts", "sessions",
+)
 # Directories scanned when resolving ids: the entity dirs plus analysis/,
 # where H# hypothesis pages live (SPEC §9 — any frontmatter scan resolves
 # ids), plus threads/, where a beat root keeps its TH# thread pages (SPEC
@@ -38,7 +40,7 @@ SCAN_DIRS = (*ENTITY_DIRS, "analysis", "threads")
 PREFIX_DIR = {
     "P": "references", "A": "references", "F": "references",
     "T": "references", "S": "references",
-    "C": "claims", "D": "decisions", "Q": "questions",
+    "C": "claims", "B": "beliefs", "D": "decisions", "Q": "questions",
     "FC": "forecasts", "CL": "forecasts",
     "H": "analysis", "TH": "threads",
 }
