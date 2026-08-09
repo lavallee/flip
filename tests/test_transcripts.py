@@ -207,7 +207,7 @@ def test_linking_a_passage_after_the_fact(root: Path, chat: Path):
     _capture(root, chat)
     transcripts.add_excerpt(root, "T1", "a", 1, 2)
     claims.add_claim(root, "A claim", [])
-    page, added, _warnings = claims.add_claim_sources(root, "C1", ["T1§a"])
+    page, added, _rerolled, _warnings = claims.add_claim_sources(root, "C1", ["T1§a"])
     assert added == ["T1§a"]
     assert claims.source_refs(page.fm) == ["T1§a"]
 

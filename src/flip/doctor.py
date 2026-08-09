@@ -9,8 +9,10 @@ v0.4 check surface: OKF conformance (every entity/concept page parses and
 carries a type; reserved index.md/log.md files stay frontmatter-free),
 id integrity (prefix routing, aliases, duplicates), link rot (dangling
 relative citations — legal in OKF, counted here), corroboration drift and
-under-verified claims (recomputed via claims.corroboration_count; ungraded
-sources never count), stale freshness, orphan custody (pages ↔ raw bytes ↔
+under-verified claims (recomputed via claims.claim_corroboration; ungraded
+sources never count, and a claim citing only what it is ABOUT is measured
+against the attribution test that replaces the bar there — SPEC §7), stale
+freshness, orphan custody (pages ↔ raw bytes ↔
 provenance events), profile minimums with status gating, forced-policy
 mismatches against the flat manifest fields, and — for notebooks graduated
 from a beat (SPEC §14) — that the manifest's `links.beat` still resolves to
@@ -34,7 +36,15 @@ from . import integrations, pages, stance, workspace
 from . import sources as sources_mod
 from .beat import find_beat_root, load_beat
 from .claims import STATUSES as CLAIM_STATUSES  # claim status enum (SPEC §7)
-from .claims import corroboration_count, has_gating_verification, uncountable_sources
+from .claims import (
+    CITATION_ROLES,
+    claim_corroboration,
+    evidence_ids,
+    has_gating_verification,
+    subject_ids,
+    unaudited_subjects,
+    uncountable_sources,
+)
 from .claims import source_ids as claim_source_ids
 
 # Forecast enums and the typed-ref grammar (SPEC §7), from the owning module.
@@ -1411,10 +1421,42 @@ def _check_claims(
                     rel,
                 )
             )
+        # A role flip cannot read is a claim whose citations do not mean what
+        # they say. It reads as `evidence` (claims.citation_role) so a typo can
+        # never quietly excuse a claim from the bar — and it is named here, so
+        # the operator who meant `subject` finds out.
+        for entry in pages.as_list(page.fm.get("sources")):
+            role = str(entry.get("role") or "").strip() if isinstance(entry, dict) else ""
+            if role and role not in CITATION_ROLES:
+                findings.append(
+                    _error(
+                        "bad-enum",
+                        f"claim {cid}: citation role '{role}' invalid "
+                        f"(one of: {', '.join(CITATION_ROLES)}); it is being read as "
+                        "'evidence', so the claim is being held to the corroboration bar "
+                        "whether or not that was the intent",
+                        rel,
+                    )
+                )
         claim_sources = claim_source_ids(page.fm)
-        corroboration = corroboration_count(source_fms, claim_sources)
+        counted = evidence_ids(page.fm)
+        subjects = subject_ids(page.fm)
+        corroboration = claim_corroboration(source_fms, page.fm)
         stored = page.fm.get("independent_corroboration")
-        if stored is not None and stored != corroboration:
+        if stored is not None and corroboration is None:
+            findings.append(
+                _warn(
+                    "corroboration-drift",
+                    f"claim {cid} stores independent_corroboration {stored}, but every "
+                    f"source it cites ({', '.join(subjects)}) is cited as what the claim "
+                    "is ABOUT — there is nothing for the count to count, and a stored "
+                    "number here reads as a verdict on evidence the claim never claimed "
+                    f"to have. Run `flip claim status {cid} {status or 'asserted'}` to "
+                    "drop the key; the axis that applies is an attribution test",
+                    rel,
+                )
+            )
+        elif stored is not None and stored != corroboration:
             findings.append(
                 _warn(
                     "corroboration-drift",
@@ -1461,11 +1503,60 @@ def _check_claims(
                     rel,
                 )
             )
-        if status == "verified" and profile is not None:
-            # Recompute the bar with the shared helper (claims.corroboration_count:
-            # deduped ids, judged + original only); never trust the stored count.
-            # An adversarial/recomputation verification clears the gate too (A2).
-            linked = [by_id[s] for s in dict.fromkeys(claim_sources) if s in by_id]
+        # The audit a subject citation CAN have, and hasn't. Reported wherever
+        # the claim sits in its lifecycle, because unlike the corroboration
+        # nags this one is not waiting on evidence to arrive: the document is
+        # already in custody and the reading is already available. It is also
+        # the anti-abuse half of the citation-role design — a `subject` role
+        # is authored, so it can be used to duck a bar the claim should have
+        # faced, and naming the untaken audit is what makes that visible
+        # rather than merely possible.
+        unaudited = unaudited_subjects(page.fm)
+        if unaudited:
+            findings.append(
+                _warn(
+                    "unaudited-claim",
+                    f"load-bearing claim {cid} cites {', '.join(unaudited)} as the "
+                    f"source(s) it is ABOUT, and no severe attribution test has survived "
+                    f"against {'it' if len(unaudited) == 1 else 'them'}. A second source is "
+                    "not the ask here and never will be — nothing in the world can witness "
+                    "what a document says except the document. What can be asked is whether "
+                    "the claim is right about it, and anyone can re-run that against the "
+                    f"same bytes: `flip claim test {cid} --probe attribution --error "
+                    f'"<what the claim could be getting wrong about {unaudited[0]}>" '
+                    '--would-detect "<how that would have shown up>" --if-absent "<what '
+                    'you would have seen instead>" '
+                    f"--against {unaudited[0]} --result survived|failed`",
+                    rel,
+                )
+            )
+        if status == "verified" and profile is not None and corroboration is None:
+            # The doctor mirror of `_refuse_verified_subject_claim`: a
+            # subject-only claim can never satisfy a bar that counts witnesses,
+            # so demanding one of it would be a finding nobody can clear, and a
+            # lint nobody can clear is one everybody learns to skip. The claim
+            # is under-verified here only when the audit it COULD have is
+            # missing — and the `unaudited-claim` above already says how to
+            # take it, so this one says what the status costs.
+            if unaudited and not has_gating_verification(page.fm):
+                findings.append(
+                    _error(
+                        "under-verified",
+                        f"claim {cid} is 'verified' and cites only what it is ABOUT "
+                        f"({', '.join(subjects)}), with no severe attribution test "
+                        "surviving against it. The corroboration bar is not unmet here, it "
+                        "is inapplicable — so do not add a source to clear this. Record "
+                        f"the test that WAS available (`flip claim test {cid} --probe "
+                        "attribution …`), or set status needs-2nd until somebody has read "
+                        "the document against the claim",
+                        rel,
+                    )
+                )
+        elif status == "verified" and profile is not None:
+            # Recompute the bar with the shared helper (claims.claim_corroboration:
+            # deduped evidence ids, judged + original only); never trust the stored
+            # count. An adversarial/recomputation verification clears the gate too (A2).
+            linked = [by_id[s] for s in dict.fromkeys(counted) if s in by_id]
             has_grade_a = any(sources_mod.derive_grade(fm) == "A" for fm in linked)
             ok = (
                 corroboration >= profile.claim_min_independent
@@ -1481,10 +1572,16 @@ def _check_claims(
                     f"record an adversarial/recomputation check (`flip claim verify "
                     f"{cid} --method adversarial`), or set status needs-2nd"
                 )
+                if subjects:
+                    msg += (
+                        f". NOTE {', '.join(subjects)} "
+                        f"{'is' if len(subjects) == 1 else 'are'} cited as what the claim "
+                        "is ABOUT and is deliberately not in that count"
+                    )
                 # Never let the count stand alone as a verdict on the evidence:
                 # an uncountable source drops out silently and the claim then
                 # fails for a reason that has nothing to do with what it rests on.
-                stale = uncountable_sources(source_fms, claim_sources)
+                stale = uncountable_sources(source_fms, counted)
                 if stale:
                     msg += (
                         f". NOTE {', '.join(stale)} "
@@ -1496,6 +1593,11 @@ def _check_claims(
         elif (
             status == "asserted"
             and corroboration == 0
+            # One unaudited-claim per claim: the subject branch above has
+            # already named the audit this page owes, and repeating the code
+            # with the generic "link independent sources" advice would offer a
+            # cheaper exit than the one that actually applies.
+            and not unaudited
             and not pages.as_list(page.fm.get("verified"))
             # A severe test IS an audit — it went looking for a specific error and
             # either found it or didn't. Reading only corroboration and `verified`
@@ -1642,14 +1744,34 @@ def _check_stance(
         if exposure == "misattributed":
             cited = set(claim_source_ids(fm))
             still = sorted(s for s in stance.failed_attribution_sources(fm) if s in cited)
+            about = set(subject_ids(fm))
             if still:
                 msg = (
                     f"claim {cid} failed a severe attribution test against "
                     f"{', '.join(still)} and still cites {'it' if len(still) == 1 else 'them'}"
-                    " — the claim is not what that source says. Restate the claim in the "
-                    f"source's own words, or unlink it (`flip claim source rm {cid} "
-                    f"{still[0]}`) and assert the claim the source does support. This is a "
-                    "citation failure and says nothing about whether the claim is true"
+                    " — the claim is not what that source says. "
+                )
+                if about.issuperset(still):
+                    # Unlinking is the wrong repair when the source is what the
+                    # claim is ABOUT: drop the citation and the claim stops
+                    # being about anything. Only the wording can go.
+                    msg += (
+                        f"Do NOT unlink {'it' if len(still) == 1 else 'them'}: the claim "
+                        "is ABOUT that source, so a claim without it is not a repaired "
+                        "claim, it is a claim with nothing left to be true of. Restate it "
+                        "in the source's own words, or open the claim the source does "
+                        f"support and concede to it (`flip claim supersede {cid} --by <C#>"
+                        '`). '
+                    )
+                else:
+                    msg += (
+                        "Restate the claim in the "
+                        f"source's own words, or unlink it (`flip claim source rm {cid} "
+                        f"{still[0]}`) and assert the claim the source does support. "
+                    )
+                msg += (
+                    "This is a citation failure and says nothing about whether the claim "
+                    "is true"
                 )
                 findings.append(
                     _error("misattributed-citation", msg, rel) if closed

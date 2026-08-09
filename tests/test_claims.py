@@ -319,7 +319,7 @@ def test_verify_below_bar_raises_actionable(sourced: Path):
 
 def test_verify_no_sources_message_names_gap(sourced: Path):
     claims.add_claim(sourced, "x", [])
-    with pytest.raises(SystemExit, match=r"sources: none.*grade A"):
+    with pytest.raises(SystemExit, match=r"evidence: none.*grade A"):
         claims.set_claim_status(sourced, "C1", "verified")
 
 
@@ -433,7 +433,7 @@ def test_set_claim_status_outside_notebook_raises(tmp_path: Path):
 
 def test_source_add_links_and_recomputes(sourced: Path):
     claims.add_claim(sourced, "x", ["A1"])  # 1 independent → corroboration 1
-    page, added, warnings = claims.add_claim_sources(sourced, "C1", ["A3"])
+    page, added, _rerolled, warnings = claims.add_claim_sources(sourced, "C1", ["A3"])
     assert added == ["A3"]
     assert warnings == []
     assert claims.source_ids(page.fm) == ["A1", "A3"]
@@ -456,7 +456,7 @@ def test_source_add_refuses_unknown_id(sourced: Path):
 
 def test_source_add_warns_on_ungraded(sourced: Path):
     claims.add_claim(sourced, "x", ["A1"])
-    page, added, warnings = claims.add_claim_sources(sourced, "C1", ["A4"])
+    page, added, _rerolled, warnings = claims.add_claim_sources(sourced, "C1", ["A4"])
     assert added == ["A4"]
     assert warnings == [("A4", "unjudged")]  # graded "?" — links, but never counts
     assert page.fm["independent_corroboration"] == 1  # still just A1
@@ -582,3 +582,247 @@ def test_verify_refusal_explains_that_the_count_is_not_a_verdict(root: Path):
     assert "flip migrate" in msg
     # and it is NOT reported as a merely-unjudged source: that advice is wrong here
     assert "still unjudged" not in msg
+
+
+# --- citation roles: what a citation is FOR (SPEC §7) ---------------------------
+#
+# The distinction these tests defend: a claim ABOUT a document cannot be
+# corroborated, because the only conceivable second source is a second READING
+# of the same document — an independent reader, not an independent causal path
+# to the fact. Reporting that situation as `independent_corroboration: 0` is
+# the same wrong number `uncountable_sources` exists to prevent: it reads as
+# "the evidence is thin" when the truth is "this axis does not apply here".
+
+
+def _attribution_test(root: Path, claim_id: str, against: str, result: str = "survived"):
+    """A severe attribution test — all four of Mayo's conditions written, so
+    `test_severity` reads it as severe and it can stand in for the count."""
+    return claims.record_test(
+        root,
+        claim_id,
+        probe="attribution",
+        error=f"That the claim is not what {against} says",
+        would_detect="A string search of the text returning the disputed phrase",
+        if_absent="Zero hits, and an abstract naming something else entirely",
+        against=[against],
+        result=result,
+    )
+
+
+def test_a_subject_citation_carries_its_role_and_the_count_is_absent(sourced: Path):
+    # The epistemics C30 shape: the claim is about the rebuttal, so the
+    # rebuttal is the fact-maker rather than a witness. The key is GONE, not
+    # zero — only a missing number prompts anybody to look at why.
+    page = claims.add_claim(sourced, "the paper never mentions Persson", [], subjects=["A1"])
+    assert page.fm["sources"] == [
+        {"id": "A1", "role": "subject", "resource": "/references/orig-b.md", "title": "orig B"}
+    ]
+    assert "independent_corroboration" not in page.fm
+    assert claims.subject_ids(page.fm) == ["A1"]
+    assert claims.evidence_ids(page.fm) == []
+    assert claims.corroboration_applies(page.fm) is False
+    # the citation edge is untouched: the footnote is a link, not an annotation
+    assert "[^A1]" in page.body
+    assert "[^A1]: [orig B](../references/orig-b.md)" in page.body
+
+
+def test_an_evidence_citation_is_the_default_and_writes_no_role_key(sourced: Path):
+    # The muse C26/A9 shape: "writers hold this belief" is a claim about the
+    # world with many possible witnesses, so corroboration applies and counts
+    # exactly as it did before roles existed. No notebook needs migrating
+    # because the default is the absence of the key.
+    page = claims.add_claim(sourced, "writers hold this belief", ["A1", "A3"])
+    assert page.fm["sources"] == [
+        {"id": "A1", "resource": "/references/orig-b.md", "title": "orig B"},
+        {"id": "A3", "resource": "/references/orig-c.md", "title": "orig C"},
+    ]
+    assert page.fm["independent_corroboration"] == 2
+    assert claims.citation_role(page.fm["sources"][0]) == "evidence"
+
+
+def test_a_claim_citing_nothing_still_counts_zero(sourced: Path):
+    # The distinction the whole design turns on. "Nobody cited anything" is a
+    # real zero — the question applies and no one answered it — and that number
+    # is exactly the one that should prompt a look. Only a subject citation
+    # says the instrument itself is the wrong one.
+    page = claims.add_claim(sourced, "x", [])
+    assert page.fm["independent_corroboration"] == 0
+    assert claims.corroboration_applies(page.fm) is True
+
+
+def test_a_mixed_claim_counts_only_its_witnesses(sourced: Path):
+    page = claims.add_claim(
+        sourced, "the paper says X and outlets report it", ["A1", "A3"], subjects=["A2"]
+    )
+    assert claims.evidence_ids(page.fm) == ["A1", "A3"]
+    assert claims.subject_ids(page.fm) == ["A2"]
+    assert page.fm["independent_corroboration"] == 2  # A2 is not in the count
+    assert claims.corroboration_applies(page.fm) is True
+
+
+def test_subject_wins_when_one_source_is_cited_both_ways(sourced: Path):
+    # A document the claim is about cannot also be an independent witness to
+    # what it says about that document, so the disagreement collapses one way
+    # only — and it collapses toward the role that does NOT count.
+    page = claims.add_claim(sourced, "x", ["A1"], subjects=["A1"])
+    assert claims.subject_ids(page.fm) == ["A1"]
+    assert claims.evidence_ids(page.fm) == []
+    assert "independent_corroboration" not in page.fm
+
+
+def test_an_unreadable_role_reads_as_evidence_so_a_typo_cannot_dodge_the_bar(sourced: Path):
+    fm = {"sources": [{"id": "A1", "role": "subjekt"}]}
+    assert claims.citation_role(fm["sources"][0]) == "evidence"
+    assert claims.evidence_ids(fm) == ["A1"]
+    assert claims.corroboration_applies(fm) is True  # doctor's bad-enum names it
+
+
+def test_re_roling_to_subject_removes_the_stored_count(sourced: Path):
+    claims.add_claim(sourced, "x", ["A1"])
+    assert claim_page(sourced, "C1").fm["independent_corroboration"] == 1
+    page, added, rerolled, _warnings = claims.add_claim_sources(
+        sourced, "C1", [], subjects=["A1"]
+    )
+    assert added == [] and rerolled == ["A1"]
+    # the stale count would now read as a verdict on evidence the claim never
+    # claimed to have, so it goes rather than dropping to zero
+    assert "independent_corroboration" not in page.fm
+    assert "independent_corroboration" not in claim_page(sourced, "C1").fm
+
+
+def test_re_roling_back_to_evidence_restores_the_count(sourced: Path):
+    claims.add_claim(sourced, "x", [], subjects=["A1"])
+    page, _added, rerolled, _warnings = claims.add_claim_sources(sourced, "C1", ["A1"])
+    assert rerolled == ["A1"]
+    assert page.fm["independent_corroboration"] == 1
+
+
+def test_source_add_refuses_a_citation_already_in_the_role_given(sourced: Path):
+    claims.add_claim(sourced, "x", [], subjects=["A1"])
+    with pytest.raises(SystemExit, match=r"already cites A1 in the role given"):
+        claims.add_claim_sources(sourced, "C1", [], subjects=["A1"])
+
+
+def test_subject_citations_do_not_earn_the_ungraded_warning(sourced: Path):
+    # "it won't count toward the bar" is not news about a citation whose whole
+    # declaration is that the bar does not apply; a warning fired where its
+    # advice is meaningless is how operators learn to skim warnings.
+    claims.add_claim(sourced, "x", ["A1"])
+    _page, _added, _rerolled, warnings = claims.add_claim_sources(
+        sourced, "C1", [], subjects=["A4"]  # A4 is graded "?"
+    )
+    assert warnings == []
+
+
+def test_removing_the_last_witness_removes_the_count(sourced: Path):
+    claims.add_claim(sourced, "x", ["A1"], subjects=["A2"])
+    page = claims.remove_claim_source(sourced, "C1", "A1")
+    assert "independent_corroboration" not in page.fm
+    assert claims.subject_ids(page.fm) == ["A2"]
+
+
+def test_status_change_drops_a_hand_written_count_from_a_subject_only_claim(sourced: Path):
+    page = claims.add_claim(sourced, "x", [], subjects=["A1"])
+    page.fm["independent_corroboration"] = 0  # hand edit, or a pre-0.16 page
+    pages.write_page(page.path, page.fm, page.body)
+    _attribution_test(sourced, "C1", "A1")
+    updated = claims.set_claim_status(sourced, "C1", "needs-2nd")
+    assert "independent_corroboration" not in updated.fm
+
+
+# --- the verified gate on a subject-only claim ---------------------------------
+
+
+def test_verify_refused_on_a_subject_claim_with_no_attribution_test(sourced: Path):
+    claims.add_claim(sourced, "the paper never mentions Persson", [], subjects=["A1"])
+    with pytest.raises(SystemExit) as ei:
+        claims.set_claim_status(sourced, "C1", "verified")
+    msg = str(ei.value)
+    # the refusal must not read as "your evidence is thin" — the bar is
+    # inapplicable, not unmet, and the wrong repair is the expensive one
+    assert "the corroboration bar has nothing to count" in msg
+    assert "Do not add a second source to clear this" in msg
+    assert "--probe attribution" in msg
+    assert claim_page(sourced, "C1").fm["status"] == "asserted"  # refusal writes nothing
+
+
+def test_a_severe_surviving_attribution_test_reaches_verified(sourced: Path):
+    # The whole point of the substitution: the audit that IS available, taken.
+    # A1 is `self-reported`-adjacent here only in the sense that it cannot
+    # corroborate a claim about itself — no count could ever clear this gate.
+    claims.add_claim(sourced, "the paper never mentions Persson", [], subjects=["A1"])
+    _attribution_test(sourced, "C1", "A1")
+    page = claims.set_claim_status(sourced, "C1", "verified")
+    assert page.fm["status"] == "verified"
+    assert "independent_corroboration" not in page.fm
+
+
+def test_a_bent_attribution_test_does_not_reach_verified(sourced: Path):
+    # Severity is what makes the substitution worth anything. A record missing
+    # `if_absent` describes a probe that may fire either way, and a probe that
+    # fires either way discriminates nothing (SIST p.16).
+    claims.add_claim(sourced, "x", [], subjects=["A1"])
+    claims.record_test(
+        sourced, "C1", probe="attribution", error="that it says otherwise",
+        would_detect="a string search", against=["A1"], result="survived",
+    )
+    with pytest.raises(SystemExit, match=r"no severe, surviving one is on record"):
+        claims.set_claim_status(sourced, "C1", "verified")
+
+
+def test_a_failed_attribution_test_is_still_refused_by_the_exposure_gate(sourced: Path):
+    # The substitution never opens a door the test record closes: a severe
+    # attribution FAILURE derives `misattributed`, which is refused before the
+    # count — or its absence — is even consulted.
+    claims.add_claim(sourced, "x", [], subjects=["A1"])
+    _attribution_test(sourced, "C1", "A1", result="failed")
+    with pytest.raises(SystemExit, match=r"exposure is 'misattributed'"):
+        claims.set_claim_status(sourced, "C1", "verified")
+
+
+def test_every_subject_must_be_audited_not_just_one(sourced: Path):
+    claims.add_claim(sourced, "two documents disagree", [], subjects=["A1", "A3"])
+    _attribution_test(sourced, "C1", "A1")
+    with pytest.raises(SystemExit, match=r"no severe, surviving one is on record against A3"):
+        claims.set_claim_status(sourced, "C1", "verified")
+    assert claims.unaudited_subjects(claim_page(sourced, "C1").fm) == ["A3"]
+
+
+def test_an_adversarial_record_still_clears_the_gate_on_a_subject_claim(sourced: Path):
+    # A2's other path is untouched. The change substitutes for the count that
+    # cannot be taken; it does not narrow the routes that already existed.
+    claims.add_claim(sourced, "x", [], subjects=["A1"])
+    claims.verify_claim(sourced, "C1", "adversarial", against=["A1"])
+    assert claims.set_claim_status(sourced, "C1", "verified").fm["status"] == "verified"
+
+
+def test_the_gate_is_not_weakened_for_a_claim_with_any_witness(sourced: Path):
+    # Only where the count has no meaning. A claim with one witness and one
+    # subject faces the ordinary bar, and an attribution test on the subject
+    # does not buy its way past it.
+    claims.add_claim(sourced, "x", ["A4"], subjects=["A1"])  # A4 is ungraded
+    _attribution_test(sourced, "C1", "A1")
+    with pytest.raises(SystemExit) as ei:
+        claims.set_claim_status(sourced, "C1", "verified")
+    assert "0 independent source(s)" in str(ei.value)
+    assert "cited as what this claim is ABOUT and never counted" in str(ei.value)
+
+
+def test_a_verify_refusal_names_the_subject_it_declined_to_count(sourced: Path):
+    # A source vanishing from a count without explanation is how an operator
+    # spends an afternoon regrading pages that were never the problem.
+    claims.add_claim(sourced, "x", ["A3"], subjects=["A2"])
+    strict = sourced / ".flip" / "profiles" / "strict.toml"
+    strict.parent.mkdir(parents=True)
+    strict.write_text(
+        'id = "strict"\nclaim_min_independent = 2\nclaim_grade_a_suffices = false\n',
+        encoding="utf-8",
+    )
+    index = sourced / "index.md"
+    index.write_text(
+        index.read_text(encoding="utf-8").replace("kind: scout", "kind: strict"),
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit) as ei:
+        claims.set_claim_status(sourced, "C1", "verified")
+    assert "A2 is cited as what this claim is ABOUT" in str(ei.value)

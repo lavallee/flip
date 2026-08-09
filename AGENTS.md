@@ -172,6 +172,7 @@ group. The leaves you reach for most:
 | ask why a letter | `flip grade <id> --explain` — the derivation; writes nothing |
 | fix a capture's title | `flip source retitle <id> "<title>"` — never hand-edit frontmatter |
 | assert a claim | `flip claim add "<text>" --source <id> [--load-bearing]` |
+| cite the source a claim is ABOUT | `flip claim add "<text>" --about <id>` · `flip claim source add <C#> --about <id>` — never counted toward corroboration; owes an attribution test instead |
 | link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
 | record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
 | move a claim's status | `flip claim status <C#> <status>` |
@@ -212,7 +213,11 @@ reassurance.
    `verified` is refused until the profile's corroboration bar is met
    (default: two sources recorded `independent`, or one grade-A primary),
    counting judged sources only. Don't argue with the gate — go get
-   corroboration.
+   corroboration. **Unless the claim is *about* a source**: cite that one with
+   `--about <id>`, and the bar is replaced rather than waived, because no
+   second witness to what one document says can exist. Such a claim carries no
+   corroboration number at all (`n/a (subject)`, never `0`) and earns
+   `verified` with a severe, surviving `flip claim test --probe attribution`.
 5. **Generation is logged.** Wrap every LLM run or research sweep in
    `flip session start` / `flip session end` — the reasoning chain is
    evidence too.
@@ -332,11 +337,13 @@ flip claim list --status needs-2nd --json
 ```
 
 The claim page (`claims/<slug>.md`) carries OKF v0.2 `sources` entries
-(`{id, resource, title}`) and generated footnote attribution — id-shaped
+(`{id, role?, resource, title}`) and generated footnote attribution — id-shaped
 markers ending the lead paragraph plus `[^F1]: …` definition lines linking
 the reference pages. flip recomputes `independent_corroboration` on status
 changes and doctor flags drift; where a cited source can't be counted at all,
-every surface that shows the number names it too.
+every surface that shows the number names it too. A claim citing only
+`role: subject` sources has **no** `independent_corroboration` key: absent
+means the axis does not apply, never that the count came out zero.
 
 ### Record a session
 

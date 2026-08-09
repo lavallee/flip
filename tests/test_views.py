@@ -599,3 +599,53 @@ def test_ws_show_gating_verification_clears_needs_work(tmp_path):
     ws_init(ws)
     data = ws_show(ws, as_data=True)
     assert data["notebooks"][0]["claims_needing_work"] == []
+
+
+# --- citation roles at the view surfaces (SPEC §7) -----------------------------
+
+
+def test_claims_view_prints_n_a_not_zero_for_a_subject_only_claim(tmp_path):
+    """Every surface that shows the count must show that it does not apply,
+    and must show WHY — a blank with no reason is the half of the lesson that
+    is easy to ship and the half nobody acts on."""
+    root = make_notebook(tmp_path)
+    claim_page(root, "C1", "the paper never says this", "needs-2nd",
+               load_bearing=True, sources=[{"id": "P1", "role": "subject"}])
+    text = claims_view(root)
+    assert "corroboration: n/a (subject)" in text
+    assert "corroboration: 0" not in text
+
+
+def test_claims_view_keeps_the_zero_when_a_claim_cites_nothing(tmp_path):
+    # The distinction: nobody-cited-anything is a real zero. Absent means
+    # inapplicable, never unmet.
+    root = make_notebook(tmp_path)
+    claim_page(root, "C1", "nothing behind it", "asserted")
+    assert "corroboration: 0" in claims_view(root)
+
+
+def test_ws_roster_measures_a_subject_claim_against_the_bar_that_applies(tmp_path):
+    """A roster that lists a claim forever under work nobody can do is a
+    roster people stop reading: the corroboration bar is unreachable here, so
+    the roster asks for the attribution test instead."""
+    ws = _roster_ws(tmp_path)
+    pages.write_page(
+        ws / "recipes" / "claims" / "c2.md",
+        {"type": "Claim", "id": "C2", "aliases": ["C2"], "description": "about a doc",
+         "status": "asserted", "load_bearing": True,
+         "sources": [{"id": "P1", "role": "subject"}]},
+        "about a doc\n",
+    )
+    text = ws_show(ws)
+    assert "C2 · asserted · corroboration n/a (subject) · about a doc" in text
+
+    # audited: it drops off the roster entirely, because nothing is owed
+    page = pages.read_page(ws / "recipes" / "claims" / "c2.md")
+    page.fm["tests"] = [{
+        "probe": "attribution", "error": "that it does not say this",
+        "would_detect": "a string search returning the phrase",
+        "if_absent": "zero hits", "against": ["P1"], "result": "survived",
+        "at": "2026-06-02T10:00:00Z", "by": "human:test",
+    }]
+    pages.write_page(page.path, page.fm, page.body)
+    assert "C2 · asserted" not in ws_show(ws)

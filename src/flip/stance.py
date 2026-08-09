@@ -510,17 +510,12 @@ def bent_reason(fm: dict) -> str | None:
     )
 
 
-def failed_attribution_sources(fm: dict) -> list[str]:
-    """The sources a severe attribution test ran against and failed, deduped.
-
-    What "the claim is wrong about what this source says" points AT. The claim
-    usually still cites them, and it must not: the repair is either to unlink
-    the source or to restate the claim in the source's own words. Both moves
-    need this list.
-    """
+def _severe_attribution_sources(fm: dict, result: str) -> list[str]:
+    """What the severe attribution tests with this result ran against, deduped
+    and in order. Refs, exactly as authored — a pinned passage stays pinned."""
     out: list[str] = []
     for record in test_records(fm):
-        if str(record.get("probe")) != "attribution" or str(record.get("result")) != "failed":
+        if str(record.get("probe")) != "attribution" or str(record.get("result")) != result:
             continue
         if test_severity(record) != "severe":
             continue
@@ -529,6 +524,36 @@ def failed_attribution_sources(fm: dict) -> list[str]:
             if text and text not in out:
                 out.append(text)
     return out
+
+
+def failed_attribution_sources(fm: dict) -> list[str]:
+    """The sources a severe attribution test ran against and failed, deduped.
+
+    What "the claim is wrong about what this source says" points AT. The claim
+    usually still cites them, and it must not: the repair is either to unlink
+    the source or to restate the claim in the source's own words. Both moves
+    need this list.
+    """
+    return _severe_attribution_sources(fm, "failed")
+
+
+def survived_attribution_sources(fm: dict) -> list[str]:
+    """The sources a severe attribution test ran against and did NOT find an
+    error in, deduped.
+
+    The twin of `failed_attribution_sources`, and it exists for the citation
+    role that has no other audit available (SPEC §7): where a claim is *about*
+    a source, no second source can ever witness the same fact, so "somebody
+    went looking for the error in what this document says and could not find
+    it" is the strongest check the situation admits — and, unlike a second
+    witness, it is one any reader can re-run against the same custody.
+
+    Severity is what makes it worth anything, so `test_severity` gates the
+    list the same way it gates a failure. flip still checks only that the four
+    conditions were WRITTEN, never that they are true (module docstring,
+    departure 3): this list says an audit is on record, not that it was good.
+    """
+    return _severe_attribution_sources(fm, "survived")
 
 
 # Exposures where a severe test found the claim wrong. `flip claim status …

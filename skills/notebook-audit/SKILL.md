@@ -17,8 +17,8 @@ verification bar, and what doesn't clear it gets flagged, not shipped.
 | start a notebook | `flip new <slug> --kind <profile>` |
 | capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
 | grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--n … --base-defined\|--base-undefined]` — the letter is derived |
-| assert a claim | `flip claim add "<text>" --source <id> [--load-bearing]` |
-| link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
+| assert a claim | `flip claim add "<text>" --source <id> [--about <id>] [--load-bearing]` |
+| link/unlink sources | `flip claim source add\|rm <C#> <id…>` (`--about <id>` cites what the claim is ABOUT) |
 | record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
 | move a claim's status | `flip claim status <C#> <status>` |
 | questions | `flip question add\|repose\|answer\|list` |
@@ -58,7 +58,18 @@ archived. They are not problems; don't re-run doctor for reassurance.
 2. **Pull the claim map.** `flip show --claims` (or
    `flip claim list --json`). Audit every claim marked `load_bearing` first,
    then the rest.
-3. **Walk each load-bearing claim against the bar** (profile default: two
+3. **Check which bar the claim is even under.** A claim citing only sources
+   marked `--about` — the documents it is *about*, not witnesses to what it
+   asserts — cannot be corroborated at all: the only conceivable second source
+   is a second reading of the same document. Those claims carry **no
+   corroboration count**, print `n/a (subject)`, and owe a *severe attribution
+   test* instead (`flip claim test <C#> --probe attribution --error …
+   --would-detect … --if-absent … --against <id> --result …`), which is the
+   audit any reader can re-run against the same custody. Do not go looking for
+   a second source for one of these; there is none to find. Doctor names a
+   subject citation whose attribution test was never run, and that finding —
+   not a corroboration count — is the one to clear.
+4. **Walk each load-bearing claim against the bar** (profile default: two
    sources whose recorded independence is `independent`, or one whose
    derived digest is A):
    - sources actually support the claim as worded — reread them, don't trust
@@ -76,7 +87,7 @@ archived. They are not problems; don't re-run doctor for reassurance.
      `record-only` page whose custody is flip's record of a document it never
      held. Climb the ladder for the real bytes (SPEC §5.1) or reword the
      claim; do not let a record stand in for the thing it records.
-4. **Record verifications where they apply.** Beyond corroboration, a claim
+5. **Record verifications where they apply.** Beyond corroboration, a claim
    earns `verified` through a recorded check — `flip claim verify C7 --method
    <method> [--against <ref>…] [--note …]` (append-only; records are added,
    never edited):
@@ -89,23 +100,26 @@ archived. They are not problems; don't re-run doctor for reassurance.
      count does). Use it to leave a trail, not as a shortcut.
    The corroboration bar is unchanged — the vocabulary widens the honest ways
    to clear it; it never softens it.
-5. **Move statuses honestly.** `flip claim status C7 verified` only when the
+6. **Move statuses honestly.** `flip claim status C7 verified` only when the
    bar is genuinely met — the corroboration count OR a recorded
    adversarial/recomputation verification (flip refuses otherwise — do not
    game it by regrading sources you haven't reread). Otherwise `needs-2nd`,
    `unconfirmed`, or `retracted`, with a `flip log` line saying why.
-6. **Emit the coverage map** into `notebook.md` (or the draft's changelog):
+7. **Emit the coverage map** into `notebook.md` (or the draft's changelog):
    three lists — **solidly sourced** (verified, bar met), **authorial frame**
    (interpretation presented as such, no claim needed), **flagged for
    further reporting** (asserted/needs-2nd; must be softened or cut before
    publish).
-7. **Close the hypothesis loop.** Note in `notebook.md` what survived the
+8. **Close the hypothesis loop.** Note in `notebook.md` what survived the
    reporting: which hypotheses stood, which falsifiers fired.
-8. **Final pass.** `flip doctor` again — clean exit — and
+9. **Final pass.** `flip doctor` again — clean exit — and
    `flip log "audit: <n> load-bearing claims, <n> verified, <n> flagged"`.
 
 Do not mark a claim verified without the corroboration bar — independent
-independent sources or a derived-A primary, actually reread — and never soften
-the bar by editing statuses or grades directly in page frontmatter: go
-through `flip claim status` and `flip grade`, which enforce and recompute
-(hand-set corroboration counts show up as doctor drift findings).
+independent sources or a derived-A primary, actually reread — or, for a claim
+that cites only what it is ABOUT, without the severe attribution test that
+stands in for the bar there. Never soften either by editing statuses or grades
+directly in page frontmatter: go through `flip claim status` and `flip grade`,
+which enforce and recompute (hand-set corroboration counts show up as doctor
+drift findings), and never re-role a citation `--about` to make a bar go away
+— the role is on the page, and doctor names the audit it now owes.

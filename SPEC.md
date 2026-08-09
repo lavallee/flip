@@ -611,8 +611,9 @@ Extension vocabulary summary — flip's frontmatter keys beyond OKF v0.2's
 `started`, `ended` — plus extension keys *inside* OKF structures: `method`,
 `against`, and `note` on `verified` events. flip's `status` vocabularies
 (claim and question statuses, notebook lifecycle) extend OKF §5.4's
-advisory `draft|stable|deprecated` values. OKF consumers must preserve and
-may ignore all of them.
+advisory `draft|stable|deprecated` values — plus `role` on a claim's
+`sources` entries (§7). OKF consumers must preserve and may ignore all of
+them.
 
 
 ### Disciplines — declared standards, slot composition (v0.14)
@@ -694,16 +695,81 @@ counting only judged sources. A quantitative claim SHOULD carry its number
 as data — `value` (a string; ranges and "~42" are legal) and `unit` — so
 the format's own exports can ship it; prose alone can't.
 `independent_corroboration` is stored for consumers but recomputed by the
-tooling — doctor flags drift. `sources` is OKF v0.2 §5.1 provenance: one
-entry per cited source, `{id, resource, title?}`, where `id` is the
-machine-stable source id and `resource` the followable bundle-absolute page
-path (a dangling cite — legal, §6.1 — keeps just its `id`). Per-claim
+tooling — doctor flags drift — and it is **absent, not zero, when the axis
+does not apply** (citation roles, below). `sources` is OKF v0.2 §5.1
+provenance: one entry per cited source, `{id, role?, resource, title?}`, where
+`id` is the machine-stable source id and `resource` the followable
+bundle-absolute page path (a dangling cite — legal, §6.1 — keeps just its
+`id`). Per-claim
 attribution follows the OKF footnote idiom: the assertion carries `[^A12]`
 markers keyed to `sources[].id`, and the generated definition lines at the
 body's end double as relative links, so link-graph tools (Obsidian) keep
 their edges. Both generated parts are regenerated on status/source changes;
 labels are always id-shaped, so hand-authored footnotes survive.
 Fine-grained span anchoring may use W3C Web Annotation selectors; optional.
+
+#### Citation roles — what a citation is FOR
+
+`sources[].role` says what a citation *does* for the claim that makes it. Two
+values, and the role belongs to the **citation**, not to the claim and not to
+the source page: the same paper is what one claim is about and a witness for
+the next one.
+
+| role | means | corroborates? | the audit that applies |
+|---|---|---|---|
+| `evidence` | a witness to what the claim asserts. **The default**, and the meaning of the key's absence | yes, when the source page is judged and `independent` | a second independent source |
+| `subject` | the claim is **about** this source — it is what makes the claim true or false | never | a severe `attribution` test (§7.1) |
+
+```yaml
+sources:
+  - { id: P18, role: subject, resource: /references/ssrn-3026941.md, title: "Kahan & Peters (2017), Rumors of the Nonreplication…" }
+  - { id: A9, resource: /references/npr-em-dash.md, title: "NPR (2025), Inside the unofficial movement…" }
+# no independent_corroboration key when every entry is role: subject
+```
+
+The corroboration bar is sound for a claim about the world: agreement between
+causally *independent paths* to the same fact is evidence — two witnesses to a
+crash, two labs measuring a constant. It is unsound for a claim about a
+document. "The rebuttal answers Ballarini & Sloman and never mentions Persson"
+is made true or false by the rebuttal; a second source could only ever be a
+second *reading* of it, which is an independent reader rather than an
+independent path. That addresses reader error, and corroboration is a check on
+source error. So a `subject` citation is excluded from the count.
+
+**And the count goes away rather than to zero.** A claim that cites something,
+all of it `subject`, carries **no `independent_corroboration` key at all**.
+`0` there is the same wrong number §5.4 already refuses for an uncountable
+source: it reads as *the evidence is thin* when the truth is *this axis does
+not apply here*, and a wrong number is worse than a missing one — only the
+missing one prompts a look. A claim citing **nothing** keeps its `0`, and the
+difference is the whole rule: absent means **inapplicable**, never **unmet**.
+Every surface obeys it — `flip claim add`/`status`/`source add|rm` and
+`flip show --claims` print `corroboration: n/a (subject)`, `flip ws show`
+prints `corroboration n/a (subject)`, and the JSON projections **omit** the
+key (render/2 carries `subjects: [ids]`, so a renderer can say why).
+
+**What replaces the bar.** `flip claim status <C#> verified` on a claim citing
+only subjects accepts a **severe, surviving `attribution` test against every
+cited subject** in place of the count — the audit the situation actually
+admits, and one any reader can re-run against the same custody, which is
+exactly what makes it the right check where a second source is impossible in
+principle rather than merely absent. Nothing else is loosened: a claim with any
+`evidence` citation faces the ordinary bar, and A2's adversarial/recomputation
+path is unchanged. A severe attribution *failure* still refuses `verified`
+through the exposure gate (§7.1) before any of this is consulted.
+
+**Anti-abuse, stated rather than enforced.** A role is authored, so `subject`
+can be used to duck a bar a claim should have faced. flip's answers are that
+the role is legible on the page and in every export, that an unreadable role
+reads as `evidence` (so a typo can never quietly excuse a claim — doctor's
+`bad-enum` names it), and that doctor's `unaudited-claim` names a load-bearing
+claim carrying a subject citation with no attribution test on record: the
+audit that IS available, not taken. **flip checks that the test is present,
+never that it is true** — the same limit §7.1 declares for every field of a
+test record. Roles need no migration: `evidence` is the default and every
+citation written before 0.16 already has it, so existing pages round-trip
+byte-identical. `citation_role` is a slot name in the §6 registry, so a
+discipline can hold a notebook to a stricter policy than flip's.
 
 **Verification methods** (`verified:`) widen the honest ways a claim earns
 its status without softening the bar. The key is OKF v0.2 §5.2's
@@ -718,8 +784,10 @@ met **or** at least one `adversarial`/`recomputation` record exists;
 `independent-sources` records the reasoning but never satisfies the gate
 alone (the recomputed count does). `flip claim verify <C#> --method …` writes
 them; doctor's `unaudited-claim` fires only when a load-bearing claim has
-neither corroboration nor any verification record. OKF consumers
-preserve-and-ignore.
+neither corroboration nor any verification record nor anything on record that
+went looking for the error — or, on a claim citing a `subject`, when the
+attribution test that stands in for corroboration has never been run. OKF
+consumers preserve-and-ignore.
 
 `against` is **where the verifying thing is named**, and it is not restricted
 to source ids: a session id, a script path, or a derivation record all belong
@@ -974,6 +1042,23 @@ a test record is authored by the same hand that authored the claim, and letting
 a described test satisfy the bar would let a notebook verify itself by writing
 a sentence. And **`superseded` requires a successor**, above.
 
+There is one place a test does open a gate, and it is the exception that shows
+the rule. A claim citing only `subject` sources (§7) faces a corroboration bar
+that is **inapplicable rather than unmet** — no second witness to what one
+document says can exist — so a severe, surviving `attribution` test stands in
+for the count there. That is not a described test satisfying a bar it could
+have met another way; it is the only audit the situation admits, taken. The
+worry above still holds and is answered the same way it is everywhere else in
+this section: flip checks the test is on record, never that it was any good,
+and says so rather than pretending otherwise.
+
+`attribution` is the probe this whole role distinction points at, and the
+pairing is not a coincidence. The probe exists because Mayo has no notion of an
+attribution error — in her setting the claim and its evidence are the same
+object — and a `subject` citation is precisely the case where they *are* the
+same object. Where that is true, "does the source say this?" is not a lesser
+check than "is it true of the world?"; it is the whole question.
+
 **No credence lives here**, and the two-object rule is why. Claims carry
 grades, never probabilities (a `probability` on a Claim is doctor ERROR
 `two-object`), and a Forecast earns its number by being *resolvable* — dated,
@@ -995,7 +1080,7 @@ teaches operators to tune doctor out.
 |---|---|---|
 | `stored-exposure` | ERROR | a page stores `exposure` or `severity` |
 | `unpriced-stance` | ERROR on load-bearing, else WARN | `pursuing` or `rejecting` with no falsifier (hand-edited: flip refuses to write one) |
-| `misattributed-citation` | WARN active, ERROR once done/published | a claim a severe attribution test found wrong about a source, still citing it |
+| `misattributed-citation` | WARN active, ERROR once done/published | a claim a severe attribution test found wrong about a source, still citing it. On a `subject` citation the advice inverts: **do not unlink it** — a claim without the document it is about has nothing left to be true of, so only the wording can go |
 | `unexamined-position` | WARN | the notebook is `holding` **or `pursuing`** a load-bearing claim whose exposure is `bent` |
 | `losing-to-a-rival` | WARN | the notebook is still working from a claim a severe test found wrong, while a **declared** rival is `severely-tested` |
 | `no-declared-rival` | WARN | a load-bearing claim is being pursued with nothing on record that could have beaten it |

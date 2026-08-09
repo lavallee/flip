@@ -6,6 +6,67 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Citation roles — what a citation is FOR** (SPEC §7). A claim's `sources`
+  entries carry a `role`: `evidence` (the default) or `subject`. The role lives
+  on the **citation**, not on the claim and not on the source page, because the
+  same paper is what one claim is about and a witness for the next one.
+  - **The problem, from real notebooks.** `corroboration_count` counts cited
+    sources whose page is judged and `independent`. That bar is sound for a
+    claim about the world — agreement between causally *independent paths* to
+    one fact is evidence — and unsound for a claim about a document. A claim
+    that "the rebuttal answers Ballarini & Sloman (2017) and never mentions
+    Persson" cites the rebuttal, and the rebuttal is not evidence *for* the
+    claim: it is what makes it true or false. A second source could only be a
+    second *reading* of the same document — an independent reader, not an
+    independent path — which addresses reader error where corroboration checks
+    source error. Same shape wherever a claim rests on a transcript excerpt for
+    what was said in the conversation: there is no second witness and there
+    never can be.
+  - **The count goes ABSENT, not to zero.** A claim citing something, all of it
+    `subject`, carries no `independent_corroboration` key at all. `0` there is
+    the wrong number the `uncountable_sources` doctrine already names — it
+    reads as *the evidence is thin* when the truth is *this axis does not apply
+    here*, and a wrong number is worse than a missing one because only the
+    missing one prompts a look. A claim citing **nothing** keeps its `0`: the
+    question applies there and nobody has answered it. Absent means
+    inapplicable, never unmet. `flip claim add|status|source add|rm` and
+    `flip show --claims` print `corroboration: n/a (subject)`, `flip ws show`
+    the same, and the JSON projections omit the key (render/2 adds
+    `subjects: [ids]`, so a renderer can say why it is missing).
+  - **The audit that replaces it is an `attribution` test** (§7.1), which is
+    exactly the check anyone can re-run against the same custody — the right
+    ask where a second source is impossible in principle rather than merely
+    absent. A severe, surviving one against every cited subject clears the
+    `verified` gate in place of the count. Nothing else is loosened: a claim
+    with any `evidence` citation faces the ordinary bar, A2's
+    adversarial/recomputation path is untouched, and a severe attribution
+    *failure* still refuses `verified` through the exposure gate first.
+  - **`--about`, one spelling.** `flip claim add --about <ID>` and
+    `flip claim source add <C#> --about <ID>` cite the source a claim is about;
+    bare `--source`/positional ids stay evidence. `ID:subject` was the
+    alternative and lost on a collision: `handle:ID` already means a
+    workspace-qualified alias in flip. `--about` on a source the claim already
+    cites **re-roles** it, which is the one-command fix for an existing page.
+  - **doctor.** `unaudited-claim` on a load-bearing claim with a subject
+    citation and no attribution test on record — the audit that IS available,
+    not taken — worded so a second source is never the ask; `under-verified`
+    and the workspace roster stop demanding corroboration of a claim that can
+    never have it; `corroboration-drift` names a stored count on a subject-only
+    claim as a key to drop rather than a number to refresh; `bad-enum` on an
+    unreadable role, which still reads as `evidence` so a typo can never
+    quietly excuse a claim from the bar; and `misattributed-citation` inverts
+    its advice on a subject — do **not** unlink the document the claim is
+    about, because a claim without it has nothing left to be true of.
+  - **No migration.** `evidence` is the default and the meaning of the key's
+    absence, so every citation ever written already has the right role and
+    every existing page round-trips byte-identical.
+  - **The honest limit**, stated in SPEC rather than buried: a role is
+    authored, so `subject` can be used to duck a bar. flip checks the
+    attribution test is *present*, never that it is true — the same limit the
+    stance layer already declares. What it can do is make the role legible on
+    the page and in every export, and name the untaken audit.
+
 ### Fixed
 - **Four defects found by using the thing.** All four came out of one
   afternoon's real research in a sibling notebook, and each was a check that

@@ -22,7 +22,7 @@ one piece of research; don't create it until you can say what that piece is.
 | adopt an outcome late | `flip kind adopt <id>` — crystallizes an open notebook; prints the honest gap manifest |
 | capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
 | grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--n … --base-defined\|--base-undefined]` — the letter is derived |
-| assert a claim | `flip claim add "<text>" --source <id> [--load-bearing]` |
+| assert a claim | `flip claim add "<text>" --source <id> [--about <id>] [--load-bearing]` |
 | link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
 | record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
 | move a claim's status | `flip claim status <C#> <status>` |

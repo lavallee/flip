@@ -25,7 +25,7 @@ didn't capture is a source you don't have.
 | grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--n … --base-defined\|--base-undefined]` — the letter is derived |
 | ask why a letter | `flip grade <id> --explain` — the derivation, writes nothing |
 | fix a bad capture title | `flip source retitle <id> "<title>"` — never hand-edit frontmatter |
-| assert a claim | `flip claim add "<text>" --source <id> [--load-bearing]` |
+| assert a claim | `flip claim add "<text>" --source <id> [--about <id>] [--load-bearing]` |
 | link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
 | record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
 | move a claim's status | `flip claim status <C#> <status>` |
@@ -239,7 +239,20 @@ archived. They are not problems; don't re-run doctor for reassurance.
    can't be the terminus.
 8. **Wire it in.** Link the source to the claims it backs
    (`flip claim add ... --source <id>` or update existing claims), and cite
-   it in prose as `[A3]`. Put pull-quotes, misgivings, and capture notes in
+   it in prose as `[A3]`.
+
+   **Ask what the citation is FOR before you write it.** `--source` says the
+   source is a *witness* to what the claim asserts, and only witnesses
+   corroborate. `--about <id>` says the claim is *about* that source — it is
+   what makes the claim true or false ("the rebuttal never mentions Persson",
+   "the transcript shows the interviewer asked first"). A subject citation is
+   never counted, because the only conceivable second source is a second
+   *reading* of the same document, and the claim then carries **no
+   corroboration count at all** rather than a zero. What it owes instead is
+   `flip claim test <C#> --probe attribution …`, which anyone can re-run
+   against the same bytes. Getting this wrong in the safe direction costs
+   nothing; marking a claim about the world `--about` to dodge the bar is
+   visible on the page and named by doctor. Put pull-quotes, misgivings, and capture notes in
    the source page's body — when editing the page, change only what you
    mean to and preserve frontmatter keys you don't own. Log anything notable
    about the capture with `flip log`.

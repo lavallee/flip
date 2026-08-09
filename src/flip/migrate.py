@@ -201,7 +201,10 @@ def _write_claim_page(root: Path, row: dict, src_by_id: dict[str, pages.Page]) -
     cid = str(row["id"])
     text = str(row.get("text") or "").strip() or cid
     source_ids = [str(s) for s in row.get("sources") or []]
-    entries, defs = claims._attribution(src_by_id, source_ids)
+    # A pre-0.7 ledger row is a flat id list with no room for a citation role,
+    # so every migrated citation is evidence — which is what it always was.
+    cited = [(sid, claims.DEFAULT_CITATION_ROLE) for sid in source_ids]
+    entries, defs = claims._attribution(src_by_id, cited)
     notes = str(row.get("notes") or "")
     fm: dict = {
         "type": "Claim",
@@ -475,7 +478,9 @@ def _upgrade_claim_fm(fm: dict, body: str, src_by_id: dict[str, pages.Page]) -> 
     changed = False
     flat = any(not isinstance(e, dict) for e in pages.as_list(fm.get("sources")))
     if flat or "supports" in fm or _CITATIONS_SECTION_RE.search(body):
-        cited = claims.source_ids(fm)
+        # `(ref, role)` pairs, so a page that already carries citation roles
+        # keeps them through the layout upgrade (SPEC §7).
+        cited = claims.source_citations(fm)
         entries, defs = claims._attribution(src_by_id, cited)
         fm["sources"] = entries
         fm.pop("supports", None)

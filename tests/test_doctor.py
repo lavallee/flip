@@ -1430,3 +1430,140 @@ def test_a_bent_test_does_not_count_as_an_audit(tmp_path):
     claims_mod.record_test(root, "C1", probe="substance", error="vague unease",
                            result="survived")
     assert "unaudited-claim" in codes(run_doctor(root))
+
+
+# --- citation roles: the audit that IS available, taken or not (SPEC §7) --------
+
+
+def _subject_claim(root, cid="C1", status="asserted", load_bearing=True, subject="A1"):
+    """A claim citing one source as what it is ABOUT — no stored count, because
+    the axis does not apply to it."""
+    from flip import claims as claims_mod
+
+    return claims_mod.add_claim(
+        root, f"claim {cid} about a document", [], load_bearing=load_bearing,
+        subjects=[subject],
+    )
+
+
+def _severe_attribution(root, cid, against, result="survived"):
+    from flip import claims as claims_mod
+
+    return claims_mod.record_test(
+        root, cid, probe="attribution",
+        error=f"that the claim is not what {against} says",
+        would_detect="a string search of the captured text returning the phrase",
+        if_absent="zero hits, and an abstract naming something else",
+        against=[against], result=result,
+    )
+
+
+def test_a_subject_citation_with_no_attribution_test_is_named(tmp_path):
+    """The audit that IS available, not taken — and the anti-abuse half of the
+    role design. A `subject` role is authored, so it can be used to duck a bar
+    the claim should have faced; what stops that from being invisible is that
+    the role is legible on the page and this finding names the untaken test."""
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent")
+    _subject_claim(root, "C1")
+    warns = [f for f in run_doctor(root) if f.code == "unaudited-claim"]
+    assert warns and warns[0].level == "WARN"
+    msg = warns[0].message
+    assert "A second source is not the ask here and never will be" in msg
+    assert "--probe attribution" in msg
+
+
+def test_a_subject_claim_that_took_its_audit_is_quiet(tmp_path):
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent")
+    _subject_claim(root, "C1")
+    _severe_attribution(root, "C1", "A1")
+    assert "unaudited-claim" not in codes(run_doctor(root))
+
+
+def test_a_subject_claim_is_never_told_to_find_corroboration(tmp_path):
+    """The generic nag and the subject nag share a code and must not both fire:
+    an operator handed 'link independent sources' next to 'run an attribution
+    test' has been offered a cheaper exit than the one that applies, and a
+    warning with a cheaper exit is one people take the exit from."""
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent")
+    _subject_claim(root, "C1")
+    warns = [f for f in run_doctor(root) if f.code == "unaudited-claim"]
+    assert len(warns) == 1
+    assert "link independent sources" not in warns[0].message
+
+
+def test_a_verified_subject_claim_with_no_audit_is_under_verified(tmp_path):
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent")
+    path = _subject_claim(root, "C1").path
+    page = pages.read_page(path)
+    page.fm["status"] = "verified"  # hand-edited past the gate
+    pages.write_page(path, page.fm, page.body)
+    errs = [f for f in run_doctor(root) if f.code == "under-verified"]
+    assert errs and errs[0].level == "ERROR"
+    assert "is not unmet here, it is inapplicable" in errs[0].message
+    assert "do not add a source to clear this" in errs[0].message
+
+
+def test_a_verified_subject_claim_with_its_audit_is_not_under_verified(tmp_path):
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent")
+    path = _subject_claim(root, "C1").path
+    _severe_attribution(root, "C1", "A1")
+    page = pages.read_page(path)
+    page.fm["status"] = "verified"
+    pages.write_page(path, page.fm, page.body)
+    assert "under-verified" not in codes(run_doctor(root))
+
+
+def test_a_stored_count_on_a_subject_only_claim_is_drift(tmp_path):
+    """A pre-0.16 page, or a hand edit: the number is not stale, it is about a
+    question the claim cannot be asked."""
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent")
+    path = _subject_claim(root, "C1").path
+    page = pages.read_page(path)
+    page.fm["independent_corroboration"] = 0
+    pages.write_page(path, page.fm, page.body)
+    drift = [f for f in run_doctor(root) if f.code == "corroboration-drift"]
+    assert drift and "there is nothing for the count to count" in drift[0].message
+
+
+def test_a_mixed_claim_keeps_its_count_and_drifts_normally(tmp_path):
+    from flip import claims as claims_mod
+
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent")
+    source_page(root, "A2", grade="B", independence="independent")
+    page = claims_mod.add_claim(root, "mixed", ["A1"], load_bearing=True, subjects=["A2"])
+    assert page.fm["independent_corroboration"] == 1  # A2 is not counted
+    assert "corroboration-drift" not in codes(run_doctor(root))
+
+
+def test_an_unreadable_citation_role_is_a_bad_enum(tmp_path):
+    """It still reads as evidence, so nothing is quietly excused — but the
+    operator who meant `subject` has to be told the page does not say so."""
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent")
+    path = claim_page(root, "C1", sources=["A1"])
+    page = pages.read_page(path)
+    page.fm["sources"] = [{"id": "A1", "role": "subjekt"}]
+    pages.write_page(path, page.fm, page.body)
+    bad = [f for f in run_doctor(root) if f.code == "bad-enum"]
+    assert bad and bad[0].level == "ERROR"
+    assert "being read as 'evidence'" in bad[0].message
+
+
+def test_misattribution_on_a_subject_does_not_advise_unlinking(tmp_path):
+    """Unlinking is the wrong repair when the source is what the claim is
+    about: drop the citation and the claim has nothing left to be true of."""
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent")
+    _subject_claim(root, "C1")
+    _severe_attribution(root, "C1", "A1", result="failed")
+    warns = [f for f in run_doctor(root) if f.code == "misattributed-citation"]
+    assert warns
+    assert "Do NOT unlink" in warns[0].message
+    assert "flip claim source rm" not in warns[0].message

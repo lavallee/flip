@@ -24,6 +24,32 @@ plain 0 reads as "the evidence is thin" when the truth is "flip cannot read
 this judgment". A wrong number is worse than a missing one — only the missing
 one prompts a look.
 
+**Citation roles** are that same lesson in a second place. Every entry in a
+claim's `sources:` carries a `role` (SPEC §7): `evidence` — the default, and
+what every citation written before 0.16 is — says the source is a WITNESS to
+what the claim asserts, and only witnesses corroborate. `subject` says the
+claim is ABOUT this source: the source is what makes the claim true or false,
+not evidence for it, and a second source could only ever be a second READING
+of the same document. That is an independent reader, not an independent
+causal path; it addresses reader error, and corroboration is a check on
+source error. The two are not interchangeable, so a subject citation is
+excluded from the count.
+
+And a claim whose every citation is a subject has NO
+`independent_corroboration` key at all — not a zero (`corroboration_applies`,
+`claim_corroboration`). Zero would be the same wrong number: it reads as "the
+evidence is thin" when the truth is "this axis does not apply here". A claim
+citing nothing at all keeps its 0, because there the question does apply and
+nobody has answered it — the absent key means *inapplicable*, never *unmet*.
+
+The audit that IS available on a subject citation is an `attribution` test
+(SPEC §7.1): anyone can re-run it against the same custody, which is exactly
+what makes it the right check where a second source is impossible in
+principle. A severe, surviving one is what the `verified` gate accepts in the
+bar's place for a subject-only claim, and doctor names a subject citation
+that has never had one. flip checks that the test is on record, never that it
+is true — the same limit the stance layer already declares.
+
 `status` says what is KNOWN about a claim. Two orthogonal axes say what has
 been asked of it and what the notebook does with it, and both live in
 `stance` (SPEC §7.1): the authored, append-only `stances:` and `tests:`
@@ -66,6 +92,28 @@ STATUSES = (
 # — the two below — clear the gate on their own.
 VERIFICATION_METHODS = ("adversarial", "independent-sources", "recomputation")
 GATING_VERIFICATION_METHODS = ("adversarial", "recomputation")
+
+# What a citation DOES for the claim that makes it (SPEC §7). The role lives
+# on the ENTRY, not on the claim and not on the source page, because the same
+# source is constitutive for one claim and evidential for another: a rebuttal
+# paper is what one claim is about and a witness for the next one.
+#
+# Two values, and each earns its place the way flip's other enums do — it must
+# name a situation the other cannot, and it must change what happens next.
+#
+#   evidence  a witness to what the claim asserts. Counts toward corroboration
+#             when its page is judged and independent. THE DEFAULT, and the
+#             role every citation written before 0.16 has: agreement between
+#             causally independent paths to the same fact is evidence, and
+#             that is what the count was always measuring.
+#   subject   the claim is ABOUT this source — it is the fact-maker, not
+#             evidence for the fact. Cannot corroborate itself, so it is
+#             excluded from the count. What it can have instead is an
+#             `attribution` test (SPEC §7.1), which anyone can re-run against
+#             the same custody: the applicable audit where a second source is
+#             impossible in principle rather than merely absent.
+CITATION_ROLES = ("evidence", "subject")
+DEFAULT_CITATION_ROLE = "evidence"
 
 # Generated attribution, OKF v0.2 style: footnote labels are the claim's
 # source ids. Both patterns are id-shaped on purpose — flip only ever edits
@@ -121,6 +169,104 @@ def source_refs(fm: dict) -> list[str]:
     return out
 
 
+def citation_role(entry: object) -> str:
+    """The role of one `sources:` entry — `evidence` or `subject` (SPEC §7).
+
+    Anything unreadable reads as `evidence`: a bare string (hand edits,
+    pre-0.7 pages), a missing key, and — deliberately — a typo'd value. A
+    misspelled role must never be the thing that quietly excused a claim from
+    the corroboration bar, so the unknown value counts as a witness and
+    doctor's `bad-enum` names it.
+    """
+    if not isinstance(entry, dict):
+        return DEFAULT_CITATION_ROLE
+    role = str(entry.get("role") or "").strip()
+    return role if role in CITATION_ROLES else DEFAULT_CITATION_ROLE
+
+
+def source_citations(fm: dict) -> list[tuple[str, str]]:
+    """A claim's citations as `(ref, role)` pairs, in order — the shape the
+    write paths plumb through, since regenerating a page from ids alone would
+    drop both the pinned passage and the role.
+
+    `source_ids` and `source_refs` stay exactly what they were: everything
+    that only wants to know WHICH sources, or which words, goes on asking that
+    and gets the same answer whatever the roles are.
+    """
+    out: list[tuple[str, str]] = []
+    for entry in pages.as_list(fm.get("sources")):
+        role = citation_role(entry)
+        if not isinstance(entry, dict):
+            sid = str(entry).strip()
+            if sid:
+                out.append((sid, role))
+            continue
+        sid = str(entry.get("id", "")).strip()
+        if not sid:
+            continue
+        labels = [str(x) for x in pages.as_list(entry.get("excerpts")) if str(x).strip()]
+        if labels:
+            out.extend((util.format_excerpt_ref(sid, label), role) for label in labels)
+        else:
+            out.append((sid, role))
+    return out
+
+
+def _roles_by_id(fm: dict) -> dict[str, str]:
+    """Base source id → its role on this claim, first-seen order.
+
+    One source gets one role per claim, and `subject` wins any disagreement: a
+    document the claim is about cannot also be an independent witness to what
+    it says about that document. So a page citing the same id both ways — a
+    hand edit, or `--source P18 --about P18` — collapses to `subject` rather
+    than quietly keeping the id in the count.
+    """
+    roles: dict[str, str] = {}
+    for ref, role in source_citations(fm):
+        base = util.split_ref(ref)[0]
+        if role == "subject" or base not in roles:
+            roles[base] = role
+    return roles
+
+
+def _ids_with_role(fm: dict, role: str) -> list[str]:
+    return [sid for sid, sid_role in _roles_by_id(fm).items() if sid_role == role]
+
+
+def evidence_ids(fm: dict) -> list[str]:
+    """The claim's cited source ids that are witnesses to what it asserts —
+    the only ones the corroboration bar counts. Deduped, in order."""
+    return _ids_with_role(fm, "evidence")
+
+
+def subject_ids(fm: dict) -> list[str]:
+    """The claim's cited source ids that the claim is ABOUT. Deduped, in order.
+
+    These are the fact-makers. They cannot corroborate the claim they make
+    true or false, and what stands in for corroboration on them is an
+    `attribution` test (`unaudited_subjects`).
+    """
+    return _ids_with_role(fm, "subject")
+
+
+def corroboration_applies(fm: dict) -> bool:
+    """Whether "how many independent witnesses agree?" is a question this
+    claim can be asked at all.
+
+    False in exactly one situation: the claim cites something, and everything
+    it cites is a `subject`. There the question has no answer rather than the
+    answer zero — the only possible second source would be a second reading of
+    the same document, which is not a second path to the fact.
+
+    True when a claim cites nothing, which is the distinction the whole thing
+    turns on. "Nobody has cited anything" is a real zero: the question applies
+    and no one has answered it, and that number is exactly the one that should
+    prompt a look. Only a subject citation says the axis itself is the wrong
+    instrument.
+    """
+    return not source_ids(fm) or bool(evidence_ids(fm))
+
+
 def _linked_fms(source_fms: list[dict], source_ids: list[str]) -> list[dict]:
     """Frontmatter dicts matching the given source ids, deduped; unknown ids
     contribute nothing (dangling citations are legal — doctor counts them)."""
@@ -135,14 +281,50 @@ def corroboration_count(source_fms: list[dict], source_ids: list[str]) -> int:
     counts twice) whose references/ page is judged (support tuple recorded,
     or a migration seed — an unjudged capture counts toward nothing) AND
     independence == "independent". `corroborated`/`self-reported`/
-    `derivative` never satisfy the bar. Shared by add_claim/set_claim_status
-    and doctor's under-verified check.
+    `derivative` never satisfy the bar.
+
+    The pure counter: it answers "how many of THESE sources are independent
+    witnesses" and nothing else. Callers holding a claim's frontmatter want
+    `claim_corroboration` instead, which asks the roles whether the question
+    applies before it asks this one how many.
     """
     return sum(
         1
         for fm in _linked_fms(source_fms, source_ids)
         if sources_mod.judged(fm) and fm.get("independence") == "independent"
     )
+
+
+def claim_corroboration(source_fms: list[dict], fm: dict) -> int | None:
+    """A claim's independent corroboration — or None when the axis does not
+    apply to it. The claim-level entry point every caller with a frontmatter
+    dict goes through (add_claim, set_claim_status, doctor, views, export).
+
+    None means the claim cites only `subject` sources: there is no count to
+    take, because the only conceivable second source is a second reading of
+    the document the claim is about. Callers must render that as absent —
+    omit the key, print `n/a` — and never as 0. A number nobody can act on is
+    worse than a blank somebody asks about.
+    """
+    if not corroboration_applies(fm):
+        return None
+    return corroboration_count(source_fms, evidence_ids(fm))
+
+
+def _set_corroboration(fm: dict, source_fms: list[dict]) -> int | None:
+    """Write `independent_corroboration` onto a claim's frontmatter — or
+    REMOVE it when the axis no longer applies. Returns what it decided.
+
+    The removal is the half that is easy to forget: a claim re-cited from
+    evidence to subject would otherwise keep a stale count that now reads as a
+    verdict on evidence nobody claims to have.
+    """
+    count = claim_corroboration(source_fms, fm)
+    if count is None:
+        fm.pop("independent_corroboration", None)
+    else:
+        fm["independent_corroboration"] = count
+    return count
 
 
 def uncountable_sources(source_fms: list[dict], source_ids: list[str]) -> list[str]:
@@ -159,6 +341,29 @@ def uncountable_sources(source_fms: list[dict], source_ids: list[str]) -> list[s
         for fm in _linked_fms(source_fms, source_ids)
         if sources_mod.unmigrated(fm)
     ]
+
+
+def unaudited_subjects(fm: dict) -> list[str]:
+    """The claim's `subject` citations that no severe attribution test has
+    survived against, in order. Empty when every subject has been read for the
+    error and the error was not found.
+
+    This is the whole answerable half of the citation-role design. A subject
+    citation cannot be corroborated — nothing about the world could witness
+    what a document says — so the ask that replaces corroboration is the one
+    audit that IS available, and this names the ones nobody has taken. Refs
+    are compared by base id: a test run against `T1§relevance-null` audits the
+    passage of T1 the claim rests on, and the grouping that makes one source
+    one source everywhere else makes it one source here.
+
+    What flip can see is that a test is on record. Whether the reading was any
+    good is beyond it, exactly as with `support.method` and every field of a
+    test record (SPEC §7.1). A `subject` role is authored and can therefore be
+    used to duck the corroboration bar; the honest defences are that the role
+    is legible on the page and that this list is what doctor reports.
+    """
+    audited = {util.split_ref(ref)[0] for ref in stance.survived_attribution_sources(fm)}
+    return [sid for sid in subject_ids(fm) if sid not in audited]
 
 
 def has_gating_verification(fm: dict) -> bool:
@@ -197,28 +402,35 @@ def _description(text: str) -> str:
     return text[: _DESCRIPTION_MAX - 1].rstrip() + "…"
 
 
-def _group_refs(cited: list[str]) -> dict[str, list[str]]:
-    """Citation refs grouped base-id → pinned excerpt labels, both deduped and
-    in first-seen order. `["T1§a", "A2", "T1§b"]` → `{"T1": ["a","b"], "A2": []}`.
+def _group_refs(cited: list[tuple[str, str]]) -> dict[str, tuple[list[str], str]]:
+    """Citations grouped base-id → (pinned excerpt labels, role), everything
+    deduped and in first-seen order. `[("T1§a","evidence"), ("A2","evidence"),
+    ("T1§b","evidence")]` → `{"T1": (["a","b"], "evidence"), "A2": ([], …)}`.
 
     Grouping is what keeps one source one source: a claim resting on two
     passages of the same conversation has two citations and one piece of
-    evidence, and only the second number may reach corroboration.
+    evidence, and only the second number may reach corroboration. The role
+    rides along because it belongs to the citation and would otherwise be lost
+    the first time a page was regenerated — `subject` wins a disagreement, for
+    the reason `_roles_by_id` gives.
     """
-    grouped: dict[str, list[str]] = {}
-    for ref in cited:
+    grouped: dict[str, tuple[list[str], str]] = {}
+    for ref, role in cited:
         base, label = util.split_ref(str(ref))
-        labels = grouped.setdefault(base, [])
+        labels, current = grouped.get(base, ([], role))
+        if role == "subject":
+            current = role
         if label and label not in labels:
             labels.append(label)
+        grouped[base] = (labels, current)
     return grouped
 
 
 def _attribution(
-    src_by_id: dict[str, pages.Page], cited: list[str]
+    src_by_id: dict[str, pages.Page], cited: list[tuple[str, str]]
 ) -> tuple[list[dict], list[str]]:
-    """(OKF `sources` entries, footnote-definition lines) for a claim's cited
-    refs, deduped, in order.
+    """(OKF `sources` entries, footnote-definition lines) for a claim's
+    `(ref, role)` citations, deduped, in order.
 
     Resolvable ids get a followable bundle-absolute `resource`, the page
     title, and a relative-linked definition; dangling ids keep just the id
@@ -229,12 +441,19 @@ def _attribution(
     label to the entry's `excerpts` list and deep-links `resource` at the
     passage anchor. Footnote labels stay base-id-shaped (`[^T1]`) whatever is
     pinned: they are markdown labels, and one source keeps one marker.
+
+    `role` is written only when it is `subject`. The default is the meaning of
+    the key's absence, so every citation ever written stays byte-identical
+    through a regeneration and no notebook needs migrating — the same reason
+    OKF's own optional keys are optional.
     """
     entries: list[dict] = []
     defs: list[str] = []
-    for sid, labels in _group_refs(cited).items():
+    for sid, (labels, role) in _group_refs(cited).items():
         page = src_by_id.get(sid)
         entry: dict = {"id": sid}
+        if role != DEFAULT_CITATION_ROLE:
+            entry["role"] = role
         if labels:
             entry["excerpts"] = list(labels)
         if page is None:
@@ -252,15 +471,21 @@ def _attribution(
     return entries, defs
 
 
-def _apply_attribution(body: str, cited: list[str], defs: list[str]) -> str:
+def _apply_attribution(body: str, cited: list[tuple[str, str]], defs: list[str]) -> str:
     """Regenerate the two body parts flip owns — the id-shaped footnote
     markers ending the lead paragraph and the definition lines — leaving the
-    prose itself untouched (SPEC §6.6)."""
+    prose itself untouched (SPEC §6.6).
+
+    The role never reaches the body. A footnote is a citation link, and a
+    marker that read `[^P18 subject]` would put a piece of flip's frontmatter
+    vocabulary into published prose, where it means nothing to a reader and
+    breaks the label shape that keeps hand-authored footnotes safe.
+    """
     text = _FOOT_DEF_RE.sub("", body).strip("\n")
     text = re.sub(r"\n{3,}", "\n\n", text)
     head, sep, rest = text.partition("\n\n")
     head = _MARKER_TAIL_RE.sub("", head.rstrip())
-    head += "".join(f"[^{sid}]" for sid in _group_refs([str(s) for s in cited]))
+    head += "".join(f"[^{sid}]" for sid in _group_refs(cited))
     text = head + sep + rest if rest else head
     if defs:
         text = (text + "\n\n" if text else "") + "\n".join(defs)
@@ -282,18 +507,26 @@ def add_claim(
     notes: str | None = None,
     value: str | None = None,
     unit: str | None = None,
+    subjects: list[str] | None = None,
 ) -> pages.Page:
     """Add a claim page with status "asserted", allocating the next C#.
 
     A quantitative claim's number travels as data (`value`/`unit`), not only
     as prose — the format's own export can't fix a free-text number
     downstream. `value` stays a string (a range or "~42" is a legal value).
+
+    `sources` are cited as evidence — witnesses to what the claim asserts.
+    `subjects` are cited as what the claim is ABOUT (SPEC §7): the claim is
+    made true or false by that document, so it never counts toward
+    corroboration, and a claim citing subjects only carries no
+    `independent_corroboration` key at all rather than a zero.
     """
     root = util.require_notebook_root(root)
     text = (text or "").strip()
     if not text:
         raise SystemExit("empty claim text; state the assertion in one sentence")
-    cited = [str(s) for s in pages.as_list(sources)]
+    cited = [(str(s), "evidence") for s in pages.as_list(sources)]
+    cited += [(str(s), "subject") for s in pages.as_list(subjects)]
     cited_ids = list(_group_refs(cited))  # excerpt refs collapse to their source
     claim_id = pages.allocate_id(root, "C")
     src_by_id = _source_pages_by_id(root)
@@ -307,12 +540,15 @@ def add_claim(
         "status": "asserted",
         "load_bearing": bool(load_bearing),
         "sources": entries,
-        "independent_corroboration": corroboration_count(
-            [p.fm for p in src_by_id.values()], cited_ids
-        ),
-        "first_asserted": util.today(),
-        "generated": util.generated_now(),
     }
+    # Built in key order, which is why this is not `_set_corroboration`: on a
+    # subject-only claim the key is simply never written, and a reader of the
+    # page sees no count rather than a zero they would have to interpret.
+    corroboration = claim_corroboration([p.fm for p in src_by_id.values()], fm)
+    if corroboration is not None:
+        fm["independent_corroboration"] = corroboration
+    fm["first_asserted"] = util.today()
+    fm["generated"] = util.generated_now()
     if value is not None:
         fm["value"] = str(value)
         if unit:
@@ -418,6 +654,47 @@ def _refuse_superseded_without_a_successor(claim_id: str, fm: dict) -> None:
     )
 
 
+def _refuse_verified_subject_claim(claim_id: str, fm: dict) -> None:
+    """Gate `verified` on a claim that cites only its subject (SPEC §7).
+
+    The corroboration bar cannot be applied here, and that is a fact about the
+    claim rather than a shortfall in its evidence: "the rebuttal does not
+    mention Persson" is made true or false by the rebuttal, and a second
+    source could only ever be a second READING of it. So the bar is replaced,
+    not waived — by a severe, surviving `attribution` test against every cited
+    subject, which is the audit the situation actually admits and the one any
+    reader can re-run against the same custody.
+
+    Passing needs the test on the page; it does not need the test to have been
+    a good one, which flip cannot tell (SPEC §7.1, departure 3). The defence
+    against writing one to order is the same defence the whole stance layer
+    runs on: the record is legible, dated, attributed, and re-runnable by
+    someone who disagrees.
+    """
+    missing = unaudited_subjects(fm)
+    if not missing:
+        return
+    subjects = subject_ids(fm)
+    first = missing[0]
+    raise SystemExit(
+        f"cannot verify {claim_id}: it cites {', '.join(subjects)} as the source(s) it is "
+        f"ABOUT, so the corroboration bar has nothing to count — a second independent "
+        "witness to what one document says is not a thing that can exist, and the count "
+        "would be a comment on the claim's evidence rather than on this. What stands in "
+        f"for it is an attribution test that went looking for the error and did not find "
+        f"it: no severe, surviving one is on record against {', '.join(missing)}. Run it "
+        f"and record what it found — `flip claim test {claim_id} --probe attribution "
+        '--error "<the specific thing the claim could be getting wrong about what '
+        f'{first} says>" --would-detect "<how that would have shown up in the text>" '
+        '--if-absent "<what you would have seen instead, had the claim been right>" '
+        f"--against {first} --result survived|failed`. Do not add a second source to "
+        "clear this; there is no second source to add. (A2's other path still stands: "
+        f"`flip claim verify {claim_id} --method adversarial|recomputation` clears the "
+        "gate here as it does anywhere else — but on a claim about a document, the "
+        "attribution test is the same work with the error named)"
+    )
+
+
 def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
     """Move a claim to a new status, recomputing independent_corroboration and
     refreshing the `sources` entries + footnote attribution against current
@@ -436,6 +713,16 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
     `claim_grade_a_suffices` — any listed source graded A. Only judged sources
     count, and a refusal names any cited source flip could not count at all
     (pre-0.8 vocabulary) so the number is never read as an evidence verdict.
+
+    A claim citing only `subject` sources (SPEC §7) meets a different bar,
+    because that one is unsatisfiable in principle rather than merely unmet:
+    it asks for a second independent witness to what one document says, and no
+    such witness can exist. What it asks for instead is a **severe, surviving
+    `attribution` test against every cited subject** — the audit that is
+    actually available, and one any reader can re-run against the same
+    custody. Nothing else is loosened: the substitution is offered only where
+    the count itself has no meaning.
+
     Refusal writes nothing. Returns the updated page.
     """
     root = util.require_notebook_root(root)
@@ -446,17 +733,23 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
         _refuse_verified_against_tests(claim_id, page.fm)
     if status == "superseded":
         _refuse_superseded_without_a_successor(claim_id, page.fm)
-    # Refs drive regeneration (they carry the pinned passages); ids drive the
-    # evidence bar. Regenerating from ids alone silently unpinned every
-    # excerpt the moment a claim changed status.
-    cited_refs = source_refs(page.fm)
-    cited = source_ids(page.fm)
+    # Refs drive regeneration (they carry the pinned passages and the roles);
+    # ids drive the evidence bar. Regenerating from ids alone silently
+    # unpinned every excerpt the moment a claim changed status.
+    cited_refs = source_citations(page.fm)
     src_by_id = _source_pages_by_id(root)
     source_fms = [p.fm for p in src_by_id.values()]
-    corroboration = corroboration_count(source_fms, cited)
-    if status == "verified":
+    corroboration = claim_corroboration(source_fms, page.fm)
+    if status == "verified" and corroboration is None:
+        # A2's other path is untouched: an adversarial/recomputation record
+        # still clears the gate here exactly as it does anywhere else. What
+        # changes is only what stands in for the count that cannot be taken.
+        if not has_gating_verification(page.fm):
+            _refuse_verified_subject_claim(claim_id, page.fm)
+    elif status == "verified":
         profile = profiles.load_profile(manifest.load_manifest(root).kind, root)
-        linked = _linked_fms(source_fms, cited)
+        counted = evidence_ids(page.fm)
+        linked = _linked_fms(source_fms, counted)
         has_grade_a = any(sources_mod.derive_grade(fm) == "A" for fm in linked)
         bar_met = corroboration >= profile.claim_min_independent or (
             profile.claim_grade_a_suffices and has_grade_a
@@ -471,15 +764,27 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
             if profile.claim_grade_a_suffices:
                 msg += " and no grade-A source among its sources"
             msg += (
-                f" (sources: {', '.join(cited) or 'none'}); add sources whose "
+                f" (evidence: {', '.join(counted) or 'none'}); add sources whose "
                 "independence is 'independent' to the claim"
             )
             if profile.claim_grade_a_suffices:
                 msg += " or upgrade one to grade A via `flip grade`"
+            # A subject citation is not missing from the count by accident, so
+            # say so where the count is being read as a verdict: the operator
+            # who cited it deliberately should not spend an afternoon
+            # wondering why their source vanished.
+            subjects = subject_ids(page.fm)
+            if subjects:
+                msg += (
+                    f"; {', '.join(subjects)} "
+                    f"{'is' if len(subjects) == 1 else 'are'} cited as what this claim is "
+                    "ABOUT and never counted — a document cannot corroborate a claim about "
+                    "itself"
+                )
             # Lead with the cause when there is one: an uncountable source is a
             # vocabulary problem wearing an evidence problem's clothes, and the
             # count above understates the evidence rather than measuring it.
-            stale = uncountable_sources(source_fms, cited)
+            stale = uncountable_sources(source_fms, counted)
             if stale:
                 msg += (
                     f"; {', '.join(stale)} {'carries' if len(stale) == 1 else 'carry'} "
@@ -504,8 +809,8 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
             raise SystemExit(msg)
     entries, defs = _attribution(src_by_id, cited_refs)
     page.fm["status"] = status
-    page.fm["independent_corroboration"] = corroboration
     page.fm["sources"] = entries
+    _set_corroboration(page.fm, source_fms)
     page.fm.pop("supports", None)  # pre-0.7 key; the entries carry the paths now
     body = _apply_attribution(page.body, cited_refs, defs)
     pages.write_page(page.path, page.fm, body)
@@ -514,20 +819,25 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
-def _write_sources(root: Path, page: pages.Page, cited: list[str]) -> pages.Page:
+def _write_sources(
+    root: Path, page: pages.Page, cited: list[tuple[str, str]]
+) -> pages.Page:
     """Persist a claim's new citation list: regenerate the OKF `sources`
     entries + footnote attribution against current source slugs and recompute
-    independent_corroboration. Takes refs (`T1§label` or bare ids); the
-    evidence bar counts the base ids behind them. The prose round-trips
-    (SPEC §6.6)."""
-    refs = [str(s) for s in cited]
+    independent_corroboration. Takes `(ref, role)` pairs — refs so the pinned
+    passages survive, roles so the count knows which citations are witnesses.
+    The prose round-trips (SPEC §6.6).
+
+    The recompute goes through `_set_corroboration`, so a claim whose last
+    evidence citation was just removed loses the key rather than dropping to a
+    zero that would read as a verdict on evidence it never claimed to have.
+    """
+    refs = [(str(ref), role) for ref, role in cited]
     src_by_id = _source_pages_by_id(root)
     entries, defs = _attribution(src_by_id, refs)
     page.fm["sources"] = entries
     page.fm.pop("supports", None)
-    page.fm["independent_corroboration"] = corroboration_count(
-        [p.fm for p in src_by_id.values()], list(_group_refs(refs))
-    )
+    _set_corroboration(page.fm, [p.fm for p in src_by_id.values()])
     body = _apply_attribution(page.body, refs, defs)
     pages.write_page(page.path, page.fm, body)
     manifest.touch_updated(root)
@@ -536,24 +846,36 @@ def _write_sources(root: Path, page: pages.Page, cited: list[str]) -> pages.Page
 
 
 def add_claim_sources(
-    root: Path, claim_id: str, new_ids: list[str]
-) -> tuple[pages.Page, list[str], list[str]]:
-    """Link one or more source ids to a claim (A1): append to `sources:`,
+    root: Path, claim_id: str, new_ids: list[str], subjects: list[str] | None = None
+) -> tuple[pages.Page, list[str], list[str], list[tuple[str, str]]]:
+    """Link one or more citations to a claim (A1): append to `sources:`,
     regenerate the footnote attribution, recompute corroboration.
+
+    `new_ids` are cited as evidence, `subjects` as what the claim is ABOUT
+    (SPEC §7). A ref already cited in the OTHER role is **re-roled** rather
+    than refused: the role is a property of the citation, so `--about P18` on
+    a claim that already cites P18 says something unambiguous about that
+    citation, and making the operator delete and re-add it would regenerate
+    the page twice to express one correction. Re-roling to `subject` can
+    remove the corroboration key entirely, which is the point of doing it.
 
     Unknown ids — no references/ page carries them — are refused before any
     write; this is the post-hoc linker, not a place to invent dangling cites.
-    Returns (page, newly-added ids, warnings), where warnings are
-    `(source_id, reason)` pairs for any linked source that won't count toward
-    the bar: `"unjudged"` (graded "?" — capture is custody, not judgment,
-    D12/§5.4) or `"unmigrated"` (pre-0.8 `independence` vocabulary, which
-    needs re-reading rather than first-time judging — a different fix, so a
-    different word). Refuses when every given id is already linked.
+    Returns (page, newly-linked refs, re-roled refs, warnings), where warnings
+    are `(source_id, reason)` pairs for any linked source that won't count
+    toward the bar: `"unjudged"` (graded "?" — capture is custody, not
+    judgment, D12/§5.4) or `"unmigrated"` (pre-0.8 `independence` vocabulary,
+    which needs re-reading rather than first-time judging — a different fix,
+    so a different word). Refuses when nothing given would change anything.
     """
     root = util.require_notebook_root(root)
-    refs = [str(s) for s in pages.as_list(new_ids)]
+    refs = [(str(s), "evidence") for s in pages.as_list(new_ids)]
+    refs += [(str(s), "subject") for s in pages.as_list(subjects)]
     if not refs:
-        raise SystemExit("no source ids given; pass at least one references/ id, e.g. A3")
+        raise SystemExit(
+            "no source ids given; pass at least one references/ id as evidence (e.g. A3), "
+            "or as the source the claim is about (`--about P18`)"
+        )
     page = _find_claim(root, claim_id)
     src_by_id = _source_pages_by_id(root)
     grouped = _group_refs(refs)
@@ -567,7 +889,7 @@ def add_claim_sources(
     # An unpinned label is refused here for the same reason an unknown id is:
     # this is the post-hoc linker, and a ref that resolves to nothing would
     # read as a passage citation while resting on the whole conversation.
-    for sid, labels in grouped.items():
+    for sid, (labels, _role) in grouped.items():
         for label in labels:
             if transcripts.find_excerpt(root, sid, label) is None:
                 pinned = ", ".join(
@@ -578,20 +900,34 @@ def add_claim_sources(
                     f"{sid} pins no excerpt '{label}' (pinned: {pinned}); "
                     f"pin it with `flip transcript excerpt {sid} --label {label} --lines A-B`"
                 )
-    current = source_refs(page.fm)
-    added = [s for s in dict.fromkeys(refs) if s not in current]
-    if not added:
+    current = source_citations(page.fm)
+    known_roles = dict(current)
+    wanted = list(dict.fromkeys(refs))
+    added = [ref for ref, role in wanted if ref not in known_roles]
+    rerolled = [ref for ref, role in wanted if known_roles.get(ref, role) != role]
+    if not added and not rerolled:
+        cited = ", ".join(dict.fromkeys(ref for ref, _ in wanted))
         raise SystemExit(
-            f"claim {claim_id} already cites {', '.join(dict.fromkeys(refs))}; nothing to add"
+            f"claim {claim_id} already cites {cited} in the role given; nothing to add. "
+            f"To change what a citation is FOR, pass it the other way "
+            f"(`--about <id>` for the source the claim is about, a bare id for a witness); "
+            f"to drop it, `flip claim source rm {claim_id} <id>`"
         )
-    updated = _write_sources(root, page, current + added)
+    roles = dict(wanted)
+    keep = [(ref, roles.get(ref, role)) for ref, role in current]
+    updated = _write_sources(root, page, keep + [(ref, roles[ref]) for ref in added])
+    # Only evidence earns the grading warning. "It won't count toward the bar"
+    # is not news about a citation whose whole declaration is that the bar
+    # does not apply to it, and a warning that fires where its advice is
+    # meaningless is how operators learn to skim warnings.
     warnings = [
         (ref, "unmigrated" if sources_mod.unmigrated(src_by_id[base].fm) else "unjudged")
         for ref in added
+        if roles[ref] == "evidence"
         for base in [util.split_ref(ref)[0]]
         if not sources_mod.judged(src_by_id[base].fm)
     ]
-    return updated, added, warnings
+    return updated, added, rerolled, warnings
 
 
 def remove_claim_source(root: Path, claim_id: str, source_id: str) -> pages.Page:
@@ -607,15 +943,14 @@ def remove_claim_source(root: Path, claim_id: str, source_id: str) -> pages.Page
     ref = str(source_id)
     base, label = util.split_ref(ref)
     page = _find_claim(root, claim_id)
-    current = source_refs(page.fm)
+    current = source_citations(page.fm)
     if label:
-        keep = [s for s in current if s != ref]
+        keep = [(s, role) for s, role in current if s != ref]
     else:
-        keep = [s for s in current if util.split_ref(s)[0] != base]
+        keep = [(s, role) for s, role in current if util.split_ref(s)[0] != base]
     if len(keep) == len(current):
-        raise SystemExit(
-            f"claim {claim_id} does not cite {ref} (cites: {', '.join(current) or 'none'})"
-        )
+        cites = ", ".join(s for s, _ in current) or "none"
+        raise SystemExit(f"claim {claim_id} does not cite {ref} (cites: {cites})")
     return _write_sources(root, page, keep)
 
 

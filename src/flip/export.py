@@ -310,14 +310,24 @@ def _claim_projection(page: pages.Page, source_fms: list[dict],
         "status": str(fm.get("status", "")),
         "load_bearing": bool(fm.get("load_bearing", False)),
         "sources": source_ids,
-        "corroboration": claims_mod.corroboration_count(source_fms, source_ids),
-        "verifications": [
-            _verification_projection(v)
-            for v in pages.as_list(fm.get("verified"))
-            if isinstance(v, dict)
-        ],
     }
+    # `corroboration` is OMITTED, not zeroed, where the axis does not apply
+    # (SPEC §7). A renderer reading 0 would print "no independent support" of
+    # a claim whose support is the document it is about; a renderer reading a
+    # missing key has to go and look, which is the outcome this whole
+    # distinction exists to produce. `subjects` (v2) is why it is missing.
+    corroboration = claims_mod.claim_corroboration(source_fms, fm)
+    if corroboration is not None:
+        out["corroboration"] = corroboration
+    out["verifications"] = [
+        _verification_projection(v)
+        for v in pages.as_list(fm.get("verified"))
+        if isinstance(v, dict)
+    ]
     if render_version >= 2:
+        subjects = claims_mod.subject_ids(fm)
+        if subjects:
+            out["subjects"] = subjects
         if fm.get("value") is not None:
             out["value"] = str(fm.get("value"))
             if fm.get("unit"):

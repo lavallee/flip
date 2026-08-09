@@ -111,6 +111,22 @@ flip claim status C1 verified
 
 If the bar isn't met, flip refuses with instructions instead of complying.
 
+**When the claim is *about* a source, cite it with `--about` instead.** A
+claim like "the rebuttal never mentions Persson" is made true or false by the
+rebuttal; a second source could only be a second *reading* of the same
+document, which is not a second path to the fact. So a subject citation never
+counts, the claim carries **no corroboration number at all** (`n/a (subject)`,
+never `0` — absent means the axis doesn't apply, not that the evidence is
+thin), and what it owes instead is an attribution test anyone can re-run
+against the same bytes:
+
+```bash
+flip claim add "The rebuttal answers Ballarini & Sloman (2017), not Persson" --about P1 --load-bearing
+# C2 asserted · sources: P1 · corroboration: n/a (subject)
+flip claim test C2 --probe attribution --error "…" --would-detect "…" --if-absent "…" \
+  --against P1 --result survived
+```
+
 **Show** the hot view — the resume-here screen, computed from the pages and
 ledgers:
 

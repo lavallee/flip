@@ -64,6 +64,7 @@ profiles: [provenance/0.2]
 | `status: asserted\|verified\|needs-2nd\|unconfirmed\|false-positive\|retracted\|superseded` | Claim | machine-generated assertions enter `asserted`; `verified` is gated |
 | `sources[].id` as footnote keys | Claim | v0.2's own `sources` + footnote-attribution idiom, used exactly as specified — the profile adds only the gate below |
 | `independent_corroboration` + gated `status` | Claim | `verified` status is *refused* until the declared corroboration bar is met — the judgment layer v0.2 deliberately leaves to profiles |
+| `role: evidence\|subject` on a `sources` entry | Claim | what the citation is FOR. `evidence` (the default, and the meaning of the key's absence) is a witness and corroborates; `subject` is the source the claim is ABOUT, never counts, and drops `independent_corroboration` from the page entirely rather than reporting a zero the axis cannot support |
 | `method` on `verified[]` events | Claim | how the check was performed (`adversarial` / `independent-sources` / `recomputation`); only the first and last clear the gate alone |
 | `type: Work Session` concepts | session pages | one concept per generation episode: `generated: {by, at}`, `model`, `tools`, `started`, `ended` |
 | `id` + `aliases` | any concept | short immutable identifier surviving file renames |

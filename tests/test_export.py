@@ -676,3 +676,25 @@ def test_render_2_carries_drafts_on_the_private_lane_only(tmp_path):
 
     v1 = export_json(root, include_private=True, render_version=1)
     assert "drafts" not in v1
+
+
+def test_export_omits_corroboration_where_the_axis_does_not_apply(tmp_path):
+    """A renderer reading 0 would print "no independent support" of a claim
+    whose support is the document it is about. A renderer reading a missing
+    key has to go and look, which is the outcome the distinction exists to
+    produce — and `subjects` (v2) is why it is missing."""
+    root = make_render_notebook(tmp_path / "nb")
+    pages.write_page(
+        root / "claims" / "c2.md",
+        {"type": "Claim", "id": "C2", "aliases": ["C2"], "description": "about a doc",
+         "status": "asserted", "load_bearing": True,
+         "sources": [{"id": "A1", "role": "subject"}]},
+        "about a doc\n",
+    )
+    claims = {c["id"]: c for c in export_json(root)["claims"]}
+    assert "corroboration" not in claims["C2"]
+    assert claims["C2"]["sources"] == ["A1"]  # still a citation, still an edge
+    assert claims["C1"]["corroboration"] == 1  # evidence claims are untouched
+    v2 = {c["id"]: c for c in export_json(root, render_version=2)["claims"]}
+    assert v2["C2"]["subjects"] == ["A1"]
+    assert "subjects" not in v2["C1"]

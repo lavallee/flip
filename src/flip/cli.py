@@ -1027,6 +1027,20 @@ def question_list(as_json: bool) -> None:
 # ---------------------------------------------------------------- claims
 
 
+def _corroboration_label(fm: dict) -> str:
+    """What every claim line prints after "corroboration:".
+
+    `n/a (subject)` — never 0 — when the claim cites only what it is ABOUT
+    (SPEC §7): there is no count to take, and printing a zero would report
+    thin evidence where the honest reading is that the axis does not apply.
+    The parenthesis is the reason, which is the half of a missing number that
+    is easy to leave out and the only half that gets it looked at.
+    """
+    if not claims.corroboration_applies(fm):
+        return "n/a (subject)"
+    return str(fm.get("independent_corroboration", 0))
+
+
 @main.group(cls=SuggestGroup)
 def claim() -> None:
     """Claims as pages (claims/<slug>.md, ids C#): assertions the work relies on.
@@ -1042,8 +1056,16 @@ def claim() -> None:
 @claim.command("add")
 @click.argument("text")
 @click.option("--source", "source_ids", multiple=True, metavar="SOURCE_ID",
-              help="Backing source id (a references/ page, e.g. A3), or a pinned "
-                   "transcript passage (T1§relevance-null); repeatable.")
+              help="A source that WITNESSES what the claim asserts (a references/ page, "
+                   "e.g. A3), or a pinned transcript passage (T1§relevance-null); "
+                   "repeatable. These are what corroboration counts.")
+@click.option("--about", "subject_ids", multiple=True, metavar="SOURCE_ID",
+              help="A source the claim is ABOUT rather than evidenced by — the document "
+                   "that makes it true or false ('the rebuttal does not mention Persson'). "
+                   "Repeatable. It is never counted toward corroboration, because the only "
+                   "possible second source is a second READING of the same document; what "
+                   "it owes instead is `flip claim test --probe attribution`, which anyone "
+                   "can re-run against the same bytes.")
 @click.option("--load-bearing", is_flag=True,
               help="The piece falls over if this claim is wrong; doctor audits these.")
 @click.option("--notes", default=None, help="Caveats, e.g. 'single vendor study'.")
@@ -1052,16 +1074,17 @@ def claim() -> None:
                    "renders and exports carry it; prose alone can't.")
 @click.option("--unit", default=None, metavar="UNIT",
               help='Unit for --value, e.g. "percent", "USD", "students".')
-def claim_add(text: str, source_ids: tuple[str, ...], load_bearing: bool,
-              notes: str | None, value: str | None, unit: str | None) -> None:
+def claim_add(text: str, source_ids: tuple[str, ...], subject_ids: tuple[str, ...],
+              load_bearing: bool, notes: str | None, value: str | None,
+              unit: str | None) -> None:
     """Assert a claim (status "asserted"), allocating the next C#."""
     root = require_notebook_root()
     page = claims.add_claim(root, text, list(source_ids),
                             load_bearing=load_bearing, notes=notes,
-                            value=value, unit=unit)
+                            value=value, unit=unit, subjects=list(subject_ids))
     srcs = ", ".join(claims.source_ids(page.fm)) or "none"
     click.echo(f"{page.id} asserted · sources: {srcs} · "
-               f"corroboration: {page.fm.get('independent_corroboration', 0)}")
+               f"corroboration: {_corroboration_label(page.fm)}")
     # Dangling cites are legal (§6.1) — doctor counts them — but say so now
     # rather than let a typo'd id ride silently until the next doctor run.
     known = {str(p.fm.get("id")) for p in pages.iter_pages(root, "references")}
@@ -1083,7 +1106,7 @@ def claim_status(claim_id: str, status: str) -> None:
     """
     page = claims.set_claim_status(require_notebook_root(), claim_id, status)
     click.echo(f"{page.id} → {page.fm.get('status', '?')} · "
-               f"corroboration: {page.fm.get('independent_corroboration', 0)}")
+               f"corroboration: {_corroboration_label(page.fm)}")
     own = stance_mod.notebook_stance(page.fm)
     if status == "verified" and own and str(own.get("stance")) == "pursuing":
         click.echo(f"note: the notebook's stance on {page.id} is still 'pursuing' — the "
@@ -1144,21 +1167,42 @@ def claim_source() -> None:
     Both regenerate the claim's footnote attribution and recompute its
     independent_corroboration — the post-hoc fix for a claim asserted before
     its sources were captured. Ungraded sources link but never count toward
-    the verification bar.
+    the verification bar, and a source cited with `--about` is never counted
+    at all: the claim is about that document, so it cannot also be an
+    independent witness to what the document says.
     """
 
 
 @claim_source.command("add")
 @click.argument("claim_id", metavar="CLAIM_ID")
-@click.argument("source_ids", nargs=-1, required=True, metavar="SOURCE_ID...")
-def claim_source_add(claim_id: str, source_ids: tuple[str, ...]) -> None:
-    """Link one or more source ids to a claim. Unknown ids are refused."""
-    page, added, warnings = claims.add_claim_sources(
-        require_notebook_root(), claim_id, list(source_ids)
+@click.argument("source_ids", nargs=-1, metavar="SOURCE_ID...")
+@click.option("--about", "subject_ids", multiple=True, metavar="SOURCE_ID",
+              help="Cite this source as what the claim is ABOUT rather than as evidence "
+                   "for it — the document that makes the claim true or false. Repeatable, "
+                   "and it re-roles a source the claim already cites. A subject never "
+                   "counts toward corroboration (no second witness to a document can "
+                   "exist); the audit it owes instead is `flip claim test --probe "
+                   "attribution`.")
+def claim_source_add(claim_id: str, source_ids: tuple[str, ...],
+                     subject_ids: tuple[str, ...]) -> None:
+    """Link one or more sources to a claim. Unknown ids are refused.
+
+    Bare ids are cited as evidence; `--about <id>` cites the source the claim
+    is about. The distinction is what the citation is FOR, and it decides
+    which audit the claim owes: a second independent witness, or a rereading
+    of the one document that settles it.
+    """
+    page, added, rerolled, warnings = claims.add_claim_sources(
+        require_notebook_root(), claim_id, list(source_ids), subjects=list(subject_ids)
     )
-    click.echo(f"{page.id} · linked {', '.join(added)} · sources: "
+    did = []
+    if added:
+        did.append(f"linked {', '.join(added)}")
+    if rerolled:
+        did.append(f"re-roled {', '.join(rerolled)}")
+    click.echo(f"{page.id} · {' · '.join(did)} · sources: "
                f"{', '.join(claims.source_ids(page.fm)) or 'none'} · "
-               f"corroboration: {page.fm.get('independent_corroboration', 0)}")
+               f"corroboration: {_corroboration_label(page.fm)}")
     for sid, reason in warnings:
         if reason == "unmigrated":
             click.echo(f"warning: {sid} carries pre-0.8 independence vocabulary — it "
@@ -1179,7 +1223,7 @@ def claim_source_rm(claim_id: str, source_id: str) -> None:
     page = claims.remove_claim_source(require_notebook_root(), claim_id, source_id)
     click.echo(f"{page.id} · unlinked {source_id} · sources: "
                f"{', '.join(claims.source_ids(page.fm)) or 'none'} · "
-               f"corroboration: {page.fm.get('independent_corroboration', 0)}")
+               f"corroboration: {_corroboration_label(page.fm)}")
 
 
 @claim.command("verify")
@@ -1574,6 +1618,13 @@ def transcript_excerpt(source_id: str, lines: str, label: str, note: str | None)
     click.echo(ref)
     click.echo(f"  lines {start}-{end}, {record['words']} words, sha256 {record['sha256'][:12]}")
     click.echo(f"  cite it: flip claim add \"…\" --source {ref}")
+    # The transcript case is where citation roles bite hardest: a claim about
+    # what was SAID has one witness by construction and can never have two, so
+    # the operator is told here — at the moment they get the ref — rather than
+    # discovering it from a corroboration count they cannot move (SPEC §7).
+    click.echo(f"  …or --about {ref} if the claim is about what was SAID here — a "
+               "conversation is the only witness to itself, so that citation is never "
+               "counted and owes `flip claim test --probe attribution` instead")
 
 
 @transcript.command("list")

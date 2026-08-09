@@ -1162,3 +1162,46 @@ def test_config_show_without_a_config_says_how_to_get_one(tmp_path):
     result = invoke(["config", "show"])
     assert result.exit_code == 1
     assert "flip config init" in result.output
+
+
+def test_claim_about_cites_the_source_the_claim_is_about(tmp_path, monkeypatch):
+    """One spelling for the distinction, and it is a flag rather than a suffix
+    on the id: `handle:ID` already means a workspace-qualified alias in flip,
+    so `--source ID:subject` would have overloaded a separator that is already
+    load-bearing. `--about` also reads as what it is — the claim is ABOUT this
+    source — where a role suffix reads as a type annotation."""
+    root = make_notebook(tmp_path / "demo")
+    _seed_claim(root, monkeypatch)
+    added = invoke(["claim", "source", "add", "C1", "--about", "F1"])
+    assert added.exit_code == 0, added.output
+    assert "linked F1" in added.output
+    # never 0: the axis does not apply, and a zero here reads as thin evidence
+    assert "corroboration: n/a (subject)" in added.output
+    assert "corroboration: 0" not in added.output
+
+
+def test_claim_add_about_and_source_can_be_mixed(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    _seed_claim(root, monkeypatch)  # F1 is graded independent
+    result = invoke(["claim", "add", "the filing says X, and reporters relay it",
+                     "--about", "F1", "--load-bearing"])
+    assert result.exit_code == 0, result.output
+    assert "corroboration: n/a (subject)" in result.output
+
+
+def test_claim_source_add_reroles_and_says_so(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    _seed_claim(root, monkeypatch)
+    assert invoke(["claim", "source", "add", "C1", "F1"]).exit_code == 0
+    rerolled = invoke(["claim", "source", "add", "C1", "--about", "F1"])
+    assert rerolled.exit_code == 0, rerolled.output
+    assert "re-roled F1" in rerolled.output
+    assert "corroboration: n/a (subject)" in rerolled.output
+
+
+def test_claim_source_add_needs_at_least_one_citation(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    _seed_claim(root, monkeypatch)
+    result = invoke(["claim", "source", "add", "C1"])
+    assert result.exit_code != 0
+    assert "--about" in result.output

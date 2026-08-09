@@ -845,3 +845,22 @@ def test_one_holder_being_cited_does_not_excuse_another(root: Path):
     claims.set_stance(root, "C1", "holding", because="cited", holder="a", sources=["A1"])
     claims.set_stance(root, "C1", "holding", because="not cited", holder="b")
     assert stance.unsourced_holders(fm_of(root, "C1")) == ["b"]
+
+
+def test_survived_attribution_sources_is_the_audit_a_subject_citation_can_have():
+    """Where a claim is ABOUT a source (SPEC §7), no second witness to what
+    that document says can exist — so "somebody went looking for the error in
+    it and did not find it" is the strongest check the situation admits, and
+    unlike a second witness it is one a disagreeing reader can re-run against
+    the same custody. Severity gates it the same way it gates a failure: a
+    probe that could not say what it would have shown otherwise is bad
+    evidence, no test (SIST p.5), whichever way it came out."""
+    fm = {"tests": [severe("attribution", "survived", ["P1"])]}
+    assert stance.survived_attribution_sources(fm) == ["P1"]
+    assert stance.failed_attribution_sources(fm) == []
+
+    bent = {"tests": [{**severe("attribution", "survived", ["P1"]), "if_absent": ""}]}
+    assert stance.survived_attribution_sources(bent) == []
+
+    other_probe = {"tests": [severe("substance", "survived", ["P1"])]}
+    assert stance.survived_attribution_sources(other_probe) == []

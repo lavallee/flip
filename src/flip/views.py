@@ -194,7 +194,19 @@ def _claim_line(c: dict, with_status: bool = False) -> str:
     parts.append(_trunc(c.get("description", "")))
     sources = claims.source_ids(c)
     parts.append("sources: " + (", ".join(sources) if sources else "none"))
-    parts.append(f"corroboration: {c.get('independent_corroboration', 0)}")
+    # `n/a`, never 0, where the axis does not apply (SPEC §7): a claim citing
+    # only what it is ABOUT has no witnesses to count, and a zero in this
+    # column reads as thin evidence rather than as the wrong instrument. The
+    # word in the parenthesis is the reason, because a blank with no reason is
+    # the half of the lesson that is easy to ship.
+    parts.append(
+        "corroboration: "
+        + (
+            f"{c.get('independent_corroboration', 0)}"
+            if claims.corroboration_applies(c)
+            else "n/a (subject)"
+        )
+    )
     # The attitude axis rides along only where it is used (SPEC §7.1). A claim
     # in a notebook that has never recorded a stance, a test or a rivalry says
     # nothing new, and appending "bent" to every line in every notebook would
@@ -420,7 +432,13 @@ def _load_bearing_needing_work(root: Path) -> list[dict]:
     would block `flip claim status … verified` (SPEC §7, A2). Terminal
     statuses (retracted/superseded/false-positive) are out; this is the
     roster's "still needs work" list. Recomputed, never trusting the stored
-    corroboration count."""
+    corroboration count.
+
+    A claim citing only what it is ABOUT (SPEC §7) is measured against the bar
+    that applies to it — a severe, surviving attribution test — because the
+    corroboration bar is one it could never meet, and a roster that lists a
+    claim forever under work nobody can do is a roster people stop reading.
+    """
     m = load_manifest(root)
     profile = _profile_or_default(m, root)
     source_fms = _source_rows(root)  # dicts carrying id/grade/independence
@@ -431,15 +449,18 @@ def _load_bearing_needing_work(root: Path) -> list[dict]:
         status = str(c.get("status", "asserted"))
         if status in ("retracted", "superseded", "false-positive"):
             continue
-        source_ids = claims.source_ids(c)
-        corroboration = claims.corroboration_count(source_fms, source_ids)
-        linked = claims._linked_fms(source_fms, source_ids)
-        has_grade_a = any(sources_mod.derive_grade(fm) == "A" for fm in linked)
-        bar_met = corroboration >= profile.claim_min_independent or (
-            profile.claim_grade_a_suffices and has_grade_a
-        )
-        if bar_met or claims.has_gating_verification(c):
-            continue
+        corroboration = claims.claim_corroboration(source_fms, c)
+        if corroboration is None:
+            if not claims.unaudited_subjects(c) or claims.has_gating_verification(c):
+                continue
+        else:
+            linked = claims._linked_fms(source_fms, claims.evidence_ids(c))
+            has_grade_a = any(sources_mod.derive_grade(fm) == "A" for fm in linked)
+            bar_met = corroboration >= profile.claim_min_independent or (
+                profile.claim_grade_a_suffices and has_grade_a
+            )
+            if bar_met or claims.has_gating_verification(c):
+                continue
         out.append(
             {
                 "id": c.get("id"),
@@ -526,9 +547,14 @@ def _render_ws_show(data: dict, open_only: bool, claims_only: bool) -> str:
         if show_c and nb["claims_needing_work"]:
             lines.append(f"  CLAIMS NEEDING WORK ({len(nb['claims_needing_work'])})")
             for c in nb["claims_needing_work"]:
+                # None is the roster's way of saying the corroboration axis
+                # does not apply to this claim, and it must not print as 0 or
+                # as "None" — what it owes is an attribution test (SPEC §7).
+                count = c["corroboration"]
                 lines.append(
                     f"    {c['id']} · {c['status']} · corroboration "
-                    f"{c['corroboration']} · {_trunc(c['description'])}"
+                    f"{'n/a (subject)' if count is None else count} · "
+                    f"{_trunc(c['description'])}"
                 )
             shown = True
         if not shown:
