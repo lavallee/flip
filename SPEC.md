@@ -687,6 +687,228 @@ discipline extras: at least three dated forecasts and a naive baseline
 declared in `baseline.md` **before** the first resolution — the only time
 declaring it is worth anything.
 
+### Research programmes — `analysis/<slug>.md` (RP#)
+
+Claims track truth and forecasts track calibration. Neither can say whether a
+**line of thinking** is worth staying on, and the claim vocabulary flattens
+two situations that are nothing alike: a proposition that cited a paper which
+does not contain it, and a proposition nobody has ever tested. Both come out
+non-verified. Only one is a defect.
+
+A Programme (`type: Programme`, RP#) is the appraisal layer, and it lives in
+`analysis/` beside the H# hypothesis pages — it is a frame over claims, not
+a piece of evidence. It declares a **hard core** (`hard_core`) held by
+methodological decision rather than by evidence, and a **protective belt**
+(`protective_belt`) of auxiliary claims exposed to revision under fire. Every
+member is a **Claim** id: the propositions live in `claims/` with statuses and
+citation trails, and the programme only points (class purity at file level).
+`held_by` defaults to `self`; naming somebody else ("the audit movement")
+makes the page a reconstruction of *their* core and belt, recorded as data
+beside the evidence against it. `status` is `pursued | shelved | abandoned` —
+a pursuit state, never a truth state.
+
+**Anomalies never falsify a core.** That is not what they are for, and flip
+enforces the asymmetry rather than describing it: a `--hits` on a core claim
+is recorded and the core stands, while `--absorbed-by` naming a core claim is
+**refused** — the belt is what absorbs, and a core that quietly moves under
+fire was never held by decision. There is deliberately **no command that
+edits `hard_core`**: a programme with a different core is a different
+programme, and the honest record of that is a new RP#.
+
+`shifts:` is the append-only list of **problemshifts** — the unit of
+appraisal. Each is `{at, occasion, hits?, absorbed_by?, by}`: what happened,
+which core/belt claims it struck, and which auxiliary claims took the weight
+(added to the belt here — recording a shift *is* how a belt grows). Nothing
+about whether the shift bought anything is written down.
+
+#### The primary, and what is ours
+
+The vocabulary and the appraisal come from Lakatos, Imre (1970),
+'Falsification and the Methodology of Scientific Research Programmes', in
+J. Worrall and G. Currie (eds), *The Methodology of Scientific Research
+Programmes: Philosophical Papers Volume 1*, Cambridge University Press
+(1978), pp. 8–101. Page references below are to that edition, and every
+quotation in this section and in `src/flip/programmes.py` is checkable
+against it. This matters more than a citation usually does: the first version
+of this section was written from a summary of Lakatos rather than from
+Lakatos, and the summary was wrong in three places that reached shipped
+behaviour. Where flip's rule is sharper than anything he wrote down, the text
+below says so rather than implying he licensed it.
+
+**Accommodation is his baseline, not his failure mode.** The series is
+*defined* as one in which every step accommodates: "each subsequent theory
+results from adding auxiliary clauses to (or from semantical
+reinterpretations of) the previous theory in order to accommodate some
+anomaly" (p. 33). Absorbing a hit is what the belt is for. What separates the
+two directions is whether the modification *also* bought excess content:
+"let us call a problemshift progressive if it is both theoretically and
+empirically progressive, and degenerating if it is not" (p. 34). So flip
+never scores accommodating as a defect, and the vocabulary throughout —
+verdicts, shift labels, findings — names the **absence of novel content**
+instead. A shift reads `content-increasing` or `no novel content`; neither
+label mentions accommodation, because both shifts accommodated.
+
+#### The verdict
+
+**Derived, never stored**, the same way a source's grade is derived from its
+support tuple (§5.4): `flip programme appraise` recomputes it on every read
+from the shifts and the dated forecast record.
+
+| verdict | means |
+|---|---|
+| `degenerating` | the last **3** problemshifts each registered no novel content — the programme has "cease[d] to anticipate novel facts" (p. 49) |
+| `progressive` | the series is still content-increasing, and at least one novel prediction has corroborated with the bet on the record before the surface was read |
+| `theoretically-progressive` | the series is still content-increasing; nothing corroborated yet. A **good standing**, not a warning |
+| `unappraised` | flip declines to say: either nothing has happened, or the barren run is real but shorter than 3 |
+
+Two properties of that table carry most of the design.
+
+*It is read off the tail, not the lifetime total.* A programme that banked one
+corroborated bet and then went quiet for three modifications appraises
+`degenerating`, and the win stays visible in the report. A verdict that could
+never be revoked once earned would be the machine for never being wrong that
+this whole object exists to avoid.
+
+*Corroboration is never owed per shift.* `theoretically-progressive` draws no
+finding at all, because Lakatos explicitly does not ask for one: "We do not
+demand that each step produce immediately an observed new fact" (p. 49).
+
+**Why a run of three, and where that is ours.** Lakatos names the abandonment
+condition — "if and when the programme ceases to anticipate novel facts, its
+hard core might have to be abandoned: that is, our hard core, unlike
+Poincaré's, may crumble under certain conditions" (p. 49) — and on the same
+page warns against reading it quickly: "'empirical progress' cannot [be
+verified immediately], and in a research programme we may be frustrated by a
+long series of 'refutations' before ingenious and lucky content-increasing
+auxiliary hypotheses turn a chain of defeats — with hindsight — into a
+resounding success story." He resolves that himself, in the next sentences, by
+demanding the two kinds of progress at *different rates*: "we must require
+that each step of a research programme be consistently content-increasing…
+All we need in addition to this is that at least every now and then the
+increase in content should be seen to be retrospectively corroborated…
+Our term 'intermittently' gives sufficient rational scope for dogmatic
+adherence to a programme in face of prima facie 'refutations'." flip follows
+that split exactly: content is asked of every step, corroboration only
+intermittently.
+
+The **number 3 is ours**. His letter is 1 — content at *each* step — and flip
+is deliberately more permissive, for a reason about notebooks rather than
+about science: a shift is recorded the day the belt moved, while the bet it
+suggests is registered whenever the operator next writes one, so a run of one
+barren shift is indistinguishable from ordinary lag and a run of two can be
+one interrupted week. Three consecutive modifications that risked nothing is
+the shortest run that cannot be read as a gap. It is counted in shifts, not
+days. He offers no number, and flip does not pretend he did.
+
+**The half of his criterion flip does not implement.** "[A]t least every now
+and then the increase in content should be seen to be retrospectively
+corroborated: the programme as a whole should also display an intermittently
+progressive empirical shift" (p. 49). flip enforces the *each step* half and
+enforces the *intermittently* half **not at all**: a programme that opens one
+forecast per problemshift with a distant `resolves_by` and never resolves any
+of them stays `theoretically-progressive` for as long as it likes. Closing
+that would take a second invented number — how long "every now and then" is —
+and Lakatos pointedly declines to give one, on the grounds that the judgement
+is the one most visible only in hindsight ("It is very doubtful whether
+Fermi's neutrino programme was progressive or degenerating even between 1936
+and 1950; and after 1950 the verdict is still not crystal clear", p. 85,
+n. 2). So this is a known gap rather than a solved problem, and the partial
+cover for it is elsewhere: the Forecasts subsection's `overdue-forecast` fires
+on a bet whose `resolves_by` has passed unresolved, which catches the cheap
+version of the dodge without pretending to appraise the programme.
+
+**Novel content is decided on timing, and only on timing.** A Forecast counts
+as a programme's content when it `bears_on` a core or belt claim, and it is
+attributed to the last problemshift whose `at` does not follow its `opened`
+date — attribution is computed, never declared, so it cannot be declared
+falsely. It counts as content while `open`, when it resolved yes, and when it
+resolved **no**: a refuted risky prediction is still excess empirical content,
+and scoring failure as nothing would only teach a desk to bet on certainties.
+It counts as *corroborated* only when the resolution landed **strictly after**
+the day the bet was registered. Opened and resolved the same day it is a
+**retrodiction** — named, scored zero, and flagged: the fact was in hand
+before the bet was, so nothing about it is excess content. A `void` resolution
+scores nothing here for the same reason it scores nothing in Brier.
+
+#### Appraisal is not elimination
+
+These are different questions and flip answers only the first on its own.
+Lakatos is explicit: "[A] degenerating problemshift is no more a sufficient
+reason to eliminate a research programme than some old-fashioned 'refutation'
+or a Kuhnian 'crisis'. Can there be any objective (as opposed to socio-
+psychological) reason to reject a programme…? Our answer, in outline, is that
+such an objective reason is provided by a rival research programme which
+explains the previous success of its rival and supersedes it by a further
+display of heuristic power" (p. 69); and "in spite of hundreds of known
+anomalies we do not regard it as falsified (that is, eliminated) until we have
+a better one" (p. 36).
+
+So `rivals` is not an annotation on the verdict — it is what turns the verdict
+into a consequence. `appraise` fills in `outpaced_by`: the rivals that both
+
+- carry **strictly more corroborated content** ("superseded by a theory with
+  higher corroborated content", p. 34 — *higher*, so a tie supersedes
+  nothing), and
+- are themselves `progressive` right now (the "further display of heuristic
+  power" is present tense; a rival coasting on an old win is displaying
+  nothing).
+
+Rivalry is read **both ways** — the rivals a programme declared, plus every
+programme that declared it — because the comparison is between programmes,
+not between a programme and a list it keeps, and a one-way reading would let a
+notebook duck a supersession by leaving the newcomer out of its own `rivals:`.
+
+**The clause flip cannot check** is "explains the previous success of its
+rival". No arrangement of claim ids settles whether one programme recovers
+another's results. flip therefore never asserts that a programme *has been*
+superseded; it names the rival, says what it can and cannot see, and asks.
+
+**Neither is ever an ERROR, and only one asks for anything.**
+
+- `degenerating-programme` (WARN) — degenerating, and nothing is out-predicting
+  it. It reports the reading and **asks for nothing**: by Lakatos's criterion
+  this programme is still the best account anyone has, and demanding a
+  signature for holding the best account on the desk is exactly the
+  trigger-happiness the first version of this check had. It says what stopped,
+  how to restart it, and how to declare the rival flip is missing.
+- `superseded-programme` (WARN) — degenerating **and** out-predicted. This is
+  the case Lakatos calls an objective reason to reject, and the only one flip
+  puts a signature line under. `flip programme acknowledge <RP#> --note "…"`
+  records `{at, verdict, shifts, outpaced_by, by, note}` and doctor goes
+  quiet. The signature names the rivals it was signed against, so it goes
+  stale — and the finding returns — when the next barren shift lands *or when
+  a new rival pulls ahead*, since "I am holding this while RP2 predicts more"
+  is not a decision that covers RP3.
+
+Acknowledgment is refused on anything not currently degenerating: a signature
+collected in advance is the click-through it exists to avoid.
+
+**Where flip is knowingly sharper than Lakatos.** He never says the
+conjunction *degenerating + out-predicted* is sufficient to abandon a
+programme, and in places argues against acting on it quickly: "there is
+something to be said for at least some people sticking to a research
+programme until it reaches its 'saturation point'" (p. 69, n. 1), and
+"theoretical pluralism is better than theoretical monism" (p. 69). flip treats
+the conjunction as sufficient to **ask**, never to act, and offers no command
+that retracts, shelves or abandons a programme on the appraisal's say-so. His
+own worked example of how slow the judgement can be is the honest bound on all
+of this: "It is very doubtful whether Fermi's neutrino programme was
+progressive or degenerating even between 1936 and 1950; and after 1950 the
+verdict is still not crystal clear" (p. 85, n. 2).
+
+#### doctor's programme surface
+
+`empty-core`, `impure-core`, `core-belt-overlap`, `dangling-core`,
+`bad-shift-order` (a shift dated in the future or before the one above it does
+not produce a wrong verdict — it produces a manufactured one),
+`unshifted-anomaly` (a core/belt claim in a non-surviving status that no shift
+records), `retrodiction`, `degenerating-programme`, `superseded-programme`,
+`belief-as-assertion` (a foreign-held programme whose core claims read
+`asserted`/`verified` — the notebook asserting a belief rather than recording
+that somebody else holds it), and `held-by-decision`, which leads the findings
+with the reason the `under-verified`/`unaudited-claim` lines below it are not
+defects in a hard core, and names what the programme owes instead.
+
 ## 8. Logs — events, sessions, views
 
 - **`log/log.jsonl`** (append-only) — the work log: fetched X, ran Y, hit
@@ -751,8 +973,10 @@ quietly widens from one exchange to the whole conversation).
 
 - Every entity has a compact, immutable id in frontmatter: `P#/A#/F#/T#/S#`
   sources (papers / articles / files-datasets / talks / unkinded) · `C#`
-  claims · `D#` decisions · `Q#` questions · `H#` hypotheses. Prefixes are
-  disjoint, so a bare `[A3]` or `[D2]` cite is unambiguous. Ids are never
+  claims · `D#` decisions · `Q#` questions · `FC#` forecasts · `CL#`
+  clusters · `H#` hypotheses · `RP#` research programmes. Prefixes are
+  disjoint, so a bare `[A3]` or `[D2]` cite is unambiguous — and `P3` and
+  `RP3` are different entities in different directories. Ids are never
   reused, even after retraction.
 - **Filenames are slugs; ids resolve through frontmatter.** Prose cites ids
   in brackets (`[A3]`, `[C7]`) — greppable both directions; `flip open A3`
@@ -988,7 +1212,12 @@ flip log "<text>"                    # append a work-log event (+ regen log.md)
 flip decide|pass|question …          # decisions/questions pages; passed ledger
 flip claim add|status|list …         # claims pages; verification bar enforced
 flip session start|end …             # session pages
+flip programme add|belt|shift …      # research programmes: hard core, protective
+            acknowledge|appraise|list #   belt, append-only problemshifts (§7)
+flip programme appraise [<RP#>]      # the derived verdict: progressive |
+                                     #   theoretically-progressive | degenerating
 flip show [--hot|--claims|--stale]   # computed views (--json for agents)
+           [--forecasts|--programmes]
 flip open <ref>                      # resolve a ref (A3, recipes:A3) to its page path
 flip resolve <ref> [--json]          # same resolution with provenance: id, handle,
                                      #   path, notebook root/slug, uid, title (§9)

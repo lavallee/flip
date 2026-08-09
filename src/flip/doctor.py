@@ -11,10 +11,12 @@ id integrity (prefix routing, aliases, duplicates), link rot (dangling
 relative citations — legal in OKF, counted here), corroboration drift and
 under-verified claims (recomputed via claims.corroboration_count; ungraded
 sources never count), stale freshness, orphan custody (pages ↔ raw bytes ↔
-provenance events), profile minimums with status gating, forced-policy
-mismatches against the flat manifest fields, and — for notebooks graduated
-from a beat (SPEC §14) — that the manifest's `links.beat` still resolves to
-the beat root above.
+provenance events), research-programme integrity and the derived
+progressive/degenerating appraisal (SPEC §7 — a degenerating programme is a
+WARN the operator may sign for, never an error), profile minimums with status
+gating, forced-policy mismatches against the flat manifest fields, and — for
+notebooks graduated from a beat (SPEC §14) — that the manifest's `links.beat`
+still resolves to the beat root above.
 
 `run_workspace_doctor` is the second, separate surface (SPEC §18): it lints
 a workspace — the handle table, notebook coverage, uid lineage, and
@@ -121,6 +123,11 @@ CHECK_CODES: frozenset[str] = frozenset({
     "undated-forecast", "missing-annul-if", "overdue-forecast", "untyped-ref",
     "dangling-bears-on", "scored-cluster", "dangling-proxy",
     "impure-inference-link", "dangling-inference-link",
+    # research programmes (SPEC §7)
+    "empty-core", "impure-core", "core-belt-overlap", "dangling-core",
+    "bad-shift-order", "unshifted-anomaly", "degenerating-programme",
+    "superseded-programme", "held-by-decision", "belief-as-assertion",
+    "retrodiction",
     # workspace mode
     "bad-workspace-file", "handle-syntax", "dangling-workspace-entry",
     "unregistered-notebook", "duplicate-uid", "stale-alias", "ambiguous-id",
@@ -180,6 +187,7 @@ def run_doctor(root: Path) -> list[Finding]:
     _check_claims(root, claim_pages, source_pages, profile, findings)
     _check_transcripts(root, source_pages, claim_pages, findings)
     _check_forecasts(root, by_dir, findings)
+    _check_programmes(root, by_dir, claim_pages, findings)
     _check_provenance_open(root, manifest, claim_pages, source_pages, findings)
     _check_kind_contract(root, manifest, findings)
     _check_disciplines(root, manifest, findings)
@@ -1603,6 +1611,315 @@ def _check_forecasts(
                         rel,
                     )
                 )
+
+
+# --- research programmes (SPEC §7) ------------------------------------------------
+
+
+def _check_programmes(
+    root: Path,
+    by_dir: dict[str, list[pages.Page]],
+    claim_pages: list[pages.Page],
+    findings: list[Finding],
+) -> None:
+    """Programme checks (SPEC §7): the declaration's integrity, the appraisal's
+    integrity, and one reframe.
+
+    The declaration: a programme with no hard core is a mood (ERROR); a core or
+    belt member that is not a Claim breaks class purity the same way a
+    cluster's `inference_link` pointing at a forecast does (ERROR); a claim
+    declared in both core and belt makes the appraisal meaningless (ERROR);
+    a member resolving to nothing is counted like any other dangling ref (WARN).
+
+    The appraisal: `shifts:` must be in non-decreasing date order and none may
+    be dated in the future (ERROR) — novelty is decided by comparing a shift's
+    date against a forecast's `opened`, so a shift that travels backwards
+    doesn't produce a wrong verdict, it produces a *manufactured* one. An
+    anomaly no shift records (WARN) is a programme that took a hit and never
+    said what absorbed it.
+
+    And one **separation**, which is the whole shape of the programme surface:
+    a degenerating appraisal and grounds for elimination are different
+    findings, because Lakatos treats them as different questions. "[A]
+    degenerating problemshift is no more a sufficient reason to eliminate a
+    research programme than some old-fashioned 'refutation' or a Kuhnian
+    'crisis'… such an objective reason is provided by a rival research
+    programme which explains the previous success of its rival and supersedes
+    it by a further display of heuristic power" (Lakatos 1970, p. 69). So:
+
+    - `degenerating-programme` reports the appraisal and asks for **nothing**.
+      No rival is out-predicting it, so by his criterion the programme is
+      still the best account anyone has, and demanding a signature for holding
+      the best account on the desk is the trigger-happiness this check used to
+      have. It says what has stopped and how to restart it, and stops.
+    - `superseded-programme` is the finding that asks for a decision, and it
+      only exists when a rival is out-predicting this one. That is the case
+      Lakatos calls an objective reason to reject, and the only one flip will
+      put a signature line under.
+
+    The reframe: doctor's own under-verified/unaudited findings on a hard core
+    claim are not defects. A core is held by methodological decision — that is
+    what the word means — and the cause line says so, then names what the
+    programme owes instead.
+    """
+    from .programmes import PROGRAMME_STATUSES, appraise
+
+    programme_pages = [p for p in by_dir.get("analysis", []) if p.fm.get("type") == "Programme"]
+    if not programme_pages:
+        return
+    claim_ids = {p.id for p in claim_pages if p.id}
+    all_ids = {p.id for d in _PAGE_DIRS for p in by_dir.get(d, []) if p.id}
+    claim_rows = [{**p.fm} for p in claim_pages]
+    claim_paths = {p.id: _rel(p, root) for p in claim_pages if p.id}
+    today = datetime.now(timezone.utc).date().isoformat()
+    reframed: list[tuple[str, list[str], dict]] = []
+    # Appraised in one pass over the whole notebook rather than page by page:
+    # `outpaced_by` is a comparison between programmes, so no per-page call
+    # could compute it, and a doctor that asked a page about its own
+    # supersession would be asking the wrong object.
+    reports = {str(r["id"]): r for r in appraise(root, claim_rows=claim_rows)}
+
+    for page in programme_pages:
+        rp = page.id or "?"
+        rel = _rel(page, root)
+        status = str(page.fm.get("status", "pursued"))
+        if page.fm.get("status") is not None and status not in PROGRAMME_STATUSES:
+            findings.append(
+                _error(
+                    "bad-enum",
+                    f"programme {rp}: status '{status}' invalid "
+                    f"(one of: {', '.join(PROGRAMME_STATUSES)})",
+                    rel,
+                )
+            )
+        # The two-object rule, programme side: a programme is neither graded
+        # nor scored — it is appraised, and the appraisal is derived.
+        for key in ("grade", "support", "independence", "probability", "confidence"):
+            if key in page.fm:
+                findings.append(
+                    _error(
+                        "two-object",
+                        f"programme {rp} carries '{key}' — grades belong to sources and "
+                        "claims, probabilities to forecasts, and a programme gets neither "
+                        "(SPEC §7): it is appraised progressive or degenerating from its "
+                        "own record, and that verdict is derived, never stored — remove "
+                        "the key",
+                        rel,
+                    )
+                )
+        core = [str(c) for c in pages.as_list(page.fm.get("hard_core"))]
+        belt = [str(c) for c in pages.as_list(page.fm.get("protective_belt"))]
+        if not core:
+            findings.append(
+                _error(
+                    "empty-core",
+                    f"programme {rp} declares no hard_core; a programme without a core is "
+                    "a mood, not a research programme (SPEC §7) — name the claim(s) it "
+                    "intends to hold by decision whatever the evidence does",
+                    rel,
+                )
+            )
+        for member, where in [(c, "hard_core") for c in core] + [
+            (c, "protective_belt") for c in belt
+        ]:
+            if member in claim_ids:
+                continue
+            if member in all_ids:
+                findings.append(
+                    _error(
+                        "impure-core",
+                        f"programme {rp}: {where} member '{member}' is not a Claim — a "
+                        "core and a belt are propositions, and the reasoning lives in "
+                        "claims/ with a status and a citation trail while the programme "
+                        "only points (class purity at file level, SPEC §7)",
+                        rel,
+                    )
+                )
+            else:
+                findings.append(
+                    _warn(
+                        "dangling-core",
+                        f"programme {rp}: {where} member '{member}' resolves to no claims/ "
+                        "page; write the claim (`flip claim add`) or fix the ref (dangling "
+                        "refs are legal but counted, like dangling citations)",
+                        rel,
+                    )
+                )
+        both = [c for c in core if c in belt]
+        if both:
+            findings.append(
+                _error(
+                    "core-belt-overlap",
+                    f"programme {rp}: {', '.join(both)} declared in both the hard core and "
+                    "the protective belt; a proposition is either held by methodological "
+                    "decision or exposed to revision under fire, never both — an anomaly "
+                    "hitting it would be both fatal and harmless, so the appraisal means "
+                    "nothing until one entry goes",
+                    rel,
+                )
+            )
+        shifts = [s for s in pages.as_list(page.fm.get("shifts")) if isinstance(s, dict)]
+        previous = ""
+        for i, shift in enumerate(shifts, 1):
+            at = str(shift.get("at") or "")
+            if at[:10] > today:
+                findings.append(
+                    _error(
+                        "bad-shift-order",
+                        f"programme {rp}: problemshift {i} is dated {at[:10]}, in the "
+                        "future; a shift's date decides which forecasts count as novel "
+                        "content, so a future date silently converts existing bets into "
+                        "predictions the programme has not made",
+                        rel,
+                    )
+                )
+            elif at and previous and at < previous:
+                findings.append(
+                    _error(
+                        "bad-shift-order",
+                        f"programme {rp}: problemshift {i} is dated {at[:10]}, before the "
+                        f"one above it ({previous[:10]}); `shifts:` is append-only and "
+                        "novelty is decided by comparing a shift's date against each "
+                        "forecast's `opened`, so an out-of-order shift does not produce a "
+                        "wrong verdict — it produces a manufactured one",
+                        rel,
+                    )
+                )
+            previous = max(previous, at)
+
+        report = reports.get(rp)
+        if report is None:  # pragma: no cover — a page with no id
+            continue
+        for anomaly in report["anomalies"]:
+            if anomaly["id"] not in report["unshifted_anomalies"]:
+                continue
+            where = "hard core" if anomaly["in_core"] else "protective belt"
+            findings.append(
+                _warn(
+                    "unshifted-anomaly",
+                    f"{anomaly['id']} is in {rp}'s {where} and is '{anomaly['status']}', "
+                    "but no problemshift records it; an anomaly that never got absorbed is "
+                    "either a repair nobody wrote down or a programme that quietly shrank "
+                    f"— record it (`flip programme shift {rp} \"<what happened>\" --hits "
+                    f"{anomaly['id']} --absorbed-by <C#>`)",
+                    rel,
+                )
+            )
+        for entry in report["content"]:
+            if entry["bucket"] != "retrodiction":
+                continue
+            findings.append(
+                _warn(
+                    "retrodiction",
+                    f"forecast {entry['id']} was opened and resolved on the same day "
+                    f"({entry['opened']}) and bears on {rp}'s core or belt; it is scored as "
+                    "zero content — the fact was in hand before the bet was, so nothing "
+                    "about it is excess content and the programme gets no credit for it",
+                    rel,
+                )
+            )
+        if report["held_by"] != "self":
+            asserted = [
+                c["id"] for c in report["hard_core"] if c["status"] in ("asserted", "verified")
+            ]
+            if asserted:
+                findings.append(
+                    _warn(
+                        "belief-as-assertion",
+                        f"programme {rp} is held by '{report['held_by']}', but its hard core "
+                        f"claim(s) {', '.join(asserted)} carry status "
+                        "'asserted'/'verified' — which is this notebook asserting them, not "
+                        "recording that somebody else holds them; a belief kept as data "
+                        "sits beside the evidence rather than inheriting its voice (set the "
+                        "claim to 'unconfirmed' or 'false-positive', or drop --held-by if "
+                        "the notebook does hold this)",
+                        claim_paths.get(asserted[0], rel),
+                    )
+                )
+        if report["verdict"] == "degenerating" and not report["acknowledged"]:
+            bears_on = core[0] if core else "<C#>"
+            if report["outpaced_by"]:
+                ahead = ", ".join(report["outpaced_by"])
+                findings.append(
+                    _warn(
+                        "superseded-programme",
+                        f"programme {rp} has bought no novel content across its last "
+                        f"{report['barren_run']} problemshift(s), and {ahead} is predicting "
+                        f"more: strictly more corroborated content, and still content-"
+                        "increasing. That conjunction is the one objective reason Lakatos "
+                        "gives for rejecting a programme rather than merely appraising it "
+                        "(1970, p. 69), so this is the finding that asks you for a decision "
+                        f"— check that {ahead} also accounts for what {rp} got right, which "
+                        "flip cannot check for you, and then either take it up "
+                        f"(`flip programme add …`), shelve this one (`status: shelved`), or "
+                        f"sign for staying (`flip programme acknowledge {rp} --note \"…\"`)",
+                        rel,
+                    )
+                )
+            else:
+                findings.append(
+                    _warn(
+                        "degenerating-programme",
+                        f"programme {rp} has ceased to anticipate novel facts: its last "
+                        f"{report['barren_run']} problemshift(s) registered no novel content "
+                        f"({report['shift_count']} on record, {report['novel_count']} "
+                        "prediction(s) in total). Absorbing the anomaly is what a belt is "
+                        "for — what is missing is the excess content that is supposed to "
+                        "come with it. No rival on record is predicting more, so this is a "
+                        "reading and not a verdict against you: nothing here needs signing "
+                        f"for. To restart the series, register content (`flip forecast add "
+                        f"\"…\" --bears-on claim:{bears_on}`); to make the comparison flip "
+                        f"is missing, declare the rival (`flip programme add … --rival {rp}`)",
+                        rel,
+                    )
+                )
+        core_ids = [c["id"] for c in report["hard_core"]]
+        if core_ids:
+            reframed.append((rp, core_ids, report))
+
+    _reframe_core_findings(reframed, claim_paths, findings)
+
+
+def _reframe_core_findings(
+    reframed: list[tuple[str, list[str], dict]],
+    claim_paths: dict[str, str],
+    findings: list[Finding],
+) -> None:
+    """Put the explanation in front of the symptoms, for hard core claims.
+
+    A hard core claim with no corroboration draws `under-verified` and
+    `unaudited-claim` like any other load-bearing claim, and both readings are
+    wrong: nobody has failed to audit it, and no amount of auditing is what it
+    is waiting for. It is held by methodological decision, which is the only
+    way a core is ever held, and the price of holding it is novel predictions.
+    So the line names the price and the balance rather than deleting the
+    findings — the same move `_lead_with_causes` makes for vocabulary drift.
+    """
+    if not reframed:
+        return
+    codes = {"under-verified", "unaudited-claim"}
+    hit = {f.path for f in findings if f.code in codes}
+    for rp, core_ids, report in reframed:
+        flagged = [c for c in core_ids if claim_paths.get(c) in hit]
+        if not flagged:
+            continue
+        owed = (
+            f"{report['novel_count']} novel prediction(s) registered across "
+            f"{report['shift_count']} problemshift(s)"
+        )
+        findings.insert(
+            0,
+            _warn(
+                "held-by-decision",
+                f"{', '.join(flagged)} form the hard core of {rp} and are held by "
+                "methodological decision, not by evidence (SPEC §7) — the under-verified / "
+                "unaudited finding(s) below are not defects in them, and corroborating them "
+                f"is not what they are waiting for. What {rp} owes instead is novel content: "
+                f"{owed}. Register one with `flip forecast add \"…\" --bears-on "
+                f"claim:{flagged[0]}`",
+                report["path"],
+            ),
+        )
 
 
 # --- kind contract (design-outcome-kinds.md, Phase 1) ---------------------------

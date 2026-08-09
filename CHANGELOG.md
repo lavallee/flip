@@ -7,6 +7,107 @@ versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Research programmes — `flip programme`, ids RP#** (SPEC §7). flip's claim
+  vocabulary is truth-tracking, which is right for facts and cannot express the
+  two things a working desk needs anyway: holding a hypothesis that is
+  unconfirmed or that some evidence cuts against, and recording a belief that
+  contradicts the evidence *as data*. A Programme page declares a **hard core**
+  held by methodological decision rather than by evidence, and a **protective
+  belt** of auxiliary claims that absorb the anomalies. Anomalies never falsify
+  the core — that is not what they are for — and flip enforces the asymmetry
+  rather than describing it: a hit on a core claim is recorded and the core
+  stands, while absorbing an anomaly *into* the core is refused, and there is
+  no command that edits `hard_core` at all. A programme with a different core
+  is a different programme.
+- **The progressive/degenerating appraisal, derived** (SPEC §7, §10).
+  `flip programme appraise` answers the question Lakatos thought was worth
+  asking of a research programme. Every modification in the series
+  accommodates an anomaly — that is what a protective belt is for and it is
+  his baseline, not his failure mode — so the question is whether the
+  modifications *also* buy excess content. The verdict — `progressive` /
+  `theoretically-progressive` / `degenerating` / `unappraised` — is recomputed
+  on every read from the append-only `shifts:` list and the dated forecast
+  record, and stored nowhere, the way a source's grade is derived from its
+  support tuple rather than typed in. Applied honestly to a real notebook it
+  says uncomfortable things, which is the feature.
+- **The verdict is read off the tail of the series, not its lifetime total.**
+  `degenerating` means the last **three** problemshifts each registered no
+  novel content — the programme has "cease[d] to anticipate novel facts",
+  which is the abandonment condition Lakatos does name (1970, p. 49). Three
+  rather than his one because a shift is recorded the day the belt moved while
+  the bet it suggests is written whenever the operator next sits down: one
+  barren shift is indistinguishable from lag, two can be an interrupted week,
+  three consecutive modifications that risked nothing cannot be read as a gap.
+  The number is flip's and SPEC §7 says so. Corroboration is never demanded
+  per shift — `theoretically-progressive` draws no finding at all, because
+  "We do not demand that each step produce immediately an observed new fact"
+  (p. 49). The consequence that matters: one corroborated bet no longer
+  immunises a programme forever.
+- **Novel content is decided on timing, and only on timing.** A forecast counts
+  as a programme's content when it `bears_on` a core or belt claim, and it is
+  attributed to the last problemshift that had already happened when the bet
+  was registered — computed from dates, never declared, so it cannot be
+  declared falsely. Open counts. Resolved *no* counts: a refuted risky
+  prediction is still excess empirical content, and scoring failure as nothing
+  would only teach a desk to bet on certainties. Corroborated requires the
+  resolution to have landed strictly after the day the bet was opened; same-day
+  is a **retrodiction**, named and scored zero, because the fact was in hand
+  before the bet was and so nothing about it is excess content.
+- **Elimination is comparative, so the appraisal and the ask are two
+  findings.** "[A] degenerating problemshift is no more a sufficient reason to
+  eliminate a research programme than some old-fashioned 'refutation' or a
+  Kuhnian 'crisis'… such an objective reason is provided by a rival research
+  programme which explains the previous success of its rival and supersedes it
+  by a further display of heuristic power" (Lakatos 1970, p. 69).
+  `degenerating-programme` reports a degenerating series that nothing is
+  out-predicting and **asks for nothing** — by that criterion the programme is
+  still the best account anyone has. `superseded-programme` fires only when a
+  rival carries strictly more corroborated content *and* is itself still
+  content-increasing, and it is the only finding flip puts a signature line
+  under. Rivalry is read both ways, so a notebook cannot duck a supersession by
+  leaving the newcomer out of its own `rivals:`. The clause flip cannot check —
+  whether the rival also accounts for what this programme got right — is named
+  in the finding rather than quietly assumed.
+- **A degenerating programme is a WARN you may sign for, never an error.**
+  Holding a line of thinking that is producing nothing is a legitimate research
+  decision and flip will not retract it for you. `flip programme acknowledge
+  <RP#> --note "…"` records the verdict, the problemshift count it stood over,
+  **which rivals were out-predicting it at the time**, who signed and why;
+  doctor goes quiet and asks again at the next barren shift *or when a new
+  rival pulls ahead*, since "I am holding this while RP2 predicts more" is not
+  a decision that covers RP3. Acknowledgment is refused on anything not
+  currently degenerating.
+- **Beliefs as data.** `flip programme add --held-by "<who>"` records somebody
+  else's research programme — their core, their belt, the anomalies their belt
+  absorbed — beside the evidence against it, appraised by exactly the same
+  machinery with nothing special-cased. doctor's new `belief-as-assertion`
+  keeps the two voices apart: a foreign-held programme whose core claims read
+  `asserted`/`verified` is the notebook asserting the belief, not recording
+  that somebody holds it.
+- **doctor names what a hard core is waiting for.** Nobody has failed to audit
+  a hard core claim, and auditing is not what it needs; the new
+  `held-by-decision` line leads the findings, says the `under-verified` /
+  `unaudited-claim` results below it are not defects in a core, and names the
+  price of holding one — novel predictions, with the current balance. Also new:
+  `empty-core`, `impure-core`, `core-belt-overlap`, `dangling-core`,
+  `bad-shift-order` (a shift dated in the future or out of order does not
+  produce a wrong verdict, it produces a manufactured one), `unshifted-anomaly`
+  (a core or belt claim in a non-surviving status that no problemshift
+  records), `retrodiction`, `degenerating-programme`, and
+  `superseded-programme`.
+- **Rivals carry their own verdicts.** `--rival RP2` makes the comparison, and
+  the appraisal says either which rival is predicting more or that none is —
+  which is most of why a degenerating programme can still be the best account
+  on the desk, and is stated as the reason it is rationally held rather than as
+  a footnote to a bad verdict.
+- **The primary is cited and checkable.** SPEC §7 quotes Lakatos, Imre (1970),
+  'Falsification and the Methodology of Scientific Research Programmes', in
+  Worrall and Currie (eds), *Philosophical Papers Volume 1*, CUP (1978),
+  pp. 8–101, with page references, and marks the two places flip's rule is
+  sharper than anything he wrote down: the run length of three, and treating
+  *degenerating + out-predicted* as sufficient to ask (never to act).
+- `flip show --programmes` renders the same appraisal as the other computed
+  views; `flip programme list` and every read command take `--json`.
 - **`flip add-source --record` — the ladder's terminus, written down** (SPEC
   §5.1). A source that cannot be captured may still have to be *citable*. A
   record capture takes no bytes of the document, because none were reachable;

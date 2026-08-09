@@ -19,6 +19,7 @@ down a view — `flip doctor` is where corruption gets reported.
 from __future__ import annotations
 
 import re
+import textwrap
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -360,6 +361,193 @@ def forecasts_view(root: Path, as_data: bool = False) -> str | dict:
     lines.append(
         f"  Brier (needs ≥{forecast_mod.BRIER_MIN_RESOLUTIONS} resolutions): {brier}"
     )
+    return "\n".join(lines)
+
+
+VERDICT_GLOSS = {
+    "progressive": (
+        "novel content registered before the surface was read, and corroborated — "
+        "the programme is paying its way"
+    ),
+    "theoretically-progressive": (
+        "the series is still content-increasing; none of it has been corroborated yet, "
+        "which Lakatos asks for only intermittently — this is a good standing, not a "
+        "warning"
+    ),
+    "degenerating": (
+        "the programme has ceased to anticipate novel facts. Absorbing the anomaly is "
+        "what a belt is for and is not the defect; the missing part is the excess "
+        "content that is supposed to come with it"
+    ),
+    "unappraised": (
+        "flip declines to render a verdict — the appraisal is of a series, and this "
+        "series is too short to read"
+    ),
+}
+
+
+def programmes_view(root: Path, rp: str | None = None, as_data: bool = False) -> str | dict:
+    """Research programmes and their derived appraisal (SPEC §7).
+
+    The verdict is computed here and stored nowhere: `progressive` /
+    `theoretically-progressive` / `degenerating` / `unappraised` are read off
+    the recorded problemshifts and the dated forecast record every time this
+    runs, the same way a source's grade is derived from its support tuple
+    rather than typed in.
+    """
+    from . import programmes as programmes_mod
+
+    load_manifest(root)  # fail early with an actionable error if this isn't a notebook
+    reports = programmes_mod.appraise(root, rp)
+    if as_data:
+        return {"programmes": reports}
+    if not reports:
+        return (
+            "no research programmes declared (analysis/ holds no Programme page)\n"
+            "  a programme is a hard core you hold by decision plus the belt that "
+            "absorbs the hits;\n"
+            '  declare one with `flip programme add "<line of thinking>" --hard-core <C#>`'
+        )
+    return "\n\n".join(_render_programme(r) for r in reports)
+
+
+def _wrap(text: str, indent: str = "    ", width: int = 84) -> list[str]:
+    """One paragraph of appraisal prose as indented terminal lines. The verdict
+    has to carry its reasoning, and reasoning that runs off the right edge of
+    the terminal is reasoning nobody reads."""
+    return textwrap.wrap(" ".join(str(text).split()), width=width,
+                         initial_indent=indent, subsequent_indent=indent) or [indent.rstrip()]
+
+
+def _render_programme(r: dict) -> str:
+    lines = [
+        " · ".join(
+            [
+                str(r["id"]),
+                str(r["status"]),
+                f"held by {r['held_by']}",
+                f"declared {r['declared'] or 'undated'}",
+            ]
+        ),
+        f"  {_trunc(r['name'], 96)}",
+        "",
+    ]
+    lines.append(
+        f"  VERDICT: {r['verdict']} — {r['shift_count']} problemshift(s), "
+        f"{r['novel_count']} novel prediction(s), {r['corroborated_count']} corroborated"
+    )
+    gloss = VERDICT_GLOSS[r["verdict"]]
+    if r["verdict"] == "unappraised" and r["shift_count"]:
+        gloss += (
+            f" — {r['barren_run']} problemshift(s) so far with no novel content, and the "
+            f"threshold for 'degenerating' is a run of {r['barren_run_threshold']}. One "
+            "barren shift is ordinary lag; a run is a pattern"
+        )
+    lines += _wrap(gloss + ".")
+    if r["retrodiction_count"]:
+        lines += _wrap(
+            f"{r['retrodiction_count']} bet(s) opened and resolved the same day score as "
+            "zero content — the fact was in hand before the bet was (retrodiction)."
+        )
+    if r["low_risk_count"]:
+        lines += _wrap(
+            f"{r['low_risk_count']} of the novel prediction(s) sit outside p=0.1..0.9 — "
+            "content, but cheap content."
+        )
+    # The comparative half, which is where the consequence lives. A
+    # degenerating programme that nothing is out-predicting is still the best
+    # account on the desk, and Lakatos treats that as the reason it is
+    # rationally held rather than as an excuse for holding it.
+    if r["rival_verdicts"]:
+        rivals = ", ".join(f"{k} ({v})" for k, v in sorted(r["rival_verdicts"].items()))
+        lines += _wrap(f"appraised against {rivals}.")
+    if r["outpaced_by"]:
+        ahead = ", ".join(r["outpaced_by"])
+        lines += _wrap(
+            f"{ahead} is predicting more: strictly more corroborated content, and still "
+            f"content-increasing. Whether {ahead} also accounts for what this programme "
+            "got right is the part flip cannot check, and the part that decides it."
+        )
+    elif r["verdict"] == "degenerating":
+        lines += _wrap(
+            "no rival on record is predicting more, and elimination is comparative — so "
+            "this is a reading of the series, not a case against holding it. Nothing here "
+            "needs signing for."
+        )
+    if r["verdict"] == "degenerating" and r["acknowledged"]:
+        ack = r["acknowledgment"] or {}
+        lines += _wrap(
+            f"acknowledged {str(ack.get('at', ''))[:10]} by {ack.get('by', '?')}: "
+            f"{ack.get('note', '')}"
+        )
+    elif r["verdict"] == "degenerating":
+        core_id = r["hard_core"][0]["id"] if r["hard_core"] else "<C#>"
+        nxt = f'next: register content (`flip forecast add "…" --bears-on claim:{core_id}`)'
+        if r["outpaced_by"]:
+            nxt += f', or sign for staying (`flip programme acknowledge {r["id"]} --note "…"`)'
+        lines += _wrap(nxt + ".")
+    # Only worth saying where there *is* something behind the verdict for the
+    # barren tail to be older than. Under `unappraised` the run is already the
+    # headline, and repeating it reads as two findings instead of one.
+    if r["barren_run"] and r["verdict"] in ("progressive", "theoretically-progressive"):
+        lines += _wrap(
+            f"the last {r['barren_run']} problemshift(s) bought no novel content — whatever "
+            "is behind this verdict is older than they are."
+        )
+
+    lines += ["", "  HARD CORE (held by methodological decision, not by evidence)"]
+    for c in r["hard_core"]:
+        lines.append(
+            f"    {c['id']} · {c['status'] or 'unknown'} · corroboration "
+            f"{c['corroboration']} · {_trunc(c['description'], 60)}"
+        )
+    hit = {a["id"] for a in r["anomalies"]}
+    lines.append(f"  PROTECTIVE BELT ({len(r['protective_belt'])} claim(s), {len(hit)} hit)")
+    if not r["protective_belt"]:
+        lines.append("    (empty — nothing has been written to take a hit for the core)")
+    for c in r["protective_belt"]:
+        mark = "  ← anomaly" if c["id"] in hit else ""
+        lines.append(
+            f"    {c['id']} · {c['status'] or 'unknown'} · "
+            f"{_trunc(c['description'], 56)}{mark}"
+        )
+
+    lines.append("  PROBLEMSHIFTS")
+    if not r["shifts"]:
+        lines.append("    (none recorded)")
+    for s in r["shifts"]:
+        # Every shift accommodates an anomaly — that is the definition of the
+        # series, not a charge against any member of it. So the label says
+        # what the shift bought, never that it accommodated.
+        kind = "content-increasing" if s["content_increasing"] else "no novel content"
+        lines.append(f"    {str(s['at'])[:10]} · {kind} · {_trunc(s['occasion'], 55)}")
+        detail = []
+        if s["hits"]:
+            detail.append("hits " + ", ".join(s["hits"]))
+        if s["absorbed_by"]:
+            detail.append("absorbed by " + ", ".join(s["absorbed_by"]))
+        detail.append(
+            "novel: " + (", ".join(s["novel"]) if s["novel"] else "none")
+        )
+        if s["retrodictions"]:
+            detail.append("retrodiction: " + ", ".join(s["retrodictions"]))
+        lines.append("        " + " · ".join(detail))
+
+    lines.append("  CONTENT")
+    if not r["content"]:
+        lines.append("    (no forecast bears on this programme's core or belt)")
+    for c in r["content"]:
+        lines.append(
+            f"    {c['id']} · {c['bucket']} · opened {c['opened'] or '?'} · "
+            f"resolves {c['resolves_by'] or '?'} · p={c['probability']} · "
+            f"{_trunc(c['description'], 44)}"
+        )
+    if r["unshifted_anomalies"]:
+        lines.append(
+            "  UNSHIFTED ANOMALIES: "
+            + ", ".join(r["unshifted_anomalies"])
+            + " — hit, but no problemshift records what absorbed them"
+        )
     return "\n".join(lines)
 
 

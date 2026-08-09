@@ -1198,20 +1198,25 @@ def transcript_unpin(source_id: str, label: str) -> None:
               help="What went cold: dated sources, open questions, stuck claims.")
 @click.option("--forecasts", "forecasts_flag", is_flag=True,
               help="Open forecasts (due first) and the calibration record.")
+@click.option("--programmes", "programmes_flag", is_flag=True,
+              help="Research programmes and their derived appraisal.")
 @click.option("--json", "as_json", is_flag=True, help="Emit the view as JSON.")
-def show(claims_flag: bool, stale_flag: bool, forecasts_flag: bool, as_json: bool) -> None:
+def show(claims_flag: bool, stale_flag: bool, forecasts_flag: bool,
+         programmes_flag: bool, as_json: bool) -> None:
     """Show a computed view of the notebook; default is the hot view.
 
     The hot view is the resume-here screen: open questions, claims needing
     work, recent log, latest session. Views are computed from the pages and
-    ledgers, never stored (SPEC §10).
+    ledgers, never stored (SPEC §10) — including the programme appraisal,
+    which is re-derived on every read rather than written back to the page.
     """
-    if sum([claims_flag, stale_flag, forecasts_flag]) > 1:
-        raise SystemExit("pass at most one of --claims/--stale/--forecasts")
+    if sum([claims_flag, stale_flag, forecasts_flag, programmes_flag]) > 1:
+        raise SystemExit("pass at most one of --claims/--stale/--forecasts/--programmes")
     root = require_notebook_root()
     fn = (views.claims_view if claims_flag
           else views.stale_view if stale_flag
           else views.forecasts_view if forecasts_flag
+          else views.programmes_view if programmes_flag
           else views.hot_view)
     out = fn(root, as_data=as_json)
     click.echo(json.dumps(out, ensure_ascii=False, indent=2) if as_json else out)
@@ -2350,6 +2355,158 @@ def forecast_list(as_json: bool) -> None:
         click.echo(f"{r.get('id', '?')} · {r.get('status', '?')} · "
                    f"{r.get('resolves_by', '?')} · "
                    f"p={r.get('probability', '?')}/c={r.get('confidence', '?')} · "
+                   f"{r.get('description', '')}")
+
+
+# ---------------------------------------------------------------- programme
+
+
+from . import programmes as programmes_mod  # noqa: E402 — appended by design, like forecast
+
+
+@main.group(cls=SuggestGroup)
+def programme() -> None:
+    """Research programmes as pages (analysis/<slug>.md, ids RP#): the appraisal layer.
+
+    Claims track truth and forecasts track calibration; neither says whether a
+    line of thinking is worth staying on. A programme names a **hard core**
+    held by methodological decision rather than by evidence, and a
+    **protective belt** of auxiliary claims that absorb the anomalies —
+    absorbing them is the belt's job, and every modification in the series
+    does it. What separates a series worth staying on is whether the
+    modifications *also* buy novel content, and `programme appraise` reads
+    whether they have: progressive, theoretically-progressive, degenerating,
+    or unappraised. The verdict is derived from the recorded problemshifts and
+    the dated forecast record, and stored nowhere (SPEC §7, §10).
+
+    A degenerating verdict is a reading of the series, not a case for dropping
+    it. Elimination is comparative — a programme is displaced when a rival
+    predicts more, not when it goes quiet — so `--rival` is what turns the
+    appraisal into a consequence (SPEC §7).
+    """
+
+
+@programme.command("add")
+@click.argument("name")
+@click.option("--hard-core", "hard_core", multiple=True, metavar="CLAIM_ID", required=True,
+              help="A claim held by methodological decision, whatever the evidence "
+                   "does (repeatable; at least one). Declared once — a different core "
+                   "is a different programme.")
+@click.option("--belt", "belt", multiple=True, metavar="CLAIM_ID",
+              help="An auxiliary claim exposed to revision under fire (repeatable); "
+                   "the belt also grows every time a problemshift is recorded.")
+@click.option("--held-by", "held_by", default=None, metavar="WHO",
+              help="Whose programme this is. Default 'self'. Name somebody else and "
+                   "the page becomes a reconstruction of their core and belt, kept as "
+                   "data beside the evidence against it.")
+@click.option("--rival", "rivals", multiple=True, metavar="RP#",
+              help="A competing programme this one is appraised against (repeatable).")
+@click.option("--note", default=None, help="Why this line of thinking is worth pursuing.")
+def programme_add(name: str, hard_core: tuple[str, ...], belt: tuple[str, ...],
+                  held_by: str | None, rivals: tuple[str, ...], note: str | None) -> None:
+    """Declare a research programme (status "pursued"), allocating the next RP#."""
+    page = programmes_mod.add_programme(
+        require_notebook_root(), name, list(hard_core), list(belt),
+        held_by=held_by, rivals=list(rivals), note=note,
+    )
+    belt_ids = page.fm.get("protective_belt") or []
+    click.echo(f"{page.id} pursued · held by {page.fm['held_by']} · core: "
+               f"{', '.join(page.fm['hard_core'])} · belt: "
+               f"{', '.join(belt_ids) if belt_ids else 'empty'}")
+
+
+@programme.command("belt")
+@click.argument("rp", metavar="PROGRAMME_ID")
+@click.argument("claim_ids", metavar="CLAIM_ID...", nargs=-1)
+def programme_belt(rp: str, claim_ids: tuple[str, ...]) -> None:
+    """Add auxiliary claims to a programme's protective belt.
+
+    The only membership command there is: the belt moves, the core does not.
+    A programme whose core has changed is a different programme — open a
+    successor with `programme add` rather than rewriting what was held.
+    """
+    _page, added = programmes_mod.extend_belt(require_notebook_root(), rp, list(claim_ids))
+    click.echo(f"{rp} belt += {', '.join(added)}")
+
+
+@programme.command("shift")
+@click.argument("rp", metavar="PROGRAMME_ID")
+@click.argument("occasion")
+@click.option("--hits", "hits", multiple=True, metavar="CLAIM_ID",
+              help="A core or belt claim the anomaly struck (repeatable).")
+@click.option("--absorbed-by", "absorbed_by", multiple=True, metavar="CLAIM_ID",
+              help="An auxiliary claim written in reply, which takes the weight "
+                   "(repeatable); added to the belt here if it isn't in it already. "
+                   "Never a core claim — the belt is what absorbs hits.")
+def programme_shift(rp: str, occasion: str, hits: tuple[str, ...],
+                    absorbed_by: tuple[str, ...]) -> None:
+    """Record one problemshift, append-only — the unit of appraisal.
+
+    Nothing about whether the shift was progressive is written down: that is
+    derived at appraisal time from which forecasts were registered after this
+    date, so it cannot be asserted here and cannot go stale.
+    """
+    _page, record = programmes_mod.record_shift(
+        require_notebook_root(), rp, occasion, list(hits), list(absorbed_by)
+    )
+    hit = ", ".join(record.get("hits") or []) or "nothing named"
+    took = ", ".join(record.get("absorbed_by") or []) or "nothing named"
+    click.echo(f"{rp} problemshift {record['at']} · hits {hit} · absorbed by {took} · "
+               f"appraise with `flip programme appraise {rp}`")
+
+
+@programme.command("acknowledge")
+@click.argument("rp", metavar="PROGRAMME_ID")
+@click.option("--note", required=True,
+              help="Why the programme is worth staying on with no novel content "
+                   "on the record — an unexplained signature is a click-through.")
+def programme_acknowledge(rp: str, note: str) -> None:
+    """Sign for a degenerating programme you intend to keep pursuing.
+
+    doctor stops reporting it until the next barren problemshift lands, and
+    then asks again. Refused on anything not currently degenerating: a
+    signature collected in advance is the click-through this exists to avoid.
+    """
+    _page, record = programmes_mod.acknowledge(require_notebook_root(), rp, note)
+    click.echo(f"{rp} · {record['verdict']} acknowledged at {record['shifts']} "
+               f"problemshift(s) by {record['by']}")
+
+
+@programme.command("appraise")
+@click.argument("rp", metavar="PROGRAMME_ID", required=False)
+@click.option("--json", "as_json", is_flag=True, help="Emit the appraisal as JSON.")
+def programme_appraise(rp: str | None, as_json: bool) -> None:
+    """Appraise every programme (or one): progressive or degenerating, and why.
+
+    The whole feature. Derived on every call from the recorded problemshifts
+    and the dated forecast record — no page stores a verdict, so none can be
+    stale or asserted (SPEC §10, the `derive_grade` doctrine).
+    """
+    root = require_notebook_root()
+    if rp is not None:
+        programmes_mod.appraise(root, rp)  # refuses with the known-RP# list
+    out = views.programmes_view(root, rp, as_data=as_json)
+    click.echo(json.dumps(out, ensure_ascii=False, indent=2) if as_json else out)
+
+
+@programme.command("list")
+@click.option("--json", "as_json", is_flag=True,
+              help="Emit the page frontmatter (+ slug, path) as JSON.")
+def programme_list(as_json: bool) -> None:
+    """List every programme: id · status · held by · core · belt · shifts."""
+    rows = programmes_mod.list_programmes(require_notebook_root())
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        click.echo("no research programmes declared (analysis/ holds no Programme page)")
+        return
+    for r in rows:
+        core = ", ".join(str(c) for c in r.get("hard_core") or []) or "none"
+        belt = len(r.get("protective_belt") or [])
+        click.echo(f"{r.get('id', '?')} · {r.get('status', 'pursued')} · "
+                   f"held by {r.get('held_by', 'self')} · core: {core} · "
+                   f"belt: {belt} · shifts: {len(r.get('shifts') or [])} · "
                    f"{r.get('description', '')}")
 
 
