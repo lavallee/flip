@@ -165,6 +165,7 @@ group. The leaves you reach for most:
 |---|---|
 | start a notebook | `flip new <slug> --kind <profile>` (kinds: `flip profiles`) |
 | capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
+| make a captured PDF readable | `flip extract <id> [--via <lane>] [--method text-layer\|ocr\|…]` — `sources/text/<id>.txt` + one derivation row; raw custody untouched |
 | see what tooling you have | `flip config show` — the lanes configured on this machine, and the command behind each |
 | record what you couldn't get | `flip add-source <target> --record --note "<rungs tried>"` — citable page, no custody of the document |
 | grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--method … --base-defined\|--base-undefined]` — the letter is derived |
@@ -303,13 +304,18 @@ holding the old values (`original`, `republisher`, `self-interested`) is
 *unjudged* however confident the stored letter looks. `flip doctor` leads with
 a `vocabulary-drift` line naming the count and the claims it explains; `flip
 migrate` translates what it can and parks the rest for you to re-read.
-Integrations are configured under three roles in `$FLIP_HOME/config.toml`:
-`[fetchers]` (capture, run by `add-source`), `[research]` (`find`/`ask`), and
+Integrations are configured under four roles in `$FLIP_HOME/config.toml`:
+`[fetchers]` (capture, run by `add-source`), `[extractors]` (text derivatives,
+run by `flip extract`, keyed by media family), `[research]` (`find`/`ask`), and
 `[knowledge]` (`recall`). `flip config init` writes a starter config whose
 `web` lane uses the bundled `flip-fetch` helper, so URL capture works with no
-external tool; local files always copy with no config. They are operator configuration, not flip's public
+external tool; local files always copy with no config. Nothing fills
+`[extractors]` by default — a stdlib-only web GET can ship inside flip and a
+PDF/OCR toolchain cannot — so that stanza is written commented, for you to
+choose. They are operator configuration, not flip's public
 contract — public docs and packaged skills refer only to kinds/verbs and the
-`{url}`/`{id}`/`{query}`/`{dest}` placeholders, never to a deployment's tools.
+`{url}`/`{id}`/`{query}`/`{dest}`/`{src}`/`{out}` placeholders, never to a
+deployment's tools.
 `flip find`/`ask` output is a **lead, grade C, not evidence**: `ask` saves its
 raw synthesis under `sessions/raw/` and logs it, but you must capture and grade
 its cited public URLs separately before a load-bearing claim relies on it.

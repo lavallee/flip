@@ -296,6 +296,61 @@ def _warn_if_thin(root: Path, source_id: str, target: str, kind: str | None,
     click.echo("\n".join(lines), err=True)
 
 
+def _warn_if_thin_derivative(source_id: str, row: dict) -> None:
+    """Say at EXTRACTION time that a derivative is thin — not only at doctor time.
+
+    The exact reason `_warn_if_thin` exists one layer up, and a sharper case:
+    the empty extraction refuses loudly and writes no file, so nobody mistakes
+    it for a success. A thin one leaves `sources/text/<id>.txt` on disk with a
+    sha256 and a derivation row behind it, looking in every way like the text
+    of the document. An image-only scan, a text layer the tool declined to
+    trust, and an extractor silently skipping pages are indistinguishable from
+    each other and from success, unless someone opens the file.
+    """
+    if sources.derivative_fidelity(row) != "thin":
+        return
+    out = row.get("outputs") or [{}]
+    words = out[0].get("words", 0)
+    pages_n = row.get("pages")
+    wpp = row.get("words_per_page")
+    lines = [
+        f"warning: thin derivative — sources/text/{source_id}.txt holds {words} words "
+        f"from a {pages_n}-page document ({wpp} words/page), too little to be its text. "
+        "An image-only scan, a text layer the tool declined to trust, or an extractor "
+        "silently skipping pages all look exactly like this on disk.",
+        f"  read sources/text/{source_id}.txt before you quote it (`flip doctor` will "
+        "keep naming this as `thin-derivative`).",
+        sources.extraction_guidance(
+            source_id, sources.media_family(str(row["inputs"][0]["path"])),
+            row.get("via"), row.get("method"),
+        ),
+    ]
+    click.echo("\n".join(lines), err=True)
+
+
+def _nudge_extract(source_id: str, local: str) -> None:
+    """One line, at capture, when the bytes that just landed are a document and
+    this machine has a lane that could read them.
+
+    Deliberately a nudge and not an action (SPEC §5.5): `add-source`'s contract
+    is custody, extraction is a derivation with its own ledger and its own
+    failure modes, and an OCR pass can be a three-minute, gigabyte-and-a-half
+    job. Doing that inside a capture would make the cheap verb expensive and
+    surprising. Not mentioning it at all is how `sources/text/` stayed empty
+    for the whole life of the format.
+    """
+    family = sources.media_family(local)
+    if family not in sources.DOCUMENT_FAMILIES:
+        return
+    if family not in integrations.extraction_lanes():
+        return
+    click.echo(
+        f"text: this is a {family}; `flip extract {source_id}` derives "
+        f"sources/text/{source_id}.txt through your [extractors].{family} lane and "
+        "logs how (`flip config show` lists the lanes)."
+    )
+
+
 @main.command("add-source")
 @click.argument("target")
 @click.option("--kind", default=None,
@@ -310,8 +365,13 @@ def _warn_if_thin(root: Path, source_id: str, target: str, kind: str | None,
               help="Record the source without its bytes (method record-only): the ladder's "
                    "terminus, for a document that is out of reach but has to be citable. "
                    "Requires --note saying what was tried; derives thin fidelity.")
+@click.option("--extract", "extract_now", is_flag=True,
+              help="Also derive sources/text/<id>.txt through the [extractors] lane for "
+                   "the captured file's media family (the same work as `flip extract "
+                   "<id>`, inline). Off by default: extraction is a derivation with its "
+                   "own ledger and failure modes, and OCR is not a cheap job.")
 def add_source(target: str, kind: str | None, via: str | None, note: str | None,
-               record: bool) -> None:
+               record: bool, extract_now: bool) -> None:
     """Capture a source: fetch/copy into sources/raw/, hash it, open a page.
 
     Use the moment you rely on something external — URL, DOI, or local file.
@@ -325,6 +385,11 @@ def add_source(target: str, kind: str | None, via: str | None, note: str | None,
     it leaves no custody, no hash, and no row saying what was tried.
     """
     root = require_notebook_root()
+    if record and extract_now:
+        raise SystemExit(
+            "--record holds no bytes of the document, so --extract has nothing to read; "
+            "drop one of them — --extract to capture and derive, --record to stop trying"
+        )
     if kind == "lookup":
         click.echo(
             "note: --kind lookup is deprecated — use `flip ask`. Cited synthesis is a "
@@ -349,9 +414,82 @@ def add_source(target: str, kind: str | None, via: str | None, note: str | None,
         )
         return
     _warn_if_thin(root, page.id or "", target, kind, via)
+    if extract_now:
+        _emit_extraction(root, page.id or "", via=None, force=False, note=note, method=None)
+    else:
+        _nudge_extract(page.id or "", str(page.fm.get("local") or ""))
     click.echo(f"judge it after reading: flip grade {page.id} "
                f"--independence independent|corroborated|self-reported|derivative "
                f"--basis … [--n … --base-defined|--base-undefined]")
+
+
+# ---------------------------------------------------------------- extract
+
+
+def _emit_extraction(root: Path, source_id: str, via: str | None, force: bool,
+                     note: str | None, method: str | None) -> None:
+    """Run one extraction and report it — shared by `flip extract` and
+    `flip add-source --extract` so both say exactly the same things."""
+    row = sources.extract_text(
+        root, source_id, via=via, force=force, note=note, method=method
+    )
+    out = (row.get("outputs") or [{}])[0]
+    line = f"{source_id} · {out.get('path', '')} · {out.get('words', 0)} words"
+    if row.get("pages"):
+        line += f" · {row['pages']} pages · {row['words_per_page']} words/page"
+    line += f" · {sources.derivative_fidelity(row)} · via {row.get('tool', '?')}"
+    if row.get("method"):
+        line += f" ({row['method']})"
+    click.echo(line)
+    if not row.get("method"):
+        click.echo(
+            f"  no extraction method recorded — a quotation from this file cannot say "
+            f"whether it came from the document's own text layer or from an OCR engine "
+            f"reading a picture of it. Name it: flip extract {source_id} --method "
+            + "|".join(sources.EXTRACTION_METHODS)
+        )
+    if row.get("supersedes"):
+        click.echo(
+            f"  supersedes {str(row['supersedes'])[:12]}… — the previous derivative is "
+            "gone from disk and still named in derived/_derivations.jsonl"
+        )
+    _warn_if_thin_derivative(source_id, row)
+
+
+@main.command()
+@click.argument("source_id", metavar="SOURCE_ID")
+@click.option("--via", default=None, metavar="LANE",
+              help="Named extractor variant from [extractors.<family>] in config.toml "
+                   "(e.g. --via ocr). A lane named after an extraction method supplies "
+                   "--method for free.")
+@click.option("--force", is_flag=True,
+              help="Overwrite a sources/text/<id>.txt that flip did not write — i.e. one "
+                   "a person edited by hand. Without this, that case is refused.")
+@click.option("--note", default=None,
+              help="One line recorded in the derivation row (what was odd, why this lane).")
+@click.option("--method", default=None, type=click.Choice(sources.EXTRACTION_METHODS),
+              help="How the text was recovered (SPEC §5.5). flip never guesses one: "
+                   "unset and un-inferable means no method is recorded at all.")
+def extract(source_id: str, via: str | None, force: bool, note: str | None,
+            method: str | None) -> None:
+    """Derive sources/text/<ID>.txt from a captured source's raw bytes.
+
+    Custody holds the bytes; this makes them readable. The command comes from
+    the `[extractors]` lane for the raw file's **media family** (`pdf`, `html`,
+    `docx`, `audio`) — the input format picks the tool, not the source kind —
+    and every run appends one row to `derived/_derivations.jsonl`: inputs and
+    outputs with hashes, the tool, the verbatim command, and the extraction
+    METHOD.
+
+    Record the method. A quotation recovered by OCR is not the same evidence as
+    one lifted from a publisher's own text layer, and the derivation row is the
+    only place a later reader can find out which they are holding.
+
+    `sources/raw/` is never touched, and a derivative may be overwritten —
+    what makes that safe is the append-only log. A file flip did not write is
+    refused without `--force`.
+    """
+    _emit_extraction(require_notebook_root(), source_id, via, force, note, method)
 
 
 # ---------------------------------------------------------------- config
@@ -406,8 +544,9 @@ def config_show(as_json: bool) -> None:
         )
     if not lanes:
         raise SystemExit(
-            f"{path} exists but configures no lanes — add a [fetchers]/[research]/"
-            "[knowledge] stanza (`flip config init --force` rewrites the starter file)"
+            f"{path} exists but configures no lanes — add a [fetchers]/[extractors]/"
+            "[research]/[knowledge] stanza (`flip config init --force` rewrites the "
+            "starter file)"
         )
     click.echo(str(path))
     width = max(len(f"{r['key']}{'/' + r['variant'] if r['variant'] else ''}") for r in lanes)
@@ -422,8 +561,9 @@ def config_show(as_json: bool) -> None:
         click.echo(f"  {name:<{width}}  {row['command']}{needs}{via}")
     click.echo(
         "flip runs these verbatim and reads only the placeholders ({url} {id} {query} "
-        "{dest}). Each lane is one verb of whatever fills it — ask the tool itself for "
-        "the rest of its surface before working around it."
+        "{dest} for capture; {src} {out} {id} for extraction). Each lane is one verb of "
+        "whatever fills it — ask the tool itself for the rest of its surface before "
+        "working around it."
     )
 
 

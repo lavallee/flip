@@ -107,9 +107,12 @@ from its local files alone.
   sources/
     raw/                   # verbatim bytes as captured (non-md; OKF-unconstrained)
     text/                  # readable derivatives of raw/, 1:1 by source id
+                           #   `<source id>.txt`, written by `flip extract` (§5.5);
+                           #   overwritable, because every write is logged
     _provenance.jsonl      # append-only capture log: who/what/when/how/sha256
   derived/
-    _derivations.jsonl     # append-only processing log
+    _derivations.jsonl     # append-only processing log: inputs -> tool/cmd/method
+                           #   -> outputs, with hashes both sides (§5.5)
     ...                    # parsed tables, transcripts, extractions
   log/
     log.jsonl              # append-only work log (one event per line)
@@ -218,8 +221,8 @@ Two identity keys arrived with profile 0.5:
 - `sources/raw/` holds **verbatim bytes as captured** — never edited, never
   re-encoded. One file (or one directory for multi-file captures) per source.
 - Web pages: prefer a self-contained capture (SingleFile HTML or WARC) plus
-  the extracted-text derivative in `sources/text/`. PDFs and datasets: the
-  original file. API pulls: the verbatim response JSON.
+  the extracted-text derivative in `sources/text/` (§5.5). PDFs and datasets:
+  the original file. API pulls: the verbatim response JSON.
 - Once captured, a raw file is immutable; recapture creates a new dated
   entry, it does not overwrite.
 
@@ -472,6 +475,103 @@ outputs are `synthesis`-basis intermediaries; under `citation_rule:
 public-terminus` a load-bearing chain must end at a public, independently
 verifiable source. **Unjudged sources never corroborate:** capture is
 custody, not judgment.
+
+### 5.5 Text derivatives — `sources/text/` and the derivation log
+
+Custody holds the bytes; a **text derivative** makes them readable. One file
+per source, `sources/text/<id>.txt`, produced by `flip extract <id>` from an
+`[extractors]` command (§15) and logged as one row in
+`derived/_derivations.jsonl`. Nothing about a derivative is required: a source
+with none is a complete source.
+
+**Extraction methods.** `method` in the derivation row records *how* the text
+was recovered, from a fixed vocabulary — the same discipline §5.1 applies to
+acquisition, one layer down, and for the same reason. **A quotation recovered
+by OCR is not the same evidence as one lifted from the publisher's own text
+layer**: one is a transcription of the document, the other is a machine's
+reading of a picture of it, and the second can silently drop a minus sign, a
+footnote marker, or a whole column. Until a notebook could say which, every
+quotation looked equally solid.
+
+| method | the text came from |
+|---|---|
+| `text-layer` | the document's own embedded text, as its producer wrote it |
+| `layout-text` | that text plus geometric reconstruction of reading order |
+| `ocr` | the page rendered to raster and recognized — a reading, not the text |
+| `markup-strip` | markup reduced to prose |
+| `structured` | an office/structured format's own text |
+| `transcript` | speech recognized from media |
+
+Unlike §5.1's these are **not a ladder**: they do not escalate, they apply to
+different documents, and the right one is a fact about the input. The row
+already records the *actor* (`tool`, `tool_version`, `cmd`), so `method` is
+where the method belongs — methods travel between deployments, tool names are
+local trivia. An implementation must not invent one: where no method is known,
+none is recorded, and doctor asks for it (`unvocabularied-extraction`). A lane
+*named* after a method supplies it.
+
+**Fidelity is derived, never authored** — as with capture fidelity (§5.1) and
+the source grade (§5.4). From the word count and the page count:
+`text-only` (a real derivative) · `thin` (**under 25 words per page**) ·
+`empty` (no text at all) · `unknown` (a `method` outside the vocabulary, so
+what this text is cannot be read off the record). The threshold is calibrated,
+not guessed: on a measured corpus real extractions ran 391–994 words/page and
+silent failures 0–10.8, with nothing in between.
+
+**Near-nothing is two distinct events**, exactly as `failed` and
+`not-captured` are in the capture log:
+
+- **No text at all.** An extractor that exits 0 having produced no words has
+  *reported a finding about the document* — an image-only scan, a form with no
+  content. It is not a defect in the config, and presenting it as one sends the
+  reader to debug a lane that is fine. The row records `status: not-extracted`,
+  **no output file is written**, and the refusal names the operator's own other
+  lanes (§16) rather than leaving them to be remembered.
+- **Almost no text.** Under 25 words/page the file *is* written and logged
+  `thin`, and the warning is loud at extraction time, because unlike the empty
+  case this one leaves a plausible-looking `.txt` on disk with a sha256 and a
+  derivation row behind it. An image-only scan, a text layer the tool declined
+  to trust, and an extractor silently skipping pages are indistinguishable from
+  each other and from success, unless someone opens the file.
+
+**Immutability, and what makes overwriting safe.** `sources/raw/` is never
+touched by extraction. A derivative is *not* raw and may be overwritten —
+re-running a better lane over the same document is the normal case, not an
+exception — and what makes that safe is that the log is append-only. Every
+extraction appends: inputs (path, sha256, bytes), the tool and its version and
+the **verbatim command template**, the lane and the method, outputs (path,
+sha256, bytes, words), pages and words/page where known, and `supersedes` —
+the sha256 of the output this one replaces. Fidelity is **not** among them: it
+is derived on every read, like capture fidelity and the source grade. A claim quoting
+the old text can still be traced to the run that produced it.
+
+That log is also how flip distinguishes its own last output from someone
+else's work: **if the file on disk hashes to no row, a person wrote it**, and
+re-extracting is refused without an explicit override. Doctor names such a file
+(`unlogged-derivative`), a thin one (`thin-derivative`), a derivation that
+won't say how (`unvocabularied-extraction`), and a captured document with no
+derivative at all (`missing-derivative`, an expected-until-use notice).
+
+That last one deliberately does **not** consult machine configuration. Doctor
+reads the notebook; a check that fired only where a lane happened to be
+installed would give two readers of the same committed notebook different
+findings, and would go silent for exactly the reader least able to notice the
+text was missing. "This capture has no readable derivative" is true whatever
+is installed, and it presumes no tool — reading the bytes is a legitimate
+answer, and so is deciding a source never needed text. Only the advice in the
+message changes with what the operator has configured.
+
+**On demand, not automatic.** `flip add-source`'s contract is custody.
+Extraction is a derivation with its own ledger, its own failure modes, and its
+own cost — an OCR pass over a long scan is a minutes-long, gigabyte-scale job —
+so it is a separate verb, opt-in inline at capture, nudged once when a document
+lands and a lane exists, and named by doctor thereafter.
+
+**flip ships no extractor and defines no default lane.** The bundled
+`flip-fetch` can exist because it is stdlib-only; a PDF or OCR extractor cannot,
+and the package must not acquire an opinion about PDF libraries (§16). The
+starter config carries a fully commented `[extractors]` stanza, and every
+refusal names the operator's own file and lanes.
 
 ## 6. The flip profile — lineage rules for LLM-built wikis
 
@@ -1279,6 +1379,9 @@ flip add-source <url|doi|file|->     # capture: fetch/copy → raw/, hash, prove
                                      #   open a references/ page at grade "?" (--via <variant>)
 flip add-source <target> --record    # the ladder's terminus: a citable page for a
             --note "<rungs tried>"   #   document that is out of reach (§5.1, thin)
+flip extract <id> [--via <lane>]     # derive sources/text/<id>.txt from custody via
+            [--method <m>] [--force] #   an [extractors] lane; one derivation row per
+                                     #   run, raw/ untouched (§5.5)
 flip find "<question>"               # research: list candidate leads (--capture <n>)
 flip ask "<question>"                # research: cited synthesis → sessions/raw/ (a grade-C lead)
 flip recall "<question>"             # knowledge: read what we already hold locally
@@ -1322,10 +1425,11 @@ namespaced table in `~/.flip/config.toml` and a thin command protocol. flip
 defines the protocol; the tools that fill a role live only in user
 configuration, never in the package. Placeholders: `{url}` the target as
 given · `{id}` the target with a leading `doi:` stripped · `{query}` a
-research/recall question · `{dest}` the capture directory. Commands that write
-files receive `{dest}`; stdout-only commands may omit it and their stdout is
-preserved. The library makes **no network or LLM calls itself** — it only runs
-what you configure.
+research/recall question · `{dest}` the capture directory · `{src}` a raw
+artifact to extract from · `{out}` a text derivative's destination. Commands
+that write files receive `{dest}`/`{out}`; stdout-only commands may omit it and
+their stdout is preserved. The library makes **no network or LLM calls itself**
+— it only runs what you configure.
 
 - **`[fetchers]` — capture.** A target (`url`/`id`/`file`) → local bytes +
   custody. `flip add-source` routes by kind. `builtin:copy` (local files) and
@@ -1348,6 +1452,20 @@ what you configure.
   that flip wires exactly ONE verb of whatever fills a role, so a tool with more
   surface should be asked directly and its result handed back through
   `flip add-source`.
+- **`[extractors]` — extract.** Raw bytes → a readable text derivative
+  (§5.5). `flip extract <id>` routes by **media family** — `pdf`, `html`,
+  `docx`, `audio` — because the input format picks the tool, not the source
+  kind: a PDF is a PDF whether it was captured as a paper, a file, or a
+  dataset. Same config forms as `[fetchers]` (bare string, inline table, named
+  variants via `--via`), and a variant named after an extraction method
+  supplies that method. **Nothing is bundled and there is no default lane**: a
+  stdlib-only web GET can ship inside flip, a PDF/OCR toolchain cannot, and the
+  package must not carry an opinion about PDF libraries. The starter config
+  carries a commented stanza; an unconfigured lane errors with the operator's
+  own file path and a stanza to paste. A lane that exits 0 with no text is an
+  *empty extraction* — a finding about the document, not a broken config — and
+  the refusal, like an empty capture's, reads the operator's other lanes back
+  to them.
 - **`[research]` — acquire.** A *question* → candidate leads (`flip find`) or
   cited synthesis (`flip ask`). Synthesis is a **lead, grade C, not evidence**:
   its raw output lands under `sessions/raw/` for custody and a log breadcrumb is
@@ -1406,6 +1524,7 @@ documentation, or portable skills.
 | role | how referenced |
 |---|---|
 | capture tools (web, papers, media) | `[fetchers]` config + `tool`/`strategy` in provenance; optional return envelope enriches the page |
+| text extractors (PDF, OCR, transcription) | `[extractors]` config keyed by media family + `tool`/`cmd`/`method` in `derived/_derivations.jsonl`; nothing bundled, no default lane — the `method` vocabulary (§5.5) travels, the tool name does not |
 | research multiplexers / SERP tools | `[research]` config (`find`/`ask`); candidate leads for `add-source`; synthesis raw → `sessions/raw/`, a grade-`C` lead promoted via `references/` only when captured |
 | local knowledge / retrieval corpora | `[knowledge]` config (`recall`); read-only; `links:` in the manifest for durable cross-refs |
 | knowledge graphs / lead trackers | `links:`; cross-refs by id |

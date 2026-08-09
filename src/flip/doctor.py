@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import pages, stance, workspace
+from . import integrations, pages, stance, workspace
 from . import sources as sources_mod
 from .beat import find_beat_root, load_beat
 from .claims import STATUSES as CLAIM_STATUSES  # claim status enum (SPEC §7)
@@ -52,12 +52,14 @@ from .util import (
     is_notebook_root,
     new_uid,
     read_jsonl,
+    sha256_file,
     split_ref,
 )
 
 PROVENANCE = "sources/_provenance.jsonl"
+DERIVATIONS = sources_mod.DERIVATIONS.as_posix()
 # Every JSONL ledger the format defines; each must at least parse.
-LEDGERS = (PROVENANCE, "derived/_derivations.jsonl", "log/log.jsonl", "log/passed.jsonl")
+LEDGERS = (PROVENANCE, DERIVATIONS, "log/log.jsonl", "log/passed.jsonl")
 
 # Entity directories whose pages must carry a compact id; sessions are entity
 # pages too but have no id scheme (SPEC §8), so they are exempt here.
@@ -110,6 +112,9 @@ CHECK_CODES: frozenset[str] = frozenset({
     "enum-without-evidence", "seeded-grade", "grade-drift",
     "orphan-provenance", "stale-freshness", "unregistered-raw",
     "source-drift", "drifted-evidence", "thin-capture", "unvocabularied-method",
+    # sources: text derivatives (SPEC §5.5)
+    "thin-derivative", "missing-derivative", "unlogged-derivative",
+    "unvocabularied-extraction",
     # claims
     "two-object", "pre-okf02-layout", "corroboration-drift", "under-verified",
     "unaudited-claim", "provenance-open", "unlocatable-recomputation",
@@ -180,6 +185,7 @@ def run_doctor(root: Path) -> list[Finding]:
     _check_sources(root, source_pages, provenance, findings)
     _check_freshness(root, source_pages, profile, findings)
     _check_raw(root, provenance, findings)
+    _check_derivatives(root, source_pages, findings)
     claim_pages = [p for p in by_dir.get("claims", []) if p.fm.get("type") == "Claim"]
     _check_claims(root, claim_pages, source_pages, profile, findings)
     _check_stance(root, manifest, claim_pages, findings)
@@ -240,7 +246,7 @@ def _check_provenance_open(
     findings: list[Finding],
 ) -> None:
     """PRIMARY-OPEN is a legitimate mid-pass state, not a shippable one
-    (SPEC §5.5): once the notebook is done/published/archived, a load-bearing
+    (SPEC §5.4): once the notebook is done/published/archived, a load-bearing
     claim resting on a source whose chain-walk never reached a terminus is an
     ERROR; while active it's a WARN so the walk gets finished, not forgotten."""
     open_sources = {
@@ -1187,6 +1193,157 @@ def _check_raw(root: Path, provenance: list[dict], findings: list[Finding]) -> N
                     rel,
                 )
             )
+
+
+def _check_derivatives(
+    root: Path, source_pages: list[pages.Page], findings: list[Finding]
+) -> None:
+    """The text-derivative lane (SPEC §5.5): four ways `sources/text/` and
+    `derived/_derivations.jsonl` can stop meaning what they say.
+
+    `thin-derivative`          — a .txt on disk with too few words to be the
+                                 document's text, which looks exactly like a
+                                 real one until someone opens it.
+    `unvocabularied-extraction`— a derivation that doesn't say HOW, so a
+                                 quotation drawn from it can't say whether it
+                                 came from a text layer or from OCR.
+    `unlogged-derivative`      — a .txt whose sha256 matches no row. The
+                                 append-only log is what lets flip tell its own
+                                 output from someone's hand-written work, and
+                                 an unlogged file makes `flip extract` refuse.
+    `missing-derivative`       — a captured document, a lane configured that
+                                 could read it, and no derivative. An
+                                 expected-until-use notice, not a defect.
+    """
+    try:
+        rows = read_jsonl(root / DERIVATIONS)
+    except ValueError:
+        return  # _check_ledgers already reported it as bad-jsonl
+    page_ids = {p.id for p in source_pages if p.id}
+
+    latest: dict[str, dict] = {}
+    attempted: set[str] = set()
+    logged_hashes: set[str] = set()
+    for row in rows:
+        sid = str(row.get("source_id") or "")
+        for out in row.get("outputs") or []:
+            if isinstance(out, dict) and out.get("sha256"):
+                logged_hashes.add(str(out["sha256"]))
+        if not sid or sid not in page_ids:
+            continue
+        attempted.add(sid)
+        if str(row.get("kind") or "") != "text" or not row.get("outputs"):
+            continue
+        prior = latest.get(sid)
+        if prior is None or str(row.get("ts") or "") >= str(prior.get("ts") or ""):
+            latest[sid] = row
+
+    for sid, row in sorted(latest.items()):
+        fidelity = sources_mod.derivative_fidelity(row)
+        out = (row.get("outputs") or [{}])[0]
+        rel = str(out.get("path") or DERIVATIONS)
+        if fidelity == "thin":
+            findings.append(
+                _warn(
+                    "thin-derivative",
+                    f"source {sid}: {rel} holds {out.get('words')} words from a "
+                    f"{row.get('pages')}-page document ({row.get('words_per_page')} "
+                    f"words/page) — too little to be its text. An image-only scan, a "
+                    "text layer the tool declined to trust, and an extractor silently "
+                    "skipping pages all look like this. Read it before quoting it, then "
+                    f"re-extract through an OCR lane (`flip extract {sid} --via … "
+                    "--method ocr`) — raw custody is untouched either way",
+                    rel,
+                )
+            )
+        method = str(row.get("method") or "")
+        if not method:
+            findings.append(
+                _warn(
+                    "unvocabularied-extraction",
+                    f"source {sid}: the derivation of {rel} records no extraction method, "
+                    "so a quotation taken from it cannot say whether it came from the "
+                    "document's own text layer or from an OCR engine reading a picture "
+                    f"of it — and those are not the same evidence. Re-run with "
+                    f"`flip extract {sid} --method "
+                    + "|".join(sources_mod.EXTRACTION_METHODS) + "`",
+                    rel,
+                    expected=True,
+                )
+            )
+        elif method not in sources_mod.EXTRACTION_METHODS:
+            findings.append(
+                _warn(
+                    "unvocabularied-extraction",
+                    f"source {sid}: extraction method '{method}' is not a method (one of: "
+                    f"{', '.join(sources_mod.EXTRACTION_METHODS)}) — it reads like a tool "
+                    "name. Methods travel between deployments and tool names don't, and "
+                    "`tool`/`tool_version` already record the actor",
+                    rel,
+                )
+            )
+
+    text_dir = root / "sources" / "text"
+    if text_dir.is_dir():
+        for path in sorted(text_dir.rglob("*")):
+            if not path.is_file():
+                continue
+            rel = path.relative_to(root).as_posix()
+            if sha256_file(path) in logged_hashes:
+                continue
+            findings.append(
+                _warn(
+                    "unlogged-derivative",
+                    f"{rel} matches no row in {DERIVATIONS} — flip did not write these "
+                    "bytes, so a person did. That is allowed and it is not tracked: no "
+                    "row says what it was derived from, by what tool, or by what method. "
+                    "Log it, or let `flip extract --force` replace it (which discards it)",
+                    rel,
+                )
+            )
+
+    # Deliberately NOT gated on whether this machine has a lane configured.
+    #
+    # Gating it there was tried and reverted: it made doctor's output a function
+    # of the machine it ran on, so two people linting the same committed
+    # notebook got different findings — and the one seeing nothing was the one
+    # with no extractor configured, i.e. exactly the person who most needed to
+    # know the text was missing. Every other check reads only the notebook, and
+    # this one now does too.
+    #
+    # "This capture has no readable derivative" is a fact about the notebook,
+    # true whatever is installed, and it does not presume a tool exists that
+    # could read it (which §16 would forbid): reading the bytes yourself is a
+    # legitimate answer, and so is deciding this source never needed text. It
+    # stays `expected=True` so it sits with the appears-with-use notices rather
+    # than reading as breakage.
+    for page in source_pages:
+        sid = page.id or ""
+        if not sid or sid in attempted:
+            continue
+        local = str(page.fm.get("local") or "")
+        if not local or not (root / local).is_file():
+            continue
+        family = sources_mod.media_family(local)
+        if family not in sources_mod.DOCUMENT_FAMILIES:
+            continue
+        lanes = integrations.extraction_lanes()
+        how = (
+            f"`flip extract {sid}` derives it and logs how"
+            if family in lanes
+            else f"no [extractors].{family} lane is configured here — add one, or read the "
+            f"bytes yourself; a source with no text derivative is still a source"
+        )
+        findings.append(
+            _warn(
+                "missing-derivative",
+                f"source {sid}: {local} is a {family} in custody, but "
+                f"sources/text/{sid}.txt does not exist — nothing here can be read or "
+                f"quoted without opening the binary. {how}",
+                _rel(page, root),
+                expected=True,
+            )
+        )
 
 
 # --- claims -----------------------------------------------------------------------

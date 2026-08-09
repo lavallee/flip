@@ -7,6 +7,74 @@ versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Text derivatives — `sources/text/` finally has tooling** (SPEC §5.5).
+  `sources/text/` ("readable derivatives of raw/, 1:1 by source id") has been in
+  §3 since the first version of the spec and nothing ever wrote it;
+  `derived/_derivations.jsonl` ("inputs → tool/cmd/params → outputs with hashes,
+  a deliberately small PROV profile") was specified and unused. Getting text out
+  of a captured PDF was a manual scramble outside flip — a 94-page scanned
+  chapter with no text layer took a hand-rolled render-and-recognize shell loop
+  that silently produced zero output on the first attempt, with nothing on disk
+  or in any ledger to say so.
+  - **A fourth integration role, `[extractors]`, verb `extract`**, keyed by
+    **media family** (`pdf`, `html`, `docx`, `audio`) rather than by source
+    kind: the input format is what picks the tool, and a PDF is a PDF whether it
+    was captured as a paper, a file, or a dataset. Placeholders `{src}` (the raw
+    artifact), `{out}` (the destination) and `{id}`, with the same rule
+    `{dest}` has on a fetcher — **a command that omits `{out}` has its stdout
+    preserved**. Same config forms as `[fetchers]`: bare string, inline table,
+    named variants reachable with `--via`.
+  - **`flip extract <ID>`** derives `sources/text/<ID>.txt` and appends exactly
+    one row to `derived/_derivations.jsonl`. `flip add-source --extract` does
+    both inline; a capture that lands a document with a lane configured for it
+    gets one nudge line and nothing more.
+  - **An extraction method is recorded, from a fixed vocabulary** —
+    `text-layer` · `layout-text` · `ocr` · `markup-strip` · `structured` ·
+    `transcript`. This is the point of the feature. §5.1's discipline applied
+    one layer down: **a quotation recovered by OCR is not the same evidence as
+    one lifted from the publisher's own text layer**, and a notebook had no way
+    to say which. The row already records the actor (`tool`, `tool_version`,
+    `cmd`), so `method` is where the method belongs — methods travel between
+    deployments, tool names are local trivia. flip never guesses one: a lane
+    *named* after a method supplies it, and otherwise no method is recorded and
+    doctor asks.
+  - **`derivative_fidelity` is derived from the log row, never authored** — the
+    same discipline as `capture_fidelity` and `derive_grade`. `text-only` ·
+    `thin` (under **25 words/page**) · `empty` · `unknown`. The threshold is
+    calibrated rather than guessed: on a measured corpus real extractions ran
+    391–994 words/page and silent failures 0–10.8, with nothing in between.
+  - **Near-nothing is two distinct events**, mirroring `not-captured` and
+    `failed` in the capture log. Zero words raises `EmptyExtraction`, writes a
+    `status: not-extracted` row, leaves **no file on disk**, and exits 1 — an
+    extractor exiting 0 with no text is reporting a finding about the *document*
+    (no text layer here), not a defect in the config, and saying otherwise sends
+    the reader to debug a lane that is fine. Under 25 words/page the file *is*
+    written, logged `fidelity: thin`, and warned about loudly at extraction
+    time, because unlike the empty case it leaves a plausible-looking `.txt`
+    behind. Both refusals read the operator's own configured lanes back to them
+    (§16) — that is how "go hunt around for an OCR tool" stops being something
+    done from memory.
+  - **`sources/raw/` is never touched, and a derivative may be overwritten.**
+    What makes that safe is the append-only log: every run records inputs (path,
+    sha256, bytes), tool + version + the **verbatim command template** + lane +
+    method, outputs (path, sha256, bytes, words), pages, words/page, the derived
+    fidelity, and `supersedes` — the sha256 of the output it replaces. It is
+    also how flip tells its own last output from someone else's work: **a file
+    that hashes to no row was written by a person**, and `flip extract` refuses
+    it without `--force`.
+  - **`flip doctor`**: `thin-derivative`, `unlogged-derivative`,
+    `unvocabularied-extraction`, and `missing-derivative` (a captured document
+    with no derivative — an expected-until-use notice). The last does not
+    consult machine config: doctor reads the notebook, and a check gated on an
+    installed lane would go quiet for the reader least able to notice. `derived/_derivations.jsonl` was already in
+    `LEDGERS`, so `bad-jsonl` came free.
+  - **Nothing is bundled and there is no default lane.** `flip-fetch` can ship
+    because it is stdlib-only; a PDF/OCR toolchain cannot, and flip must not
+    acquire an opinion about PDF libraries in its package (§16). `flip config
+    init` writes a fully commented `[extractors]` stanza — including the field
+    notes about pinning an OCR model path, and about checking whether a chosen
+    extractor has an opt-in mode that POSTs page images to a remote endpoint —
+    and every refusal names the operator's own config file.
 - **Stance and exposure — the attitude, separated from the truth-status**
   (SPEC §7.1). `status` is truth-tracking and right for facts, and it fuses two
   things a notebook has to keep apart: what a claim's evidential situation is,

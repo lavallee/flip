@@ -192,7 +192,7 @@ flip rewrites them on every mutating command, so edit pages, not listings —
 and flip preserves frontmatter keys it doesn't own, so your own properties
 survive its rewrites (and it expects the same courtesy from other tools).
 
-## Configuring fetchers
+## Configuring integrations
 
 **Fastest start:** `flip config init` writes a starter `~/.flip/config.toml`
 whose `web` lane uses **`flip-fetch`** — a zero-dependency helper shipped with
@@ -222,6 +222,12 @@ media = "yt-dlp {url} --output {dest}/%(title)s.%(ext)s"
 # social = "your-fetcher {url} {dest}"        # inline table + --via variants also allowed:
 # paper  = "your-fetcher {id} {dest}"         #   web = { cmd = "…", needs = ["cookies"] }
 
+[extractors]                                   # raw bytes → a readable text derivative
+# pdf = "your-extractor {src} {out}"          # keyed by MEDIA FAMILY, not source kind
+# [extractors.pdf]                            #   named lanes work here too:
+# text-layer = "pdftotext -layout {src} {out}" #   a lane named after an extraction
+# ocr        = "your-ocr-tool {src} {out}"     #   method records that method for you
+
 [research]                                     # a question → leads / cited synthesis
 # find = "your-research-tool {query}"
 # ask  = "your-research-tool {query}"
@@ -231,11 +237,13 @@ media = "yt-dlp {url} --output {dest}/%(title)s.%(ext)s"
 ```
 
 `{url}` is the target as given, `{id}` is the target with a leading `doi:`
-stripped, `{query}` is a research/recall question, and `{dest}` is the capture
-directory `sources/raw/<source id>/`. Any command works. Commands that create
-one or more files use `{dest}`; commands that emit the artifact on stdout may
-omit `{dest}`, and flip preserves their stdout as `capture.json` or
-`capture.txt`. Whatever runs, its name and version when supported land in the
+stripped, `{query}` is a research/recall question, `{dest}` is the capture
+directory `sources/raw/<source id>/`, and — for extractors — `{src}` is the raw
+artifact and `{out}` the text derivative's destination. Any command works.
+Commands that create one or more files use `{dest}`/`{out}`; commands that emit
+the artifact on stdout may omit it, and flip preserves their stdout (as
+`capture.json`/`capture.txt` for a fetcher, as the derivative itself for an
+extractor). Whatever runs, its name and version when supported land in the
 provenance log automatically. X/Twitter post URLs are routed to `social`; other
 HTTP URLs route to `web`.
 
@@ -277,6 +285,46 @@ warns above the fold. Use `flip pass` instead when the source is *ruled out*
 rather than merely unreachable. And when a capture does land, watch for
 `warning: thin capture`: 800 bytes of markup is a consent wall or a JavaScript
 shell, and it produces the same hash and the same page as the real document.
+
+## Making a capture readable
+
+Custody holds the bytes. `flip extract <id>` turns them into
+`sources/text/<id>.txt` through the `[extractors]` lane for that file's media
+family, and writes one row to `derived/_derivations.jsonl`:
+
+```console
+$ flip extract F1 --method text-layer
+F1 · sources/text/F1.txt · 23193 words · 44 pages · 527.1 words/page · text-only · via pdftotext (text-layer)
+```
+
+flip ships no extractor and picks no default — `flip-fetch` can be bundled
+because it is stdlib-only, and a PDF/OCR toolchain cannot. Configure one lane
+per media family; name a lane after an extraction method
+(`text-layer`, `layout-text`, `ocr`, `markup-strip`, `structured`,
+`transcript`) and `--via ocr` records `method: ocr` for you.
+
+**Record the method.** It is the reason this command exists. A quotation
+recovered by OCR is not the same evidence as one lifted from the publisher's
+own text layer — the second is a machine's reading of a picture of the page,
+and it can drop a minus sign, a footnote marker, or a whole column without
+saying so. The derivation row is the only place a later reader can find out
+which one they are holding.
+
+**Two kinds of nothing, kept apart.** An extractor that exits 0 with no words
+has found no text — an image-only scan, a form with no content. That is a
+finding about the *document*, not a broken config: flip writes a
+`not-extracted` row, leaves **no file on disk**, exits 1, and prints the other
+lanes you have configured. Under 25 words/page the file *is* written and logged
+`thin`, with a loud warning, because that one leaves a plausible-looking `.txt`
+behind that looks exactly like a real extraction until you open it.
+
+`sources/raw/` is never touched, and a derivative may be overwritten —
+re-running a better lane over the same document is normal. What makes that safe
+is that the log is append-only: each row carries the input hash, the tool, the
+verbatim command, the method, the output hash and word count, and `supersedes`
+naming the derivative it replaced. It is also how flip knows its own last output
+from your work: a `sources/text/*.txt` that hashes to no row was written by a
+person, and `flip extract` refuses to replace it without `--force`.
 
 **Leads vs. evidence.** `flip find "<q>"` lists candidate sources (capture one
 with `--capture <n>` or `flip add-source <url>`). `flip ask "<q>"` returns cited

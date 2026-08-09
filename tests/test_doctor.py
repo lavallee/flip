@@ -188,7 +188,15 @@ def test_healthy_populated_notebook_has_no_findings(tmp_path):
         support={"basis": "survey", "method": "cross-check"},
     )
     claim_page(root, "C1", status="needs-2nd", sources=["A1"], corroboration=1)
-    assert run_doctor(root) == []
+    findings = run_doctor(root)
+    # Nothing is WRONG with this notebook. The one notice it does draw is the
+    # appears-with-use kind: a document is in custody and has no readable
+    # derivative yet, which is a true statement about a notebook nobody has run
+    # `flip extract` in. Asserting `== []` here would have forced that check to
+    # be gated on machine configuration to stay quiet, and doctor's output must
+    # not depend on what happens to be installed.
+    assert [f for f in findings if not f.expected] == []
+    assert codes(findings) == ["missing-derivative"]
 
 
 def test_missing_manifest_is_bad_manifest_error(tmp_path):

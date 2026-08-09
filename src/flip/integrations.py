@@ -7,16 +7,23 @@ configuration, never in this package.
 
 Roles:
   ``[fetchers]``   capture: a target (url/id/file) → local bytes + custody
+  ``[extractors]`` extract: raw bytes → a readable text derivative
   ``[research]``   acquire: a query → candidate leads / cited synthesis
   ``[knowledge]``  recall:  a query → what the deployment already holds locally
 
-All three share one runner. Placeholders substituted into a command template:
+All four share one runner. Placeholders substituted into a command template:
 ``{url}`` the target as given · ``{id}`` the target with a leading ``doi:``
 stripped · ``{query}`` a research/recall question · ``{dest}`` the capture
-directory. A command that writes files uses ``{dest}``; a stdout-only command
-may omit it and flip preserves stdout. A command that cannot run, or fails, is
-a one-line SystemExit; a command that *succeeds* and brings nothing back is an
-``EmptyCapture`` — a finding about the target, not a defect in the config.
+directory · ``{src}`` the raw artifact to extract from · ``{out}`` the text
+derivative's destination. A command that writes files uses ``{dest}``/``{out}``;
+a stdout-only command may omit it and flip preserves stdout. A command that
+cannot run, or fails, is a one-line SystemExit; a command that *succeeds* and
+brings nothing back is an ``EmptyCapture`` (or, one layer down, an
+``EmptyExtraction``) — a finding about the target, not a defect in the config.
+
+``[extractors]`` is keyed by **media family** (``pdf``, ``html``, ``docx``,
+``audio``), not by source kind: the input format is what picks the tool, and a
+PDF is a PDF whether it was captured as a paper, a file, or a dataset.
 
 Config forms per key (all back-compat with the bare-string 0.6 form):
   ``web = "your-fetcher {url} {dest}"``            bare string
@@ -67,12 +74,13 @@ ENVELOPE_KEYS = (
 # deployment's real tools.
 _ROLE_TOOL = {
     "fetchers": "your-fetcher",
+    "extractors": "your-extractor",
     "research": "your-research-tool",
     "knowledge": "your-knowledge-tool",
 }
 
 
-ROLES = ("fetchers", "research", "knowledge")
+ROLES = ("fetchers", "extractors", "research", "knowledge")
 
 
 def config_path() -> Path:
@@ -133,6 +141,54 @@ web = "flip-fetch {url} {dest}"
 # deployments; tool names don't, and `tool`/`tool_version` already record the
 # actor. `flip doctor` flags a strategy that reads like a tool name.
 
+# --- [extractors] — raw bytes -> a readable text derivative (SPEC §5.5) ---
+#
+# Keyed by MEDIA FAMILY, not by source kind: the input format picks the tool,
+# so a PDF is a PDF whether it was captured as a paper, a file, or a dataset.
+# Placeholders: {src} the raw artifact · {out} the destination text file (omit
+# it and flip captures stdout, exactly like {dest} on a fetcher) · {id} the
+# source id. `flip extract <ID>` writes sources/text/<ID>.txt and appends one
+# row to derived/_derivations.jsonl.
+#
+# flip ships NO extractor and defines no default lane. flip-fetch can be
+# bundled because it is stdlib-only; a PDF/OCR extractor cannot, and flip must
+# not carry an opinion about PDF libraries in its package (§16). Everything
+# below is commented on purpose — pick your own and uncomment.
+#
+# [extractors]
+# pdf   = "your-extractor {src} {out}"
+# html  = "your-extractor {src} {out}"
+# docx  = "your-extractor {src} {out}"
+# audio = "your-transcriber {src} {out}"
+#
+# Named lanes, reachable with `flip extract <ID> --via <name>`. Name a lane
+# after the extraction METHOD it uses (`text-layer`, `layout-text`, `ocr`,
+# `markup-strip`, `structured`, `transcript` — SPEC §5.5) and flip records the
+# method for you; otherwise pass `--method` yourself. A quotation recovered by
+# OCR is not the same evidence as one lifted from a publisher's text layer, and
+# the ledger row is the only place that difference can be written down.
+#
+# [extractors.pdf]
+# text-layer = "pdftotext -layout {src} {out}"     # the document's own text
+# ocr        = "your-ocr-tool {src} {out}"         # rendered and recognized
+#
+# Two field notes from choosing one of these, because they are the failures
+# that exit 0:
+#
+#  - An OCR tool that downloads its language model on first use can race its
+#    own workers on a cold cache. One measured run lost 9 of 94 pages and
+#    exited 0; pointing it at the system tessdata (a `--tessdata-path`-shaped
+#    flag) fixed it and cut a 94-page scan from 129s to 28s. Pin the model path
+#    in the lane, then check the page count in the derivation row.
+#  - Check what your extractor talks to. Some OCR wrappers have an opt-in
+#    "OCR server URL" that POSTs rendered page images to an arbitrary endpoint.
+#    Default-off is not the same as absent — a captured source may be
+#    confidential, and this lane is the one place bytes leave the machine.
+#  - A classifier is not an extractor. A library that answers "is this scanned,
+#    which pages need OCR?" in milliseconds may still return 7 words from a
+#    44-page document when asked for the text. Useful upstream; disqualifying
+#    here. `flip extract` refuses at 0 words and warns under 25 words/page.
+
 # [research]                     # a question -> candidate leads / cited synthesis
 # find = "your-research-tool {query}"
 # ask = "your-research-tool {query}"
@@ -173,6 +229,8 @@ def _example(role: str, key: str) -> str:
     if role == "fetchers":
         placeholder = "{id}" if key == "paper" else "{url}"
         example = f"{tool} {placeholder} {{dest}}"
+    elif role == "extractors":
+        example = f"{tool} {{src}} {{out}}"
     else:
         example = f"{tool} {{query}}"
     return f'[{role}]\n{key} = "{example}"'
@@ -185,6 +243,16 @@ def _guidance(role: str, key: str) -> str:
         # the fetchers lane has a batteries-included path; point there first
         tail = ("(run `flip config init` for a starter config with a bundled "
                 "web fetcher, or replace 'your-fetcher' with your own command)")
+    elif role == "extractors":
+        # And this one deliberately does NOT. flip ships `flip-fetch` because it
+        # is stdlib-only; a PDF/OCR extractor is not, and flip must not acquire
+        # an opinion about PDF libraries inside its own package (§16). So the
+        # error names the operator's file and the placeholders, and stops.
+        tail = ("(flip ships no extractor and has no default lane — the tool is "
+                "yours to choose. Placeholders: {src} the raw artifact · {out} the "
+                "destination text file, omit it and stdout is captured · {id} the "
+                "source id. `flip config init` writes a commented [extractors] "
+                "stanza to start from.)")
     return f"{stanza}\n{tail}"
 
 
@@ -301,6 +369,22 @@ def capture_lanes() -> dict[str, list[str]]:
     lanes: dict[str, list[str]] = {}
     for row in configured_lanes():
         if row["role"] != "fetchers":
+            continue
+        names = lanes.setdefault(row["key"], [])
+        if row["variant"]:
+            names.append(row["variant"])
+    return lanes
+
+
+def extraction_lanes() -> dict[str, list[str]]:
+    """`[extractors]` as {media family: [variant names]} — the derivation lanes
+    on this machine. A family configured as a single command maps to an empty
+    list. The twin of `capture_lanes`, and the only way flip knows whether a
+    captured PDF *could* have a text derivative (doctor's `missing-derivative`)
+    without knowing what tool would make it."""
+    lanes: dict[str, list[str]] = {}
+    for row in configured_lanes():
+        if row["role"] != "extractors":
             continue
         names = lanes.setdefault(row["key"], [])
         if row["variant"]:
@@ -454,6 +538,101 @@ def run_capture(resolved: Resolved, root: Path, source_id: str, target: str) -> 
     return CaptureRun(
         files=new, tool=argv[0], tool_version=tool_version(argv[0]),
         strategy=strategy, envelope=envelope,
+    )
+
+
+class EmptyExtraction(SystemExit):
+    """An extract command that ran clean (exit 0) and produced no text.
+
+    The exact sibling of ``EmptyCapture``, one layer down. A tool that exits 0
+    having written no words has *reported a finding about the document*: this
+    PDF has no text layer, this scan is images all the way down, this form is
+    boxes. That is not a defect in the config, and presenting it as one sends
+    the reader to debug a lane that is fine — after which they hand-roll a
+    render-and-recognize loop with no derivation row, no hashes, and no record
+    of which method produced the words they are about to quote.
+
+    A SystemExit subclass so the CLI's exit code and every existing caller
+    behave as before; callers that can say what to do next catch it
+    specifically and enrich the message with the operator's own lanes (§16).
+    """
+
+    def __init__(self, message: str, *, key: str, src: Path, out: Path, tool: str,
+                 template: str, captures_stdout: bool) -> None:
+        super().__init__(message)
+        self.key = key
+        self.src = src
+        self.out = out
+        self.tool = tool
+        self.template = template
+        self.captures_stdout = captures_stdout
+
+
+@dataclass
+class ExtractionRun:
+    out: Path
+    text: str
+    words: int
+    tool: str
+    tool_version: str | None
+    captures_stdout: bool
+
+
+def run_extraction(
+    resolved: Resolved, root: Path, source_id: str, src: Path, out: Path
+) -> ExtractionRun:
+    """Run an extract command over one raw artifact into ``out``.
+
+    Mirrors ``run_capture`` exactly, including the stdout rule: a template that
+    names ``{out}`` is expected to write that file; a template that omits it is
+    a stdout-only tool and flip preserves its stdout as ``out``.
+
+    Raises ``EmptyExtraction`` when the command succeeded and produced no text —
+    a finding about the document, distinct from the ``SystemExit`` raised when
+    the command could not run or failed. **No file is left behind in that
+    case**: whatever was on disk before the run is restored, because a
+    zero-byte derivative is the one artifact that would read on disk as though
+    the extraction had worked.
+    """
+    out.parent.mkdir(parents=True, exist_ok=True)
+    template = resolved.template
+    captures_stdout = "{out}" not in template
+    argv = _build_argv(template, {"src": str(src), "out": str(out), "id": source_id})
+    before = out.read_bytes() if out.is_file() else None
+
+    # Clear the destination first, the same way run_capture only counts files
+    # that were not in {dest} before. Without this, a command that promises
+    # {out} and quietly writes nothing leaves the PREVIOUS derivative on disk,
+    # and flip reads last week's words back as this run's output — a silent
+    # failure wearing a fresh derivation row, which is the exact class of thing
+    # this lane exists to catch.
+    if not captures_stdout:
+        out.unlink(missing_ok=True)
+    try:
+        proc = _exec(argv, root, "extractor", resolved.key)
+    except SystemExit:
+        if before is not None:
+            out.write_bytes(before)
+        raise
+    if captures_stdout:
+        out.write_bytes(proc.stdout)
+
+    text = out.read_text(encoding="utf-8", errors="replace") if out.is_file() else ""
+    words = len(text.split())
+    if words == 0:
+        if before is None:
+            out.unlink(missing_ok=True)
+        else:
+            out.write_bytes(before)
+        raise EmptyExtraction(
+            f"extractor for '{resolved.key}' ran clean (exit 0) and produced no text "
+            f"from {src.name} — it looked, and there was nothing here to read",
+            key=resolved.key, src=src, out=out, tool=argv[0], template=template,
+            captures_stdout=captures_stdout,
+        )
+    return ExtractionRun(
+        out=out, text=text, words=words, tool=argv[0],
+        tool_version=tool_version(argv[0]), captures_stdout=captures_stdout,
     )
 
 

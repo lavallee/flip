@@ -16,6 +16,7 @@ didn't capture is a source you don't have.
 |---|---|
 | start a notebook | `flip new <slug> --kind <profile>` |
 | capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
+| make a captured PDF readable | `flip extract <id> [--via <lane>] [--method text-layer\|ocr\|…]` — writes `sources/text/<id>.txt` and logs how; raw custody untouched |
 | see what tooling you have | `flip config show` — the lanes configured on this machine and the command behind each |
 | recheck the world | `flip source recheck <id>` — re-fetch, hash-compare, receipt; never overwrites custody |
 | a capture was refused | climb the ladder (SPEC §5.1): alt representation → archive replay → publisher API → browser render → save-as. A 403 is not a verdict on the source |
@@ -154,12 +155,51 @@ archived. They are not problems; don't re-run doctor for reassurance.
    useless once the thin bytes have been cited. Never grade a source you have
    not confirmed you actually captured.
 
-4. **Chase the original.** Before grading, check whether this evidence is
+4. **If it's a PDF (or a scan, or audio), derive the text through flip.**
+   ```bash
+   flip extract <id> --method text-layer|layout-text|ocr|markup-strip|structured|transcript
+   ```
+   This is the step that used to happen in a shell, outside the notebook, and
+   left no record. `flip extract` writes `sources/text/<id>.txt` through the
+   `[extractors]` lane for the file's media family (`pdf`, `html`, `docx`,
+   `audio` — the input *format* picks the tool, not the source kind) and
+   appends one row to `derived/_derivations.jsonl` with the input hash, the
+   tool, the verbatim command, the method, and the output hash and word count.
+   `sources/raw/` is never touched.
+
+   **Record the method — it is why the command exists.** A quotation recovered
+   by OCR is not the same evidence as one lifted from the publisher's own text
+   layer: the second is a machine reading a picture of the page, and it can
+   drop a minus sign, a footnote marker, or an entire column without saying so.
+   Name a lane after a method (`[extractors.pdf].ocr`) and `--via ocr` records
+   it for you. flip never guesses a method, so an unnamed one is recorded as
+   nothing at all and `flip doctor` asks (`unvocabularied-extraction`).
+
+   **Two kinds of nothing, and neither is your config's fault.** An extractor
+   that exits 0 with no words has found no text — an image-only scan, a form
+   with no content. flip logs `not-extracted`, writes **no file**, exits 1, and
+   prints the other lanes on this machine. Under 25 words/page it *does* write
+   the file, logs `fidelity: thin`, and warns loudly — that one leaves a
+   plausible-looking `.txt` on disk that reads like a real extraction until you
+   open it. Open it. Then re-run through an OCR lane; a text-layer tool will
+   never find words in a scan, however many times it is asked.
+
+   flip ships no extractor and picks no default lane (a stdlib-only web fetcher
+   can be bundled; a PDF/OCR toolchain cannot). If none is configured, flip
+   prints a stanza for `$FLIP_HOME/config.toml` — adapt it, don't route around
+   it with a shell loop whose output nothing can trace.
+
+   A derivative may be overwritten; the append-only log is what makes that
+   safe, and it is also how flip tells its own last output from your work. A
+   `sources/text/*.txt` that hashes to no row was written by a person, so
+   `flip extract` refuses it without `--force` and `flip doctor` names it
+   `unlogged-derivative`.
+5. **Chase the original.** Before grading, check whether this evidence is
    independent or derivative. If it republishes another source, capture that
    original too
    and grade the republisher accordingly — republishers and derivatives do
    not count toward claim corroboration.
-5. **Read it, then grade it** (grading is a judgment made after reading, not
+6. **Read it, then grade it** (grading is a judgment made after reading, not
    a formality at capture):
    ```bash
    flip grade <id> --independence independent|corroborated|self-reported|derivative \
@@ -193,11 +233,11 @@ archived. They are not problems; don't re-run doctor for reassurance.
    be translated mechanically and parks the rest for you to re-read. A
    corroboration count that dropped to 0 across a whole notebook is this,
    not an evidence problem.
-6. **Public-terminus check.** If the manifest's `citation_rule` is
+7. **Public-terminus check.** If the manifest's `citation_rule` is
    `public-terminus`, confirm any load-bearing chain this source joins ends
    at a public, independently verifiable source — a grade-C intermediary
    can't be the terminus.
-7. **Wire it in.** Link the source to the claims it backs
+8. **Wire it in.** Link the source to the claims it backs
    (`flip claim add ... --source <id>` or update existing claims), and cite
    it in prose as `[A3]`. Put pull-quotes, misgivings, and capture notes in
    the source page's body — when editing the page, change only what you

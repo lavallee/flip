@@ -10,6 +10,12 @@ for `flip grade`: record the judgment keys on an existing page, round-tripping
 everything else on it (frontmatter flip doesn't own and the prose body survive,
 SPEC §6.6).
 
+`extract_text` is the write path for `flip extract` (SPEC §5.5): a *derivation*,
+not a capture. It reads the raw bytes flip already holds, runs an
+`[extractors]` command chosen by media family, writes `sources/text/<id>.txt`,
+and appends one row to `derived/_derivations.jsonl` recording inputs → tool →
+outputs with hashes and the extraction METHOD. `sources/raw/` is never touched.
+
 Fetcher command templates and the capture runner live in `integrations` (SPEC
 §15). A fetcher may hand back an optional neutral return envelope; when present,
 its title/canonical_url flow onto the page and its strategy/retrieved_at/status/
@@ -119,7 +125,64 @@ UNCAPTURED_STATUSES = ("failed", "not-captured")
 # are the document's text, not a faithful copy of what a reader saw.
 _TEXT_ONLY_METHODS = ("http-get", "http-alt-representation", "archive-replay")
 
-# Provenance terminal states (SPEC §5.5, design D-B): where the chain-walk
+# Extraction methods (SPEC §5.5): HOW a text derivative was recovered from the
+# raw bytes. Exactly the discipline CAPTURE_METHODS applies to acquisition,
+# applied one layer down — because a quotation recovered by OCR is not the same
+# evidence as one lifted from a publisher's own text layer, and until now a
+# notebook had no way to say which. The derivation log already records the
+# *actor* (`tool`, `tool_version`, `cmd`), so `method` is where the METHOD
+# belongs: methods travel between deployments, tool names are local trivia.
+#
+# Not a ladder — these do not escalate. They are different acts on different
+# inputs, and the right one is a fact about the document.
+EXTRACTION_METHODS = (
+    "text-layer",     # the document's own embedded text, as its producer wrote it
+    "layout-text",    # that text plus geometric reconstruction of reading order
+    "ocr",            # rendered to raster and recognized — a READING, not the text
+    "markup-strip",   # markup reduced to prose
+    "structured",     # an office/structured format's own text
+    "transcript",     # speech recognized from media
+)
+
+# Below this, a derivative is `thin`. Calibrated on a real corpus rather than
+# guessed: measured genuine extractions ran 391–994 words/page, and silent
+# failures (a scan with no text layer, an extractor skipping pages, a
+# classifier answering an extraction question) ran 0–10.8. Nothing landed in
+# between, so the threshold sits in an empty band and is not a close call.
+THIN_WORDS_PER_PAGE = 25.0
+
+# The name of the metadata sidecar a fetcher may write into a capture dir. It
+# is never the primary artifact — it is metadata about one (SPEC §15).
+ENVELOPE_FILENAME = "flip.json"
+
+# Suffix → media family for [extractors] routing. The INPUT FORMAT picks the
+# extractor, not the source kind: a PDF is a PDF whether it was captured as a
+# paper, a file, or a dataset. An unknown suffix becomes its own family, so an
+# operator can configure `[extractors].epub` without flip learning about epub.
+# Only suffixes that genuinely share a tool are collapsed. `.doc`/`.odt`/`.rtf`
+# are deliberately NOT folded into `docx`: a tool that reads one of those often
+# cannot read the others, and silently routing `.doc` at a docx-only lane would
+# produce exactly the quiet failure this whole lane exists to catch. They fall
+# through to their own family names and can be configured separately.
+_MEDIA_FAMILIES = {
+    ".pdf": "pdf",
+    ".html": "html", ".htm": "html", ".xhtml": "html",
+    ".docx": "docx",
+    ".mp3": "audio", ".m4a": "audio", ".wav": "audio", ".flac": "audio",
+    ".ogg": "audio", ".opus": "audio",
+    ".mp4": "video", ".mkv": "video", ".mov": "video", ".webm": "video",
+}
+
+# Families whose bytes are a DOCUMENT a reader cannot read as they stand — the
+# ones worth one nudge at capture time and one expected-until-use notice at
+# doctor time. A .csv or a .json is already text; a .pdf is not. Both consumers
+# also require a configured lane, so this list only has to be roughly right.
+DOCUMENT_FAMILIES = (
+    "pdf", "docx", "doc", "odt", "rtf", "xlsx", "pptx", "html", "epub",
+    "audio", "video",
+)
+
+# Provenance terminal states (SPEC §5.4, design D-B): where the chain-walk
 # behind this source ended. Optional; doctor gates done/published on OPEN.
 PROVENANCE_STATES = (
     "PRIMARY-REACHED",
@@ -191,6 +254,97 @@ def capture_fidelity(event: dict) -> str:
     if isinstance(size, int) and markup and size < 2048:
         return "thin"
     return "text-only" if method in _TEXT_ONLY_METHODS else "faithful"
+
+
+def derivative_fidelity(row: dict) -> str:
+    """What an extraction actually recovered — DERIVED from the derivation row,
+    never authored (the same discipline as `capture_fidelity` and
+    `derive_grade`).
+
+    `text-only` — a real text derivative of the document.
+    `thin`      — under 25 words/page (`THIN_WORDS_PER_PAGE`). The dangerous
+                  one: unlike the empty case it leaves a plausible-looking
+                  .txt on disk, with a sha256 and a derivation row, and
+                  nothing about it says the pages are missing.
+    `empty`     — no text at all. A `status: not-extracted` row, which by
+                  design has no output file behind it.
+    `unknown`   — a `method` outside EXTRACTION_METHODS, so what this text
+                  even *is* cannot be read off the record.
+
+    A row with no `method` is still judged on its words: the words-per-page
+    evidence is a fact about the output and does not depend on the vocabulary.
+    (`capture_fidelity` returns `unknown` for an absent method because its size
+    test needs the method to mean anything; this one does not.)
+
+    Callers pass one row from `derived/_derivations.jsonl`.
+    """
+    if str(row.get("status") or "") == "not-extracted":
+        return "empty"
+    words = 0
+    for out in row.get("outputs") or []:
+        if isinstance(out, dict) and isinstance(out.get("words"), int):
+            words += out["words"]
+    if words == 0:
+        return "empty"
+    method = str(row.get("method") or "")
+    if method and method not in EXTRACTION_METHODS:
+        return "unknown"
+    pages_n = row.get("pages")
+    if isinstance(pages_n, int) and pages_n > 0 and words / pages_n < THIN_WORDS_PER_PAGE:
+        return "thin"
+    return "text-only"
+
+
+def media_family(path: Path | str) -> str:
+    """The `[extractors]` key for a raw artifact: its media family.
+
+    The input FORMAT picks the extractor, not the source kind — `.pdf` → `pdf`
+    whether the page says paper, file, or dataset. An unrecognized suffix
+    becomes its own family (`.epub` → `epub`), so an operator can configure a
+    lane flip has never heard of and it routes with no code change.
+    """
+    suffix = Path(path).suffix.lower()
+    return _MEDIA_FAMILIES.get(suffix, suffix.lstrip(".")) or "unknown"
+
+
+def _primary_file(files: list[Path]) -> Path:
+    """The primary artifact among a capture's files: the largest real one,
+    never the `flip.json` envelope.
+
+    One rule, three callers — `add_source` (picking the page's `local`),
+    `primary_raw` (picking what `flip extract` reads), and, in ledger-row
+    form, `latest_capture_event`. It was written out longhand in each of them
+    until the extract lane needed a fourth copy.
+    """
+    real = [f for f in files if f.name != ENVELOPE_FILENAME] or files
+    return max(real, key=lambda p: p.stat().st_size)
+
+
+def primary_raw(root: Path, source_id: str) -> Path:
+    """The raw artifact `flip extract` should read for `source_id`.
+
+    Handles both custody shapes: a per-source directory
+    (`sources/raw/<id>/…`, what a fetcher writes) and a loose file
+    (`sources/raw/<id>.pdf`, what `builtin:copy` writes).
+    """
+    raw = root / "sources" / "raw"
+    directory = raw / source_id
+    if directory.is_dir():
+        files = [f for f in directory.rglob("*") if f.is_file()]
+        if not files:
+            raise SystemExit(
+                f"sources/raw/{source_id}/ holds no artifact to extract from — "
+                f"the directory is empty; re-capture with `flip add-source`"
+            )
+        return _primary_file(files)
+    loose = sorted(f for f in raw.glob(f"{source_id}.*") if f.is_file())
+    if loose:
+        return _primary_file(loose)
+    raise SystemExit(
+        f"no raw custody for {source_id} under sources/raw/ — extraction derives from "
+        f"bytes flip holds, so capture it first with `flip add-source`. (A record "
+        f"capture holds no document, and there is nothing in it to extract.)"
+    )
 
 
 def unmigrated(fm: dict) -> bool:
@@ -761,8 +915,7 @@ def add_source(
 
     # the page's primary artifact is the largest real capture, never the tiny
     # flip.json envelope sidecar (which is metadata, not content)
-    primary = [f for f in files if f.name != "flip.json"] or files
-    largest = max(primary, key=lambda p: p.stat().st_size)
+    largest = _primary_file(files)
     env_title = _plausible_title(envelope.get("title")) if envelope else None
     title = env_title or _title_for(target, capture_kind)
     fm: dict = {
@@ -825,10 +978,10 @@ def latest_capture_event(root: Path, source_id: str) -> dict | None:
     """The capture-log row for a source's PRIMARY artifact, most recent first —
     the row `capture_fidelity` should be asked about.
 
-    Same rule `add_source` uses to pick the page's `local`: the `flip.json`
-    envelope is metadata rather than content, and among the real files the
-    largest is the document. Rows with no bytes (a failed or empty
-    acquisition, a recheck receipt) are not captures and are skipped.
+    The ledger-row form of `_primary_file`'s rule: the `flip.json` envelope is
+    metadata rather than content, and among the real files the largest is the
+    document. Rows with no bytes (a failed or empty acquisition, a recheck
+    receipt) are not captures and are skipped.
     """
     best: dict | None = None
     for event in read_jsonl(root / "sources" / "_provenance.jsonl"):
@@ -836,7 +989,7 @@ def latest_capture_event(root: Path, source_id: str) -> dict | None:
             continue
         if str(event.get("status") or "") in UNCAPTURED_STATUSES:
             continue
-        if Path(str(event.get("local_path") or "")).name == "flip.json":
+        if Path(str(event.get("local_path") or "")).name == ENVELOPE_FILENAME:
             continue
         if best is None or str(event.get("ts") or "") > str(best.get("ts") or ""):
             best = event
@@ -845,6 +998,306 @@ def latest_capture_event(root: Path, source_id: str) -> dict | None:
         ):
             best = event
     return best
+
+
+# --- text derivatives (SPEC §5.5) ------------------------------------------
+
+DERIVATIONS = Path("derived") / "_derivations.jsonl"
+
+# Derivation-log statuses that mean NO derivative landed. Exactly the shape of
+# UNCAPTURED_STATUSES one layer down, and for the same reason: the two ways of
+# getting nothing are different events and must stay distinguishable.
+#
+#   `failed`         the extractor could not run, or exited nonzero.
+#   `not-extracted`  it ran clean and found no text — a fact about the DOCUMENT.
+UNEXTRACTED_STATUSES = ("failed", "not-extracted")
+
+
+def page_count(path: Path) -> int | None:
+    """Best-effort page count for the words-per-page test; None when unknown.
+
+    PDFs only, and deliberately crude: count the `/Type /Page` objects and
+    subtract the `/Type /Pages` tree nodes. A PDF that keeps its objects in a
+    compressed object stream hides both, and then this returns None and the
+    thin test simply does not run — which is the right failure. flip will not
+    take a PDF library dependency to sharpen a heuristic whose only job is to
+    decide whether to print a warning.
+    """
+    if path.suffix.lower() != ".pdf":
+        return None
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None
+    leaves = data.count(b"/Type /Page") + data.count(b"/Type/Page")
+    trees = data.count(b"/Type /Pages") + data.count(b"/Type/Pages")
+    return (leaves - trees) or None
+
+
+def _template_tool(template: str) -> str:
+    """The binary a command template runs, for a ledger row written before (or
+    instead of) a successful run."""
+    tokens = integrations._tokenize_template(template)
+    return Path(tokens[0]).name if tokens else template.strip()
+
+
+def latest_derivation(root: Path, source_id: str, kind: str = "text") -> dict | None:
+    """The most recent derivation row for a source, or None.
+
+    Rows that landed nothing (`failed`, `not-extracted`) are findings rather
+    than derivatives and are skipped — the same rule `latest_capture_event`
+    applies to the capture log, so a source whose only extraction attempt came
+    back empty reads as *having no derivative*, which is the truth.
+    """
+    best: dict | None = None
+    for row in read_jsonl(root / DERIVATIONS):
+        if str(row.get("source_id") or "") != source_id:
+            continue
+        if str(row.get("kind") or "") != kind:
+            continue
+        if str(row.get("status") or "") in UNEXTRACTED_STATUSES:
+            continue
+        if not row.get("outputs"):
+            continue
+        if best is None or str(row.get("ts") or "") >= str(best.get("ts") or ""):
+            best = row
+    return best
+
+
+def extraction_lane_inventory(family: str, via: str | None) -> list[str]:
+    """The other extract lanes this machine has, as guidance lines.
+
+    The twin of `lane_inventory`, and the reason "hunt around for an OCR tool"
+    stops being a thing an agent does from memory: flip may not know what fills
+    a lane (SPEC §16), but it can read the operator's own config back to them
+    and print the runnable command.
+    """
+    lanes = integrations.extraction_lanes()
+    lines: list[str] = []
+    used = via or "default"
+    variants = [v for v in lanes.get(family, []) if v != used]
+    if variants:
+        lines.append(
+            f"    other '{family}' lanes configured on this machine: "
+            + ", ".join(f"--via {v}" for v in variants)
+        )
+    others = sorted(k for k in lanes if k != family)
+    if others:
+        lines.append(f"    other media families configured here: {', '.join(others)}")
+    return lines
+
+
+def extraction_guidance(
+    source_id: str, family: str, via: str | None, method: str | None
+) -> str:
+    """What remains after an extraction came back with nothing (or nearly).
+
+    Every line is a sanctioned move. None of them is "render the pages and run
+    an OCR binary by hand in a shell loop", which is what happens when the only
+    thing flip says is that something might be wrong.
+    """
+    lines = [
+        "the work goes on from here — SPEC §5.5:",
+        f"  custody is intact: sources/raw/ is untouched and {source_id} is still "
+        "citable. What is missing is the readable derivative, not the source.",
+        "  extraction methods, and what each one is for — "
+        + ", ".join(EXTRACTION_METHODS),
+    ]
+    inventory = extraction_lane_inventory(family, via)
+    if inventory:
+        lines.append(f"  try another lane: flip extract {source_id} --via <name>")
+        lines.extend(inventory)
+    else:
+        lines.append(
+            f"  no other [extractors].{family} lane is configured on this machine. A "
+            f"document with no text layer needs an `ocr` lane; add one to "
+            f"{integrations.config_path()} and re-run "
+            f"(`flip extract {source_id} --via ocr --method ocr`)."
+        )
+    if method != "ocr":
+        lines.append(
+            "  if it is an image-only scan, no text-layer tool will ever find words in "
+            "it — that is a fact about the document, and OCR is the only answer."
+        )
+    lines.append(
+        "  flip wires exactly ONE verb of whatever fills this lane; that binary's "
+        "`--help` may have modes flip never calls. Run it yourself and hand the "
+        f"result back with `flip extract {source_id}` once the lane is right."
+    )
+    lines.append(
+        f"  or read it yourself: sources/raw/ holds the bytes, and a source with no "
+        f"text derivative is still a source. {source_id} is not damaged by this."
+    )
+    return "\n".join(lines)
+
+
+def extract_text(
+    root: Path,
+    source_id: str,
+    via: str | None = None,
+    force: bool = False,
+    note: str | None = None,
+    method: str | None = None,
+) -> dict:
+    """Derive `sources/text/<id>.txt` from a source's raw bytes; return the row.
+
+    The write path for `flip extract`. Routes on the raw artifact's **media
+    family** (`pdf`, `html`, `docx`, `audio`) to an `[extractors]` command from
+    `$FLIP_HOME/config.toml`, runs it with `{src}`/`{out}`/`{id}`, and appends
+    exactly one row to `derived/_derivations.jsonl` — inputs with hashes, the
+    tool and the verbatim command template, the method, outputs with hashes and
+    a word count, and `supersedes` naming the previous derivative it replaces.
+
+    **`sources/raw/` is never touched.** A derivative is not raw and may be
+    overwritten; what makes that safe is the append-only log. If the file on
+    disk hashes to no row in it, a human edited it by hand and this refuses
+    without `force` — the log is what lets flip tell its own last output from
+    someone else's work.
+
+    `method` is the extraction METHOD (SPEC §5.5), and flip will not guess one:
+    when it isn't given, a lane *named* after a method supplies it (a `--via
+    ocr` lane records `ocr`) and otherwise no method is recorded at all.
+    Defaulting to `text-layer` would be a lie in exactly the case that matters.
+
+    Raises `SystemExit` when the extractor could not run or failed, and when it
+    ran clean and produced no text — the second carrying the operator's own
+    lanes, because that one is a finding about the document.
+    """
+    root = require_notebook_root(root)
+    if method is not None and method not in EXTRACTION_METHODS:
+        raise SystemExit(
+            f"invalid extraction method '{method}' (one of: "
+            f"{', '.join(EXTRACTION_METHODS)}) — the method says how the text was "
+            "recovered, and a quotation lifted from a publisher's text layer is not "
+            "the same evidence as one an OCR engine read off a scan"
+        )
+    src = primary_raw(root, source_id)
+    if src.name == "record.json" and b'"flip_record"' in src.read_bytes():
+        # A record capture holds flip's record of a source and of the attempt to
+        # get it — never the document (SPEC §5.1). Running an extractor over the
+        # record would produce a text derivative *of flip's own note*, which is
+        # the one output nobody could safely quote.
+        raise SystemExit(
+            f"{source_id} is a record capture: custody holds flip's record of the source "
+            "and of the attempt, not the document, so there is no text in it to extract. "
+            "Climb the ladder again (SPEC §5.1) and capture the document; extracting the "
+            "record would produce a derivative of flip's own note about the failure"
+        )
+    family = media_family(src)
+    resolved = integrations.resolve("extractors", family, via=via)
+    # A lane named after a method IS the method — `[extractors.pdf].ocr` says
+    # what it does, and making the operator repeat it in --method every time is
+    # how a field goes unfilled.
+    if method is None and resolved.name in EXTRACTION_METHODS:
+        method = resolved.name
+
+    out = root / "sources" / "text" / f"{source_id}.txt"
+    log = root / DERIVATIONS
+    prior = [
+        r for r in read_jsonl(log)
+        if str(r.get("source_id") or "") == source_id and str(r.get("kind") or "") == "text"
+    ]
+    known_outputs = [
+        o for r in prior for o in (r.get("outputs") or []) if isinstance(o, dict)
+    ]
+
+    if out.is_file() and not force:
+        if sha256_file(out) not in {o.get("sha256") for o in known_outputs}:
+            raise SystemExit(
+                f"sources/text/{source_id}.txt exists and its sha256 matches no row in "
+                f"{DERIVATIONS.as_posix()} — flip did not write the bytes that are there, "
+                "so a person did: a hand correction, a stitched-together transcript, a "
+                "paste from somewhere else. Re-extracting would discard it silently and "
+                "the log would show only the replacement.\n"
+                f"  keep the edit: leave it alone, or move it somewhere flip does not own.\n"
+                f"  replace it anyway: flip extract {source_id} --force "
+                '--note "<what the hand edit was, and why it goes>"'
+            )
+
+    ts = utc_now()
+    row: dict = {
+        "ts": ts,
+        "source_id": source_id,
+        "kind": "text",
+        "inputs": [{
+            "path": src.relative_to(root).as_posix(),
+            "sha256": sha256_file(src),
+            "bytes": src.stat().st_size,
+        }],
+        # The command template goes in verbatim — placeholders and all — so the
+        # row says what was configured, not just what it expanded to on this
+        # machine. `tool` is refined to the real argv[0] once the run returns.
+        "tool": _template_tool(resolved.template),
+        "cmd": resolved.template,
+    }
+    if resolved.name:
+        row["via"] = resolved.name
+    if method:
+        row["method"] = method
+    if note:
+        row["note"] = note
+    row["actor"] = detect_actor()
+
+    try:
+        run = integrations.run_extraction(resolved, root, source_id, src, out)
+    except integrations.EmptyExtraction as exc:
+        # Ran clean, found no text. A finding about the DOCUMENT — an image-only
+        # scan, a form with no content — so the honest status is `not-extracted`
+        # and nothing here is broken. No output file is written (run_extraction
+        # restores what was there), because an empty .txt on disk is the one
+        # artifact that would read as a successful extraction.
+        pages_n = page_count(src)
+        row["status"] = "not-extracted"
+        row["finding"] = str(exc) + (f" ({pages_n} pages)" if pages_n else "")
+        if pages_n:
+            row["pages"] = pages_n
+        append_jsonl(log, row)
+        raise integrations.EmptyExtraction(
+            f"{row['finding']}\n{extraction_guidance(source_id, family, via, method)}",
+            key=exc.key, src=exc.src, out=exc.out, tool=exc.tool,
+            template=exc.template, captures_stdout=exc.captures_stdout,
+        ) from None
+    except SystemExit as exc:
+        # A failed extraction is a finding too: the attempt lands in the ledger
+        # so "tried and it broke" stays distinguishable from "never tried".
+        row["status"] = "failed"
+        row["error"] = str(exc)
+        append_jsonl(log, row)
+        raise
+
+    row["tool"] = Path(run.tool).name
+    if run.tool_version:
+        row["tool_version"] = run.tool_version
+    pages_n = page_count(src)
+    row["outputs"] = [{
+        "path": out.relative_to(root).as_posix(),
+        "sha256": sha256_file(out),
+        "bytes": out.stat().st_size,
+        "words": run.words,
+    }]
+    if pages_n:
+        row["pages"] = pages_n
+        row["words_per_page"] = round(run.words / pages_n, 1)
+    # `fidelity` is NOT written. It is derived on every read by
+    # `derivative_fidelity(row)`, exactly as `capture_fidelity` is derived from
+    # a capture row and `derive_grade` from a support tuple — flip stores the
+    # description and computes the summary, never the reverse.
+    #
+    # The tempting argument for storing it is that the inputs (`words`,
+    # `pages`, `method`) sit in this same append-only row, so the two could
+    # never drift. That argument defeats itself: a value that cannot drift from
+    # its inputs is a value the reader can always recompute, and writing it
+    # down buys nothing while adding the one thing doctor has a check against
+    # elsewhere (`grade-drift`) — a stored derivation.
+    if known_outputs:
+        row["supersedes"] = known_outputs[-1].get("sha256")
+    append_jsonl(log, row)
+    # The mutation tail, minus the regenerate: extraction writes no page and
+    # changes no listing, so `views.regenerate` would rewrite generated files
+    # to identical content on every run. The notebook did change, so `updated`
+    # moves.
+    manifest.touch_updated(root)
+    return row
 
 
 def source_pages(root: Path) -> list[pages.Page]:
@@ -963,9 +1416,7 @@ def recheck_source(root: Path, source_id: str, via: str | None = None) -> dict:
     with tempfile.TemporaryDirectory() as td:
         try:
             run = integrations.run_capture(resolved, Path(td), source_id, url)
-            primary = [f for f in run.files if f.name != "flip.json"] or run.files
-            largest = max(primary, key=lambda p: p.stat().st_size)
-            sha_now = sha256_file(largest)
+            sha_now = sha256_file(_primary_file(run.files))
             result = "unchanged" if sha_now == baseline else "changed"
         except SystemExit as exc:
             error = str(exc)
@@ -999,7 +1450,7 @@ def set_provenance_state(
     root: Path, source_id: str, state: str, note: str | None = None
 ) -> pages.Page:
     """Record where the provenance chain-walk behind a source ended (SPEC
-    §5.5, design D-B). PRIMARY-OPEN is a legitimate mid-pass state, but the
+    §5.4, design D-B). PRIMARY-OPEN is a legitimate mid-pass state, but the
     doctor refuses done/published while a load-bearing claim rests on one."""
     root = require_notebook_root(root)
     if state not in PROVENANCE_STATES:
