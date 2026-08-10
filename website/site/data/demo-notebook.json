@@ -1,15 +1,15 @@
 {
   "contract": "flip-render/2",
-  "generated": "2026-07-31T13:56:02Z",
+  "generated": "2026-08-10T21:06:33Z",
   "source_trail_public": true,
   "notebook": {
-    "uid": "nb-6svgcqjd",
+    "uid": "nb-w4hbhs0d",
     "slug": "sourdough-rise",
     "title": "Does hydration change sourdough rise time?",
     "kind": "research-review",
     "status": "active",
-    "created": "2026-07-31",
-    "updated": "2026-07-31",
+    "created": "2026-08-10",
+    "updated": "2026-08-10",
     "visibility": "internal"
   },
   "sources": [
@@ -26,7 +26,7 @@
       },
       "title": "ridgeway-club-trial.md",
       "canonical_url": "",
-      "captured_at": "2026-07-31T13:56:00Z",
+      "captured_at": "2026-08-10T21:06:32Z",
       "sha256": "23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40"
     },
     {
@@ -43,8 +43,20 @@
       },
       "title": "rise-times.csv",
       "canonical_url": "",
-      "captured_at": "2026-07-31T13:56:01Z",
+      "captured_at": "2026-08-10T21:06:32Z",
       "sha256": "d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c"
+    },
+    {
+      "id": "T1",
+      "slug": "club-call",
+      "kind": "",
+      "grade": "?",
+      "independence": "",
+      "freshness": "",
+      "title": "Call with the Ridgeway club's trial organiser",
+      "canonical_url": "",
+      "captured_at": "2026-08-10T21:06:33Z",
+      "sha256": "fc5c678c9465836e3e894abf6117dcadc8276754fe6192ff3b03108ceccec467"
     }
   ],
   "claims": [
@@ -59,7 +71,25 @@
         "F2"
       ],
       "corroboration": 2,
-      "verifications": []
+      "verifications": [],
+      "exposure": "severely-tested",
+      "stances": [],
+      "tests": [
+        {
+          "probe": "attribution",
+          "error": "the club write-up does not report the gap C1 cites it for",
+          "would_detect": "the pooled-result paragraph names a different pair of hydration levels, or no median gap at all",
+          "if_absent": "the write-up states a 61-minute median between the 65% and 80% groups, as cited",
+          "result": "survived",
+          "against": [
+            "F1"
+          ],
+          "at": "2026-08-10T21:06:33Z",
+          "by": "human:baker",
+          "severity": "severe"
+        }
+      ],
+      "rivals": []
     }
   ],
   "questions": [
@@ -85,10 +115,10 @@
   ],
   "sessions": [
     {
-      "id": "2026-07-31T1356-hydration-sweep",
+      "id": "2026-08-10T2106-hydration-sweep",
       "actor": "human:baker",
       "model": "claude-opus-5",
-      "started": "2026-07-31T13:56:00Z",
+      "started": "2026-08-10T21:06:31Z",
       "ended": "",
       "goal": ""
     }
@@ -106,5 +136,6 @@
       "title": "What we can actually say about hydration and rise time",
       "body": "# What we can actually say\n\nHigher hydration shortens rise time [C1] \u2014 now verified: the\ncommunity trial [F1] and our own twelve bakes [F2] agree, and the\ntwo are independent measurements, not echoes of each other. The\ntrial alone couldn't carry it (flip refused, correctly); the\nkitchen log is what earned the verification.\n\nScope honestly: one flour lot, one kitchen, home-oven conditions.\nWhether the effect size transfers to rye is the question we chose\nnot to chase [D1] \u2014 white flour only, this round."
     }
-  ]
+  ],
+  "drafts": []
 }

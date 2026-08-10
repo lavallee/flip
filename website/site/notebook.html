@@ -93,7 +93,11 @@
     <h2 id="claims-heading">Claims</h2>
     <p class="nb__section-note">A claim enters <code>asserted</code>. It cannot call
       itself <code>verified</code> until the corroboration bar is met — mechanically,
-      not by anyone insisting.</p>
+      not by anyone insisting — and a severe test that found the error closes that gate
+      again whatever the count says. <strong>exposure</strong> is derived from the test
+      record on read, never stored; a claim citing only the document it is
+      <em>about</em> reads <code>n/a (subject)</code> rather than zero, because there
+      the corroboration question does not apply.</p>
     <div class="table-wrap">
       <table class="nb__table" id="nb-claims-table">
         <thead>
@@ -105,6 +109,7 @@
             <th scope="col">value</th>
             <th scope="col">sources</th>
             <th scope="col">corroboration</th>
+            <th scope="col">exposure</th>
             <th scope="col">verifications</th>
           </tr>
         </thead>

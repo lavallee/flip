@@ -34,7 +34,7 @@ Per `PRACTICE.md` §1, bottom-up, before touching a surface:
 | Layer | State | Note |
 |---|---|---|
 | Observed user behavior and constraints | **weak** | There is no adoption to observe. No analytics, no interviews, no support log. This is the honest floor and it constrains everything above it: the site cannot argue from user experience it does not have. |
-| Domain facts and rules | **strong** | SPEC.md v0.10 is 852 lines, current, and mechanically checkable against the CLI. |
+| Domain facts and rules | **strong** | SPEC.md v0.17 is 1777 lines, current, and mechanically checkable against the CLI. |
 | User need and authority | **partial** | The need is inferred from the author's own multi-project practice, not measured. Stated as a bet on the site, not as a finding. |
 | Product strategy and scope | **strong** | VISION.md names the north star, three strategy bets, and four explicit non-goals. |
 | Concept model and vocabulary | **strong** | Source / claim / decision / question / session, plus beats and workspaces. Stable across four releases. |
@@ -50,8 +50,9 @@ output, real conformance) because the *empirical* proof does not exist yet.
 
 ## 3. Routes
 
-Four routes, flat files so the site renders from `file://` (an artoo
-requirement, and the reason there are no directory-index URLs).
+Five routes, flat files so the site renders from `file://` (an artoo
+requirement, and the reason there are no directory-index URLs). Four are in
+the nav; `notebook.html` is reached from the pages that earn it, below.
 
 ### `index.html` — the argument
 
@@ -124,11 +125,31 @@ requirement, and the reason there are no directory-index URLs).
 - **Deliberately absent:** decorative anything. This is where a person who
   has already decided goes; it should look like it respects that.
 
+### `notebook.html` — the finished notebook, whole
+
+- **Mode:** public-data.
+- **Dials:** variance low, density dense, motion none, type register
+  interface, imagery role none.
+- **Task anatomy:** a reference read, entered with a question already formed
+  ("what does one of these actually look like when it's done?"). Nothing is
+  authored on it: every section renders the `flip-render/2` projection of the
+  same demo notebook the flipbook builds, so the two can never disagree.
+- **Structural fingerprint:** *the ledger, in full, with nothing summarised.*
+  Sources with their support tuples, claims with corroboration, exposure and
+  verifications, questions, decisions, sessions, forecasts, the log tail.
+- **Deliberately absent:** the nav. This page is the payoff of a promise made
+  elsewhere, and a reader who has not been made that promise has no use for
+  it.
+
 ## 4. Navigation model
 
 A persistent five-item nav: `flip` (home), Flipbook, Spec, Start, GitHub.
 Flat, no dropdowns, no mega-menu — four routes do not need hierarchy, and
-inventing some would misrepresent the site's size.
+inventing some would misrepresent the site's size. `notebook.html` is
+deliberately out of the nav: it is the payoff of a specific promise ("browse
+the finished notebook"), linked from the home hero and the flipbook's end,
+and a reader who has not made the trip has no use for it. It is listed on the
+404 page and in the sitemap, because it is a real address.
 
 Ordering is the reader's likely path, not alphabetical: understand → see it
 happen → check the details → do it.
@@ -146,12 +167,12 @@ Cross-route links are one-directional and specific:
 
 | Surface content | Source | Fails how |
 |---|---|---|
-| Version, test count, revision | `pyproject.toml`, `pytest --collect-only`, `git rev-parse` at build | Build error |
+| Version, test count, revision | `pyproject.toml`, a regex count of test functions (deliberately not `pytest --collect-only`), `git rev-parse` at build | Build error |
 | CLI commands and flags | `flip cli --json` at build | Build error |
 | Flipbook frames | Real CLI runs in a temp directory at build | Build error |
 | Spec sections and anchors | Parsed from `SPEC.md` headings at build | Build error |
 | Entity types, frontmatter keys, lifecycle | Hand-authored in the build script, checked against the generated demo notebook's real frontmatter | Build error on drift |
-| Site's own claims and sources | `website/_notebook/`, via `flip export json` | Provenance panel absent |
+| Site's own claims and sources | `website/notebook/`, via `flip export json` | Provenance panel absent |
 | Everything else (prose) | Written, and answerable to the design brief | Review |
 
 The rule: if a fact can be derived, it is derived. Prose is for argument, not

@@ -113,8 +113,10 @@
         <p><code>asserted</code> → <code>verified</code> · <code>needs-2nd</code> ·
           <code>unconfirmed</code> · <code>false-positive</code> ·
           <code>retracted</code> · <code>superseded</code>.<br>
-          Machine-generated assertions enter as <code>asserted</code>. Only the move to
-          <code>verified</code> is gated.</p>
+          Machine-generated assertions enter as <code>asserted</code>. Two moves are
+          gated: <code>verified</code> on the evidence, and <code>superseded</code> on
+          naming the claim that replaced it — letting go is comparative, so there is no
+          way to record only that the notebook got tired of a claim.</p>
       </div>
       <div class="card">
         <h3>verification methods</h3>
@@ -122,7 +124,32 @@
           evidence.<br>
           <code>recomputation</code> — the result re-derived independently.<br>
           <code>independent-sources</code> — documents the reasoning, and never
-          satisfies the gate on its own.</p>
+          satisfies the gate on its own.<br>
+          A verification is a confirmation; a probe that <em>found</em> the error
+          belongs in <code>tests:</code> instead.</p>
+      </div>
+      <div class="card">
+        <h3>tests, stance, exposure</h3>
+        <p>What was <strong>asked</strong> of a claim and what is <strong>done</strong>
+          with it, orthogonal to status and to each other.<br>
+          <strong>probes</strong> — <code>attribution</code> · <code>substance</code> ·
+          <code>scope</code>; each has a different repair.<br>
+          <strong>stance</strong> — <code>pursuing</code> · <code>holding</code> ·
+          <code>abstaining</code> · <code>rejecting</code>, with a holder, so a belief
+          the notebook rejects can be kept as data.<br>
+          <strong>exposure</strong> — <code>bent</code> · <code>severely-tested</code>
+          · <code>misattributed</code> · <code>refuted</code> ·
+          <code>untestable</code>, derived from the test record and never stored.</p>
+      </div>
+      <div class="card">
+        <h3>what a citation is for</h3>
+        <p><code>evidence</code> (the default) or <code>subject</code> — the role sits
+          on the citation, because the same document is what one claim is about and a
+          witness for the next.<br>
+          A claim citing only subjects reports <strong>no</strong> corroboration
+          number rather than zero: absent means the axis does not apply, and the audit
+          that replaces it is an attribution test anyone can re-run against the same
+          bytes.</p>
       </div>
     </div>
   </section>
@@ -131,8 +158,10 @@
     <h2>The whole CLI</h2>
     <p>Generated from <code>flip cli --json</code> at build time, so this page cannot
       describe a command that does not exist. The core is filesystem-only: no network
-      calls and no LLM calls live in the library. Capture, research, and recall are
-      pluggable roles that run whatever you configure, and nothing else.</p>
+      calls and no LLM calls live in the library. Capture, text extraction, research
+      and recall are four pluggable roles that run whatever you configure, and nothing
+      else — flip ships a stdlib web fetcher and no opinion at all about PDF
+      libraries.</p>
     <div id="cli"></div>
   </section>
 
@@ -160,8 +189,10 @@
         <h3>Exports</h3>
         <p>Projections, never the canonical form: a BagIt bag for cold archival, CSL
           JSON for citation managers, a policy-filtered OKF bundle for outside
-          consumption, and <code>flip-render/1</code> JSON for renderers — which is
-          what built the provenance panel on this site.</p>
+          consumption, and <code>flip-render/1</code> JSON for renderers — with
+          <code>--render-version 2</code> adding support tuples, exposure and stances
+          for a renderer that wants them, which is how the whole-notebook view on this
+          site is drawn.</p>
         <p><a class="spec-link" href="https://github.com/lavallee/flip/blob/main/SPEC.md#17-exports-generated-projections">SPEC §17 →</a></p>
       </div>
       <div class="card">

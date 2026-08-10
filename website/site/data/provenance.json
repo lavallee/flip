@@ -1,6 +1,6 @@
 {
   "contract": "flip-render/1",
-  "generated": "2026-07-26T00:06:06Z",
+  "generated": "2026-08-10T21:06:34Z",
   "source_trail_public": true,
   "notebook": {
     "uid": "nb-qy38zvcn",
@@ -9,7 +9,7 @@
     "kind": "ledger",
     "status": "active",
     "created": "2026-07-25",
-    "updated": "2026-07-26",
+    "updated": "2026-08-10",
     "visibility": "public"
   },
   "sources": [
@@ -60,6 +60,18 @@
       "canonical_url": "",
       "captured_at": "2026-07-25T00:53:42Z",
       "sha256": "1e854b54b75ff8106240951307f8836ff1960524ec46ef137c8c703b7bc40e04"
+    },
+    {
+      "id": "F3",
+      "slug": "spec",
+      "kind": "",
+      "grade": "C",
+      "independence": "self-reported",
+      "freshness": "",
+      "title": "SPEC.md",
+      "canonical_url": "",
+      "captured_at": "2026-08-10T21:05:52Z",
+      "sha256": "289b02b01113c5e0aef77b4b2d6c988f2c2273d389ef88763f742a482a6e6e99"
     }
   ],
   "claims": [
@@ -171,6 +183,18 @@
           "note": "Read flip SPEC §3/§4 conformance notes against OKF v0.2 (A2): frontmatter parseable + typed on every concept page, reserved index.md/log.md structure per §8/§9; generated/sources/verified families emitted per §5."
         }
       ]
+    },
+    {
+      "id": "C7",
+      "slug": "flip-refuses-to-mark-a-claim-verified-when",
+      "text": "flip refuses to mark a claim verified when a severe test found the error it went looking for, whatever the corroboration count",
+      "status": "asserted",
+      "load_bearing": true,
+      "sources": [
+        "F3"
+      ],
+      "corroboration": 0,
+      "verifications": []
     }
   ],
   "questions": [
@@ -207,7 +231,7 @@
       "model": "claude-fable-5",
       "started": "2026-07-25T16:43:20Z",
       "ended": "2026-07-25T16:43:34Z",
-      "goal": "## Prompt"
+      "goal": ""
     }
   ],
   "log_tail": [

@@ -56,7 +56,7 @@
         + "pages, so any type fits." } },
     { dir: "sources/", note: "custody", children: [
         { dir: "raw/", note: "verbatim bytes as captured" },
-        { dir: "text/", note: "readable derivatives, 1:1 by id" },
+        { dir: "text/", note: "readable derivatives, 1:1 by id, written by flip extract" },
         { path: "_provenance.jsonl", note: "append-only capture log" }
       ], detail: { kind: "section", spec: "5",
       title: "sources/ — custody",

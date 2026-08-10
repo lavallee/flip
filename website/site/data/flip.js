@@ -1,7 +1,7 @@
 window.__FLIP_META__ = {
-  "generated": "2026-07-31T13:56:02+00:00",
-  "version": "0.16.2",
-  "revision": "06e2862",
+  "generated": "2026-08-10T21:06:33+00:00",
+  "version": "0.17.0",
+  "revision": "1cb1c1a",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",
@@ -9,9 +9,9 @@ window.__FLIP_META__ = {
   ],
   "license": "MIT",
   "package": "flip-notebook",
-  "tests": 921,
-  "spec_status": "draft v0.16 \u00b7 2026-07-31",
-  "spec_lines": 1153,
+  "tests": 1119,
+  "spec_status": "draft v0.17 \u00b7 2026-08-10",
+  "spec_lines": 1777,
   "skills": [
     "notebook-audit",
     "notebook-create",
@@ -47,6 +47,14 @@ window.__FLIP_META__ = {
           },
           {
             "name": "--note",
+            "required": false
+          },
+          {
+            "name": "--record",
+            "required": false
+          },
+          {
+            "name": "--extract",
             "required": false
           }
         ]
@@ -211,6 +219,10 @@ window.__FLIP_META__ = {
             "required": false
           },
           {
+            "name": "--about",
+            "required": false
+          },
+          {
             "name": "--load-bearing",
             "required": false
           },
@@ -229,14 +241,37 @@ window.__FLIP_META__ = {
         ]
       },
       {
+        "command": "flip claim exposure",
+        "group": "flip claim",
+        "name": "exposure",
+        "purpose": "Explain what a claim's test record adds up to, and why. Read-only.",
+        "arguments": [
+          "CLAIM_ID"
+        ],
+        "options": [
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
         "command": "flip claim list",
         "group": "flip claim",
         "name": "list",
-        "purpose": "List claims, optionally filtered by status (grouped view: `flip show --claims`).",
+        "purpose": "List claims, optionally filtered by status, stance or exposure.",
         "arguments": [],
         "options": [
           {
             "name": "--status",
+            "required": false
+          },
+          {
+            "name": "--stance",
+            "required": false
+          },
+          {
+            "name": "--exposure",
             "required": false
           },
           {
@@ -246,15 +281,36 @@ window.__FLIP_META__ = {
         ]
       },
       {
+        "command": "flip claim rival",
+        "group": "flip claim",
+        "name": "rival",
+        "purpose": "Declare two claims rivals \u2014 they answer the same question.",
+        "arguments": [
+          "CLAIM_ID",
+          "RIVAL_ID"
+        ],
+        "options": [
+          {
+            "name": "--because",
+            "required": true
+          }
+        ]
+      },
+      {
         "command": "flip claim source add",
         "group": "flip claim source",
         "name": "add",
-        "purpose": "Link one or more source ids to a claim. Unknown ids are refused.",
+        "purpose": "Link one or more sources to a claim. Unknown ids are refused.",
         "arguments": [
           "CLAIM_ID",
           "SOURCE_ID..."
         ],
-        "options": []
+        "options": [
+          {
+            "name": "--about",
+            "required": false
+          }
+        ]
       },
       {
         "command": "flip claim source rm",
@@ -268,6 +324,34 @@ window.__FLIP_META__ = {
         "options": []
       },
       {
+        "command": "flip claim stance",
+        "group": "flip claim",
+        "name": "stance",
+        "purpose": "Record what is DONE with a claim, as opposed to what is known about it.",
+        "arguments": [
+          "CLAIM_ID",
+          "STANCE"
+        ],
+        "options": [
+          {
+            "name": "--because",
+            "required": true
+          },
+          {
+            "name": "--falsifier",
+            "required": false
+          },
+          {
+            "name": "--holder",
+            "required": false
+          },
+          {
+            "name": "--source",
+            "required": false
+          }
+        ]
+      },
+      {
         "command": "flip claim status",
         "group": "flip claim",
         "name": "status",
@@ -277,6 +361,64 @@ window.__FLIP_META__ = {
           "STATUS"
         ],
         "options": []
+      },
+      {
+        "command": "flip claim supersede",
+        "group": "flip claim",
+        "name": "supersede",
+        "purpose": "Concede a claim to the one that replaced it.",
+        "arguments": [
+          "CLAIM_ID"
+        ],
+        "options": [
+          {
+            "name": "--by",
+            "required": true
+          },
+          {
+            "name": "--because",
+            "required": true
+          }
+        ]
+      },
+      {
+        "command": "flip claim test",
+        "group": "flip claim",
+        "name": "test",
+        "purpose": "Record a test run against a claim \u2014 including one that found the error.",
+        "arguments": [
+          "CLAIM_ID"
+        ],
+        "options": [
+          {
+            "name": "--probe",
+            "required": true
+          },
+          {
+            "name": "--error",
+            "required": true
+          },
+          {
+            "name": "--result",
+            "required": true
+          },
+          {
+            "name": "--would-detect",
+            "required": false
+          },
+          {
+            "name": "--if-absent",
+            "required": false
+          },
+          {
+            "name": "--against",
+            "required": false
+          },
+          {
+            "name": "--note",
+            "required": false
+          }
+        ]
       },
       {
         "command": "flip claim verify",
@@ -323,6 +465,19 @@ window.__FLIP_META__ = {
         "options": [
           {
             "name": "--force",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip config show",
+        "group": "flip config",
+        "name": "show",
+        "purpose": "List the integration lanes configured on this machine \u2014 what flip can run.",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--json",
             "required": false
           }
         ]
@@ -475,6 +630,33 @@ window.__FLIP_META__ = {
           },
           {
             "name": "--announce",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip extract",
+        "group": "flip",
+        "name": "extract",
+        "purpose": "Derive sources/text/<ID>.txt from a captured source's raw bytes.",
+        "arguments": [
+          "SOURCE_ID"
+        ],
+        "options": [
+          {
+            "name": "--via",
+            "required": false
+          },
+          {
+            "name": "--force",
+            "required": false
+          },
+          {
+            "name": "--note",
+            "required": false
+          },
+          {
+            "name": "--method",
             "required": false
           }
         ]
@@ -1034,6 +1216,37 @@ window.__FLIP_META__ = {
         ]
       },
       {
+        "command": "flip session transcript",
+        "group": "flip session",
+        "name": "transcript",
+        "purpose": "Keep this session's conversation verbatim, as a citable source.",
+        "arguments": [
+          "SLUG_OR_PATH"
+        ],
+        "options": [
+          {
+            "name": "--file",
+            "required": true
+          },
+          {
+            "name": "--title",
+            "required": false
+          },
+          {
+            "name": "--participant",
+            "required": false
+          },
+          {
+            "name": "--model",
+            "required": false
+          },
+          {
+            "name": "--note",
+            "required": false
+          }
+        ]
+      },
+      {
         "command": "flip show",
         "group": "flip",
         "name": "show",
@@ -1126,6 +1339,55 @@ window.__FLIP_META__ = {
         "arguments": [
           "SOURCE_ID",
           "TITLE"
+        ],
+        "options": []
+      },
+      {
+        "command": "flip transcript excerpt",
+        "group": "flip transcript",
+        "name": "excerpt",
+        "purpose": "Pin lines A-B of a transcript under LABEL, and print the ref to cite.",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--lines",
+            "required": true
+          },
+          {
+            "name": "--label",
+            "required": true
+          },
+          {
+            "name": "--note",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip transcript list",
+        "group": "flip transcript",
+        "name": "list",
+        "purpose": "Every passage pinned on a transcript, in the order they were pinned.",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip transcript unpin",
+        "group": "flip transcript",
+        "name": "unpin",
+        "purpose": "Drop a pinned passage. Refuses while a claim still cites it.",
+        "arguments": [
+          "ID",
+          "LABEL"
         ],
         "options": []
       },

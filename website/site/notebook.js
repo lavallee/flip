@@ -406,7 +406,13 @@
       row.appendChild(td(value));
 
       row.appendChild(td(sourceRefs(c.sources)));
-      row.appendChild(td(String(c.corroboration != null ? c.corroboration : "")));
+      // An absent corroboration count is not a zero: the claim cites only what it
+      // is about, and that axis does not apply to it.
+      var corr = "";
+      if (c.corroboration != null) corr = String(c.corroboration);
+      else if ((c.subjects || []).length || (c.sources || []).length) corr = "n/a (subject)";
+      row.appendChild(td(corr));
+      row.appendChild(td(present(c.exposure) ? el("span", "badge", c.exposure) : ""));
       row.appendChild(td(verificationChips(c.verifications)));
 
       host.appendChild(row);

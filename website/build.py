@@ -133,6 +133,24 @@ Pooled result: the 80% group doubled a median of 61 minutes faster than the
 65% group (n = 44 bakes). Members measured with their own thermometers and
 the club did not standardise proofing vessels, so the spread is wide.
 """,
+    "club-call.md": """# Call with the Ridgeway club's trial organiser — 2026-03-11
+
+Present: the club's trial organiser and one of us. Notes kept verbatim.
+
+**Us:** Before we lean on your write-up — how did people actually time it?
+
+**Organiser:** Everyone used their own thermometer and whatever container
+they had. We asked them to note when the dough doubled and to be honest
+about it. We did not standardise the vessels, and I would not want anyone
+citing us as though we had.
+
+**Us:** Would that push the 80% group's number down on its own?
+
+**Organiser:** It could. A wider bowl reads as doubled sooner. That is why
+we published the spread and not only the median.
+
+**Us:** That is the sentence we will be citing you for.
+""",
     "millwright-flour-spec.txt": """MILLWRIGHT FLOUR CO. — PRODUCT SPECIFICATION (fictional)
 
 Strong white bread flour, protein 12.8%, ash 0.55%, malted.
@@ -484,6 +502,127 @@ def step_plan() -> list[dict]:
             },
         },
         {
+            "id": "tested",
+            "say": ("Hang on. Does the club write-up actually say that, or did we read it in?"),
+            "reply": ("Fair question, so I went looking for the error rather than for agreement. Recorded what I probed for, how it would have shown up, and what I'd have seen instead. It survived."),
+            "act": "Test what you claim",
+            "title": "Ask the claim something it could fail",
+            "narrative": (
+                "`flip claim verify` records confirmations — it is OKF's key, and "
+                "its entries say a check was run and held. A probe that goes looking "
+                "for an error and *finds* one has nowhere to live in that vocabulary, "
+                "so flip keeps a separate append-only `tests:` list where a failure "
+                "is a first-class result. A test counts as severe only with four "
+                "things on the record: the error it looked for, how that error would "
+                "have shown up, what would have appeared *instead* had the error not "
+                "been there, and what did the testing. The third is the one people "
+                "skip, and it is the one that makes it a test at all — a probe that "
+                "fires either way discriminates nothing, however carefully it was run."
+            ),
+            "spec": "7",
+            "commands": [
+                [
+                    "claim",
+                    "test",
+                    "C1",
+                    "--probe",
+                    "attribution",
+                    "--error",
+                    "the club write-up does not report the gap C1 cites it for",
+                    "--would-detect",
+                    "the pooled-result paragraph names a different pair of hydration levels, or no median gap at all",
+                    "--if-absent",
+                    "the write-up states a 61-minute median between the 65% and 80% groups, as cited",
+                    "--against",
+                    "F1",
+                    "--result",
+                    "survived",
+                ]
+            ],
+            "record": {
+                "kind": "glob",
+                "pattern": "claims/*.md",
+                "lang": "markdown",
+                "caption": "tests: — appended, never edited over. A probe that had failed would sit in the same list, saying so.",
+            },
+        },
+        {
+            "id": "exposed",
+            "say": ("And what is that actually worth?"),
+            "reply": ("It's the difference between 'nobody looked' and 'someone looked hard and it held'. flip works that out on demand instead of storing a verdict — here is the whole derivation."),
+            "act": "Test what you claim",
+            "title": "What the record adds up to",
+            "narrative": (
+                "`exposure` is computed from the test record every time it is asked "
+                "for and never written to the page — the same discipline as the "
+                "grade. Five readings: bent, severely-tested, misattributed, refuted, "
+                "untestable. A claim nobody has tested reads `bent`, and deliberately "
+                "not as a neutral default: the onus is on whoever is making the claim "
+                "and nobody has discharged it yet. The gate runs one way only. A "
+                "severe test that went looking for the error and found it refuses "
+                "`verified` whatever the corroboration count says — and no test can "
+                "open a gate the sources have not."
+            ),
+            "spec": "7",
+            "commands": [["claim", "exposure", "C1"]],
+            "record": {
+                "kind": "stdout",
+                "lang": "text",
+                "caption": "Derived on read, with its reasons attached — the twin of `flip grade --explain`.",
+            },
+        },
+        {
+            "id": "kept",
+            "say": ("Most of the caveat came out of the call with their organiser, though."),
+            "reply": ("Then the call is a source. Captured it whole as T1 and pinned the four lines the caveat lives in, so a claim can cite the exchange rather than a two-hour file."),
+            "act": "Keep the record",
+            "title": "Keep the conversation, cite the passage",
+            "narrative": (
+                "Claims and graded sources are the residue of thinking, not the "
+                "thinking. `flip session transcript` puts the conversation under "
+                "exactly the custody a fetched document gets — immutable bytes, a "
+                "hash, one capture row — and records the method as `human-in-loop`, "
+                "because a person was in the conversation and handed flip the file. "
+                "`flip transcript excerpt` then pins a passage: the quote is read out "
+                "of the capture and hashed, never taken from the caller, so a pinned "
+                "passage is always the words it says it is. A claim cites "
+                "`T1§vessels-not-standardised` and travels with them; several "
+                "passages of one conversation are several citations and one source."
+            ),
+            "spec": "8",
+            "commands": [
+                [
+                    "session",
+                    "transcript",
+                    "hydration-sweep",
+                    "--file",
+                    "../club-call.md",
+                    "--participant",
+                    "human:trial-organiser",
+                    "--title",
+                    "Call with the Ridgeway club's trial organiser",
+                    "--note",
+                    "Kept verbatim; the vessel caveat is the reason C1 is hedged.",
+                ],
+                [
+                    "transcript",
+                    "excerpt",
+                    "T1",
+                    "--lines",
+                    "8-11",
+                    "--label",
+                    "vessels-not-standardised",
+                    "--note",
+                    "The organiser's own words on what the trial did not control.",
+                ],
+            ],
+            "record": {
+                "kind": "stdout",
+                "lang": "text",
+                "caption": "The pinned passage, hashed out of the capture. Unpinning it is refused while a claim cites it.",
+            },
+        },
+        {
             "id": "decide",
             "say": ("Let's not bother testing rye — white flour only."),
             "reply": ("Recorded the decision, rejected alternative included. The why is the payload; the what is recoverable from git."),
@@ -814,18 +953,18 @@ ENTITIES = [
         "id_prefix": "P# A# F# T# S#",
         "dir": "references/",
         "spec": "5",
-        "summary": "An external artifact we captured, and our judgment of it.",
+        "summary": "An external artifact we captured, and our judgment of it. A kept conversation is one of these too.",
         "judgment": True,
-        "keys": ["type", "id", "aliases", "title", "resource", "local", "grade", "independence", "support", "status"],
+        "keys": ["type", "id", "aliases", "title", "resource", "local", "grade", "independence", "support", "status", "medium", "excerpts"],
     },
     {
         "type": "Claim",
         "id_prefix": "C#",
         "dir": "claims/",
         "spec": "7",
-        "summary": "A discrete assertion, its sources, and how far it has earned trust.",
+        "summary": "A discrete assertion, its sources, how far it has earned trust, and what has been asked of it.",
         "judgment": True,
-        "keys": ["type", "id", "aliases", "description", "status", "load_bearing", "sources", "independent_corroboration", "first_asserted", "generated"],
+        "keys": ["type", "id", "aliases", "description", "status", "load_bearing", "sources", "independent_corroboration", "tests", "first_asserted", "generated"],
     },
     {
         "type": "Decision",
@@ -867,7 +1006,7 @@ LEDGERS = [
         "path": "derived/_derivations.jsonl",
         "spec": "8",
         "label": "Derivation log",
-        "summary": "Inputs to tool and parameters to outputs, with hashes. A deliberately small PROV profile.",
+        "summary": "Inputs to tool and parameters to outputs, with hashes, written by flip extract. Records the extraction method, because a quotation recovered by OCR is not the same evidence as one lifted from a publisher's text layer.",
     },
     {
         "path": "log/log.jsonl",
@@ -918,6 +1057,13 @@ LIFECYCLE = [
         "spec": "7",
         "gains": "The status, if and only if the profile's bar is met.",
         "worth": "Refused with a non-zero exit otherwise. Or earned by an adversarial or recomputation record.",
+    },
+    {
+        "stage": "tested",
+        "act": "flip claim test",
+        "spec": "7",
+        "gains": "tests: — the error a probe looked for, how it would have shown up, and what it would have shown instead.",
+        "worth": "exposure, derived on read and never stored. A severe test that found the error refuses verified whatever the count says.",
     },
 ]
 

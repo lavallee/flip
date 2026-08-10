@@ -15,7 +15,8 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 SITE = REPO / "website" / "site"
-PAGES = ["index.html", "flipbook.html", "spec.html", "start.html", "404.html"]
+PAGES = ["index.html", "flipbook.html", "spec.html", "start.html", "notebook.html",
+         "404.html"]
 
 # Tool, host, and project names that must never appear in public output. The
 # public distribution names integration *roles*, never the commands that fill

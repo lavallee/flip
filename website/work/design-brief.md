@@ -27,7 +27,8 @@ site that showed only the CLI would misrepresent the format.
 from.** flip is an extension profile of the Open Knowledge Format that adds
 the lineage discipline OKF deliberately leaves open — custody of the bytes
 you rely on, source grading recorded as an explicit act, claims gated by a
-corroboration bar, and logged generation — while staying plain markdown any
+corroboration bar, a record of what each claim was asked and what is done
+with it, and logged generation — while staying plain markdown any
 OKF consumer or markdown editor can already read.
 
 ## Supported claims
@@ -39,20 +40,35 @@ build fails the site rather than shipping a stale number.
   export target (SPEC §1 preamble, §3 conformance note).
 - The core has two library dependencies, click and PyYAML, and makes no
   network calls and no LLM calls in the library (SPEC §15).
-- Capture, research, and knowledge integrations are pluggable roles
-  configured by the operator; the package ships only `builtin:copy` and the
-  stdlib `flip-fetch` web lane (SPEC §15 integration roles, §16).
+- Capture, text extraction, research, and knowledge integrations are four
+  pluggable roles configured by the operator; the package ships only
+  `builtin:copy` and the stdlib `flip-fetch` web lane, and no extractor at all
+  (SPEC §15 integration roles, §16, §5.5).
 - Source reliability and claim credibility are separate judgments, after
   Admiralty/NATO practice; ungraded sources corroborate nothing (SPEC §5.4).
 - `verified` is mechanically gated: the profile's corroboration bar, or an
   `adversarial` / `recomputation` verification record. `independent-sources`
   documents reasoning and never satisfies the gate alone (SPEC §7).
+- A severe test that found the error closes that gate again, whatever the
+  corroboration count says; `exposure` is derived from the test record and
+  never stored, and tests can only ever close the gate, never open it
+  (SPEC §7.1 — the site's own notebook carries this as C7, asserted, with a
+  severe attribution test against the captured spec).
+- A claim can cite the document it is *about* rather than evidence for it;
+  such a claim reports no corroboration number rather than zero, and owes an
+  attribution test instead of a second witness that cannot exist (SPEC §7).
+- A conversation can be a source: captured whole under ordinary custody, with
+  a passage pinned and hashed out of the capture so a claim cites the exchange
+  (SPEC §8–9).
 - Six profiles ship as TOML data — ledger, scout, research-review,
   engagement, data-investigation, pursuit — and profile minimums are
   completion requirements, not creation requirements (SPEC §13).
-- Version 0.10.0, 721 tests, MIT, Python 3.12+, `pip install flip-notebook`.
+- Version 0.17.0, 1119 test functions, MIT, Python 3.12+,
+  `pip install flip-notebook`.
 - `flip export json` emits the versioned `flip-render/1` projection, which is
-  what renders this site's own provenance panel (SPEC §17).
+  what renders this site's own provenance panel; `--render-version 2` adds the
+  support tuple, exposure and stances, and is what the whole-notebook page
+  reads (SPEC §17).
 
 ## Unsupported claims and counter-reading
 
@@ -67,7 +83,7 @@ build fails the site rather than shipping a stale number.
 - **OKF profile standing is unresolved.** flip's provenance vocabulary is a
   *draft* proposal that has been submitted nowhere. The site must say
   "draft, not submitted," never imply endorsement by OKF or its maintainers.
-- **Spec status is draft v0.10.** Not 1.0, not frozen. Migration exists
+- **Spec status is draft v0.17.** Not 1.0, not frozen. Migration exists
   (`flip migrate`) precisely because the format has moved and may move again.
 - **Strongest counter-reading:** that this is ceremony — metadata discipline
   that raises the cost of every capture without changing what the agent
@@ -82,9 +98,9 @@ build fails the site rather than shipping a stale number.
 
 ## Data vintages and denominators
 
-- flip: version 0.10.0, spec draft v0.10 dated 2026-07-24, repository
+- flip: version 0.17.0, spec draft v0.17 dated 2026-08-10, repository
   revision stamped at build.
-- Test count: 721 collected by pytest at the built revision. This counts test
+- Test count: 1119 at the built revision. This counts test
   functions in the repository. It is not a coverage figure and not a quality
   measure.
 - CLI surface: generated from `flip cli --json` at build time, so the site

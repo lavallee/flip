@@ -6,6 +6,31 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-08-10
+
+Everything here came out of using flip for real research, and it is all one
+theme: a notebook could say whether a claim was true yet, and almost nothing
+else. It could not say a position was being *pursued* ahead of the evidence,
+or that an audience holds something this desk rejects, or that a probe went
+looking for a specific error and failed to find it. It could not say a claim
+was *about* a document rather than supported by one. It kept the residue of a
+conversation and threw away the conversation. And `sources/text/` — specified
+since the first draft — had nothing that wrote it, so getting quotable text
+out of a captured PDF happened outside flip, unlogged.
+
+**No migration, and no on-disk change.** Every key added here is optional and
+absent by default; a 0.16 notebook reads identically under 0.17, and each new
+axis is silent in a notebook that does not use it.
+
+**Three gates got stricter**, which will change outcomes for a notebook that
+uses the new keys: `flip claim status <C#> superseded` is refused in favor of
+`flip claim supersede --by --because` (letting go is comparative — name what
+beat it); `verified` is refused when a severe test found the error
+(`exposure: misattributed` or `refuted`) whatever the corroboration count says;
+and a claim whose every citation is a `subject` reports no
+`independent_corroboration` at all rather than `0`, so a consumer reading that
+key must handle its absence.
+
 ### Added
 - **Citation roles — what a citation is FOR** (SPEC §7). A claim's `sources`
   entries carry a `role`: `evidence` (the default) or `subject`. The role lives
@@ -67,40 +92,6 @@ versioning follows [Semantic Versioning](https://semver.org/).
     stance layer already declares. What it can do is make the role legible on
     the page and in every export, and name the untaken audit.
 
-### Fixed
-- **Four defects found by using the thing.** All four came out of one
-  afternoon's real research in a sibling notebook, and each was a check that
-  misdescribed the situation rather than one that failed to fire.
-  - `unsourced-holder` **could never be cleared**. Stances are append-only, so
-    a foreign stance first written without a receipt and later rewritten with
-    one leaves both records on the page — and the check read every record. It
-    fired *after* the evidence had been cited, naming a defect that was already
-    fixed and recommending the exact command that had just fixed it. Only the
-    last record per holder is that holder's current position now; the
-    unsourced one still stands on the page, which is what append-only is for.
-  - `unaudited-claim` **could not see the tests axis**. It read corroboration
-    and `verified` only, so it fired on a claim carrying a *severe attribution
-    test* and told the author to "record a check" — which they had, with
-    `flip claim test`, a command the message did not mention. A severe test is
-    an audit; what it FOUND is `flip claim exposure`'s business, not this
-    check's. Silence here is the absence of the thing the check is about, never
-    approval. A bent test still buys nothing, per SIST p.5.
-  - `missing-derivative` **was silenced by a broken lane**. Any derivation row
-    counted as an attempt, including `status: failed`. A misconfigured html
-    lane failed twice and doctor then reported nothing missing while nothing
-    had been extracted. Only outputs, or a clean `not-extracted` run, settle
-    it: the first means there is a derivative, the second is a finding about
-    the document. A `failed` row settles nothing, and that distinction was
-    already in the format — the check just wasn't using it.
-  - **A non-file at the output path is a refusal, not a stack trace.** A lane
-    that passes `{out}` to a flag meaning output *directory* creates one, and
-    the next run died inside the tool on `IsADirectoryError`, blaming the retry
-    for what the first run left behind. `flip extract` now checks the path
-    first and names the lane, since that is where the fault is. Neither
-    `--force` nor the hand-edit guard covered this: the question is not whose
-    bytes those are, there are none.
-
-### Added
 - **Text derivatives — `sources/text/` finally has tooling** (SPEC §5.5).
   `sources/text/` ("readable derivatives of raw/, 1:1 by source id") has been in
   §3 since the first version of the spec and nothing ever wrote it;
@@ -402,6 +393,29 @@ versioning follows [Semantic Versioning](https://semver.org/).
   `flip config init` ships both as ready lanes. flip had **no** default
   `paper` fetcher before this.
 
+- **The documentation caught up with the code, in the places that had gone
+  quiet.** README, AGENTS.md, `docs/quickstart.md`, `docs/internals.md` and
+  `llms.txt` had nothing at all about stances, tests or transcripts — the
+  module map did not list `stance.py` or `transcripts.py`, and AGENTS.md's
+  contract, which is the thing an agent actually reads, said nothing about
+  either. AGENTS.md gains a ninth lineage rule (*what you DO with a claim is
+  not its status*) and two recipes; quickstart gains the two sections, with
+  output copied from real runs.
+- **The documentation site was refreshed against 0.17** (`website/`). Three
+  new flipbook frames — a severe test, the exposure it derives, and a kept
+  conversation with a pinned passage — generated by running the real CLI, so
+  the narrative is 19 exchanges and 21 commands rather than 16 and 17. The
+  home page states a fifth enforced rule; the spec map gains cards for the
+  tests/stance/exposure axis and for citation roles, a sixth lifecycle stage,
+  and `sources/text/` credited to `flip extract`; the whole-notebook view
+  gains an `exposure` column and renders an absent corroboration count as
+  `n/a (subject)` rather than as blank. Stale authored literals that no test
+  covers were corrected along the way — the page had claimed OKF v0.1 since
+  0.11, and a spec version three releases behind. The site's own notebook
+  records the new gate as C7, with the current spec captured under custody as
+  F3 and a severe attribution test run against those bytes: the copy it
+  already held was the v0.10 snapshot, which could not support the claim.
+
 ### Changed
 - **`http-alt-representation` stays in the vocabulary but ships no generic
   implementation.** Tested against the hosts that resist rungs 1–2: AMP paths,
@@ -411,6 +425,37 @@ versioning follows [Semantic Versioning](https://semver.org/).
   the method; shipping generic folklore that looks like it works would not.
 
 ### Fixed
+- **Four defects found by using the thing.** All four came out of one
+  afternoon's real research in a sibling notebook, and each was a check that
+  misdescribed the situation rather than one that failed to fire.
+  - `unsourced-holder` **could never be cleared**. Stances are append-only, so
+    a foreign stance first written without a receipt and later rewritten with
+    one leaves both records on the page — and the check read every record. It
+    fired *after* the evidence had been cited, naming a defect that was already
+    fixed and recommending the exact command that had just fixed it. Only the
+    last record per holder is that holder's current position now; the
+    unsourced one still stands on the page, which is what append-only is for.
+  - `unaudited-claim` **could not see the tests axis**. It read corroboration
+    and `verified` only, so it fired on a claim carrying a *severe attribution
+    test* and told the author to "record a check" — which they had, with
+    `flip claim test`, a command the message did not mention. A severe test is
+    an audit; what it FOUND is `flip claim exposure`'s business, not this
+    check's. Silence here is the absence of the thing the check is about, never
+    approval. A bent test still buys nothing, per SIST p.5.
+  - `missing-derivative` **was silenced by a broken lane**. Any derivation row
+    counted as an attempt, including `status: failed`. A misconfigured html
+    lane failed twice and doctor then reported nothing missing while nothing
+    had been extracted. Only outputs, or a clean `not-extracted` run, settle
+    it: the first means there is a derivative, the second is a finding about
+    the document. A `failed` row settles nothing, and that distinction was
+    already in the format — the check just wasn't using it.
+  - **A non-file at the output path is a refusal, not a stack trace.** A lane
+    that passes `{out}` to a flag meaning output *directory* creates one, and
+    the next run died inside the tool on `IsADirectoryError`, blaming the retry
+    for what the first run left behind. `flip extract` now checks the path
+    first and names the lane, since that is where the fault is. Neither
+    `--force` nor the hand-edit guard covered this: the question is not whose
+    bytes those are, there are none.
 - `flip claim list` printed each claim's OKF `sources` entries as raw YAML maps
   (`{'id': 'P1', 'resource': …, 'title': …}`) instead of source ids, which made
   the one view built for scanning unscannable at more than one source per

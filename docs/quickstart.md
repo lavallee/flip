@@ -160,6 +160,124 @@ manifest status to `done`, `published`, or `archived`, anything still
 missing becomes an ERROR and doctor exits 1: completion requirements, not
 creation requirements.
 
+## A position, and what was asked of it
+
+`status` tracks what is *known* about a claim. It cannot say that you are
+working from one ahead of its evidence, or that an audience holds something
+this notebook rejects — and forcing either through the status flattens them
+together, so a claim whose cited paper turns out not to contain it and a claim
+nobody has ever tested both sit outside `verified` and read identically. Two
+append-only lists on the claim page keep them apart. Both are optional; a
+notebook that doesn't use them never grows the keys.
+
+**What was asked of it** — `flip claim test` is where a test that *found* the
+error goes, which `flip claim verify` structurally cannot record, since a
+verification is a confirmation:
+
+```bash
+flip claim test C1 --probe attribution \
+  --error "the cited table does not contain this figure" \
+  --would-detect "the number is absent from the extracted text" \
+  --if-absent "the figure appears in row 14 as stated" \
+  --against F2 --result survived
+# C1 · attribution test survived (severe) · exposure: severely-tested
+```
+
+A test is **severe** only when four things are on the record: the error it
+looked for, how that error would have shown up, what you would have seen
+*instead* had the error been absent, and what did the testing. A probe that
+fires whether or not the error is there discriminates nothing, however
+carefully it was run, and `--if-absent` is the field that says so. Anything
+less reads `bent` — bad evidence, no test — and that is one verdict rather
+than the bottom rung of a ladder. The three probes (`attribution` ·
+`substance` · `scope`) are separate because each has a different repair:
+failing to find the claim in its source says nothing about whether the world
+is that way.
+
+**What is done with it, and by whom:**
+
+```bash
+flip claim stance C1 pursuing --because "explains the 2021 discontinuity nothing else does" \
+  --falsifier "the discontinuity survives in districts that never changed reporting"
+flip claim stance C1 holding --because "reported consistently in interviews" \
+  --holder "district administrators" --source A7
+# C1 · holding (held by district administrators) · exposure: severely-tested · 2 stance(s) on record
+```
+
+`pursuing` and `rejecting` are refused without a `--falsifier`: a position
+worked from is admissible insofar as it predicts something that could come out
+the other way, and flip asks for the prediction least likely to hold if the
+position is wrong. It cannot audit whether your falsifier is any good and
+doesn't pretend to — the falsifier is the promise, `flip claim test` is the
+receipt. `--holder` defaults to the reserved value `notebook`; naming anyone
+else records a belief the notebook does **not** share, so its own `rejecting`
+and a population's `holding` live on one page without overwriting each other.
+
+**`exposure` is derived from the test record and never stored** — the same
+discipline as the grade, and printed with its whole derivation:
+
+```bash
+flip claim exposure C1
+# C1 · exposure severely-tested (derived, never stored) · status asserted
+#   because: a test that would probably have caught the error ran, and did not catch it
+#   tests on record:
+#     attribution · survived · severe — named the error, says how it would have shown up, …
+#   notebook stance: pursuing — explains the 2021 discontinuity nothing else does
+#     would be moved by: the discontinuity survives in districts that never changed reporting
+#   next: severely-tested is the ceiling here; corroboration is a separate axis
+```
+
+The five readings are `bent` · `severely-tested` · `misattributed` ·
+`refuted` · `untestable`. `misattributed` is deliberately silent about the
+world: being wrong about what a source says is not a verdict on the fact. A
+claim nobody has tested reads `bent` with that as its stated reason, not a
+neutral-sounding default — the onus is on whoever made the claim, and nobody
+has discharged it yet. Exposure can only *close* the verification gate, never
+open it: `verified` is refused on a `misattributed` or `refuted` claim
+whatever the corroboration count says, because a test that went looking for
+the error and found it outranks a count of sources agreeing.
+
+**Letting go is comparative.** There is no route to `status: superseded` that
+doesn't name the successor:
+
+```bash
+flip claim supersede C1 --by C2 --because "C2 explains what C1 did and the 2019 case too"
+# C1 → superseded by C2 · C2 explains what C1 did and the 2019 case too
+```
+
+That writes `superseded_by`, registers the two as rivals, and sets the status
+in one move (`flip claim rival` declares the comparison on its own). A bare
+`flip claim status C1 superseded` is refused, and the refusal names the honest
+alternatives: `retracted` if the notebook simply withdraws it, or
+`stance rejecting` if it is wrong and still worth keeping as data.
+
+## Keeping the conversation
+
+Claims and graded sources are the residue of thinking, not the thinking. When
+the position actually got built in a conversation, keep the conversation:
+
+```bash
+flip session transcript landscape-scan --file ./conversation.md \
+  --participant human:marc --model claude-fable-5
+# sources/raw/T1.md  (120 lines)
+# captured as T1 · references/conversation.md · linked from sessions/…-landscape-scan.md
+flip transcript excerpt T1 --lines 88-104 --label relevance-null
+# T1§relevance-null · lines 88-104, 34 words, sha256 234e7b313e37
+```
+
+The transcript enters under ordinary custody — immutable bytes, a hash, one
+capture row — with method `human-in-loop`, because a person was in the
+conversation and handed flip the file. A claim then cites `T1§relevance-null`
+and travels with the words it came from; the quote is read out of the capture
+and hashed, never taken from you, so a pinned passage is always the words it
+says it is. Several passages of one conversation are several citations and
+**one** source, and only the source reaches corroboration. `flip transcript
+list` shows what is pinned and `flip transcript unpin` removes one — refused
+while a claim still cites it, since labels are load-bearing once cited.
+
+A claim about what was *said* in the conversation is `--about` it: a
+conversation is the only witness to itself.
+
 ## IDs, filenames, renames
 
 Filenames are human slugs; the immutable id lives in the page's frontmatter

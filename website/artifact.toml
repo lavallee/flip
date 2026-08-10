@@ -5,7 +5,7 @@ description = "A wiki tells an agent what we know. A notebook can prove where it
 kind = "explainer"
 status = "live"
 created = "2026-07-24"
-updated = "2026-07-25"
+updated = "2026-08-10"
 
 [build]
 commands = ["python3 build.py"]
@@ -13,7 +13,7 @@ commands = ["python3 build.py"]
 [research]
 notebook = "notebook"
 rendered_uid = "nb-qy38zvcn"
-rendered_updated = "2026-07-26"
+rendered_updated = "2026-08-10"
 
 [deploy]
 target = "github-pages"

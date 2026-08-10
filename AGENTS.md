@@ -176,6 +176,12 @@ group. The leaves you reach for most:
 | link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
 | record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
 | move a claim's status | `flip claim status <C#> <status>` |
+| record a test — including one that FAILED | `flip claim test <C#> --probe attribution\|substance\|scope --error "<the specific way of being wrong>" --result survived\|failed\|inconclusive\|untestable [--would-detect … --if-absent … --against <ref>]` — `verify` can only record confirmations; this is where a probe that found the error goes |
+| see what the tests add up to | `flip claim exposure <C#>` — derived, never stored: `bent` · `severely-tested` · `misattributed` · `refuted` · `untestable`, with the derivation printed |
+| take a position on a claim | `flip claim stance <C#> pursuing\|holding\|abstaining\|rejecting --because "…"` — `pursuing`/`rejecting` are refused without `--falsifier`; `--holder <who> --source <id>` records a belief the notebook does *not* share |
+| let a claim go | `flip claim rival <C#> <C#> --because "…"`, then `flip claim supersede <C#> --by <C#> --because "…"` |
+| keep the conversation itself | `flip session transcript <session> --file <path> [--participant --model]` — a `T#` source under ordinary custody |
+| cite one exchange, not the whole file | `flip transcript excerpt T1 --lines 88-104 --label <slug>` → cite `T1§<slug>` · `flip transcript list\|unpin` |
 | questions | `flip question add\|repose\|answer\|list` |
 | decisions / dead ends | `flip decide …` · `flip pass …` |
 | log / sessions | `flip log "<text>"` · `flip session start\|end` |
@@ -236,6 +242,19 @@ reassurance.
    auto-detects known agent harnesses, but be explicit:
    `export FLIP_ACTOR="agent:claude"` (or `agent:<your-name>`). Humans are
    `human:<name>`, tools `tool:<name>`.
+9. **What you DO with a claim is not its status.** `status` tracks what is
+   known; `flip claim stance` records the position taken, and `flip claim test`
+   records what was asked of it. Use them rather than bending the status:
+   working from a hypothesis ahead of its evidence is `stance pursuing` (with
+   the `--falsifier` that would end it), not a claim quietly left `asserted`;
+   a belief you are recording because an audience holds it is
+   `--holder <them>`, never the notebook's own. Two gates follow from this and
+   will refuse you: `verified` is refused when a severe test found the error
+   (`exposure: misattributed` or `refuted`) however many sources agree, and
+   `status <C#> superseded` is refused outright — concede with
+   `flip claim supersede --by --because`, because letting go is comparative
+   and a bare status change records only that you got tired of the claim.
+   None of these keys appear in a notebook that doesn't use them.
 
 Also: ids are never reused, even after retraction; never hand-edit anything
 under `sources/raw/` (verbatim bytes, immutable — recapture instead); and
@@ -345,6 +364,28 @@ every surface that shows the number names it too. A claim citing only
 `role: subject` sources has **no** `independent_corroboration` key: absent
 means the axis does not apply, never that the count came out zero.
 
+### Hold a position, and say what was asked of it
+
+```bash
+flip claim stance C1 pursuing --because "explains the 2021 discontinuity nothing else does" \
+  --falsifier "the discontinuity survives in districts that never changed reporting"
+flip claim test C1 --probe attribution --error "the cited table does not contain this figure" \
+  --would-detect "the number is absent from the extracted text" \
+  --if-absent "the figure appears in row 14 as stated" \
+  --against F2 --result survived
+flip claim exposure C1                 # what the record adds up to, and why
+flip claim stance C1 holding --because "..." --holder "district administrators" --source A7
+```
+
+A test is **severe** only when four fields are on the record — the error, how
+it would have shown up, what you'd have seen instead had it been absent, and
+what did the testing. Anything less reads `bent`, which is one verdict and not
+a rung on a ladder: a probe that fires whether or not the error is there
+discriminates nothing. Don't reach for `--result untestable` to escape it;
+that says the claim as posed admits no test, which is a finding about the
+claim. Nothing here makes a claim true — flip checks the four fields are
+*present*, never that they are honest.
+
 ### Record a session
 
 Before an LLM run or research sweep:
@@ -359,6 +400,23 @@ flip session end landscape-scan --summary "3 candidate districts; Essex stronges
 Promote anything from the session the work will rely on: leads →
 `flip add-source` + `flip grade`, follow-ups → `flip question add`, forks
 resolved → `flip decide`, dead ends → `flip pass`.
+
+When the conversation itself is where the position got built, keep it:
+
+```bash
+flip session transcript landscape-scan --file ./conversation.md \
+  --participant human:marc --model claude-fable-5
+# T1 · sources/raw/T1.md · references/…  (method: human-in-loop)
+flip transcript excerpt T1 --lines 88-104 --label relevance-null
+# cite it as T1§relevance-null
+flip claim add "<assertion>" --about T1§relevance-null
+```
+
+The quote is read out of the immutable capture and hashed, never taken from
+you. Passages of one conversation are several citations and **one** source, so
+only the source reaches corroboration — and a claim about what was *said* in
+the conversation is `--about` it, since no second witness to one exchange can
+exist.
 
 ### Hand off
 

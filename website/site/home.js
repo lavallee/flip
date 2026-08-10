@@ -40,7 +40,7 @@
     }));
   }
 
-  // -- the four enforcement rules -------------------------------------------
+  // -- the five enforcement rules -------------------------------------------
   var RULES = [
     {
       title: "Capture before you cite",
@@ -65,6 +65,15 @@
         + "is met. An agent cannot promote its own claim by insisting.",
       from: "refused",
       transform: function (record) { return record.text; }
+    },
+    {
+      title: "A claim records what was asked of it",
+      body: "Corroboration counts sources that agree. A test records the error someone "
+        + "went looking for, how it would have shown up, and what would have appeared "
+        + "instead — so a probe that found the error has somewhere to go, and a claim "
+        + "nobody has tested cannot read as one that survived.",
+      from: "tested",
+      transform: function (record) { return frontmatter(record.text); }
     },
     {
       title: "Generation is logged",

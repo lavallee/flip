@@ -1,13 +1,13 @@
 # flip
 
-> CLI and plain-file format for reporter's notebooks — git-friendly research corpora (sources with custody and grading, claims with verification, work/session logs) maintained by humans and agents in the same files. A notebook is natively an OKF v0.2 knowledge bundle: one markdown page per entity with YAML frontmatter, browsable by any OKF consumer or markdown editor (Obsidian works out of the box), no service required.
+> CLI and plain-file format for reporter's notebooks — git-friendly research corpora (sources with custody and grading, claims with verification, the positions taken on them and the tests run against them, work/session logs and kept conversations) maintained by humans and agents in the same files. A notebook is natively an OKF v0.2 knowledge bundle: one markdown page per entity with YAML frontmatter, browsable by any OKF consumer or markdown editor (Obsidian works out of the box), no service required.
 
 ## Docs
 
 - [README.md](README.md): Project overview — the notebook-as-OKF-bundle positioning, design commitments, install, and quickstart.
-- [SPEC.md](SPEC.md): The notebook format (profile 0.5) — directory layout, the root index.md manifest (uid, origin), source pages and provenance, claims and the verification bar, logs and sessions, the flip lineage profile (§6), ids/slugs/links and handle:id cross-notebook refs, profiles, beats, CLI, integration contract, exports/import, and workspaces (§18).
-- [AGENTS.md](AGENTS.md): How agents should use flip — the five-minute tour with real output, the lineage-rule contract (capture before cite, round-trip rule, verification bar), and task recipes.
-- [docs/quickstart.md](docs/quickstart.md): Human-facing walkthrough — install, create a notebook, the capture→grade→claim→verify loop, ids and renames, integration-lane configuration (fetchers and extractors), profiles, migrating from v0.3, and using the notebook as an Obsidian vault.
+- [SPEC.md](SPEC.md): The notebook format (profile 0.8) — directory layout, the root index.md manifest (uid, origin), source pages and capture provenance (§5.1 capture methods and derived fidelity), text derivatives (§5.5), claims and the verification bar with citation roles (§7), the stance/tests/exposure axes (§7.1), logs, sessions and transcripts (§8–9), the flip lineage profile (§6), ids/slugs/links and handle:id cross-notebook refs, profiles, beats, CLI, integration contract, exports/import, and workspaces (§18).
+- [AGENTS.md](AGENTS.md): How agents should use flip — the five-minute tour with real output, the lineage-rule contract (capture before cite, round-trip rule, verification bar, a position is not a status), and task recipes.
+- [docs/quickstart.md](docs/quickstart.md): Human-facing walkthrough — install, create a notebook, the capture→grade→claim→verify loop, holding a position and testing it, keeping a conversation citable, ids and renames, integration-lane configuration (fetchers and extractors), profiles, migrating from v0.3, and using the notebook as an Obsidian vault.
 - [docs/internals.md](docs/internals.md): Module map and code contracts for the reference implementation (normative for contributors).
 
 ## Optional

@@ -1,5 +1,5 @@
 window.__FLIP_SPEC__ = {
-  "generated": "2026-07-31T13:56:02+00:00",
+  "generated": "2026-08-10T21:06:33+00:00",
   "sections": [
     {
       "number": "1",
@@ -103,7 +103,7 @@ window.__FLIP_SPEC__ = {
       "id_prefix": "P# A# F# T# S#",
       "dir": "references/",
       "spec": "5",
-      "summary": "An external artifact we captured, and our judgment of it.",
+      "summary": "An external artifact we captured, and our judgment of it. A kept conversation is one of these too.",
       "judgment": true,
       "keys": [
         "type",
@@ -115,17 +115,23 @@ window.__FLIP_SPEC__ = {
         "grade",
         "independence",
         "support",
-        "status"
+        "status",
+        "medium",
+        "excerpts"
       ],
       "observed_keys": [
         "aliases",
         "description",
+        "excerpts",
         "generated",
         "grade",
         "id",
         "independence",
+        "lines",
         "local",
+        "medium",
         "notes",
+        "participants",
         "status",
         "support",
         "title",
@@ -137,7 +143,7 @@ window.__FLIP_SPEC__ = {
       "id_prefix": "C#",
       "dir": "claims/",
       "spec": "7",
-      "summary": "A discrete assertion, its sources, and how far it has earned trust.",
+      "summary": "A discrete assertion, its sources, how far it has earned trust, and what has been asked of it.",
       "judgment": true,
       "keys": [
         "type",
@@ -148,6 +154,7 @@ window.__FLIP_SPEC__ = {
         "load_bearing",
         "sources",
         "independent_corroboration",
+        "tests",
         "first_asserted",
         "generated"
       ],
@@ -161,6 +168,7 @@ window.__FLIP_SPEC__ = {
         "load_bearing",
         "sources",
         "status",
+        "tests",
         "type"
       ]
     },
@@ -231,6 +239,7 @@ window.__FLIP_SPEC__ = {
         "model",
         "started",
         "tools",
+        "transcript",
         "type"
       ]
     }
@@ -246,7 +255,7 @@ window.__FLIP_SPEC__ = {
       "path": "derived/_derivations.jsonl",
       "spec": "8",
       "label": "Derivation log",
-      "summary": "Inputs to tool and parameters to outputs, with hashes. A deliberately small PROV profile."
+      "summary": "Inputs to tool and parameters to outputs, with hashes, written by flip extract. Records the extraction method, because a quotation recovered by OCR is not the same evidence as one lifted from a publisher's text layer."
     },
     {
       "path": "log/log.jsonl",
@@ -296,6 +305,13 @@ window.__FLIP_SPEC__ = {
       "spec": "7",
       "gains": "The status, if and only if the profile's bar is met.",
       "worth": "Refused with a non-zero exit otherwise. Or earned by an adversarial or recomputation record."
+    },
+    {
+      "stage": "tested",
+      "act": "flip claim test",
+      "spec": "7",
+      "gains": "tests: \u2014 the error a probe looked for, how it would have shown up, and what it would have shown instead.",
+      "worth": "exposure, derived on read and never stored. A severe test that found the error refuses verified whatever the count says."
     }
   ],
   "profiles": [

@@ -107,9 +107,29 @@ the artifact, and an optional return envelope lets a tool hand back a title,
 canonical URL, and the strategy it used. Two more configured
 roles take a question rather than a target: `flip find`/`flip ask` (research —
 candidate leads and cited synthesis, a grade-C lead) and `flip recall`
-(knowledge — what you already hold locally). See
-[docs/quickstart.md](docs/quickstart.md) for the walkthrough, tool-neutral
-integration config, profiles, and the Obsidian setup.
+(knowledge — what you already hold locally). Captured bytes become readable
+through the same kind of lane: `flip extract <id>` writes
+`sources/text/<id>.txt` and logs the **extraction method** that produced it,
+because a quotation recovered by OCR is not the same evidence as one lifted
+from a publisher's own text layer. See [docs/quickstart.md](docs/quickstart.md)
+for the walkthrough, tool-neutral integration config, profiles, and the
+Obsidian setup.
+
+A claim carries more than a truth-status. `flip claim test` records what was
+*asked* of it — the specific error a probe looked for, how that error would
+have shown up, and what would have appeared instead had it been absent —
+including a test that **found** the error, which a verification structurally
+cannot. `flip claim stance` records what is *done* with it and by whom, so the
+notebook's `rejecting` and an audience's `holding` sit on one page without
+either overwriting the other. From that record flip derives `exposure` (`bent`
+· `severely-tested` · `misattributed` · `refuted` · `untestable`) and never
+stores it, the same discipline as the grade. And where a claim is *about* a
+document rather than supported by one, `--about` says so: no second witness to
+what a single document says can exist, so the corroboration bar is replaced by
+an attribution test rather than waived. Conversations are keepable too —
+`flip session transcript` puts one under ordinary custody, and
+`flip transcript excerpt` pins the passage a claim actually rests on, so it
+cites `T1§relevance-null` and travels with the words.
 
 ## For agents
 
@@ -137,20 +157,21 @@ plugin reads the handle table, audits the shared space, and open-by-id
 suggests every bound notebook's entities as `recipes:A3`. The walkthrough
 is [docs/obsidian.md](docs/obsidian.md).
 
-Status: spec draft v0.16 — notebooks are native OKF v0.2 bundles. The CLI
-covers the full surface (`cli`, `new`, `add-source`, `grade` (incl.
-`--explain`), `log`, `decide`, `pass`, `question` (incl. `repose`), `claim`
-(incl. `verify` / `source add`), `source` (incl. `retitle` / `recheck`),
-`session`, `show`, `open`, `resolve`, `rename`, `doctor`, `index`, `migrate`,
-`export bag|csl|okf|json`), **workspaces** (`flip ws init / list / add /
-rename / rm / show`) that bind many notebooks under one root, plus **beats** —
-the standing layer above notebooks (`flip beat new / thread add / graduate /
-show`): a mission with weighted-triage threads that graduate into notebooks
-and keep cross-notebook coverage memory — and **workspaces** (`flip ws`,
+Status: spec draft v0.17 — notebooks are native OKF v0.2 bundles. The CLI
+covers the full surface (`cli`, `new`, `add-source` (incl. `--record` for a
+document that cannot be captured), `extract`, `grade` (incl. `--explain`),
+`log`, `decide`, `pass`, `question` (incl. `repose`), `claim` (incl. `verify`
+/ `test` / `stance` / `exposure` / `rival` / `supersede` / `source add`),
+`source` (incl. `retitle` / `recheck` / `pipeline` / `provenance`), `session`
+(incl. `transcript`), `transcript`, `forecast`, `kind`, `discipline`, `config`
+(incl. `init` / `show`), `show`, `open`, `resolve`, `rename`, `doctor`,
+`index`, `migrate`, `export bag|csl|okf|json`), plus **beats** — the standing
+layer above notebooks (`flip beat new / thread add / graduate / show`): a
+mission with weighted-triage threads that graduate into notebooks and keep
+cross-notebook coverage memory — and **workspaces** (`flip ws`,
 `flip import`): many notebooks under one root, bound to handles so
 `recipes:A3` resolves and shared notebooks import without rekeying ids.
-`flip migrate` upgrades older notebooks in
-place. See [docs/wiki-alignment.md](docs/wiki-alignment.md) for how flip
+`flip migrate` upgrades older notebooks in place. See [docs/wiki-alignment.md](docs/wiki-alignment.md) for how flip
 relates to OKF and OpenWiki, and
 [docs/okf-provenance-profile.md](docs/okf-provenance-profile.md) for flip's
 vocabulary as a draft OKF provenance profile. `flip obsidian` prepares a
