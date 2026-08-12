@@ -6,6 +6,49 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Both entries below came out of one research session that went wrong in the
+ordinary way: an agent did eight fetches, read eight summaries, and wrote
+claims off them before anything entered the notebook. The operator had to
+notice and say so. Neither the rule nor the tooling was missing — the rule
+reaches the agent only *after* it has decided to use flip, which is the
+decision that already went wrong, and one capture lane silently refused every
+identifier it was given.
+
+### Fixed
+
+- **`{id}` now strips every identifier scheme, not just `doi:`.** It stripped
+  `doi:` and passed everything else through verbatim, so `arXiv:2606.15136`
+  reached the resolver whole. A resolver handed an unrecognized string
+  title-searches it, finds unrelated papers, downloads none, and exits 0 —
+  which flip correctly reported as `EmptyCapture`, i.e. *as a finding about
+  the document*. A clean exit with no bytes is the most expensive failure
+  mode there is, because it reads as evidence: the notebook records "searched,
+  gone" about a paper sitting at a public URL. `arxiv:`, `pmid:`, `pmcid:`,
+  `hdl:`, `isbn:` and `urn:` now strip too, case-insensitively, and an unknown
+  prefix is still left alone — `{id}` is also how a bare accession reaches a
+  resolver. `{url}` continues to carry the target exactly as given, because
+  the provenance row has to say what was asked for. New `integrations.bare_id()`.
+
+### Added
+
+- **A custody hook, shipped with the plugin** (`hooks/hooks.json`). flip's rule
+  was already written well; it was written in the wrong place. The hook moves
+  it to the moment of the act, and is a silent no-op outside a flip notebook:
+  - `PreToolUse` on WebFetch — once per session, names the notebook and the
+    three ways a fetched thing legitimately enters it (`add-source`,
+    `add-source --record`, `pass`), and warns that a summary of a document is
+    not the document.
+  - `PostToolUse` on WebFetch — records the URL.
+  - `Stop` — once per session, lists URLs read this session that appear in
+    neither `sources/_provenance.jsonl` nor `references/`, and holds the turn
+    open until each is captured, recorded, passed, or declared background.
+
+  Deliberately **not** hooked: WebSearch. Discovery is capture-free by doctrine
+  (SPEC §5) — a search returns leads, and a lead is not evidence. Matching is
+  loose on purpose (arXiv id, DOI, then host+path), so the report under-reports
+  rather than over-reports: a false "you didn't capture this" is what gets a
+  hook switched off, and a hook that is off enforces nothing.
+
 ## [0.17.0] — 2026-08-10
 
 Everything here came out of using flip for real research, and it is all one
