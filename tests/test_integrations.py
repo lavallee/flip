@@ -280,6 +280,58 @@ def test_a_command_that_fails_is_still_an_ordinary_failure(tmp_path, monkeypatch
     assert "exit 7" in str(ei.value)
 
 
+# --- {id}: the bare identifier a resolver actually accepts ------------------
+
+
+@pytest.mark.parametrize("target,expected", [
+    ("doi:10.1234/abc", "10.1234/abc"),
+    ("DOI:10.1234/abc", "10.1234/abc"),
+    ("arXiv:2606.15136", "2606.15136"),
+    ("arxiv:2606.15136v2", "2606.15136v2"),
+    ("pmid:31452104", "31452104"),
+    ("pmcid:PMC6683928", "PMC6683928"),
+    ("hdl:2027/mdp.39015012345678", "2027/mdp.39015012345678"),
+    ("isbn:9780262035613", "9780262035613"),
+    ("urn:nbn:de:0114-fqs0301157", "nbn:de:0114-fqs0301157"),
+    ("doi: 10.1234/spaced", "10.1234/spaced"),
+    # left alone: not a scheme flip knows, and {id} is also how a bare
+    # accession or a local key reaches a resolver
+    ("2606.15136", "2606.15136"),
+    ("GSE12345", "GSE12345"),
+    ("https://example.com/x", "https://example.com/x"),
+    ("weird:thing", "weird:thing"),
+])
+def test_bare_id_strips_known_schemes_only(target, expected):
+    assert integrations.bare_id(target) == expected
+
+
+def test_run_capture_hands_the_resolver_a_bare_id(tmp_path, monkeypatch):
+    """The regression this exists for: {id} used to strip `doi:` and nothing
+    else, so every arXiv capture reached the resolver as "arXiv:2606.15136".
+    Resolvers that title-search an unrecognized string find unrelated papers,
+    download none, and exit 0 — which flip then reports as EmptyCapture, i.e.
+    as a finding about the document rather than the defect it is. A clean exit
+    with no bytes is the most expensive possible failure mode, because it reads
+    as evidence.
+    """
+    tool = make_tool(tmp_path, 'printf "%s" "$1" > "$2/id.txt"\n')
+    write_config(tmp_path, monkeypatch, f'[fetchers]\npaper = "{tool} {{id}} {{dest}}"\n')
+    resolved = integrations.resolve("fetchers", "paper")
+    integrations.run_capture(resolved, tmp_path, "P1", "arXiv:2606.15136")
+    assert (tmp_path / "sources" / "raw" / "P1" / "id.txt").read_text() == "2606.15136"
+
+
+def test_run_capture_still_hands_url_the_target_verbatim(tmp_path, monkeypatch):
+    """{id} is the only placeholder that normalizes. {url} is the target as
+    given, because the schemed form is what the operator wrote and what the
+    provenance row has to say was asked for."""
+    tool = make_tool(tmp_path, 'printf "%s" "$1" > "$2/url.txt"\n')
+    write_config(tmp_path, monkeypatch, f'[fetchers]\npaper = "{tool} {{url}} {{dest}}"\n')
+    resolved = integrations.resolve("fetchers", "paper")
+    integrations.run_capture(resolved, tmp_path, "P1", "arXiv:2606.15136")
+    assert (tmp_path / "sources" / "raw" / "P1" / "url.txt").read_text() == "arXiv:2606.15136"
+
+
 # --- reading the operator's own lanes back (SPEC §16) -----------------------
 
 

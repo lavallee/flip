@@ -12,8 +12,9 @@ Roles:
   ``[knowledge]``  recall:  a query → what the deployment already holds locally
 
 All four share one runner. Placeholders substituted into a command template:
-``{url}`` the target as given · ``{id}`` the target with a leading ``doi:``
-stripped · ``{query}`` a research/recall question · ``{dest}`` the capture
+``{url}`` the target as given · ``{id}`` the target with a leading identifier
+scheme stripped (``doi:``, ``arxiv:``, ``pmid:``, ``pmcid:``, ``hdl:``,
+``isbn:``, ``urn:``) · ``{query}`` a research/recall question · ``{dest}`` the capture
 directory · ``{src}`` the raw artifact to extract from · ``{out}`` the text
 derivative's destination. A command that writes files uses ``{dest}``/``{out}``;
 a stdout-only command may omit it and flip preserves stdout. A command that
@@ -46,6 +47,30 @@ import subprocess
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+
+# Identifier schemes stripped from ``{id}``. A resolver is handed the bare
+# identifier because that is the form every one of them accepts; the schemed
+# form is what a human writes and what several resolvers silently miss (given
+# "arXiv:2606.15136", paperboy title-searches the string and returns unrelated
+# papers, then exits 0 — a clean run that captures nothing, which flip reports
+# as EmptyCapture, i.e. as a finding about the document rather than the bug it
+# actually is). {url} still carries the target exactly as given.
+ID_SCHEMES = ("doi:", "arxiv:", "pmid:", "pmcid:", "hdl:", "isbn:", "urn:")
+
+
+def bare_id(target: str) -> str:
+    """``target`` with a known identifier scheme stripped, for ``{id}``.
+
+    Case-insensitive, and only for the schemes in ``ID_SCHEMES`` — an unknown
+    prefix is left alone rather than guessed at, since ``{id}`` is also how a
+    bare accession or a local key reaches a resolver.
+    """
+    lowered = target.lower()
+    for scheme in ID_SCHEMES:
+        if lowered.startswith(scheme):
+            return target[len(scheme):].lstrip()
+    return target
+
 
 # Neutral return-envelope keys a tool may hand back (all optional). Kept small
 # and deployment-agnostic; unknown keys are ignored, so tools/adapters can carry
@@ -514,8 +539,8 @@ def run_capture(resolved: Resolved, root: Path, source_id: str, target: str) -> 
     before = {p for p in dest.rglob("*") if p.is_file()}
     template = resolved.template
     captures_stdout = "{dest}" not in template
-    bare = target[4:] if target.lower().startswith("doi:") else target
-    argv = _build_argv(template, {"url": target, "id": bare, "query": target, "dest": str(dest)})
+    argv = _build_argv(template, {"url": target, "id": bare_id(target), "query": target,
+                                  "dest": str(dest)})
     proc = _exec(argv, root, "fetcher", resolved.key)
 
     new = [p for p in dest.rglob("*") if p.is_file() and p not in before]
