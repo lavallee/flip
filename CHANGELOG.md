@@ -6,6 +6,8 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.1] — 2026-08-12
+
 Both entries below came out of one research session that went wrong in the
 ordinary way: an agent did eight fetches, read eight summaries, and wrote
 claims off them before anything entered the notebook. The operator had to

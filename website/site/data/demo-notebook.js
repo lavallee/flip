@@ -1,15 +1,15 @@
 window.__FLIP_NOTEBOOK__ = {
   "contract": "flip-render/2",
-  "generated": "2026-08-10T21:06:33Z",
+  "generated": "2026-08-12T13:48:16Z",
   "source_trail_public": true,
   "notebook": {
-    "uid": "nb-w4hbhs0d",
+    "uid": "nb-c9wmfgy1",
     "slug": "sourdough-rise",
     "title": "Does hydration change sourdough rise time?",
     "kind": "research-review",
     "status": "active",
-    "created": "2026-08-10",
-    "updated": "2026-08-10",
+    "created": "2026-08-12",
+    "updated": "2026-08-12",
     "visibility": "internal"
   },
   "sources": [
@@ -26,7 +26,7 @@ window.__FLIP_NOTEBOOK__ = {
       },
       "title": "ridgeway-club-trial.md",
       "canonical_url": "",
-      "captured_at": "2026-08-10T21:06:32Z",
+      "captured_at": "2026-08-12T13:48:15Z",
       "sha256": "23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40"
     },
     {
@@ -43,7 +43,7 @@ window.__FLIP_NOTEBOOK__ = {
       },
       "title": "rise-times.csv",
       "canonical_url": "",
-      "captured_at": "2026-08-10T21:06:32Z",
+      "captured_at": "2026-08-12T13:48:15Z",
       "sha256": "d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c"
     },
     {
@@ -55,7 +55,7 @@ window.__FLIP_NOTEBOOK__ = {
       "freshness": "",
       "title": "Call with the Ridgeway club's trial organiser",
       "canonical_url": "",
-      "captured_at": "2026-08-10T21:06:33Z",
+      "captured_at": "2026-08-12T13:48:16Z",
       "sha256": "fc5c678c9465836e3e894abf6117dcadc8276754fe6192ff3b03108ceccec467"
     }
   ],
@@ -84,7 +84,7 @@ window.__FLIP_NOTEBOOK__ = {
           "against": [
             "F1"
           ],
-          "at": "2026-08-10T21:06:33Z",
+          "at": "2026-08-12T13:48:15Z",
           "by": "human:baker",
           "severity": "severe"
         }
@@ -115,10 +115,10 @@ window.__FLIP_NOTEBOOK__ = {
   ],
   "sessions": [
     {
-      "id": "2026-08-10T2106-hydration-sweep",
+      "id": "2026-08-12T1348-hydration-sweep",
       "actor": "human:baker",
       "model": "claude-opus-5",
-      "started": "2026-08-10T21:06:31Z",
+      "started": "2026-08-12T13:48:14Z",
       "ended": "",
       "goal": ""
     }
