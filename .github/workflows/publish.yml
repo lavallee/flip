@@ -29,7 +29,17 @@ jobs:
       - name: Build
         run: uv build
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        # Pinned to a SHA, not a tag: a moving tag on a publishing action is a
+        # supply-chain hole. Bumped 2026-08-12 from cef2210 (twine 6.1.0 /
+        # packaging 25.0), which rejected the 0.17.1 wheel with "'2.5' is not a
+        # valid metadata version". Nothing in the release was at fault:
+        # hatchling 1.32.0 (2026-08-11) started emitting PEP 639 metadata 2.5,
+        # and packaging 25.0 predates it. Verified before bumping, by running
+        # both stacks against the actual 0.17.1 wheel — twine 6.1.0/packaging
+        # 25.0 ERROR, twine 7.0.0/packaging 26.2 PASSED. Build backend left
+        # unpinned deliberately: 2.5 is valid metadata, and the fix belongs in
+        # the checker, not in holding the packaging ecosystem still.
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           # Idempotent re-runs: a version already on PyPI is skipped, not an
           # error — needed when a partial publish is completed by
