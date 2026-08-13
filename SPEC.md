@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.17 · 2026-08-10
+**Status:** draft v0.18 · 2026-08-12
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -166,7 +166,7 @@ already looks, and where Obsidian shows it as editable properties.
 ```markdown
 ---
 okf_version: "0.2"
-flip: "0.8"                 # flip profile version this notebook conforms to
+flip: "0.9"                 # flip profile version this notebook conforms to
 slug: nj-schools
 uid: nb-7k3m9p2x             # stable machine identity; travels with the bundle
 title: "NJ schools: five years of test-score data"
@@ -608,10 +608,15 @@ Extension vocabulary summary — flip's frontmatter keys beyond OKF v0.2's
 `independence`, `freshness`, `local`, `sha256` (on export), `date`,
 `authors`, `publisher`, `load_bearing`, `independent_corroboration`,
 `first_asserted`, `question`, `alternatives_rejected`, `model`, `tools`,
-`started`, `ended` — plus extension keys *inside* OKF structures: `method`,
-`against`, and `note` on `verified` events. flip's `status` vocabularies
-(claim and question statuses, notebook lifecycle) extend OKF §5.4's
-advisory `draft|stable|deprecated` values — plus `role` on a claim's
+`started`, `ended`, `resolves_via`, `formulations`, `answered`,
+`answered_by`, `closed`, `closed_by`, `closed_reason`, `review_by`,
+`reopen_when`, `absence`, `derives_from`, `universe`, `stop`,
+`does_not_redo`, `for`, `roi_low`, `roi_high`, `consumed` — plus
+extension keys *inside* OKF structures: `method`,
+`against`, and `note` on `verified` events, and `sharpened`/`note` on
+`formulations` entries. flip's `status` vocabularies
+(claim, question, and commission statuses, notebook lifecycle) extend OKF
+§5.4's advisory `draft|stable|deprecated` values — plus `role` on a claim's
 `sources` entries (§7). OKF consumers must preserve and may ignore all of
 them.
 
@@ -664,7 +669,7 @@ names the policy *area* its output needs filled, never a specific
 discipline; the default is a suggestion, informational until the
 notebook declares disciplines.
 
-## 7. Claims and forecasts — the two-object rule
+## 7. The working record — claims, questions, forecasts, commissions
 
 ```markdown
 ---
@@ -797,6 +802,43 @@ record with an empty `against`. A recomputation nobody can reach is an
 assertion with better manners, and it is common for the *citations* on such a
 claim to be self-reported sources contributing nothing while the actual
 evidence lives in a session page: `against` is how the claim points at it.
+
+#### Absence claims — the null with its coverage attached
+
+"Looked and found nothing" is an assertion the work leans on, and its
+evidentiary weight IS its search coverage — an ungraded "no evidence of X"
+manufactures certainty exactly the way a synthetic total manufactures
+precision. `flip claim add --absent-from corpus | named_surfaces | world
+[--surface "<where looked>" …]` marks a claim as an absence and scopes it
+(`absence: {scope, surfaces?}` in frontmatter, the same vocabulary the
+passed ledger enforces in §8): `corpus` speaks only for what the notebook
+holds; anything wider MUST name the surfaces searched. The claim then lives
+the full claim life — cited in prose, probed (`flip claim test` against a
+searched surface is "re-run the search"), superseded when the thing is
+later found. Doctor's `world-absence` names a load-bearing absence scoped
+to `world`: no search can witness a world-absence, so the honest scope is
+the surfaces actually checked — the scope stays legal (an operator may take
+responsibility for the reach; flip does not build paternalistic software),
+it just doesn't pass unremarked. Routine empty probes during pursuit belong
+on the question (`flip question note --zero-yield`, §7) or in the passed
+ledger; a claim is for the null an ANSWER rests on.
+
+#### Derivation — what a claim rests on
+
+A claim built on other claims declares it: `flip claim add --derives-from
+<C#>` or `flip claim derives add|rm <C#> <C#…>` writes a `derives_from:`
+list — a derivation edge, not a citation (the ancestor is not evidence FOR
+the claim; it is load the claim stands on). Unknown ids, non-claims,
+self-edges, and cycles are refused at write time. Doctor walks the chain:
+**`inherited-unsupported`** (WARN) names every ancestor a load-bearing
+claim rests on that cannot carry it — discredited (status
+`false-positive`/`retracted`, exposure `refuted`/`misattributed`) or bare
+(no evidence citations, no gating verification, no surviving severe test) —
+because an unsupported link contaminates everything built on it silently
+otherwise; `dangling-derivation` flags an edge to an id no claims/ page
+carries, on any claim. The render/2 projection carries `derives_from`, so
+a renderer can show the chain.
+
 
 ### 7.1 Stance and exposure — the attitude, and the test record
 
@@ -1116,22 +1158,53 @@ placeholder satisfies it, exactly as a ritual falsifier satisfies the stance
 gate, and the answer is the same in both cases — flip records presence, the
 reader judges content, and the record is at least inspectable.
 
+### 7.2 Decisions and questions — the question journey
+
 Decisions and questions follow the same shape: `decisions/<slug>.md`
 (`type: Decision` — `question`, decision text, why, `alternatives_rejected`)
-and `questions/<slug>.md` (`type: Question` — `status: open | answered`,
-answered pages keep their history in git). Questions SHOULD carry
-`resolves_via: [<surface>, …]` — the surfaces that could answer them; an
-open question without a watching surface is a wish, and `flip show` marks
-it `unwatched`. **Questions are re-posed
+and `questions/<slug>.md` (`type: Question` — `status: open | answered |
+closed | dormant`, settled pages keep their history in git). Questions
+SHOULD carry `resolves_via: [<surface>, …]` — the surfaces that could
+answer them; an open question without a watching surface is a wish, and
+`flip show` marks it `unwatched`. **Questions are re-posed
 append-only**: `flip question repose <Q#> "<new formulation>"` keeps the id,
 slug, and status; the new formulation becomes the current description and body
 lead, while the superseded text is preserved in a `formulations:` history list
-(`{text, date, actor}`) and a dated **Re-posed** body section, and a
-`question-repose` event lands in the log — so `flip open Q#` always shows the
-full journey.
+(`{text, date, actor}` — plus `sharpened: [scope | falsifiability |
+decomposability | evidence-anchored]` and `note` when the re-pose says what
+it sharpened; recorded, never scored) and a dated **Re-posed** body section,
+and a `question-repose` event lands in the log — so `flip open Q#` always
+shows the full journey.
+
+**Evidence accretes on the question between re-poses.** `flip question note
+<Q#> "<text>"` appends a dated **Evidence** section to the page body without
+touching status — with `--answers as-worded | narrower | adjacent` recording
+the scope verdict (did this evidence answer the question as worded, or a
+narrower or adjacent one? a narrower answer stays on an OPEN question
+rather than closing it), `--source <id>` citing evidence that must resolve,
+and `--zero-yield saturated | bad-reformulation | corpus-gap |
+entity-collision` recording an empty probe WITH its cause — a zero round
+without a cause is indistinguishable from saturation, and only tagged
+zero rounds may count toward a stop decision. Noting is legal at any
+status: evidence arriving after an answer is exactly what reopen triggers
+watch for.
+
+**A question has more honest ends than answered.** `flip question close
+<Q#> --reason split | yielded | counter-example | dead-end | superseded`
+records the other ends (`closed_reason:` on the page; answered pages refuse
+closing — reopen first). `flip question dormant <Q#> --until YYYY-MM-DD`
+parks an open question with a `review_by:` date; dormant is not dead — the
+question leaves the everyday roster and `flip show` resurfaces it once the
+date arrives (`dormant · review due`). **Answers carry their un-stop
+conditions**: `--reopen-when "<condition>"` on `answer` and `close` arms
+written observable conditions (`reopen_when:` on the page) — `resolves_via`
+names what could answer a question, `reopen_when` names what would un-answer
+it; `flip show` lists armed pages under **REOPEN TRIGGERS ARMED**, and
+`flip question reopen <Q#> --because "<what fired>"` restores `open` while
+the whole journey — the old answer included — stays on the page.
 
 
-### Forecasts — `forecasts/<slug>.md` (FC#) and clusters (CL#)
+### 7.3 Forecasts — `forecasts/<slug>.md` (FC#) and clusters (CL#)
 
 A backward notebook fights staleness; a forward notebook **accrues
 credibility through resolution**. The two-object rule is the load-bearing
@@ -1172,6 +1245,45 @@ purity holds at the file level. The `forward-set` kind carries the
 discipline extras: at least three dated forecasts and a naive baseline
 declared in `baseline.md` **before** the first resolution — the only time
 declaring it is worth anything.
+
+### 7.4 Commissions — bounded follow-up work as a contract
+
+```markdown
+---
+type: Commission
+id: K1
+aliases: [K1]
+description: "refresh the tracker rows against the 2026 snapshot"
+status: dispatched
+universe: "the 180 active rows as of the R1 baseline"
+stop: "every row re-checked once or marked unobtainable"
+does_not_redo: "no re-discovery of rows already lineage-audited"
+for: Q3
+roi_low: "+0.5 completeness"
+generated: { by: agent:claude, at: 2026-08-12T14:31:02Z }
+---
+refresh the tracker rows against the 2026 snapshot
+
+## Dispatched 2026-08-12
+```
+
+A **commission** (`commissions/<slug>.md`, ids K#) is follow-up work
+written as a contract BEFORE dispatch: the input `universe` it consumes,
+the deliverable it produces (the page body), the written `stop` condition,
+and the `does_not_redo` boundary — all four required, because continuation
+chains that carried them consumed prior outputs without re-discovery and
+chains without them re-searched what they already held. `for` links the
+question or thread served (must resolve). The ROI band (`roi_low`,
+`roi_high`) is optional, free text, directional, and **never additive
+across commissions**; the working convention is to quote the LOW bound as
+the expectation and the range as upside — executed estimates to date held
+at their low bound. Lifecycle: `proposed → dispatched → returned |
+declined`, terminal states closed (new work gets a new contract);
+`flip commission status <K#> returned --consumed "<what prior output it
+consumed>"` records the receipt that keeps a chain auditable. Nothing in
+flip dispatches anything — the page records the contract and its outcome,
+and the state machine stays in the agent (§1). Commissions ride
+flip-render/2.
 
 ## 8. Logs — events, sessions, views
 
@@ -1475,7 +1587,11 @@ flip grade <id> --explain            # why it derives that letter; writes nothin
 flip source retitle <id> "<title>"   # rewrite a capture's title, YAML quoted
 flip log "<text>"                    # append a work-log event (+ regen log.md)
 flip decide|pass|question …          # decisions/questions pages; passed ledger
+flip question note|close|dormant|    # the question journey (§7): evidence accretes,
+              reopen …               #   honest ends, review dates, reopen triggers
 flip claim add|status|list …         # claims pages; verification bar enforced
+flip claim derives add|rm …          # derivation edges: what a claim rests on (§7)
+flip commission add|status|list …    # contract pages: universe/stop/does-not-redo (§7.4)
 flip session start|end …             # session pages
 flip show [--hot|--claims|--stale]   # computed views (--json for agents)
 flip open <ref>                      # resolve a ref (A3, recipes:A3) to its page path
@@ -1641,14 +1757,24 @@ documentation, or portable skills.
   withheld data is withheld data. Deterministic key order and id-sorted
   entities make it diffable; only `generated` varies.
   **`flip-render/2`** is a superset (`--render-version 2`): support tuples,
-  pipeline and provenance state on sources; `value`/`unit` on claims;
-  `forecasts`; `work` (§10); and **`drafts`** (§11) — both the flat shape and
+  pipeline and provenance state on sources; `value`/`unit`, `absence`, and
+  `derives_from` on claims; question journey keys (`closed_reason`,
+  `review_by`, `reopen_when`); `forecasts`; `commissions` (§7.4 — the
+  `consumed` receipt rides only with the full source trail, following the
+  sessions/log policy: it is free text about what a run consumed and can
+  name work-trail material the same export withholds); `work` (§10); and
+  **`drafts`** (§11) — both the flat shape and
   the versioned `drafts/v1/` shape, with a `current` symlink skipped so a
   version is never emitted twice. `drafts` rides the private lane only: it is
   populated under `--include-private` and empty otherwise, because drafts are
   unfinished prose that `export okf` already withholds from outside-facing
   bundles, and going public must not publish them. The key is always present
   under /2 so consumers can iterate without a key check.
+  One vocabulary note for `flip-render/1` consumers: the question `status`
+  value domain widened at profile 0.9 (`closed`, `dormant` join
+  `open`/`answered`); /1 keeps its shape byte-stable and never gains the
+  interpreting keys, so a /1 consumer must treat any status other than
+  `open` as settled work rather than assuming not-answered means open.
 - **BagIt** bag for cold archival (`flip export bag`).
 - **CSL JSON** from references for citation managers (`flip export csl`).
 - **RO-Crate** envelope, **W3C Web Annotation** anchors: future projections.

@@ -38,10 +38,12 @@ def write_jsonl(root: Path, rel: str, rows: list[dict]) -> None:
     path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
 
 
-def question_page(root: Path, qid: str, text: str, status: str | None = "open") -> None:
+def question_page(root: Path, qid: str, text: str, status: str | None = "open",
+                  **extra) -> None:
     fm: dict = {"type": "Question", "id": qid, "aliases": [qid], "description": text}
     if status is not None:
         fm["status"] = status
+    fm.update(extra)
     fm["timestamp"] = "2026-07-09T10:00:00Z"
     fm["actor"] = "human:test"
     pages.write_page(root / "questions" / f"{pages.slugify(text)}.md", fm, text + "\n")
@@ -125,6 +127,63 @@ def test_hot_view_shows_open_questions_and_hides_answered(tmp_path):
 def test_hot_view_question_without_status_counts_as_open(tmp_path):
     root = make_notebook(tmp_path)
     question_page(root, "Q1", "unjudged?", status=None)
+    assert "Q1" in hot_view(root)
+
+
+def test_hot_view_hides_closed_questions(tmp_path):
+    root = make_notebook(tmp_path)
+    question_page(root, "Q1", "who pays?", status="open")
+    question_page(root, "Q2", "dropped?", status="closed", closed_reason="dead-end")
+    text = hot_view(root)
+    assert "Q1" in text
+    assert "Q2" not in text
+
+
+def test_hot_view_dormant_question_surfaces_only_once_due(tmp_path):
+    root = make_notebook(tmp_path)
+    question_page(root, "Q1", "parked far out?", status="dormant",
+                  review_by="2099-01-01")
+    question_page(root, "Q2", "parked and due?", status="dormant",
+                  review_by="2020-01-01")
+    text = hot_view(root)
+    assert "Q1" not in text
+    assert "Q2 · parked and due?  [dormant · review due 2020-01-01]" in text
+
+
+def test_hot_view_lists_armed_reopen_triggers(tmp_path):
+    root = make_notebook(tmp_path)
+    question_page(root, "Q1", "who pays?", status="answered",
+                  reopen_when=["a new 990 lands", "numbers restated"])
+    question_page(root, "Q2", "settled plainly?", status="answered")
+    text = hot_view(root)
+    assert "REOPEN TRIGGERS ARMED" in text
+    assert "Q1 · answered · when: a new 990 lands; numbers restated" in text
+    assert "Q2" not in text
+    data = hot_view(root, as_data=True)
+    assert data["reopen_armed"][0]["id"] == "Q1"
+    assert data["reopen_armed"][0]["reopen_when"] == ["a new 990 lands",
+                                                      "numbers restated"]
+
+
+def test_hot_view_no_reopen_section_when_none_armed(tmp_path):
+    root = make_notebook(tmp_path)
+    question_page(root, "Q1", "who pays?", status="open")
+    assert "REOPEN TRIGGERS ARMED" not in hot_view(root)
+
+
+def test_hot_view_unknown_status_stays_visible(tmp_path):
+    # a typo degrades to visible; doctor names the bad enum
+    root = make_notebook(tmp_path)
+    question_page(root, "Q1", "typo'd?", status="dormamt")
+    assert "Q1" in hot_view(root)
+
+
+def test_hot_view_unreadable_review_by_fails_loud_onto_roster(tmp_path):
+    # lexicographic compare against garbage would park the question forever;
+    # an unreadable date means due-now instead
+    root = make_notebook(tmp_path)
+    question_page(root, "Q1", "parked badly?", status="dormant",
+                  review_by="Q3 2026")
     assert "Q1" in hot_view(root)
 
 

@@ -23,6 +23,7 @@ import click
 from . import (
     beat as beat_mod,
     claims,
+    commissions as commissions_mod,
     integrations,
     pages,
     doctor as doctor_mod,
@@ -41,6 +42,7 @@ from . import (
     sources,
     stance as stance_mod,
     transcripts as transcripts_mod,
+    util,
     views,
     workspace as workspace_mod,
 )
@@ -971,25 +973,130 @@ def question_add(text: str, resolves_via: tuple[str, ...]) -> None:
     click.echo(f"{page.id} open · {page.fm.get('description', '')}{tail}")
 
 
+def _require_qid(qid: str) -> str:
+    if not re.fullmatch(r"Q\d+", qid):
+        raise SystemExit(f"'{qid}' is not a question id (expected Q<number>, e.g. Q2); "
+                         "`flip question list` shows them")
+    return qid
+
+
 @question.command("answer")
 @click.argument("qid", metavar="ID")
 @click.option("--note", default=None,
               help="Where the answer landed; recorded under '## Answer' on the page.")
-def question_answer(qid: str, note: str | None) -> None:
+@click.option("--reopen-when", "reopen_when", multiple=True, metavar="CONDITION",
+              help="A written observable condition under which this answer should "
+                   "be revisited (repeatable) — resolution says when to stop, "
+                   "this says when to un-stop.")
+def question_answer(qid: str, note: str | None, reopen_when: tuple[str, ...]) -> None:
     """Mark a question answered: status, answered timestamp, and actor land
-    on the page; the ask text stays. Pass --note to record the answer itself.
+    on the page; the ask text stays. Pass --note to record the answer itself,
+    --reopen-when to arm the conditions that would reopen it.
     """
-    if not re.fullmatch(r"Q\d+", qid):
-        raise SystemExit(f"'{qid}' is not a question id (expected Q<number>, e.g. Q2); "
-                         "`flip question list` shows them")
-    ledgers.answer_question(require_notebook_root(), qid, note=note)
-    click.echo(f"{qid} answered")
+    ledgers.answer_question(require_notebook_root(), _require_qid(qid), note=note,
+                            reopen_when=list(reopen_when))
+    tail = f" · reopens when: {'; '.join(reopen_when)}" if reopen_when else ""
+    click.echo(f"{qid} answered{tail}")
+
+
+@question.command("note")
+@click.argument("qid", metavar="ID")
+@click.argument("text")
+@click.option("--answers", "answers",
+              type=click.Choice(ledgers.ANSWER_SCOPES), default=None,
+              help="Scope verdict: did this evidence answer the question as "
+                   "worded, a narrower question, or an adjacent one? "
+                   "Narrower/adjacent keeps the question open with the partial "
+                   "answer preserved.")
+@click.option("--source", "source_ids", multiple=True, metavar="SOURCE_ID",
+              help="Evidence id cited by this note (repeatable; must resolve).")
+@click.option("--zero-yield", "zero_yield",
+              type=click.Choice(ledgers.ZERO_YIELD_CAUSES), default=None,
+              help="This probe came back empty — record WHY: a zero round "
+                   "without a cause is indistinguishable from saturation.")
+def question_note(qid: str, text: str, answers: str | None,
+                  source_ids: tuple[str, ...], zero_yield: str | None) -> None:
+    """Land evidence on a question without closing it (append-only).
+
+    Appends a dated '## Evidence' section to the page and logs a
+    question-evidence event. The question's status does not change: this is
+    how a standing question accretes what the work learns between re-poses,
+    including partial (narrower/adjacent) answers and empty probes.
+    """
+    page = ledgers.note_question(require_notebook_root(), _require_qid(qid), text,
+                                 answers=answers, sources=list(source_ids),
+                                 zero_yield=zero_yield)
+    scope = f" · answers: {answers}" if answers else ""
+    zero = f" · zero yield: {zero_yield}" if zero_yield else ""
+    click.echo(f"{qid} evidence noted ({page.fm.get('status', 'open')}){scope}{zero}")
+
+
+@question.command("close")
+@click.argument("qid", metavar="ID")
+@click.option("--reason", required=True, type=click.Choice(ledgers.CLOSED_REASONS),
+              help="How the question ended without an answer.")
+@click.option("--note", default=None,
+              help="What happened; recorded in the dated '## Closed' section.")
+@click.option("--reopen-when", "reopen_when", multiple=True, metavar="CONDITION",
+              help="A written observable condition under which to revisit "
+                   "(repeatable).")
+def question_close(qid: str, reason: str, note: str | None,
+                   reopen_when: tuple[str, ...]) -> None:
+    """Close a question without an answer — split, yielded to its owner,
+    killed by a counter-example, dropped as a dead end, or superseded.
+
+    Answering has its own path (`flip question answer`); this records the
+    other honest ends. The page keeps its id and full journey.
+    """
+    ledgers.close_question(require_notebook_root(), _require_qid(qid), reason,
+                           note=note, reopen_when=list(reopen_when))
+    click.echo(f"{qid} closed · {reason}")
+
+
+@question.command("dormant")
+@click.argument("qid", metavar="ID")
+@click.option("--until", required=True, metavar="YYYY-MM-DD",
+              help="Review date: the question resurfaces in `flip show` from "
+                   "this date.")
+@click.option("--note", default=None,
+              help="Why it's parked; recorded in the dated '## Dormant' section.")
+def question_dormant(qid: str, until: str, note: str | None) -> None:
+    """Park an open question with a review date (dormant is not dead).
+
+    The question leaves the everyday roster but `flip show` surfaces it
+    again once the review date passes.
+    """
+    ledgers.dormant_question(require_notebook_root(), _require_qid(qid), until,
+                             note=note)
+    click.echo(f"{qid} dormant · review by {until}")
+
+
+@question.command("reopen")
+@click.argument("qid", metavar="ID")
+@click.option("--because", required=True,
+              help="Which trigger fired, or what changed.")
+def question_reopen(qid: str, because: str) -> None:
+    """Reopen a settled question (answered, closed, or dormant → open).
+
+    The prior answer and every dated section stay on the page; a dated
+    '## Reopened' section records why, and a question-reopen event lands in
+    the log.
+    """
+    ledgers.reopen_question(require_notebook_root(), _require_qid(qid), because)
+    click.echo(f"{qid} reopened")
 
 
 @question.command("repose")
 @click.argument("qid", metavar="ID")
 @click.argument("text")
-def question_repose(qid: str, text: str) -> None:
+@click.option("--sharpened", "sharpened", multiple=True,
+              type=click.Choice(ledgers.SHARPENED_AXES),
+              help="Which axis this re-pose sharpened (repeatable). Recorded "
+                   "on the formulation history entry, never scored.")
+@click.option("--note", default=None,
+              help="How it sharpened; recorded on the history entry.")
+def question_repose(qid: str, text: str, sharpened: tuple[str, ...],
+                    note: str | None) -> None:
     """Re-pose a question with a sharper formulation (append-only).
 
     The new text becomes current; the superseded formulation is preserved in
@@ -997,31 +1104,126 @@ def question_repose(qid: str, text: str) -> None:
     a question-repose event lands in the log. The id, slug, and status stay —
     nothing is overwritten, so the full journey survives.
     """
-    if not re.fullmatch(r"Q\d+", qid):
-        raise SystemExit(f"'{qid}' is not a question id (expected Q<number>, e.g. Q2); "
-                         "`flip question list` shows them")
-    page = ledgers.repose_question(require_notebook_root(), qid, text)
+    page = ledgers.repose_question(require_notebook_root(), _require_qid(qid), text,
+                                   sharpened=list(sharpened), note=note)
+    tail = f" · sharpened: {', '.join(sharpened)}" if sharpened else ""
     click.echo(f"{qid} re-posed · {page.fm.get('description', '')} · "
-               f"{len(page.fm.get('formulations') or [])} prior formulation(s) kept")
+               f"{len(page.fm.get('formulations') or [])} prior formulation(s) kept{tail}")
 
 
 @question.command("list")
+@click.option("--status", "status",
+              type=click.Choice(("open", "answered", "closed", "dormant")),
+              default=None, help="Only questions in this status.")
 @click.option("--json", "as_json", is_flag=True, help="Emit the rows as JSON.")
-def question_list(as_json: bool) -> None:
-    """List every question with its current status: id · open/answered · text.
+def question_list(status: str | None, as_json: bool) -> None:
+    """List every question with its current status: id · status · text.
 
-    Open ones also surface in `flip show`; this is the full view (answered
+    Open ones also surface in `flip show`; this is the full view (settled
     questions keep their pages — ids are never reused).
     """
-    rows = ledgers.list_questions(require_notebook_root())
+    rows = ledgers.list_questions(require_notebook_root(), status=status)
     if as_json:
         click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
         return
     if not rows:
-        click.echo("no questions recorded (questions/ is absent or empty)")
+        click.echo(f"no {status} questions" if status
+                   else "no questions recorded (questions/ is absent or empty)")
         return
     for r in rows:
-        click.echo(f"{r.get('id', '?')} · {r.get('status', 'open')} · {r.get('text', '')}")
+        line = f"{r.get('id', '?')} · {r.get('status', 'open')} · {r.get('text', '')}"
+        if r.get("status") == "closed" and r.get("closed_reason"):
+            line += f" · {r['closed_reason']}"
+        if r.get("status") == "dormant" and r.get("review_by"):
+            line += f" · review by {r['review_by']}"
+        click.echo(line)
+
+
+# ---------------------------------------------------------------- commissions
+
+
+@main.group(cls=SuggestGroup)
+def commission() -> None:
+    """Commission contracts as pages (commissions/<slug>.md, ids K#).
+
+    Bounded follow-up work written as a contract BEFORE dispatch: input
+    universe, deliverable, stop condition, does-not-redo boundary. Chains
+    that carried these consumed prior outputs without re-discovery; chains
+    without them re-searched what they already held. Nothing here dispatches
+    anything — the page records the contract and its outcome.
+    """
+
+
+@commission.command("add")
+@click.argument("deliverable")
+@click.option("--universe", required=True,
+              help="The input universe this run works over — what it consumes.")
+@click.option("--stop", required=True,
+              help="The written condition under which the run stops.")
+@click.option("--does-not-redo", "does_not_redo", required=True,
+              help="The boundary: what this run must NOT re-search or re-derive.")
+@click.option("--for", "for_ref", default=None, metavar="REF",
+              help="The id this serves — usually the Q# question; must resolve "
+                   "in THIS notebook (a beat's TH# threads live outside notebook "
+                   "roots and cannot be named here).")
+@click.option("--roi-low", "roi_low", default=None, metavar="TEXT",
+              help="Expected lift, LOW bound — quote this as the expectation; "
+                   "executed estimates to date held at their low bound.")
+@click.option("--roi-high", "roi_high", default=None, metavar="TEXT",
+              help="Upside bound (requires --roi-low). Directional, never "
+                   "additive across commissions.")
+def commission_add(deliverable: str, universe: str, stop: str, does_not_redo: str,
+                   for_ref: str | None, roi_low: str | None,
+                   roi_high: str | None) -> None:
+    """Write a commission contract (status "proposed"), allocating the next K#."""
+    page = commissions_mod.add_commission(
+        require_notebook_root(), deliverable, universe, stop, does_not_redo,
+        for_ref=for_ref, roi_low=roi_low, roi_high=roi_high)
+    tail = f" · for {for_ref}" if for_ref else ""
+    roi = f" · roi {roi_low}" + (f"–{roi_high}" if roi_high else "") if roi_low else ""
+    click.echo(f"{page.id} proposed · {page.fm.get('description', '')}{tail}{roi}")
+
+
+@commission.command("status")
+@click.argument("kid", metavar="ID")
+@click.argument("status", type=click.Choice(commissions_mod.STATUSES))
+@click.option("--note", default=None, help="What happened; lands in the dated section.")
+@click.option("--consumed", default=None,
+              help="What prior output the run consumed (returns only) — the "
+                   "receipt that keeps a continuation chain auditable.")
+def commission_status(kid: str, status: str, note: str | None,
+                      consumed: str | None) -> None:
+    """Move a commission along proposed → dispatched → returned | declined."""
+    if not re.fullmatch(r"K\d+", kid):
+        raise SystemExit(f"'{kid}' is not a commission id (expected K<number>, "
+                         "e.g. K2); `flip commission list` shows them")
+    page = commissions_mod.set_commission_status(
+        require_notebook_root(), kid, status, note=note, consumed=consumed)
+    tail = ""
+    if status == "returned" and not page.fm.get("consumed"):
+        tail = "  (no --consumed receipt — the chain audit will have nothing to check)"
+    click.echo(f"{kid} → {status}{tail}")
+
+
+@commission.command("list")
+@click.option("--status", default=None, type=click.Choice(commissions_mod.STATUSES),
+              help="Only commissions in this status.")
+@click.option("--json", "as_json", is_flag=True, help="Emit the rows as JSON.")
+def commission_list(status: str | None, as_json: bool) -> None:
+    """List commission contracts: id · status · deliverable · for."""
+    rows = commissions_mod.list_commissions(require_notebook_root(), status=status)
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        click.echo(f"no {status} commissions" if status
+                   else "no commissions recorded (commissions/ is absent or empty)")
+        return
+    for r in rows:
+        line = f"{r['id']} · {r['status']} · {r['deliverable']}"
+        if r.get("for"):
+            line += f" · for {r['for']}"
+        click.echo(line)
 
 
 # ---------------------------------------------------------------- claims
@@ -1074,17 +1276,38 @@ def claim() -> None:
                    "renders and exports carry it; prose alone can't.")
 @click.option("--unit", default=None, metavar="UNIT",
               help='Unit for --value, e.g. "percent", "USD", "students".')
+@click.option("--absent-from", "absent_from",
+              type=click.Choice(util.ABSENT_FROM), default=None,
+              help="This is an ABSENCE claim — looked and found nothing — and "
+                   "this is how far it reaches. Anything beyond 'corpus' must "
+                   "name the surfaces searched (--surface): the null's weight "
+                   "IS its search coverage.")
+@click.option("--surface", "surfaces", multiple=True, metavar="SURFACE",
+              help="A surface the absence was checked against (repeatable; "
+                   "requires --absent-from).")
+@click.option("--derives-from", "derives_from", multiple=True, metavar="CLAIM_ID",
+              help="A claim this one RESTS ON (repeatable) — a derivation edge, "
+                   "not a citation; doctor walks these so an unsupported "
+                   "ancestor surfaces on everything built on it.")
 def claim_add(text: str, source_ids: tuple[str, ...], subject_ids: tuple[str, ...],
               load_bearing: bool, notes: str | None, value: str | None,
-              unit: str | None) -> None:
+              unit: str | None, absent_from: str | None,
+              surfaces: tuple[str, ...], derives_from: tuple[str, ...]) -> None:
     """Assert a claim (status "asserted"), allocating the next C#."""
     root = require_notebook_root()
     page = claims.add_claim(root, text, list(source_ids),
                             load_bearing=load_bearing, notes=notes,
-                            value=value, unit=unit, subjects=list(subject_ids))
+                            value=value, unit=unit, subjects=list(subject_ids),
+                            absent_from=absent_from, surfaces=list(surfaces),
+                            derives_from=list(derives_from))
     srcs = ", ".join(claims.source_ids(page.fm)) or "none"
+    absence = ""
+    if absent_from:
+        count = f" ({len(surfaces)} surface{'s' if len(surfaces) != 1 else ''})" \
+            if surfaces else ""
+        absence = f" · absence: {absent_from}{count}"
     click.echo(f"{page.id} asserted · sources: {srcs} · "
-               f"corroboration: {_corroboration_label(page.fm)}")
+               f"corroboration: {_corroboration_label(page.fm)}{absence}")
     # Dangling cites are legal (§6.1) — doctor counts them — but say so now
     # rather than let a typo'd id ride silently until the next doctor run.
     known = {str(p.fm.get("id")) for p in pages.iter_pages(root, "references")}
@@ -1253,6 +1476,37 @@ def claim_verify(claim_id: str, method: str, against: tuple[str, ...],
     if method == "independent-sources":
         click.echo("note: independent-sources records the reasoning but does not satisfy "
                    "the verified gate alone — the recomputed source count does", err=True)
+
+
+@claim.group("derives", cls=SuggestGroup)
+def claim_derives() -> None:
+    """Derivation edges between claims: what a claim RESTS ON.
+
+    Not a citation — a claim built on other claims declares it, and doctor
+    walks the chain so an unsupported ancestor surfaces on every
+    load-bearing claim leaning on it (`inherited-unsupported`).
+    """
+
+
+@claim_derives.command("add")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.argument("ancestor_ids", metavar="ANCESTOR_ID", nargs=-1, required=True)
+def claim_derives_add(claim_id: str, ancestor_ids: tuple[str, ...]) -> None:
+    """Declare CLAIM_ID rests on one or more other claims."""
+    page, added = claims.add_claim_derivation(require_notebook_root(), claim_id,
+                                              list(ancestor_ids))
+    click.echo(f"{claim_id} derives from {', '.join(claims.derivation_ids(page.fm))} "
+               f"(+{len(added)})")
+
+
+@claim_derives.command("rm")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.argument("ancestor_id", metavar="ANCESTOR_ID")
+def claim_derives_rm(claim_id: str, ancestor_id: str) -> None:
+    """Drop a derivation edge from CLAIM_ID."""
+    page = claims.remove_claim_derivation(require_notebook_root(), claim_id, ancestor_id)
+    rests = ", ".join(claims.derivation_ids(page.fm)) or "nothing"
+    click.echo(f"{claim_id} derives from {rests}")
 
 
 @claim.command("stance")

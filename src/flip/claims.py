@@ -508,6 +508,9 @@ def add_claim(
     value: str | None = None,
     unit: str | None = None,
     subjects: list[str] | None = None,
+    absent_from: str | None = None,
+    surfaces: list[str] | None = None,
+    derives_from: list[str] | None = None,
 ) -> pages.Page:
     """Add a claim page with status "asserted", allocating the next C#.
 
@@ -520,11 +523,53 @@ def add_claim(
     made true or false by that document, so it never counts toward
     corroboration, and a claim citing subjects only carries no
     `independent_corroboration` key at all rather than a zero.
+
+    `absent_from` marks an ABSENCE claim — "looked and found nothing" as an
+    assertion the work leans on — and scopes it (SPEC §7): `corpus` speaks
+    only for what the notebook holds; anything wider must name the
+    `surfaces` searched, because the null's evidentiary weight IS its
+    search coverage. The claim then lives the full claim life: cited,
+    graded through its sources, probed (`flip claim test` against a
+    searched surface is "re-run the search"), superseded when the thing is
+    later found.
+
+    `derives_from` records that this claim RESTS ON other claims (SPEC §7):
+    a derivation edge, not a citation — doctor walks these so an
+    unsupported ancestor surfaces on every load-bearing claim built on it
+    instead of contaminating them silently.
     """
     root = util.require_notebook_root(root)
     text = (text or "").strip()
     if not text:
         raise SystemExit("empty claim text; state the assertion in one sentence")
+    named_surfaces = [str(s).strip() for s in (surfaces or []) if str(s).strip()]
+    if absent_from is not None:
+        if absent_from not in util.ABSENT_FROM:
+            raise SystemExit(
+                f"invalid absent_from '{absent_from}' "
+                f"(one of: {', '.join(util.ABSENT_FROM)})"
+            )
+        if absent_from != "corpus" and not named_surfaces:
+            raise SystemExit(
+                f"absent_from '{absent_from}' asserts more than this corpus; name the "
+                "surfaces searched (--surface, repeatable) or scope it to 'corpus'"
+            )
+    elif named_surfaces:
+        raise SystemExit("--surface given without --absent-from; pass both or neither")
+    if unit and value is None:
+        # Refused before allocate_id like every other validation: a refusal
+        # after allocation burns a C# forever (reservations are never freed).
+        raise SystemExit("--unit given without --value; pass both or neither")
+    ancestors = list(dict.fromkeys(
+        str(s).strip() for s in pages.as_list(derives_from) if str(s).strip()
+    ))
+    for ancestor in ancestors:
+        anc = pages.find_by_id(root, ancestor)
+        if anc is None or str(anc.fm.get("type", "")) != "Claim":
+            raise SystemExit(
+                f"unknown claim id '{ancestor}' for derives_from; a claim can only "
+                "derive from another claim page in this notebook"
+            )
     cited = [(str(s), "evidence") for s in pages.as_list(sources)]
     cited += [(str(s), "subject") for s in pages.as_list(subjects)]
     cited_ids = list(_group_refs(cited))  # excerpt refs collapse to their source
@@ -547,14 +592,19 @@ def add_claim(
     corroboration = claim_corroboration([p.fm for p in src_by_id.values()], fm)
     if corroboration is not None:
         fm["independent_corroboration"] = corroboration
+    if absent_from is not None:
+        absence: dict = {"scope": absent_from}
+        if named_surfaces:
+            absence["surfaces"] = named_surfaces
+        fm["absence"] = absence
+    if ancestors:
+        fm["derives_from"] = ancestors
     fm["first_asserted"] = util.today()
     fm["generated"] = util.generated_now()
     if value is not None:
         fm["value"] = str(value)
         if unit:
             fm["unit"] = str(unit)
-    elif unit:
-        raise SystemExit("--unit given without --value; pass both or neither")
     if notes:
         fm["notes"] = notes
 
@@ -952,6 +1002,116 @@ def remove_claim_source(root: Path, claim_id: str, source_id: str) -> pages.Page
         cites = ", ".join(s for s, _ in current) or "none"
         raise SystemExit(f"claim {claim_id} does not cite {ref} (cites: {cites})")
     return _write_sources(root, page, keep)
+
+
+def derivation_ids(fm: dict) -> list[str]:
+    """The claim ids this claim declares it rests on (`derives_from:`)."""
+    return [str(s) for s in pages.as_list(fm.get("derives_from"))]
+
+
+def unsupported_reason(fm: dict) -> str | None:
+    """Why this claim cannot support a claim derived from it, or None.
+
+    The DRIFT rule: an unsupported link contaminates everything built on it,
+    so the doctor walks derivation chains and needs one word for what it
+    finds. Discredited outright: status false-positive/retracted, or a
+    refuting exposure (misattributed/refuted). Unsupported: nothing backs it
+    — no evidence citations, no gating verification — and no severe test has
+    survived against it (a subject-only claim whose attribution probe
+    survived IS supported; the probe is its evidence).
+    """
+    status = str(fm.get("status", ""))
+    if status in ("false-positive", "retracted"):
+        return f"status {status}"
+    exposure = stance.derive_exposure(fm)
+    if exposure in stance.REFUTING_EXPOSURES:
+        return f"exposure {exposure}"
+    if exposure == "severely-tested":
+        return None
+    # evidence_ids, not a raw role scan: on a dual-role citation (same id as
+    # evidence and subject) the subject reading wins everywhere else, and the
+    # walk must agree with the count the corroboration machinery takes.
+    if not evidence_ids(fm) and not has_gating_verification(fm):
+        return "no evidence sources and no surviving verification"
+    return None
+
+
+def add_claim_derivation(
+    root: Path, claim_id: str, ancestor_ids: list[str]
+) -> tuple[pages.Page, list[str]]:
+    """Declare that a claim rests on others (post-hoc `derives_from` linker).
+
+    Refuses unknown ids, non-claims, self-derivation, and cycles — a
+    derivation loop would make every claim in it its own support. Returns
+    (page, newly-linked ids); refuses when nothing would change.
+    """
+    root = util.require_notebook_root(root)
+    wanted = list(dict.fromkeys(
+        str(s).strip() for s in pages.as_list(ancestor_ids) if str(s).strip()
+    ))
+    if not wanted:
+        raise SystemExit("no claim ids given; pass at least one C# to derive from")
+    page = _find_claim(root, claim_id)
+    current = derivation_ids(page.fm)
+    added = [a for a in wanted if a not in current]
+    if not added:
+        raise SystemExit(
+            f"claim {claim_id} already derives from {', '.join(wanted)}; nothing to add"
+        )
+    for ancestor in added:
+        if ancestor == page.id:
+            raise SystemExit(f"claim {claim_id} cannot derive from itself")
+        anc = pages.find_by_id(root, ancestor)
+        if anc is None or str(anc.fm.get("type", "")) != "Claim":
+            raise SystemExit(
+                f"unknown claim id '{ancestor}'; a claim can only derive from "
+                "another claim page in this notebook"
+            )
+        # Walk the ancestor's own chain: reaching this claim from it means the
+        # new edge would close a loop.
+        seen: set[str] = set()
+        frontier = [ancestor]
+        while frontier:
+            node = frontier.pop()
+            if node in seen:
+                continue
+            seen.add(node)
+            if node == page.id:
+                raise SystemExit(
+                    f"deriving {claim_id} from {ancestor} would close a cycle "
+                    f"({ancestor} already rests on {claim_id})"
+                )
+            node_page = pages.find_by_id(root, node)
+            if node_page is not None:
+                frontier.extend(derivation_ids(node_page.fm))
+    page.fm["derives_from"] = current + added
+    pages.write_page(page.path, page.fm, page.body)
+    manifest.touch_updated(root)
+    _regenerate_views(root)
+    return pages.Page(path=page.path, fm=page.fm, body=page.body), added
+
+
+def remove_claim_derivation(root: Path, claim_id: str, ancestor_id: str) -> pages.Page:
+    """Drop a `derives_from` edge. Refuses when the edge isn't there."""
+    root = util.require_notebook_root(root)
+    page = _find_claim(root, claim_id)
+    current = derivation_ids(page.fm)
+    ancestor_id = str(ancestor_id).strip()
+    if ancestor_id not in current:
+        rests = ", ".join(current) or "nothing"
+        raise SystemExit(
+            f"claim {claim_id} does not derive from {ancestor_id} "
+            f"(derives from: {rests})"
+        )
+    keep = [a for a in current if a != ancestor_id]
+    if keep:
+        page.fm["derives_from"] = keep
+    else:
+        page.fm.pop("derives_from", None)
+    pages.write_page(page.path, page.fm, page.body)
+    manifest.touch_updated(root)
+    _regenerate_views(root)
+    return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 
 def verify_claim(

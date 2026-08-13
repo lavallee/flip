@@ -1,3 +1,3 @@
 """flip — reporter's notebooks: git-friendly research corpora for humans and agents."""
 
-__version__ = "0.17.1"
+__version__ = "0.18.0"

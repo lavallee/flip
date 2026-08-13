@@ -83,6 +83,21 @@ def test_user_dir_single_file_and_directory_form_are_equivalent(tmp_path, monkey
     assert k1.contract[0].assembled_by == k2.contract[0].assembled_by == "some-render"
 
 
+def test_kind_contract_may_require_commissions(tmp_path, monkeypatch):
+    # commissions/ is a first-class entity dir; a kind can demand contracts
+    monkeypatch.setenv("FLIP_HOME", str(tmp_path / "fliphome"))
+    user_kinds = tmp_path / "fliphome" / "kinds"
+    user_kinds.mkdir(parents=True)
+    (user_kinds / "chained.toml").write_text(
+        'id = "chained"\nversion = "0.1"\nsummary = "commissioned follow-ups"\n\n'
+        '[[contract.require]]\nid = "k1"\nwhat = "a commission contract"\n'
+        'entity = "commissions"\nassembled_by = "the continuation section"\n',
+        encoding="utf-8",
+    )
+    k = kinds.load_kind("chained")
+    assert k.contract[0].entity == "commissions"
+
+
 def test_precedence_user_overrides_builtin(tmp_path, monkeypatch):
     monkeypatch.setenv("FLIP_HOME", str(tmp_path / "fliphome"))
     user_kinds = tmp_path / "fliphome" / "kinds"

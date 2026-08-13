@@ -492,6 +492,79 @@ def test_export_json_include_private_overrides_visibility(tmp_path):
     assert data["source_trail_public"] is True  # include_private ⇒ full trail
 
 
+def _add_journey_pages(root: Path) -> None:
+    """A question with journey keys, a claim with absence+derivation, and a
+    returned commission — the 0.18 additions the render contract splits by
+    version and trail."""
+    pages.write_page(
+        root / "questions" / "settled.md",
+        {"type": "Question", "id": "Q7", "aliases": ["Q7"],
+         "description": "settled?", "status": "closed",
+         "closed_reason": "dead-end", "review_by": "2027-01-01",
+         "reopen_when": ["a new filing lands"]},
+        "settled?\n",
+    )
+    pages.write_page(
+        root / "claims" / "null.md",
+        {"type": "Claim", "id": "C8", "aliases": ["C8"], "description": "no X",
+         "status": "asserted", "load_bearing": False,
+         "sources": [{"id": "A1"}],
+         "absence": {"scope": "named_surfaces", "surfaces": ["registry"]},
+         "derives_from": ["C1"]},
+        "no X\n",
+    )
+    pages.write_page(
+        root / "commissions" / "scan.md",
+        {"type": "Commission", "id": "K1", "aliases": ["K1"],
+         "description": "scan the corpus", "status": "returned",
+         "universe": "u", "stop": "s", "does_not_redo": "d",
+         "consumed": "the F3 capture and the 08-01 session sweep"},
+        "scan the corpus\n",
+    )
+
+
+def test_render_1_never_carries_the_018_keys(tmp_path):
+    # the compatibility surface: journey keys, absence/derivation, and the
+    # commissions array are /2 material; /1 keeps its shape
+    root = make_render_notebook(tmp_path / "nb", trail_public=True)
+    _add_journey_pages(root)
+    data = export_json(root)
+    assert data["contract"] == "flip-render/1"
+    assert "commissions" not in data
+    q7 = next(q for q in data["questions"] if q["id"] == "Q7")
+    for key in ("closed_reason", "review_by", "reopen_when"):
+        assert key not in q7
+    c8 = next(c for c in data["claims"] if c["id"] == "C8")
+    for key in ("absence", "derives_from"):
+        assert key not in c8
+
+
+def test_render_2_carries_journey_absence_derivation_and_commissions(tmp_path):
+    root = make_render_notebook(tmp_path / "nb", trail_public=True)
+    _add_journey_pages(root)
+    data = export_json(root, render_version=2)
+    q7 = next(q for q in data["questions"] if q["id"] == "Q7")
+    assert q7["closed_reason"] == "dead-end"
+    assert q7["review_by"] == "2027-01-01"
+    assert q7["reopen_when"] == ["a new filing lands"]
+    c8 = next(c for c in data["claims"] if c["id"] == "C8")
+    assert c8["absence"] == {"scope": "named_surfaces", "surfaces": ["registry"]}
+    assert c8["derives_from"] == ["C1"]
+    k1 = data["commissions"][0]
+    assert k1["id"] == "K1" and k1["slug"] == "scan"  # slug: renderers route by it
+    assert k1["consumed"].startswith("the F3 capture")  # full trail ships it
+
+
+def test_render_2_withholds_consumed_without_the_trail(tmp_path):
+    # `consumed` is work-trail material (it can name captures and session
+    # output the stripped export withholds); the contract fields still ship
+    root = make_render_notebook(tmp_path / "nb", trail_public=False)
+    _add_journey_pages(root)
+    k1 = export_json(root, render_version=2)["commissions"][0]
+    assert "consumed" not in k1
+    assert k1["universe"] == "u" and k1["status"] == "returned"
+
+
 def test_export_json_notebook_identity_and_contract(tmp_path):
     data = export_json(make_render_notebook(tmp_path / "nb"))
     assert data["contract"] == "flip-render/1"

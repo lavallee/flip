@@ -53,6 +53,7 @@ _DIR_TITLES = {
     "decisions": "Decisions",
     "questions": "Questions",
     "forecasts": "Forecasts",
+    "commissions": "Commissions",
     "sessions": "Sessions",
 }
 
@@ -98,28 +99,90 @@ def _profile_or_default(m: Manifest, root: Path) -> Profile:
 
 
 def _question_text(page: pages.Page) -> str:
-    """The question text: the body up to any ## Answer, else the description."""
+    """The current question text: the body's lead prose up to the first '##'
+    section (## Answer, or a dated Evidence/Re-posed/Closed/Dormant/Reopened
+    block), else the description."""
     body = page.body.lstrip("\n")
-    if body.startswith("## Answer"):
-        body = ""
-    body = body.split("\n## Answer", 1)[0].strip()
-    return body or str(page.fm.get("description", ""))
+    if body.startswith("## "):
+        return str(page.fm.get("description", ""))
+    head = body.split("\n## ", 1)[0].strip()
+    return head or str(page.fm.get("description", ""))
+
+
+def _today() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _review_pending(review_by: str) -> bool:
+    """True while a dormant question's review date is still in the future.
+
+    An unparseable or missing `review_by` returns False — the question lands
+    on the roster NOW rather than being hidden by a value nobody can read
+    (a lexicographic compare against garbage like "Q3 2026" would park it
+    forever; failing loud onto the roster is the honest degradation).
+    """
+    try:
+        return datetime.strptime(review_by, "%Y-%m-%d").strftime("%Y-%m-%d") > _today()
+    except ValueError:
+        return False
 
 
 def _open_questions(root: Path) -> list[dict]:
-    """Question pages whose status is not "answered" (missing status = open)."""
+    """Question pages still on the working roster (missing status = open).
+
+    Open questions always; dormant ones only once their `review_by` date has
+    arrived (that is what parking means — before the date they stay out of
+    the view, after it they resurface marked "review due"). Answered and
+    closed pages never appear here; the ones with armed reopen triggers get
+    their own view (_reopen_armed). A status OUTSIDE the vocabulary stays on
+    the roster — a typo must degrade to visible (doctor names the bad enum),
+    never to a question silently missing from every surface.
+    """
     out = []
     for page in _pages(root, "questions"):
         if str(page.fm.get("type", "")) != "Question":
             continue
-        if str(page.fm.get("status", "open")) == "answered":
+        status = str(page.fm.get("status", "open"))
+        review_by = str(page.fm.get("review_by", ""))
+        if status in ("answered", "closed"):
+            continue
+        if status == "dormant" and _review_pending(review_by):
+            continue
+        row = {
+            "id": page.id,
+            "text": _question_text(page),
+            "ts": pages.generated_at(page.fm),
+            "resolves_via": [str(s) for s in pages.as_list(page.fm.get("resolves_via"))],
+        }
+        if status == "dormant":
+            row["status"] = status
+            row["review_by"] = review_by
+        out.append(row)
+    out.sort(key=lambda q: _id_num(q["id"]))
+    return out
+
+
+def _reopen_armed(root: Path) -> list[dict]:
+    """Settled questions (answered/closed) whose reopen_when triggers are armed.
+
+    These are watchable, not dead: the row carries the written conditions so
+    the view can show what would reopen each one.
+    """
+    out = []
+    for page in _pages(root, "questions"):
+        if str(page.fm.get("type", "")) != "Question":
+            continue
+        if str(page.fm.get("status", "open")) not in ("answered", "closed"):
+            continue
+        triggers = [str(t) for t in pages.as_list(page.fm.get("reopen_when"))]
+        if not triggers:
             continue
         out.append(
             {
                 "id": page.id,
+                "status": str(page.fm.get("status")),
                 "text": _question_text(page),
-                "ts": pages.generated_at(page.fm),
-                "resolves_via": [str(s) for s in pages.as_list(page.fm.get("resolves_via"))],
+                "reopen_when": triggers,
             }
         )
     out.sort(key=lambda q: _id_num(q["id"]))
@@ -226,6 +289,7 @@ def hot_view(root: Path, as_data: bool = False) -> str | dict:
     m = load_manifest(root)
     profile = _profile_or_default(m, root)
     questions = _open_questions(root)
+    armed = _reopen_armed(root)
     claims = _claims_needing_work(root)
     recent = _read(root, LOG_JSONL)[-RECENT_LOG_COUNT:]
     session = _latest_session(root)
@@ -239,6 +303,7 @@ def hot_view(root: Path, as_data: bool = False) -> str | dict:
             "updated": m.updated,
             "idle_days": idle,
             "open_questions": questions,
+            "reopen_armed": armed,
             "claims_needing_work": claims,
             "recent_log": recent,
             "latest_session": session,
@@ -247,10 +312,18 @@ def hot_view(root: Path, as_data: bool = False) -> str | dict:
     lines = [" · ".join([m.slug, m.kind, m.status + _idle_suffix(idle), m.updated])]
     if questions:
         lines += ["", "OPEN QUESTIONS"]
+        for q in questions:
+            marker = ""
+            if q.get("status") == "dormant":
+                marker = f"  [dormant · review due {q.get('review_by', '')}]"
+            elif not q.get("resolves_via"):
+                marker = "  [unwatched — no resolves_via surface]"
+            lines.append(f"  {q['id']} · {_trunc(q['text'])}" + marker)
+    if armed:
+        lines += ["", "REOPEN TRIGGERS ARMED"]
         lines += [
-            f"  {q['id']} · {_trunc(q['text'])}"
-            + ("" if q.get("resolves_via") else "  [unwatched — no resolves_via surface]")
-            for q in questions
+            f"  {q['id']} · {q['status']} · when: {_trunc('; '.join(q['reopen_when']))}"
+            for q in armed
         ]
     if claims:
         lines += ["", "CLAIMS NEEDING WORK"]
@@ -408,12 +481,17 @@ def _current_question_text(page: pages.Page) -> str:
 
 def _open_questions_roster(root: Path) -> list[dict]:
     """Open questions with their re-pose count (len of the formulations
-    history), id order — the roster view's per-notebook question list."""
+    history), id order — the roster view's per-notebook question list.
+    Same roster rule as `flip show`: open always, dormant only once its
+    review date arrives, answered/closed never, unknown statuses visible."""
     out = []
     for page in _pages(root, "questions"):
         if str(page.fm.get("type", "")) != "Question":
             continue
-        if str(page.fm.get("status", "open")) == "answered":
+        status = str(page.fm.get("status", "open"))
+        if status in ("answered", "closed"):
+            continue
+        if status == "dormant" and _review_pending(str(page.fm.get("review_by", ""))):
             continue
         out.append(
             {
@@ -687,6 +765,11 @@ def _root_body(root: Path, m: Manifest, events: list[dict]) -> str:
         bullets.append(
             f"* [Forecasts](forecasts/) - {_count(counts['forecasts'], 'forecast page')} "
             "with dates and scoring"
+        )
+    if "commissions" in counts:
+        bullets.append(
+            f"* [Commissions](commissions/) - "
+            f"{_count(counts['commissions'], 'contract')} with lifecycle"
         )
     if "sessions" in counts:
         bullets.append(f"* [Sessions](sessions/) - {_count(counts['sessions'], 'work session')}")

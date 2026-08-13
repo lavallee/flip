@@ -46,7 +46,8 @@ KIND_ID_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 # Where a contract requirement's `entity` can count pages from — the entity
 # dirs flip already scans (SPEC §9), plus "files" for a plain path/glob check
 # against the notebook root (a required sibling file, e.g. criteria.md).
-ENTITY_DIRS = ("references", "claims", "questions", "decisions", "forecasts", "sessions")
+ENTITY_DIRS = ("references", "claims", "questions", "decisions", "forecasts",
+               "commissions", "sessions")
 ENTITY_KINDS = (*ENTITY_DIRS, "files")
 
 ORIGINS = ("built-in", "user", "notebook", "profile")
@@ -436,7 +437,7 @@ Describe the outcome here: what it is, and what it protects against.
 [[contract.require]]
 id           = "example-requirement"  # short, stable — cited in doctor findings
 what         = "Plain-language description of what must exist, and why."
-entity       = "references"           # references|claims|questions|decisions|sessions|files
+entity       = "references"           # references|claims|questions|decisions|forecasts|commissions|sessions|files
 # field      = "support.basis"        # optional: a dotted frontmatter path to
                                        # check for a non-empty value on each
                                        # page of `entity`; omit to just count

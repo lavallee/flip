@@ -114,6 +114,108 @@ def test_add_claim_shape_and_corroboration(sourced: Path):
     assert pages.read_page(page.path).fm == fm
 
 
+def test_add_claim_absence_corpus_scope(sourced: Path):
+    page = claims.add_claim(sourced, "no filing names the trust", ["A1"],
+                            absent_from="corpus")
+    assert page.fm["absence"] == {"scope": "corpus"}
+
+
+def test_add_claim_absence_named_surfaces_records_coverage(sourced: Path):
+    page = claims.add_claim(
+        sourced, "no registry entry exists", ["A1"],
+        absent_from="named_surfaces",
+        surfaces=["state registry", "court index", "  "],
+    )
+    assert page.fm["absence"] == {
+        "scope": "named_surfaces",
+        "surfaces": ["state registry", "court index"],
+    }
+
+
+def test_add_claim_absence_beyond_corpus_requires_surfaces(sourced: Path):
+    with pytest.raises(SystemExit, match="asserts more than this corpus"):
+        claims.add_claim(sourced, "nothing anywhere", ["A1"],
+                         absent_from="named_surfaces")
+
+
+def test_add_claim_surface_without_scope_raises(sourced: Path):
+    with pytest.raises(SystemExit, match="--surface given without --absent-from"):
+        claims.add_claim(sourced, "text", ["A1"], surfaces=["somewhere"])
+
+
+def test_add_claim_invalid_absence_scope_raises(sourced: Path):
+    with pytest.raises(SystemExit, match="invalid absent_from 'universe'"):
+        claims.add_claim(sourced, "text", ["A1"], absent_from="universe")
+
+
+def test_add_claim_without_absence_writes_no_key(sourced: Path):
+    page = claims.add_claim(sourced, "the sky is blue", ["A1"])
+    assert "absence" not in page.fm
+
+
+def test_add_claim_derives_from_records_edges(sourced: Path):
+    claims.add_claim(sourced, "base finding", ["A1"])
+    page = claims.add_claim(sourced, "built on it", ["A1"], derives_from=["C1"])
+    assert page.fm["derives_from"] == ["C1"]
+
+
+def test_add_claim_derives_from_unknown_or_nonclaim_raises(sourced: Path):
+    with pytest.raises(SystemExit, match="unknown claim id 'C9'"):
+        claims.add_claim(sourced, "text", ["A1"], derives_from=["C9"])
+    with pytest.raises(SystemExit, match="unknown claim id 'A1'"):
+        claims.add_claim(sourced, "text", ["A1"], derives_from=["A1"])
+
+
+def test_claim_derivation_post_hoc_add_and_rm(sourced: Path):
+    claims.add_claim(sourced, "base", ["A1"])
+    claims.add_claim(sourced, "middle", ["A1"])
+    page, added = claims.add_claim_derivation(sourced, "C2", ["C1"])
+    assert added == ["C1"] and page.fm["derives_from"] == ["C1"]
+    with pytest.raises(SystemExit, match="already derives from C1"):
+        claims.add_claim_derivation(sourced, "C2", ["C1"])
+    page = claims.remove_claim_derivation(sourced, "C2", "C1")
+    assert "derives_from" not in page.fm
+    with pytest.raises(SystemExit, match="does not derive from C1"):
+        claims.remove_claim_derivation(sourced, "C2", "C1")
+
+
+def test_claim_derivation_refuses_self_and_cycles(sourced: Path):
+    claims.add_claim(sourced, "base", ["A1"])
+    claims.add_claim(sourced, "middle", ["A1"], derives_from=["C1"])
+    with pytest.raises(SystemExit, match="cannot derive from itself"):
+        claims.add_claim_derivation(sourced, "C1", ["C1"])
+    with pytest.raises(SystemExit, match="would close a cycle"):
+        claims.add_claim_derivation(sourced, "C1", ["C2"])  # C2 rests on C1
+
+
+def test_unit_without_value_refused_before_id_allocation(sourced: Path):
+    # a refusal after allocate_id would burn a C# forever (ids never reused)
+    with pytest.raises(SystemExit, match="--unit given without --value"):
+        claims.add_claim(sourced, "quant", ["A1"], unit="ms")
+    assert claims.add_claim(sourced, "next", ["A1"]).fm["id"] == "C1"
+
+
+def test_unsupported_reason_dual_role_citation_counts_like_corroboration(sourced: Path):
+    # same id cited as evidence AND subject: subject wins everywhere else
+    # (evidence_ids collapses it), so the derivation walk must agree
+    fm = {"id": "C1", "status": "asserted",
+          "sources": [{"id": "A1"}, {"id": "A1", "role": "subject"}]}
+    assert claims.evidence_ids(fm) == []
+    assert claims.unsupported_reason(fm) == \
+        "no evidence sources and no surviving verification"
+
+
+def test_unsupported_reason_vocabulary(sourced: Path):
+    supported = claims.add_claim(sourced, "well backed", ["A1"])
+    assert claims.unsupported_reason(supported.fm) is None
+    bare = claims.add_claim(sourced, "nothing backs this", [])
+    assert claims.unsupported_reason(bare.fm) == \
+        "no evidence sources and no surviving verification"
+    retracted = claims.add_claim(sourced, "walked back", ["A1"])
+    retracted.fm["status"] = "retracted"
+    assert claims.unsupported_reason(retracted.fm) == "status retracted"
+
+
 def test_add_claim_body_has_text_notes_and_citations(sourced: Path):
     page = claims.add_claim(
         sourced, "the sky is blue", ["A1", "ZZ9"], notes="single vendor study"

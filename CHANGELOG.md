@@ -6,6 +6,103 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-08-12
+
+The question-journey release (profile 0.9, design receipts in the
+project's own notebook). Everything here promotes what a month of
+manual, explicitly-guided pursuit practice already did by hand — dated
+evidence updates on open questions, scope verdicts, reopen conditions,
+coverage-scoped nulls, four-field commission contracts — into typed,
+doctor-checked records, informed by a literature/code review of how the
+field pursues, stops, and grades research questions. Hardened by an
+adversarial review pass before merge: eight findings confirmed with live
+repros (a commission status command that could mutate foreign entity
+pages; doctor asserting phantom derivation edges; hand-edited review
+dates parking questions forever), all fixed, each pinned by a regression
+test — see the Fixed section.
+
+### Added
+
+- **The question journey.** A question page can now tell its whole story:
+  `flip question note Q#` accretes dated `## Evidence` sections without
+  touching status — `--answers as-worded|narrower|adjacent` records
+  whether evidence answered the question *as worded* (a narrower answer
+  stays on an open question instead of closing it), and `--zero-yield
+  saturated|bad-reformulation|corpus-gap|entity-collision` records an
+  empty probe WITH its cause, because a single zero round is
+  indistinguishable from saturation and only tagged zero rounds may count
+  toward stopping. `flip question close --reason
+  split|yielded|counter-example|dead-end|superseded` records the honest
+  ends that aren't answers; `dormant --until` parks with a review date
+  (`flip show` resurfaces it when due); `--reopen-when` on answer/close
+  arms written un-stop conditions (`flip show` lists them under REOPEN
+  TRIGGERS ARMED), and `reopen --because` restores open with the whole
+  journey — old answer included — still on the page. `repose` gains
+  `--sharpened scope|falsifiability|decomposability|evidence-anchored`
+  (+`--note`): instrumentation on the formulation history, recorded and
+  never scored.
+- **Absence claims.** `flip claim add --absent-from
+  corpus|named_surfaces|world [--surface …]` makes "looked and found
+  nothing" a first-class claim carrying its search coverage — the null's
+  evidentiary weight IS its coverage, the same rule the passed ledger
+  already enforced. Doctor's `world-absence` names a load-bearing absence
+  scoped to `world` (no search can witness one).
+- **Derivation edges.** `flip claim add --derives-from C#` / `flip claim
+  derives add|rm` declare what a claim RESTS ON (cycles refused). Doctor
+  walks the chain: `inherited-unsupported` surfaces every ancestor a
+  load-bearing claim leans on that cannot carry it; `dangling-derivation`
+  flags edges to missing pages.
+- **Commission contracts.** `commissions/<slug>.md` (ids K#): bounded
+  follow-up work written as a contract before dispatch — input universe,
+  deliverable, stop condition, does-not-redo boundary, all required;
+  optional ROI band whose low bound is the quoted expectation. Lifecycle
+  `proposed → dispatched → returned|declined`; returns carry `--consumed`,
+  the receipt that keeps continuation chains auditable. Nothing
+  dispatches; pages record contracts and outcomes.
+- **Render contract.** flip-render/2 gains `commissions`, question journey
+  keys (`closed_reason`/`review_by`/`reopen_when`), and claim
+  `absence`/`derives_from`; render/1 stays byte-stable.
+
+### Changed
+
+- Profile `flip:` 0.8 → 0.9 (all additive; `flip migrate` restamps a 0.8
+  notebook without touching pages). Question statuses extend to
+  `open|answered|closed|dormant`; `questions list` gains `--status`.
+- flip-render/1 keeps its shape byte-stable (now pinned by contract
+  tests), but the question `status` value domain widened: /1 consumers
+  must treat any status other than `open` as settled rather than
+  assuming not-answered means open (SPEC §17 note).
+
+### Fixed
+
+All from the pre-merge adversarial review (8 confirmed / 0 refuted):
+
+- `flip commission status` refused non-commission pages — a typo'd id
+  (H1, C1) was handed whatever page resolved and mutated it. K#-shaped
+  ids required at the CLI; type checked at the module.
+- `answer` refuses closed questions (reopen first — the mirror of close
+  refusing answered), drops a dormant page's stale `review_by`, and logs
+  a `question-answer` event like every sibling transition.
+- `dangling-derivation` fires only on the claim whose own `derives_from`
+  carries the unknown id; doctor no longer asserts phantom edges on
+  descendants with a suggested fix that fails.
+- Doctor audits the new vocabularies: question status and closed_reason
+  (`bad-enum`), `undated-dormant` for missing/unreadable review dates,
+  commission status, commissions/ id integrity, absence scope
+  (`bad-enum`) and `unscoped-absence` (beyond corpus, no surfaces).
+- Views degrade loud: an unknown question status stays on the roster
+  instead of vanishing from every surface; an unreadable `review_by`
+  counts as due-now instead of lexicographically parking the question
+  forever; the root index.md lists commissions/ so bundle consumers can
+  reach the pages by link.
+- `unsupported_reason` counts evidence via `evidence_ids` (dual-role
+  citations collapse subject-wins, agreeing with corroboration);
+  `--unit` without `--value` is refused before id allocation (no more
+  permanently burned C#s); a kind contract may require commissions/;
+  `dormant --until` validates real calendar dates; the `consumed`
+  receipt rides only with the full source trail; commission render nodes
+  carry `slug`.
+
 ## [0.17.1] — 2026-08-12
 
 Both entries below came out of one research session that went wrong in the
