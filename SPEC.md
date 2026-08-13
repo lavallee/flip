@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.17 · 2026-08-10
+**Status:** draft v0.18 · 2026-08-12
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.

@@ -1,7 +1,7 @@
 window.__FLIP_META__ = {
-  "generated": "2026-08-13T02:37:50+00:00",
-  "version": "0.17.1",
-  "revision": "206f011",
+  "generated": "2026-08-13T02:41:53+00:00",
+  "version": "0.18.0",
+  "revision": "5fd1fbd",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",
