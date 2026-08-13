@@ -188,6 +188,23 @@ def test_claim_derivation_refuses_self_and_cycles(sourced: Path):
         claims.add_claim_derivation(sourced, "C1", ["C2"])  # C2 rests on C1
 
 
+def test_unit_without_value_refused_before_id_allocation(sourced: Path):
+    # a refusal after allocate_id would burn a C# forever (ids never reused)
+    with pytest.raises(SystemExit, match="--unit given without --value"):
+        claims.add_claim(sourced, "quant", ["A1"], unit="ms")
+    assert claims.add_claim(sourced, "next", ["A1"]).fm["id"] == "C1"
+
+
+def test_unsupported_reason_dual_role_citation_counts_like_corroboration(sourced: Path):
+    # same id cited as evidence AND subject: subject wins everywhere else
+    # (evidence_ids collapses it), so the derivation walk must agree
+    fm = {"id": "C1", "status": "asserted",
+          "sources": [{"id": "A1"}, {"id": "A1", "role": "subject"}]}
+    assert claims.evidence_ids(fm) == []
+    assert claims.unsupported_reason(fm) == \
+        "no evidence sources and no surviving verification"
+
+
 def test_unsupported_reason_vocabulary(sourced: Path):
     supported = claims.add_claim(sourced, "well backed", ["A1"])
     assert claims.unsupported_reason(supported.fm) is None

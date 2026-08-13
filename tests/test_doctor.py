@@ -169,6 +169,21 @@ def claim_page(
     )
 
 
+def question_page_d(root: Path, qid: str, status: str = "open", **extra) -> Path:
+    fm = {
+        "type": "Question",
+        "id": qid,
+        "aliases": [qid],
+        "description": f"question {qid}",
+        "status": status,
+        "generated": {"by": "human:test", "at": "2026-08-13T00:00:00Z"},
+        **extra,
+    }
+    return pages.write_page(
+        root / "questions" / f"{qid.lower()}-q.md", fm, f"question {qid}\n"
+    )
+
+
 def codes(findings: list[Finding], level: str | None = None) -> list[str]:
     return [f.code for f in findings if level is None or f.level == level]
 
@@ -765,6 +780,101 @@ def test_derivation_cycle_does_not_hang_doctor(tmp_path):
     claim_page(root, "C2", derives_from=["C1"])
     findings = run_doctor(root)  # terminates
     assert "inherited-unsupported" in codes(findings)
+
+
+def test_dangling_derivation_reported_only_on_the_owning_claim(tmp_path):
+    # one bad edge on C1 in a C3->C2->C1 chain: exactly one finding, on C1,
+    # whose suggested `derives rm` command actually works — never phantom
+    # edges asserted on descendants
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent")
+    claim_page(root, "C1", sources=["A1"], corroboration=1, derives_from=["C99"])
+    claim_page(root, "C2", sources=["A1"], corroboration=1, derives_from=["C1"])
+    claim_page(root, "C3", load_bearing=True, sources=["A1"], corroboration=1,
+               derives_from=["C2"])
+    dangling = [f for f in run_doctor(root) if f.code == "dangling-derivation"]
+    assert len(dangling) == 1
+    assert "claim C1 derives from 'C99'" in dangling[0].message
+    assert "derives rm C1 C99" in dangling[0].message
+
+
+def test_question_status_typo_is_bad_enum(tmp_path):
+    root = make_notebook(tmp_path)
+    question_page_d(root, "Q1", status="dormamt")
+    findings = run_doctor(root)
+    bad = [f for f in findings if f.code == "bad-enum" and "question Q1" in f.message]
+    assert bad and "dormamt" in bad[0].message
+
+
+def test_question_closed_reason_typo_is_bad_enum(tmp_path):
+    root = make_notebook(tmp_path)
+    question_page_d(root, "Q1", status="closed", closed_reason="boring")
+    findings = run_doctor(root)
+    assert any(f.code == "bad-enum" and "closed_reason 'boring'" in f.message
+               for f in findings)
+
+
+def test_dormant_without_readable_review_by_warns(tmp_path):
+    root = make_notebook(tmp_path)
+    question_page_d(root, "Q1", status="dormant", review_by="Q3 2026")
+    question_page_d(root, "Q2", status="dormant")
+    findings = run_doctor(root)
+    undated = [f for f in findings if f.code == "undated-dormant"]
+    assert len(undated) == 2
+    assert any("unreadable review_by 'Q3 2026'" in f.message for f in undated)
+    assert any("no review_by" in f.message for f in undated)
+
+
+def test_dormant_with_valid_review_by_is_silent(tmp_path):
+    root = make_notebook(tmp_path)
+    question_page_d(root, "Q1", status="dormant", review_by="2027-01-01")
+    assert "undated-dormant" not in codes(run_doctor(root))
+
+
+def test_commission_status_typo_is_bad_enum_and_id_checks_cover_commissions(tmp_path):
+    root = make_notebook(tmp_path)
+    pages.write_page(
+        root / "commissions" / "scan.md",
+        {"type": "Commission", "id": "K1", "aliases": ["K1"],
+         "description": "scan", "status": "dispathed", "universe": "u",
+         "stop": "s", "does_not_redo": "d",
+         "generated": {"by": "human:test", "at": "2026-08-13T00:00:00Z"}},
+        "scan\n",
+    )
+    findings = run_doctor(root)
+    assert any(f.code == "bad-enum" and "commission K1" in f.message
+               and "dispathed" in f.message for f in findings)
+    # id integrity now covers commissions/: strip the id and doctor says so
+    page = pages.read_page(root / "commissions" / "scan.md")
+    for key in ("id", "aliases"):
+        page.fm.pop(key, None)
+    page.fm["status"] = "proposed"
+    pages.write_page(root / "commissions" / "scan.md", page.fm, page.body)
+    assert "missing-id" in codes(run_doctor(root))
+
+
+def test_absence_scope_typo_is_bad_enum_on_any_claim(tmp_path):
+    root = make_notebook(tmp_path)
+    claim_page(root, "C1", load_bearing=False, absence={"scope": "everywhere"})
+    findings = run_doctor(root)
+    assert any(f.code == "bad-enum" and "absence scope 'everywhere'" in f.message
+               for f in findings)
+
+
+def test_absence_beyond_corpus_without_surfaces_warns(tmp_path):
+    root = make_notebook(tmp_path)
+    claim_page(root, "C1", load_bearing=False,
+               absence={"scope": "named_surfaces"})
+    assert "unscoped-absence" in codes(run_doctor(root), "WARN")
+
+
+def test_absence_with_surfaces_is_silent(tmp_path):
+    root = make_notebook(tmp_path)
+    claim_page(root, "C1", load_bearing=False,
+               absence={"scope": "named_surfaces", "surfaces": ["registry"]})
+    findings = run_doctor(root)
+    assert "unscoped-absence" not in codes(findings)
+    assert not any(f.code == "bad-enum" and "absence" in f.message for f in findings)
 
 
 def test_invalid_claim_status_is_error(tmp_path):

@@ -167,3 +167,19 @@ def test_commission_id_never_reused_after_deletion(root: Path):
 def test_commission_resolves_by_id(root: Path):
     p = add(root)
     assert pages.find_by_id(root, "K1").path == p.path
+
+
+def test_commission_appears_in_root_index_listing(root: Path):
+    add(root)
+    index = (root / "index.md").read_text(encoding="utf-8")
+    assert "* [Commissions](commissions/) - 1 contract with lifecycle" in index
+
+
+def test_status_refuses_non_commission_pages(root: Path):
+    # find_by_id resolves across every dir; without the type guard a typo'd
+    # id would hand the lifecycle a foreign page to mutate
+    add(root)
+    qpage = ledgers.add_question(root, "which rows changed?")
+    with pytest.raises(SystemExit, match="'Q1' is Question .*not a commission"):
+        commissions.set_commission_status(root, "Q1", "dispatched")
+    assert pages.read_page(qpage.path).fm["status"] == "open"  # untouched

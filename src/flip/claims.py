@@ -556,6 +556,10 @@ def add_claim(
             )
     elif named_surfaces:
         raise SystemExit("--surface given without --absent-from; pass both or neither")
+    if unit and value is None:
+        # Refused before allocate_id like every other validation: a refusal
+        # after allocation burns a C# forever (reservations are never freed).
+        raise SystemExit("--unit given without --value; pass both or neither")
     ancestors = list(dict.fromkeys(
         str(s).strip() for s in pages.as_list(derives_from) if str(s).strip()
     ))
@@ -601,8 +605,6 @@ def add_claim(
         fm["value"] = str(value)
         if unit:
             fm["unit"] = str(unit)
-    elif unit:
-        raise SystemExit("--unit given without --value; pass both or neither")
     if notes:
         fm["notes"] = notes
 
@@ -1026,8 +1028,10 @@ def unsupported_reason(fm: dict) -> str | None:
         return f"exposure {exposure}"
     if exposure == "severely-tested":
         return None
-    evidence = [ref for ref, role in source_citations(fm) if role == "evidence"]
-    if not evidence and not has_gating_verification(fm):
+    # evidence_ids, not a raw role scan: on a dual-role citation (same id as
+    # evidence and subject) the subject reading wins everywhere else, and the
+    # walk must agree with the count the corroboration machinery takes.
+    if not evidence_ids(fm) and not has_gating_verification(fm):
         return "no evidence sources and no surviving verification"
     return None
 

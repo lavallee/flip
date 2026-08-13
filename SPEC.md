@@ -608,8 +608,10 @@ Extension vocabulary summary — flip's frontmatter keys beyond OKF v0.2's
 `independence`, `freshness`, `local`, `sha256` (on export), `date`,
 `authors`, `publisher`, `load_bearing`, `independent_corroboration`,
 `first_asserted`, `question`, `alternatives_rejected`, `model`, `tools`,
-`started`, `ended`, `closed_reason`, `review_by`, `reopen_when`, `absence`,
-`derives_from`, `universe`, `stop`, `does_not_redo`, `consumed` — plus
+`started`, `ended`, `resolves_via`, `formulations`, `answered`,
+`answered_by`, `closed`, `closed_by`, `closed_reason`, `review_by`,
+`reopen_when`, `absence`, `derives_from`, `universe`, `stop`,
+`does_not_redo`, `for`, `roi_low`, `roi_high`, `consumed` — plus
 extension keys *inside* OKF structures: `method`,
 `against`, and `note` on `verified` events, and `sharpened`/`note` on
 `formulations` entries. flip's `status` vocabularies
@@ -667,7 +669,7 @@ names the policy *area* its output needs filled, never a specific
 discipline; the default is a suggestion, informational until the
 notebook declares disciplines.
 
-## 7. Claims and forecasts — the two-object rule
+## 7. The working record — claims, questions, forecasts, commissions
 
 ```markdown
 ---
@@ -1156,6 +1158,8 @@ placeholder satisfies it, exactly as a ritual falsifier satisfies the stance
 gate, and the answer is the same in both cases — flip records presence, the
 reader judges content, and the record is at least inspectable.
 
+### 7.2 Decisions and questions — the question journey
+
 Decisions and questions follow the same shape: `decisions/<slug>.md`
 (`type: Decision` — `question`, decision text, why, `alternatives_rejected`)
 and `questions/<slug>.md` (`type: Question` — `status: open | answered |
@@ -1200,7 +1204,7 @@ it; `flip show` lists armed pages under **REOPEN TRIGGERS ARMED**, and
 the whole journey — the old answer included — stays on the page.
 
 
-### Forecasts — `forecasts/<slug>.md` (FC#) and clusters (CL#)
+### 7.3 Forecasts — `forecasts/<slug>.md` (FC#) and clusters (CL#)
 
 A backward notebook fights staleness; a forward notebook **accrues
 credibility through resolution**. The two-object rule is the load-bearing
@@ -1242,7 +1246,7 @@ discipline extras: at least three dated forecasts and a naive baseline
 declared in `baseline.md` **before** the first resolution — the only time
 declaring it is worth anything.
 
-### 7.2 Commissions — bounded follow-up work as a contract
+### 7.4 Commissions — bounded follow-up work as a contract
 
 ```markdown
 ---
@@ -1587,7 +1591,7 @@ flip question note|close|dormant|    # the question journey (§7): evidence accr
               reopen …               #   honest ends, review dates, reopen triggers
 flip claim add|status|list …         # claims pages; verification bar enforced
 flip claim derives add|rm …          # derivation edges: what a claim rests on (§7)
-flip commission add|status|list …    # contract pages: universe/stop/does-not-redo (§7.2)
+flip commission add|status|list …    # contract pages: universe/stop/does-not-redo (§7.4)
 flip session start|end …             # session pages
 flip show [--hot|--claims|--stale]   # computed views (--json for agents)
 flip open <ref>                      # resolve a ref (A3, recipes:A3) to its page path
@@ -1753,14 +1757,24 @@ documentation, or portable skills.
   withheld data is withheld data. Deterministic key order and id-sorted
   entities make it diffable; only `generated` varies.
   **`flip-render/2`** is a superset (`--render-version 2`): support tuples,
-  pipeline and provenance state on sources; `value`/`unit` on claims;
-  `forecasts`; `work` (§10); and **`drafts`** (§11) — both the flat shape and
+  pipeline and provenance state on sources; `value`/`unit`, `absence`, and
+  `derives_from` on claims; question journey keys (`closed_reason`,
+  `review_by`, `reopen_when`); `forecasts`; `commissions` (§7.4 — the
+  `consumed` receipt rides only with the full source trail, following the
+  sessions/log policy: it is free text about what a run consumed and can
+  name work-trail material the same export withholds); `work` (§10); and
+  **`drafts`** (§11) — both the flat shape and
   the versioned `drafts/v1/` shape, with a `current` symlink skipped so a
   version is never emitted twice. `drafts` rides the private lane only: it is
   populated under `--include-private` and empty otherwise, because drafts are
   unfinished prose that `export okf` already withholds from outside-facing
   bundles, and going public must not publish them. The key is always present
   under /2 so consumers can iterate without a key check.
+  One vocabulary note for `flip-render/1` consumers: the question `status`
+  value domain widened at profile 0.9 (`closed`, `dormant` join
+  `open`/`answered`); /1 keeps its shape byte-stable and never gains the
+  interpreting keys, so a /1 consumer must treat any status other than
+  `open` as settled work rather than assuming not-answered means open.
 - **BagIt** bag for cold archival (`flip export bag`).
 - **CSL JSON** from references for citation managers (`flip export csl`).
 - **RO-Crate** envelope, **W3C Web Annotation** anchors: future projections.

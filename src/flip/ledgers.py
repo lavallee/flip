@@ -18,6 +18,7 @@ Two kinds of record live here, per the v0.4 split:
 from __future__ import annotations
 
 import re
+from datetime import date
 from pathlib import Path
 
 from . import manifest, pages, util, views
@@ -82,6 +83,12 @@ ZERO_YIELD_CAUSES = ("saturated", "bad-reformulation", "corpus-gap", "entity-col
 # How a question leaves the world other than being answered. `answered`
 # stays its own status with its own path (`flip question answer`).
 CLOSED_REASONS = ("split", "yielded", "counter-example", "dead-end", "superseded")
+
+# Everything a question's `status:` may say (SPEC §7). Doctor audits pages
+# against this; the views deliberately show UNKNOWN statuses on the working
+# roster rather than hiding them — a typo degrades to visible, never to a
+# question silently missing from every surface.
+QUESTION_STATUSES = ("open", "answered", "closed", "dormant")
 
 # What a re-pose sharpened. Recorded, never scored: the axes instrument the
 # journey so sharpening becomes measurable later (SPEC §7).
@@ -271,16 +278,27 @@ def answer_question(
     function owns change; foreign frontmatter keys and the body survive. When
     `note` is given it is appended to the body under an `## Answer` heading.
     `reopen_when` arms written reopen triggers (`reopen_when:` on the page) —
-    the conditions under which this answer should be revisited. The page's
+    the conditions under which this answer should be revisited. A closed
+    question refuses answering (its end is already recorded — reopen first,
+    the mirror of close_question refusing answered pages); a dormant one
+    answers directly, dropping its now-stale `review_by`. The page's
     history stays recoverable through git. Returns the Page.
     """
     root = util.require_notebook_root(root)
     page = _find_question(root, qid)
-    if page.fm.get("status") == "answered":
+    status = str(page.fm.get("status", "open"))
+    if status == "answered":
         raise SystemExit(f"question {qid} is already answered; nothing to do")
+    if status == "closed":
+        raise SystemExit(
+            f"question {qid} is closed ({page.fm.get('closed_reason', 'no reason')}); "
+            f"answering would bury the close — `flip question reopen {qid} "
+            f"--because …` first"
+        )
     page.fm["status"] = "answered"
     page.fm["answered"] = util.utc_now()
     page.fm["answered_by"] = util.detect_actor()
+    page.fm.pop("review_by", None)  # a dormancy the answer just ended
     _set_reopen_when(page.fm, reopen_when)
     body = page.body
     note = (note or "").strip()
@@ -288,6 +306,8 @@ def answer_question(
         base = body.rstrip("\n")
         body = (base + "\n\n" if base else "") + f"## Answer\n{note}\n"
     pages.write_page(page.path, page.fm, body)
+    _log_question_event(root, "question-answer", qid,
+                        _description(note) if note else "answered")
     _finish(root)
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
@@ -406,6 +426,12 @@ def dormant_question(
     until = _require_text(until, "review date")
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", until):
         raise SystemExit(f"invalid review date '{until}' (expected YYYY-MM-DD)")
+    try:
+        date.fromisoformat(until)
+    except ValueError:
+        raise SystemExit(
+            f"invalid review date '{until}' (no such calendar date)"
+        ) from None
     page = _find_question(root, qid)
     status = str(page.fm.get("status", "open"))
     if status != "open":
@@ -567,9 +593,13 @@ def list_questions(root: Path, status: str | None = None) -> list[dict]:
 
 
 def open_questions(root: Path) -> list[dict]:
-    """Questions still needing work: open and dormant, never answered/closed.
+    """Questions still needing work: everything not settled (answered/closed).
 
     Read-only projection over questions/ (used by views); ask order. Dormant
-    rows carry `review_by` so a view can say whether the review is due.
+    rows carry `review_by` so a view can say whether the review is due. A
+    status outside the vocabulary counts as needing work on purpose: a typo
+    must degrade to visible, never to a question missing from every surface
+    (doctor names the bad enum; the roster keeps showing the question).
     """
-    return [q for q in list_questions(root) if q["status"] in ("open", "dormant")]
+    return [q for q in list_questions(root)
+            if q["status"] not in ("answered", "closed")]

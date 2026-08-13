@@ -1,7 +1,7 @@
 window.__FLIP_META__ = {
-  "generated": "2026-08-12T13:48:16+00:00",
+  "generated": "2026-08-13T02:37:50+00:00",
   "version": "0.17.1",
-  "revision": "d95372d",
+  "revision": "206f011",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",
@@ -9,9 +9,9 @@ window.__FLIP_META__ = {
   ],
   "license": "MIT",
   "package": "flip-notebook",
-  "tests": 1135,
+  "tests": 1226,
   "spec_status": "draft v0.17 \u00b7 2026-08-10",
-  "spec_lines": 1777,
+  "spec_lines": 1903,
   "skills": [
     "notebook-audit",
     "notebook-create",
@@ -237,8 +237,42 @@ window.__FLIP_META__ = {
           {
             "name": "--unit",
             "required": false
+          },
+          {
+            "name": "--absent-from",
+            "required": false
+          },
+          {
+            "name": "--surface",
+            "required": false
+          },
+          {
+            "name": "--derives-from",
+            "required": false
           }
         ]
+      },
+      {
+        "command": "flip claim derives add",
+        "group": "flip claim derives",
+        "name": "add",
+        "purpose": "Declare CLAIM_ID rests on one or more other claims.",
+        "arguments": [
+          "CLAIM_ID",
+          "ANCESTOR_ID..."
+        ],
+        "options": []
+      },
+      {
+        "command": "flip claim derives rm",
+        "group": "flip claim derives",
+        "name": "rm",
+        "purpose": "Drop a derivation edge from CLAIM_ID.",
+        "arguments": [
+          "CLAIM_ID",
+          "ANCESTOR_ID"
+        ],
+        "options": []
       },
       {
         "command": "flip claim exposure",
@@ -452,6 +486,78 @@ window.__FLIP_META__ = {
         "options": [
           {
             "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip commission add",
+        "group": "flip commission",
+        "name": "add",
+        "purpose": "Write a commission contract (status \"proposed\"), allocating the next K#.",
+        "arguments": [
+          "DELIVERABLE"
+        ],
+        "options": [
+          {
+            "name": "--universe",
+            "required": true
+          },
+          {
+            "name": "--stop",
+            "required": true
+          },
+          {
+            "name": "--does-not-redo",
+            "required": true
+          },
+          {
+            "name": "--for",
+            "required": false
+          },
+          {
+            "name": "--roi-low",
+            "required": false
+          },
+          {
+            "name": "--roi-high",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip commission list",
+        "group": "flip commission",
+        "name": "list",
+        "purpose": "List commission contracts: id \u00b7 status \u00b7 deliverable \u00b7 for.",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--status",
+            "required": false
+          },
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip commission status",
+        "group": "flip commission",
+        "name": "status",
+        "purpose": "Move a commission along proposed \u2192 dispatched \u2192 returned | declined.",
+        "arguments": [
+          "ID",
+          "STATUS"
+        ],
+        "options": [
+          {
+            "name": "--note",
+            "required": false
+          },
+          {
+            "name": "--consumed",
             "required": false
           }
         ]
@@ -1105,6 +1211,52 @@ window.__FLIP_META__ = {
           {
             "name": "--note",
             "required": false
+          },
+          {
+            "name": "--reopen-when",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip question close",
+        "group": "flip question",
+        "name": "close",
+        "purpose": "Close a question without an answer \u2014 split, yielded to its owner,",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--reason",
+            "required": true
+          },
+          {
+            "name": "--note",
+            "required": false
+          },
+          {
+            "name": "--reopen-when",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip question dormant",
+        "group": "flip question",
+        "name": "dormant",
+        "purpose": "Park an open question with a review date (dormant is not dead).",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--until",
+            "required": true
+          },
+          {
+            "name": "--note",
+            "required": false
           }
         ]
       },
@@ -1112,12 +1264,55 @@ window.__FLIP_META__ = {
         "command": "flip question list",
         "group": "flip question",
         "name": "list",
-        "purpose": "List every question with its current status: id \u00b7 open/answered \u00b7 text.",
+        "purpose": "List every question with its current status: id \u00b7 status \u00b7 text.",
         "arguments": [],
         "options": [
           {
+            "name": "--status",
+            "required": false
+          },
+          {
             "name": "--json",
             "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip question note",
+        "group": "flip question",
+        "name": "note",
+        "purpose": "Land evidence on a question without closing it (append-only).",
+        "arguments": [
+          "ID",
+          "TEXT"
+        ],
+        "options": [
+          {
+            "name": "--answers",
+            "required": false
+          },
+          {
+            "name": "--source",
+            "required": false
+          },
+          {
+            "name": "--zero-yield",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip question reopen",
+        "group": "flip question",
+        "name": "reopen",
+        "purpose": "Reopen a settled question (answered, closed, or dormant \u2192 open).",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--because",
+            "required": true
           }
         ]
       },
@@ -1130,7 +1325,16 @@ window.__FLIP_META__ = {
           "ID",
           "TEXT"
         ],
-        "options": []
+        "options": [
+          {
+            "name": "--sharpened",
+            "required": false
+          },
+          {
+            "name": "--note",
+            "required": false
+          }
+        ]
       },
       {
         "command": "flip recall",

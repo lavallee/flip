@@ -171,6 +171,22 @@ def test_hot_view_no_reopen_section_when_none_armed(tmp_path):
     assert "REOPEN TRIGGERS ARMED" not in hot_view(root)
 
 
+def test_hot_view_unknown_status_stays_visible(tmp_path):
+    # a typo degrades to visible; doctor names the bad enum
+    root = make_notebook(tmp_path)
+    question_page(root, "Q1", "typo'd?", status="dormamt")
+    assert "Q1" in hot_view(root)
+
+
+def test_hot_view_unreadable_review_by_fails_loud_onto_roster(tmp_path):
+    # lexicographic compare against garbage would park the question forever;
+    # an unreadable date means due-now instead
+    root = make_notebook(tmp_path)
+    question_page(root, "Q1", "parked badly?", status="dormant",
+                  review_by="Q3 2026")
+    assert "Q1" in hot_view(root)
+
+
 def test_hot_view_claims_needing_work_load_bearing_first(tmp_path):
     root = make_notebook(tmp_path)
     claim_page(root, "C1", "minor", "asserted", load_bearing=False)

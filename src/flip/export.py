@@ -379,20 +379,25 @@ def _question_projection(page: pages.Page, render_version: int = 1) -> dict:
     return out
 
 
-def _commission_projection(page: pages.Page) -> dict:
-    """One commission contract as a flip-render/2 node (SPEC §7): the four
-    contract fields, the lifecycle state, and the consumed receipt when the
-    run returned one."""
+def _commission_projection(page: pages.Page, full_trail: bool) -> dict:
+    """One commission contract as a flip-render/2 node (SPEC §7.4): the four
+    contract fields and the lifecycle state. The `consumed` receipt rides
+    only with the full source trail — it is work-trail material (free text
+    naming what a dispatched run consumed, which can name captures and
+    session output the same stripped export withholds), so it follows the
+    sessions/log_tail policy, not the prose policy the contract fields get."""
     fm = page.fm
     out = {
         "id": fm.get("id") or page.slug,
+        "slug": page.slug,
         "deliverable": str(fm.get("description", "")),
         "status": str(fm.get("status", "proposed")),
         "universe": str(fm.get("universe", "")),
         "stop": str(fm.get("stop", "")),
         "does_not_redo": str(fm.get("does_not_redo", "")),
     }
-    for key in ("for", "roi_low", "roi_high", "consumed"):
+    keys = ("for", "roi_low", "roi_high") + (("consumed",) if full_trail else ())
+    for key in keys:
         if fm.get(key):
             out[key] = str(fm[key])
     return out
@@ -523,7 +528,8 @@ def export_json(root: Path, include_private: bool = False, render_version: int =
     # Commissions ride flip-render/2 for the same reason.
     commissions = (
         sorted(
-            (_commission_projection(p) for p in pages.iter_pages(root, "commissions")
+            (_commission_projection(p, full_trail)
+             for p in pages.iter_pages(root, "commissions")
              if str(p.fm.get("type", "")) == "Commission"),
             key=lambda k: _id_num(k["id"]),
         )

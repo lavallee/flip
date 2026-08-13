@@ -1163,7 +1163,9 @@ def commission() -> None:
 @click.option("--does-not-redo", "does_not_redo", required=True,
               help="The boundary: what this run must NOT re-search or re-derive.")
 @click.option("--for", "for_ref", default=None, metavar="REF",
-              help="The question or thread this serves (Q#/TH#; must resolve).")
+              help="The id this serves — usually the Q# question; must resolve "
+                   "in THIS notebook (a beat's TH# threads live outside notebook "
+                   "roots and cannot be named here).")
 @click.option("--roi-low", "roi_low", default=None, metavar="TEXT",
               help="Expected lift, LOW bound — quote this as the expectation; "
                    "executed estimates to date held at their low bound.")
@@ -1192,6 +1194,9 @@ def commission_add(deliverable: str, universe: str, stop: str, does_not_redo: st
 def commission_status(kid: str, status: str, note: str | None,
                       consumed: str | None) -> None:
     """Move a commission along proposed → dispatched → returned | declined."""
+    if not re.fullmatch(r"K\d+", kid):
+        raise SystemExit(f"'{kid}' is not a commission id (expected K<number>, "
+                         "e.g. K2); `flip commission list` shows them")
     page = commissions_mod.set_commission_status(
         require_notebook_root(), kid, status, note=note, consumed=consumed)
     tail = ""

@@ -32,10 +32,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import integrations, pages, stance, workspace
+from . import integrations, pages, stance, util, workspace
 from . import sources as sources_mod
 from .beat import find_beat_root, load_beat
 from .claims import STATUSES as CLAIM_STATUSES  # claim status enum (SPEC §7)
+from .commissions import STATUSES as COMMISSION_STATUSES  # lifecycle enum (SPEC §7.4)
+from .ledgers import CLOSED_REASONS, QUESTION_STATUSES  # question journey (SPEC §7)
 from .claims import (
     CITATION_ROLES,
     claim_corroboration,
@@ -75,7 +77,8 @@ LEDGERS = (PROVENANCE, DERIVATIONS, "log/log.jsonl", "log/passed.jsonl")
 
 # Entity directories whose pages must carry a compact id; sessions are entity
 # pages too but have no id scheme (SPEC §8), so they are exempt here.
-_ID_DIRS = ("references", "claims", "decisions", "questions", "forecasts")
+_ID_DIRS = ("references", "claims", "decisions", "questions", "forecasts",
+            "commissions")
 _DIR_PREFIXES: dict[str, tuple[str, ...]] = {
     d: tuple(sorted(p for p, dd in pages.PREFIX_DIR.items() if dd == d)) for d in _ID_DIRS
 }
@@ -131,6 +134,9 @@ CHECK_CODES: frozenset[str] = frozenset({
     "two-object", "pre-okf02-layout", "corroboration-drift", "under-verified",
     "unaudited-claim", "provenance-open", "unlocatable-recomputation",
     "world-absence", "inherited-unsupported", "dangling-derivation",
+    "unscoped-absence",
+    # questions: the journey vocabulary
+    "undated-dormant",
     # stance & exposure (SPEC §7.1)
     "unpriced-stance", "unsourced-holder", "stored-exposure",
     "misattributed-citation", "unexamined-position",
@@ -204,6 +210,8 @@ def run_doctor(root: Path) -> list[Finding]:
     _check_stance(root, manifest, claim_pages, findings)
     _check_transcripts(root, source_pages, claim_pages, findings)
     _check_forecasts(root, by_dir, findings)
+    _check_questions(root, by_dir, findings)
+    _check_commissions(root, by_dir, findings)
     _check_provenance_open(root, manifest, claim_pages, source_pages, findings)
     _check_kind_contract(root, manifest, findings)
     _check_disciplines(root, manifest, findings)
@@ -754,6 +762,7 @@ def _suggested_type(dirname: str) -> str:
         "decisions": "Decision",
         "questions": "Question",
         "forecasts": "Forecast",
+        "commissions": "Commission",
         "sessions": "Work Session",
     }.get(dirname, "Note")
 
@@ -1491,21 +1500,15 @@ def _check_claims(
                     rel,
                 )
             )
-        # The DRIFT rule: an unsupported ancestor contaminates every claim
-        # built on it. Walk the whole derivation chain (hand-edited cycles
-        # must not hang the doctor, hence the visited set) and name each
-        # offending ancestor once — on the descendant, where the operator
-        # deciding whether to lean on it is looking. A dangling edge is a
-        # data error on any claim; the inherited-unsupported call is made
-        # only where someone is leaning (load-bearing).
-        seen_ancestors: set[str] = set()
-        frontier = list(derivation_ids(page.fm))
-        while frontier:
-            ancestor = frontier.pop()
-            if ancestor in seen_ancestors or ancestor == cid:
-                continue
-            seen_ancestors.add(ancestor)
-            if ancestor not in claims_by_id:
+        # A dangling edge is reported only where it lives — on the claim whose
+        # own derives_from carries the unknown id — so the message states a
+        # true fact and the suggested `derives rm` actually works. (Reporting
+        # it transitively re-asserted the edge on every descendant and
+        # prescribed a command those claims refuse.) Every direct edge gets
+        # its turn when its owning claim's iteration comes around.
+        direct = derivation_ids(page.fm)
+        for ancestor in dict.fromkeys(direct):
+            if ancestor != cid and ancestor not in claims_by_id:
                 findings.append(
                     _warn(
                         "dangling-derivation",
@@ -1515,18 +1518,62 @@ def _check_claims(
                         rel,
                     )
                 )
-                continue
-            frontier.extend(derivation_ids(claims_by_id[ancestor]))
-            if not page.fm.get("load_bearing"):
-                continue
-            reason = unsupported_reason(claims_by_id[ancestor])
-            if reason:
+        # The DRIFT rule: an unsupported ancestor contaminates every claim
+        # built on it. Walk the whole derivation chain (hand-edited cycles
+        # must not hang the doctor, hence the visited set) and name each
+        # offending ancestor once — on the load-bearing descendant, where the
+        # operator deciding whether to lean on it is looking.
+        if page.fm.get("load_bearing"):
+            seen_ancestors: set[str] = set()
+            frontier = list(direct)
+            while frontier:
+                ancestor = frontier.pop()
+                if ancestor in seen_ancestors or ancestor == cid:
+                    continue
+                seen_ancestors.add(ancestor)
+                if ancestor not in claims_by_id:
+                    continue  # named above by the claim that owns the edge
+                frontier.extend(derivation_ids(claims_by_id[ancestor]))
+                reason = unsupported_reason(claims_by_id[ancestor])
+                if reason:
+                    findings.append(
+                        _warn(
+                            "inherited-unsupported",
+                            f"load-bearing claim {cid} rests on {ancestor}, which cannot "
+                            f"carry it ({reason}); support {ancestor}, or cut the "
+                            f"derivation and let {cid} stand on its own evidence",
+                            rel,
+                        )
+                    )
+        # The absence key's own vocabulary, audited on ANY claim (the write
+        # path refuses these; doctor is the validator for hand edits). A
+        # scope nothing can read means the null's coverage cannot be read
+        # either — worse than no absence mark at all.
+        absence = page.fm.get("absence")
+        if absence is not None:
+            scope = absence.get("scope") if isinstance(absence, dict) else None
+            surfaces_named = (
+                [s for s in pages.as_list(absence.get("surfaces")) if str(s).strip()]
+                if isinstance(absence, dict) else []
+            )
+            if scope not in util.ABSENT_FROM:
+                findings.append(
+                    _error(
+                        "bad-enum",
+                        f"claim {cid}: absence scope '{scope}' invalid "
+                        f"(one of: {', '.join(util.ABSENT_FROM)}); until it reads, "
+                        "the null's coverage is unreadable",
+                        rel,
+                    )
+                )
+            elif scope != "corpus" and not surfaces_named:
                 findings.append(
                     _warn(
-                        "inherited-unsupported",
-                        f"load-bearing claim {cid} rests on {ancestor}, which cannot "
-                        f"carry it ({reason}); support {ancestor}, or cut the "
-                        f"derivation and let {cid} stand on its own evidence",
+                        "unscoped-absence",
+                        f"claim {cid} asserts an absence beyond this corpus "
+                        f"(scope '{scope}') naming no searched surfaces — the "
+                        "null's evidentiary weight IS its coverage; add "
+                        "absence.surfaces or narrow the scope to 'corpus'",
                         rel,
                     )
                 )
@@ -2212,6 +2259,84 @@ def _check_forecasts(
                         rel,
                     )
                 )
+
+
+# --- questions: the journey vocabulary (SPEC §7) --------------------------------
+
+
+def _check_questions(root: Path, by_dir: dict, findings: list[Finding]) -> None:
+    """The question journey's enums and dates, auditable after hand edits.
+
+    The views deliberately keep unknown-status questions on the roster (a
+    typo degrades to visible); this is the check that NAMES the typo. A
+    dormant page's `review_by` is what resurfacing keys off, so an
+    unreadable or missing date gets its own finding — the question would
+    otherwise sit on the roster marked due forever with nobody told why.
+    """
+    for page in by_dir.get("questions", []):
+        if str(page.fm.get("type", "")) != "Question":
+            continue
+        qid = page.id or "?"
+        rel = _rel(page, root)
+        status = page.fm.get("status")
+        if status is not None and status not in QUESTION_STATUSES:
+            findings.append(
+                _error(
+                    "bad-enum",
+                    f"question {qid}: status '{status}' invalid "
+                    f"(one of: {', '.join(QUESTION_STATUSES)}); the roster shows "
+                    "it as needing work until the status reads",
+                    rel,
+                )
+            )
+        reason = page.fm.get("closed_reason")
+        if reason is not None and reason not in CLOSED_REASONS:
+            findings.append(
+                _error(
+                    "bad-enum",
+                    f"question {qid}: closed_reason '{reason}' invalid "
+                    f"(one of: {', '.join(CLOSED_REASONS)})",
+                    rel,
+                )
+            )
+        if status == "dormant":
+            review_by = str(page.fm.get("review_by", ""))
+            try:
+                datetime.strptime(review_by, "%Y-%m-%d")
+            except ValueError:
+                findings.append(
+                    _warn(
+                        "undated-dormant",
+                        f"question {qid} is dormant with "
+                        + (f"an unreadable review_by '{review_by}'" if review_by
+                           else "no review_by")
+                        + " — parking means a YYYY-MM-DD date to resurface on; "
+                        "until one reads, the question stays on the roster as due",
+                        rel,
+                    )
+                )
+
+
+# --- commissions: lifecycle vocabulary (SPEC §7.4) -------------------------------
+
+
+def _check_commissions(root: Path, by_dir: dict, findings: list[Finding]) -> None:
+    """Commission status stays inside its lifecycle vocabulary after hand edits."""
+    for page in by_dir.get("commissions", []):
+        if str(page.fm.get("type", "")) != "Commission":
+            continue
+        kid = page.id or "?"
+        rel = _rel(page, root)
+        status = page.fm.get("status")
+        if status is not None and status not in COMMISSION_STATUSES:
+            findings.append(
+                _error(
+                    "bad-enum",
+                    f"commission {kid}: status '{status}' invalid "
+                    f"(one of: {', '.join(COMMISSION_STATUSES)})",
+                    rel,
+                )
+            )
 
 
 # --- kind contract (design-outcome-kinds.md, Phase 1) ---------------------------

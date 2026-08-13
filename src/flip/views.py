@@ -113,6 +113,20 @@ def _today() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
+def _review_pending(review_by: str) -> bool:
+    """True while a dormant question's review date is still in the future.
+
+    An unparseable or missing `review_by` returns False — the question lands
+    on the roster NOW rather than being hidden by a value nobody can read
+    (a lexicographic compare against garbage like "Q3 2026" would park it
+    forever; failing loud onto the roster is the honest degradation).
+    """
+    try:
+        return datetime.strptime(review_by, "%Y-%m-%d").strftime("%Y-%m-%d") > _today()
+    except ValueError:
+        return False
+
+
 def _open_questions(root: Path) -> list[dict]:
     """Question pages still on the working roster (missing status = open).
 
@@ -120,7 +134,9 @@ def _open_questions(root: Path) -> list[dict]:
     arrived (that is what parking means — before the date they stay out of
     the view, after it they resurface marked "review due"). Answered and
     closed pages never appear here; the ones with armed reopen triggers get
-    their own view (_reopen_armed).
+    their own view (_reopen_armed). A status OUTSIDE the vocabulary stays on
+    the roster — a typo must degrade to visible (doctor names the bad enum),
+    never to a question silently missing from every surface.
     """
     out = []
     for page in _pages(root, "questions"):
@@ -128,9 +144,9 @@ def _open_questions(root: Path) -> list[dict]:
             continue
         status = str(page.fm.get("status", "open"))
         review_by = str(page.fm.get("review_by", ""))
-        if status not in ("open", "dormant"):
+        if status in ("answered", "closed"):
             continue
-        if status == "dormant" and review_by > _today():
+        if status == "dormant" and _review_pending(review_by):
             continue
         row = {
             "id": page.id,
@@ -467,15 +483,15 @@ def _open_questions_roster(root: Path) -> list[dict]:
     """Open questions with their re-pose count (len of the formulations
     history), id order — the roster view's per-notebook question list.
     Same roster rule as `flip show`: open always, dormant only once its
-    review date arrives, answered/closed never."""
+    review date arrives, answered/closed never, unknown statuses visible."""
     out = []
     for page in _pages(root, "questions"):
         if str(page.fm.get("type", "")) != "Question":
             continue
         status = str(page.fm.get("status", "open"))
-        if status not in ("open", "dormant"):
+        if status in ("answered", "closed"):
             continue
-        if status == "dormant" and str(page.fm.get("review_by", "")) > _today():
+        if status == "dormant" and _review_pending(str(page.fm.get("review_by", ""))):
             continue
         out.append(
             {
@@ -749,6 +765,11 @@ def _root_body(root: Path, m: Manifest, events: list[dict]) -> str:
         bullets.append(
             f"* [Forecasts](forecasts/) - {_count(counts['forecasts'], 'forecast page')} "
             "with dates and scoring"
+        )
+    if "commissions" in counts:
+        bullets.append(
+            f"* [Commissions](commissions/) - "
+            f"{_count(counts['commissions'], 'contract')} with lifecycle"
         )
     if "sessions" in counts:
         bullets.append(f"* [Sessions](sessions/) - {_count(counts['sessions'], 'work session')}")

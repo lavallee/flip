@@ -574,6 +574,45 @@ def test_reopen_open_question_refused(root: Path):
         ledgers.reopen_question(root, "Q1", "x")
 
 
+def test_answer_closed_question_refused(root: Path):
+    # the mirror of close refusing answered pages: settle-over-settle needs
+    # an explicit reopen so neither end buries the other
+    ledgers.add_question(root, "who?")
+    ledgers.close_question(root, "Q1", "dead-end")
+    with pytest.raises(SystemExit, match="closed .dead-end.; answering would bury"):
+        ledgers.answer_question(root, "Q1", note="found it after all")
+
+
+def test_answer_dormant_question_drops_stale_review_by(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.dormant_question(root, "Q1", "2027-01-01")
+    page = pages.read_page(ledgers.answer_question(root, "Q1", note="them").path)
+    assert page.fm["status"] == "answered"
+    assert "review_by" not in page.fm
+
+
+def test_answer_question_logs_question_answer_event(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.answer_question(root, "Q1", note="the trust")
+    events = util.read_jsonl(root / "log" / "log.jsonl")
+    assert any(e["text"].startswith('question-answer Q1: "the trust"') for e in events)
+
+
+def test_dormant_question_rejects_impossible_calendar_date(root: Path):
+    ledgers.add_question(root, "who?")
+    with pytest.raises(SystemExit, match="no such calendar date"):
+        ledgers.dormant_question(root, "Q1", "2026-99-99")
+
+
+def test_open_questions_keeps_unknown_status_visible(root: Path):
+    # a typo must degrade to visible, never to a missing question
+    p = ledgers.add_question(root, "who?")
+    page = pages.read_page(p.path)
+    page.fm["status"] = "dormamt"
+    pages.write_page(p.path, page.fm, page.body)
+    assert [q["id"] for q in ledgers.open_questions(root)] == ["Q1"]
+
+
 def test_reopen_logs_question_reopen_event(root: Path):
     ledgers.add_question(root, "who?")
     ledgers.close_question(root, "Q1", "dead-end")

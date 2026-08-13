@@ -1,5 +1,5 @@
 window.__FLIP_SPEC__ = {
-  "generated": "2026-08-12T13:48:16+00:00",
+  "generated": "2026-08-13T02:37:50+00:00",
   "sections": [
     {
       "number": "1",
@@ -33,8 +33,8 @@ window.__FLIP_SPEC__ = {
     },
     {
       "number": "7",
-      "title": "Claims and forecasts \u2014 the two-object rule",
-      "anchor": "7-claims-and-forecasts--the-two-object-rule"
+      "title": "The working record \u2014 claims, questions, forecasts, commissions",
+      "anchor": "7-the-working-record--claims-questions-forecasts-commissions"
     },
     {
       "number": "8",

@@ -51,7 +51,18 @@ def _log_event(root: Path, event: str, kid: str, detail: str) -> None:
 
 
 def _find_commission(root: Path, kid: str) -> pages.Page:
+    """The Commission page for `kid`, refusing everything else.
+
+    find_by_id resolves across every scanned dir, so without the type check a
+    typo'd id (H1, C1) would hand the lifecycle a hypothesis or claim page to
+    mutate — the status write would corrupt a foreign entity silently.
+    """
     page = pages.find_by_id(root, kid)
+    if page is not None and str(page.fm.get("type", "")) != "Commission":
+        raise SystemExit(
+            f"'{kid}' is {page.fm.get('type') or 'an untyped page'} "
+            f"({page.path.name}), not a commission; commission ids are K#"
+        )
     if page is None:
         known = sorted(
             (p.id for p in pages.iter_pages(root, "commissions") if p.id),
