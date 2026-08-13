@@ -144,6 +144,9 @@ The rest of the surface: `flip source list` (every source at a glance:
 page disagrees it says so),
 `flip question list` / `flip question answer Q1 --note "..."` /
 `flip question repose Q1 "<sharper wording>"` (append-only; the journey survives),
+`flip question note|close|dormant|reopen` (the rest of the journey — evidence
+accretion with scope verdicts, honest ends, parking, un-stop triggers),
+`flip commission add|status|list` (bounded follow-up work as a contract),
 `flip claim verify C7 --method adversarial|recomputation` (a recorded check
 that also clears the `verified` gate), `flip session start|end`
 (working-episode pages under `sessions/`), `flip profiles` (available kinds,
@@ -366,6 +369,41 @@ every surface that shows the number names it too. A claim citing only
 `role: subject` sources has **no** `independent_corroboration` key: absent
 means the axis does not apply, never that the count came out zero.
 
+### Pursue a question
+
+The question page is where a pursuit accumulates — not your context window.
+
+```console
+$ flip question add "did the vendor's number replicate?" --resolves-via "the two independent audits"
+Q2 open · did the vendor's number replicate? · watches: the two independent audits
+
+$ flip question note Q2 "audit A replicates the direction, not the size" --answers narrower --source F3
+Q2 evidence noted (open) · answers: narrower
+```
+
+Evidence lands as a dated section; the question stays open — a narrower
+answer is recorded without being promoted to *the* answer. Empty probes
+need their cause (`--zero-yield saturated|bad-reformulation|corpus-gap|
+entity-collision`): a zero round without one is indistinguishable from
+saturation and must not count toward stopping. When the ask itself
+sharpens, re-pose (`flip question repose Q2 "..." --sharpened scope`) —
+the old formulation is preserved. End it honestly:
+
+```console
+$ flip question answer Q2 --note "direction yes, size no — see C4" --reopen-when "vendor restates the figure"
+Q2 answered · reopens when: vendor restates the figure
+```
+
+`answered` is one end among several — `close --reason split|yielded|
+counter-example|dead-end|superseded` records the others; `dormant --until
+YYYY-MM-DD` parks with a review date `flip show` resurfaces. Armed
+`--reopen-when` triggers list under REOPEN TRIGGERS ARMED, and
+`flip question reopen Q2 --because "..."` restores open with the whole
+journey still on the page. Follow-up work worth dispatching gets a
+commission — a contract with an input universe, stop condition, and
+does-not-redo boundary (`flip commission add … --for Q2`) — so a
+continuation run consumes prior output instead of re-searching it.
+
 ### Hold a position, and say what was asked of it
 
 ```bash
@@ -442,6 +480,9 @@ flip doctor       # audit the result; migration preserves ids and history
 
 Procedural checklists for these workflows ship in
 [src/flip/skills/](src/flip/skills/) — `notebook-create`, `notebook-source`,
-`notebook-log`, `notebook-audit`, `notebook-handoff`, `notebook-lessons` —
+`notebook-log`, `notebook-audit`, `notebook-handoff`, `notebook-lessons`,
+`notebook-kind-author` —
 as plain `SKILL.md` files usable by any agent runtime, and as a
-[spindle](https://github.com/lavallee/spindle) package named `flip`.
+[spindle](https://github.com/lavallee/spindle) package named `flip`. Claude
+Code users get the same skills plus the custody hook as a plugin:
+`/plugin install flip@lyra-forge` ([docs/claude-code.md](docs/claude-code.md)).

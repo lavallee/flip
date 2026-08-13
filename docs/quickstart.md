@@ -6,6 +6,20 @@ claim is linked to sources and gated before it can be called verified, and
 the whole trail is plain files in git. The notebook is a conformant OKF v0.2
 knowledge bundle — any markdown tool can browse and edit it.
 
+## Two ways in
+
+**Conversational (recommended):** install the
+[Claude Code plugin](claude-code.md) — `/plugin marketplace add
+lyra-forge/marketplace`, `/plugin install flip@lyra-forge` — and direct
+research the way you already talk to your agent; the agent runs the
+notebook under flip's discipline and every command below happens on your
+behalf. That guide covers the skills, the custody hook, and what a session
+leaves behind.
+
+**Direct:** the rest of this page is the CLI walkthrough — the same
+operations by hand, which is also the fastest way to understand what the
+agent is doing.
+
 ## Install
 
 From PyPI (the package is `flip-notebook`; the command is `flip`):
@@ -138,9 +152,10 @@ flip show --stale    # what went cold
 
 Along the way, keep the trail: `flip log "hit a wall on X"` for the work log,
 `flip decide` for resolved forks (the *why* is the payload), `flip pass` for
-things considered and rejected, `flip question add`/`answer`/`list` for open
+things considered and rejected, `flip question add` for open
 threads, and `flip session start`/`end` around each LLM run or research
-sweep.
+sweep. Questions have a whole journey of their own — the next section after
+positions covers it.
 
 **Doctor** before you hand off or publish:
 
@@ -250,6 +265,57 @@ in one move (`flip claim rival` declares the comparison on its own). A bare
 `flip claim status C1 superseded` is refused, and the refusal names the honest
 alternatives: `retracted` if the notebook simply withdraws it, or
 `stance rejecting` if it is wrong and still worth keeping as data.
+
+## The question journey
+
+A question is not a to-do item that flips to done. Real pursuit accretes
+evidence between reformulations, produces answers narrower than the ask,
+parks and resumes, and sometimes ends without an answer at all. The page
+records all of it (SPEC §7.2):
+
+```bash
+flip question add "What's driving the enrollment decline?" --resolves-via "NJ DOE fall snapshot"
+# Q1 open · … · watches: NJ DOE fall snapshot
+
+flip question note Q1 "charter transfers explain about half" --answers narrower --source F2
+# Q1 evidence noted (open) · answers: narrower
+```
+
+Evidence lands on the question's page as a dated section **without closing
+it** — `--answers as-worded | narrower | adjacent` is the scope verdict,
+and a narrower answer on an open question is exactly the honest state. An
+empty probe is recorded WITH its cause, because a single zero-yield round
+is indistinguishable from saturation:
+
+```bash
+flip question note Q1 "county registry search returned nothing" --zero-yield corpus-gap
+```
+
+Re-pose when the question itself sharpens (`flip question repose Q1
+"which districts lost K-5 enrollment to charters since 2023?" --sharpened
+scope`) — the old formulation is preserved, never overwritten. And a
+question has more honest ends than answered:
+
+```bash
+flip question close Q1 --reason split         # or: yielded | counter-example | dead-end | superseded
+flip question dormant Q2 --until 2027-01-15   # parked; `flip show` resurfaces it when due
+flip question answer Q3 --note "aging out + transfers" --reopen-when "2026-27 fall file posts"
+flip question reopen Q3 --because "the fall file posted; totals restated"
+```
+
+Answers carry their un-stop conditions: `flip show` lists armed
+`--reopen-when` triggers, and reopening restores the question with its
+whole journey — the old answer included — still on the page.
+
+Two companions to the journey: an **absence claim** makes "looked and
+found nothing" a citable assertion carrying its search coverage
+(`flip claim add "no district-level FOIA release exists" --absent-from
+named_surfaces --surface "state OPRA portal" --surface "district sites"` —
+the null's weight IS its coverage), and a **commission** writes bounded
+follow-up work as a contract *before* dispatch — input universe, stop
+condition, does-not-redo boundary — so continuation runs consume prior
+output instead of re-searching it (`flip commission add … --universe …
+--stop … --does-not-redo … --for Q1`).
 
 ## Keeping the conversation
 
