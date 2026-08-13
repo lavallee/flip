@@ -39,8 +39,10 @@ from .claims import STATUSES as CLAIM_STATUSES  # claim status enum (SPEC §7)
 from .claims import (
     CITATION_ROLES,
     claim_corroboration,
+    derivation_ids,
     evidence_ids,
     has_gating_verification,
+    unsupported_reason,
     subject_ids,
     unaudited_subjects,
     uncountable_sources,
@@ -128,7 +130,7 @@ CHECK_CODES: frozenset[str] = frozenset({
     # claims
     "two-object", "pre-okf02-layout", "corroboration-drift", "under-verified",
     "unaudited-claim", "provenance-open", "unlocatable-recomputation",
-    "world-absence",
+    "world-absence", "inherited-unsupported", "dangling-derivation",
     # stance & exposure (SPEC §7.1)
     "unpriced-stance", "unsourced-holder", "stored-exposure",
     "misattributed-citation", "unexamined-position",
@@ -1380,6 +1382,7 @@ def _check_claims(
 ) -> None:
     source_fms = [p.fm for p in source_pages]
     by_id = {p.id: p.fm for p in source_pages if p.id}
+    claims_by_id = {p.id: p.fm for p in claim_pages if p.id}
     for page in claim_pages:
         cid = page.id or "?"
         rel = _rel(page, root)
@@ -1488,6 +1491,45 @@ def _check_claims(
                     rel,
                 )
             )
+        # The DRIFT rule: an unsupported ancestor contaminates every claim
+        # built on it. Walk the whole derivation chain (hand-edited cycles
+        # must not hang the doctor, hence the visited set) and name each
+        # offending ancestor once — on the descendant, where the operator
+        # deciding whether to lean on it is looking. A dangling edge is a
+        # data error on any claim; the inherited-unsupported call is made
+        # only where someone is leaning (load-bearing).
+        seen_ancestors: set[str] = set()
+        frontier = list(derivation_ids(page.fm))
+        while frontier:
+            ancestor = frontier.pop()
+            if ancestor in seen_ancestors or ancestor == cid:
+                continue
+            seen_ancestors.add(ancestor)
+            if ancestor not in claims_by_id:
+                findings.append(
+                    _warn(
+                        "dangling-derivation",
+                        f"claim {cid} derives from '{ancestor}', which no claims/ "
+                        "page carries; fix the id or drop the edge "
+                        f"(`flip claim derives rm {cid} {ancestor}`)",
+                        rel,
+                    )
+                )
+                continue
+            frontier.extend(derivation_ids(claims_by_id[ancestor]))
+            if not page.fm.get("load_bearing"):
+                continue
+            reason = unsupported_reason(claims_by_id[ancestor])
+            if reason:
+                findings.append(
+                    _warn(
+                        "inherited-unsupported",
+                        f"load-bearing claim {cid} rests on {ancestor}, which cannot "
+                        f"carry it ({reason}); support {ancestor}, or cut the "
+                        f"derivation and let {cid} stand on its own evidence",
+                        rel,
+                    )
+                )
         if not page.fm.get("load_bearing"):
             continue
         # An absence claim scoped to `world` asserts more than any search can

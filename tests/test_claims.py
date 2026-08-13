@@ -153,6 +153,52 @@ def test_add_claim_without_absence_writes_no_key(sourced: Path):
     assert "absence" not in page.fm
 
 
+def test_add_claim_derives_from_records_edges(sourced: Path):
+    claims.add_claim(sourced, "base finding", ["A1"])
+    page = claims.add_claim(sourced, "built on it", ["A1"], derives_from=["C1"])
+    assert page.fm["derives_from"] == ["C1"]
+
+
+def test_add_claim_derives_from_unknown_or_nonclaim_raises(sourced: Path):
+    with pytest.raises(SystemExit, match="unknown claim id 'C9'"):
+        claims.add_claim(sourced, "text", ["A1"], derives_from=["C9"])
+    with pytest.raises(SystemExit, match="unknown claim id 'A1'"):
+        claims.add_claim(sourced, "text", ["A1"], derives_from=["A1"])
+
+
+def test_claim_derivation_post_hoc_add_and_rm(sourced: Path):
+    claims.add_claim(sourced, "base", ["A1"])
+    claims.add_claim(sourced, "middle", ["A1"])
+    page, added = claims.add_claim_derivation(sourced, "C2", ["C1"])
+    assert added == ["C1"] and page.fm["derives_from"] == ["C1"]
+    with pytest.raises(SystemExit, match="already derives from C1"):
+        claims.add_claim_derivation(sourced, "C2", ["C1"])
+    page = claims.remove_claim_derivation(sourced, "C2", "C1")
+    assert "derives_from" not in page.fm
+    with pytest.raises(SystemExit, match="does not derive from C1"):
+        claims.remove_claim_derivation(sourced, "C2", "C1")
+
+
+def test_claim_derivation_refuses_self_and_cycles(sourced: Path):
+    claims.add_claim(sourced, "base", ["A1"])
+    claims.add_claim(sourced, "middle", ["A1"], derives_from=["C1"])
+    with pytest.raises(SystemExit, match="cannot derive from itself"):
+        claims.add_claim_derivation(sourced, "C1", ["C1"])
+    with pytest.raises(SystemExit, match="would close a cycle"):
+        claims.add_claim_derivation(sourced, "C1", ["C2"])  # C2 rests on C1
+
+
+def test_unsupported_reason_vocabulary(sourced: Path):
+    supported = claims.add_claim(sourced, "well backed", ["A1"])
+    assert claims.unsupported_reason(supported.fm) is None
+    bare = claims.add_claim(sourced, "nothing backs this", [])
+    assert claims.unsupported_reason(bare.fm) == \
+        "no evidence sources and no surviving verification"
+    retracted = claims.add_claim(sourced, "walked back", ["A1"])
+    retracted.fm["status"] = "retracted"
+    assert claims.unsupported_reason(retracted.fm) == "status retracted"
+
+
 def test_add_claim_body_has_text_notes_and_citations(sourced: Path):
     page = claims.add_claim(
         sourced, "the sky is blue", ["A1", "ZZ9"], notes="single vendor study"

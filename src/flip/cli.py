@@ -1280,16 +1280,21 @@ def claim() -> None:
 @click.option("--surface", "surfaces", multiple=True, metavar="SURFACE",
               help="A surface the absence was checked against (repeatable; "
                    "requires --absent-from).")
+@click.option("--derives-from", "derives_from", multiple=True, metavar="CLAIM_ID",
+              help="A claim this one RESTS ON (repeatable) — a derivation edge, "
+                   "not a citation; doctor walks these so an unsupported "
+                   "ancestor surfaces on everything built on it.")
 def claim_add(text: str, source_ids: tuple[str, ...], subject_ids: tuple[str, ...],
               load_bearing: bool, notes: str | None, value: str | None,
               unit: str | None, absent_from: str | None,
-              surfaces: tuple[str, ...]) -> None:
+              surfaces: tuple[str, ...], derives_from: tuple[str, ...]) -> None:
     """Assert a claim (status "asserted"), allocating the next C#."""
     root = require_notebook_root()
     page = claims.add_claim(root, text, list(source_ids),
                             load_bearing=load_bearing, notes=notes,
                             value=value, unit=unit, subjects=list(subject_ids),
-                            absent_from=absent_from, surfaces=list(surfaces))
+                            absent_from=absent_from, surfaces=list(surfaces),
+                            derives_from=list(derives_from))
     srcs = ", ".join(claims.source_ids(page.fm)) or "none"
     absence = ""
     if absent_from:
@@ -1466,6 +1471,37 @@ def claim_verify(claim_id: str, method: str, against: tuple[str, ...],
     if method == "independent-sources":
         click.echo("note: independent-sources records the reasoning but does not satisfy "
                    "the verified gate alone — the recomputed source count does", err=True)
+
+
+@claim.group("derives", cls=SuggestGroup)
+def claim_derives() -> None:
+    """Derivation edges between claims: what a claim RESTS ON.
+
+    Not a citation — a claim built on other claims declares it, and doctor
+    walks the chain so an unsupported ancestor surfaces on every
+    load-bearing claim leaning on it (`inherited-unsupported`).
+    """
+
+
+@claim_derives.command("add")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.argument("ancestor_ids", metavar="ANCESTOR_ID", nargs=-1, required=True)
+def claim_derives_add(claim_id: str, ancestor_ids: tuple[str, ...]) -> None:
+    """Declare CLAIM_ID rests on one or more other claims."""
+    page, added = claims.add_claim_derivation(require_notebook_root(), claim_id,
+                                              list(ancestor_ids))
+    click.echo(f"{claim_id} derives from {', '.join(claims.derivation_ids(page.fm))} "
+               f"(+{len(added)})")
+
+
+@claim_derives.command("rm")
+@click.argument("claim_id", metavar="CLAIM_ID")
+@click.argument("ancestor_id", metavar="ANCESTOR_ID")
+def claim_derives_rm(claim_id: str, ancestor_id: str) -> None:
+    """Drop a derivation edge from CLAIM_ID."""
+    page = claims.remove_claim_derivation(require_notebook_root(), claim_id, ancestor_id)
+    rests = ", ".join(claims.derivation_ids(page.fm)) or "nothing"
+    click.echo(f"{claim_id} derives from {rests}")
 
 
 @claim.command("stance")

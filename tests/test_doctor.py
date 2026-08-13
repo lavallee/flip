@@ -717,6 +717,56 @@ def test_world_absence_non_load_bearing_is_silent(tmp_path):
     assert "world-absence" not in codes(run_doctor(root))
 
 
+def test_inherited_unsupported_walks_the_chain(tmp_path):
+    # C3 (load-bearing) ← C2 ← C1 (nothing backs it): the offender two hops
+    # up surfaces on the descendant that leans on it
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent")
+    claim_page(root, "C1", sources=[])
+    claim_page(root, "C2", sources=["A1"], corroboration=1, derives_from=["C1"])
+    claim_page(root, "C3", load_bearing=True, sources=["A1"], corroboration=1,
+               derives_from=["C2"])
+    findings = run_doctor(root)
+    inherited = [f for f in findings if f.code == "inherited-unsupported"]
+    assert len(inherited) == 1
+    assert "C3 rests on C1" in inherited[0].message
+    assert "no evidence sources and no surviving verification" in inherited[0].message
+
+
+def test_inherited_unsupported_quiet_when_chain_is_backed(tmp_path):
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent")
+    claim_page(root, "C1", sources=["A1"], corroboration=1)
+    claim_page(root, "C2", load_bearing=True, sources=["A1"], corroboration=1,
+               derives_from=["C1"])
+    assert "inherited-unsupported" not in codes(run_doctor(root))
+
+
+def test_inherited_unsupported_only_for_load_bearing(tmp_path):
+    root = make_notebook(tmp_path)
+    claim_page(root, "C1", sources=[])
+    claim_page(root, "C2", load_bearing=False, derives_from=["C1"])
+    assert "inherited-unsupported" not in codes(run_doctor(root))
+
+
+def test_dangling_derivation_warns_on_any_claim(tmp_path):
+    root = make_notebook(tmp_path)
+    claim_page(root, "C1", load_bearing=False, derives_from=["C9"])
+    findings = run_doctor(root)
+    assert "dangling-derivation" in codes(findings, "WARN")
+    assert "derives from 'C9'" in \
+        next(f for f in findings if f.code == "dangling-derivation").message
+
+
+def test_derivation_cycle_does_not_hang_doctor(tmp_path):
+    # hand-edited loop: doctor must terminate and still report the lean
+    root = make_notebook(tmp_path)
+    claim_page(root, "C1", load_bearing=True, derives_from=["C2"])
+    claim_page(root, "C2", derives_from=["C1"])
+    findings = run_doctor(root)  # terminates
+    assert "inherited-unsupported" in codes(findings)
+
+
 def test_invalid_claim_status_is_error(tmp_path):
     root = make_notebook(tmp_path)
     claim_page(root, "C1", status="maybe")
