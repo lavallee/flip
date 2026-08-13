@@ -149,6 +149,7 @@ def claim_page(
     sources: list[str] | None = None,
     corroboration: int = 0,
     body: str | None = None,
+    **extra,
 ) -> Path:
     fm = {
         "type": "Claim",
@@ -161,6 +162,7 @@ def claim_page(
         "independent_corroboration": corroboration,
         "first_asserted": "2026-07-09",
         "generated": {"by": "human:test", "at": "2026-07-09T14:31:02Z"},
+        **extra,
     }
     return pages.write_page(
         root / "claims" / f"{cid.lower()}-claim.md", fm, body or f"claim {cid}\n"
@@ -686,6 +688,33 @@ def test_asserted_claim_with_verification_record_is_not_unaudited(tmp_path):
                             "at": f"{today()}T14:31:02Z"}]
     pages.write_page(path, page.fm, page.body)
     assert "unaudited-claim" not in codes(run_doctor(root))
+
+
+def test_world_absence_load_bearing_warns(tmp_path):
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent")
+    claim_page(root, "C1", load_bearing=True, sources=["A1"], corroboration=1,
+               absence={"scope": "world"})
+    findings = run_doctor(root)
+    assert "world-absence" in codes(findings, "WARN")
+    msg = next(f for f in findings if f.code == "world-absence").message
+    assert "no search can witness a world-absence" in msg
+
+
+def test_world_absence_named_surfaces_is_silent(tmp_path):
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="B", independence="independent")
+    claim_page(root, "C1", load_bearing=True, sources=["A1"], corroboration=1,
+               absence={"scope": "named_surfaces", "surfaces": ["registry"]})
+    assert "world-absence" not in codes(run_doctor(root))
+
+
+def test_world_absence_non_load_bearing_is_silent(tmp_path):
+    # legal to say, just not to lean on unexamined — mirrors the other
+    # load-bearing-only claim audits
+    root = make_notebook(tmp_path)
+    claim_page(root, "C1", load_bearing=False, absence={"scope": "world"})
+    assert "world-absence" not in codes(run_doctor(root))
 
 
 def test_invalid_claim_status_is_error(tmp_path):

@@ -128,6 +128,7 @@ CHECK_CODES: frozenset[str] = frozenset({
     # claims
     "two-object", "pre-okf02-layout", "corroboration-drift", "under-verified",
     "unaudited-claim", "provenance-open", "unlocatable-recomputation",
+    "world-absence",
     # stance & exposure (SPEC §7.1)
     "unpriced-stance", "unsourced-holder", "stored-exposure",
     "misattributed-citation", "unexamined-position",
@@ -1489,6 +1490,24 @@ def _check_claims(
             )
         if not page.fm.get("load_bearing"):
             continue
+        # An absence claim scoped to `world` asserts more than any search can
+        # witness — no surface list, however long, covers the world. The
+        # honest scope is the surfaces actually searched; `world` stays legal
+        # (the operator may take responsibility for the reach) but a
+        # load-bearing one gets named, because the wider the claimed reach
+        # the less the recorded coverage supports it.
+        absence = page.fm.get("absence")
+        if isinstance(absence, dict) and str(absence.get("scope")) == "world":
+            findings.append(
+                _warn(
+                    "world-absence",
+                    f"load-bearing absence claim {cid} is scoped to 'world' — no "
+                    "search can witness a world-absence; narrow it to the surfaces "
+                    "actually checked (scope 'named_surfaces') or say in the claim "
+                    "text why world-scope is defensible here",
+                    rel,
+                )
+            )
         drifted_cited = sorted(
             s for s in dict.fromkeys(claim_sources)
             if s in by_id and by_id[s].get("drifted")

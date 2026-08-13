@@ -66,7 +66,7 @@ def log_event(root: Path, text: str) -> dict:
 # Where an absence claim is scoped (SPEC §8, design phase 2): only `corpus`
 # may be asserted without naming surfaces — "a true statement about a corpus
 # became a false statement about the world."
-ABSENT_FROM = ("corpus", "named_surfaces", "world")
+ABSENT_FROM = util.ABSENT_FROM  # shared with absence claims (claims.py)
 
 # The scope verdict an evidence note passes on a question: did this evidence
 # answer the question as worded, a narrower question, or an adjacent one?

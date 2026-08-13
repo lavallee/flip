@@ -508,6 +508,8 @@ def add_claim(
     value: str | None = None,
     unit: str | None = None,
     subjects: list[str] | None = None,
+    absent_from: str | None = None,
+    surfaces: list[str] | None = None,
 ) -> pages.Page:
     """Add a claim page with status "asserted", allocating the next C#.
 
@@ -520,11 +522,34 @@ def add_claim(
     made true or false by that document, so it never counts toward
     corroboration, and a claim citing subjects only carries no
     `independent_corroboration` key at all rather than a zero.
+
+    `absent_from` marks an ABSENCE claim — "looked and found nothing" as an
+    assertion the work leans on — and scopes it (SPEC §7): `corpus` speaks
+    only for what the notebook holds; anything wider must name the
+    `surfaces` searched, because the null's evidentiary weight IS its
+    search coverage. The claim then lives the full claim life: cited,
+    graded through its sources, probed (`flip claim test` against a
+    searched surface is "re-run the search"), superseded when the thing is
+    later found.
     """
     root = util.require_notebook_root(root)
     text = (text or "").strip()
     if not text:
         raise SystemExit("empty claim text; state the assertion in one sentence")
+    named_surfaces = [str(s).strip() for s in (surfaces or []) if str(s).strip()]
+    if absent_from is not None:
+        if absent_from not in util.ABSENT_FROM:
+            raise SystemExit(
+                f"invalid absent_from '{absent_from}' "
+                f"(one of: {', '.join(util.ABSENT_FROM)})"
+            )
+        if absent_from != "corpus" and not named_surfaces:
+            raise SystemExit(
+                f"absent_from '{absent_from}' asserts more than this corpus; name the "
+                "surfaces searched (--surface, repeatable) or scope it to 'corpus'"
+            )
+    elif named_surfaces:
+        raise SystemExit("--surface given without --absent-from; pass both or neither")
     cited = [(str(s), "evidence") for s in pages.as_list(sources)]
     cited += [(str(s), "subject") for s in pages.as_list(subjects)]
     cited_ids = list(_group_refs(cited))  # excerpt refs collapse to their source
@@ -547,6 +572,11 @@ def add_claim(
     corroboration = claim_corroboration([p.fm for p in src_by_id.values()], fm)
     if corroboration is not None:
         fm["independent_corroboration"] = corroboration
+    if absent_from is not None:
+        absence: dict = {"scope": absent_from}
+        if named_surfaces:
+            absence["surfaces"] = named_surfaces
+        fm["absence"] = absence
     fm["first_asserted"] = util.today()
     fm["generated"] = util.generated_now()
     if value is not None:

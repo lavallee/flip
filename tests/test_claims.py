@@ -114,6 +114,45 @@ def test_add_claim_shape_and_corroboration(sourced: Path):
     assert pages.read_page(page.path).fm == fm
 
 
+def test_add_claim_absence_corpus_scope(sourced: Path):
+    page = claims.add_claim(sourced, "no filing names the trust", ["A1"],
+                            absent_from="corpus")
+    assert page.fm["absence"] == {"scope": "corpus"}
+
+
+def test_add_claim_absence_named_surfaces_records_coverage(sourced: Path):
+    page = claims.add_claim(
+        sourced, "no registry entry exists", ["A1"],
+        absent_from="named_surfaces",
+        surfaces=["state registry", "court index", "  "],
+    )
+    assert page.fm["absence"] == {
+        "scope": "named_surfaces",
+        "surfaces": ["state registry", "court index"],
+    }
+
+
+def test_add_claim_absence_beyond_corpus_requires_surfaces(sourced: Path):
+    with pytest.raises(SystemExit, match="asserts more than this corpus"):
+        claims.add_claim(sourced, "nothing anywhere", ["A1"],
+                         absent_from="named_surfaces")
+
+
+def test_add_claim_surface_without_scope_raises(sourced: Path):
+    with pytest.raises(SystemExit, match="--surface given without --absent-from"):
+        claims.add_claim(sourced, "text", ["A1"], surfaces=["somewhere"])
+
+
+def test_add_claim_invalid_absence_scope_raises(sourced: Path):
+    with pytest.raises(SystemExit, match="invalid absent_from 'universe'"):
+        claims.add_claim(sourced, "text", ["A1"], absent_from="universe")
+
+
+def test_add_claim_without_absence_writes_no_key(sourced: Path):
+    page = claims.add_claim(sourced, "the sky is blue", ["A1"])
+    assert "absence" not in page.fm
+
+
 def test_add_claim_body_has_text_notes_and_citations(sourced: Path):
     page = claims.add_claim(
         sourced, "the sky is blue", ["A1", "ZZ9"], notes="single vendor study"

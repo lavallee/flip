@@ -41,6 +41,7 @@ from . import (
     sources,
     stance as stance_mod,
     transcripts as transcripts_mod,
+    util,
     views,
     workspace as workspace_mod,
 )
@@ -1187,17 +1188,33 @@ def claim() -> None:
                    "renders and exports carry it; prose alone can't.")
 @click.option("--unit", default=None, metavar="UNIT",
               help='Unit for --value, e.g. "percent", "USD", "students".')
+@click.option("--absent-from", "absent_from",
+              type=click.Choice(util.ABSENT_FROM), default=None,
+              help="This is an ABSENCE claim — looked and found nothing — and "
+                   "this is how far it reaches. Anything beyond 'corpus' must "
+                   "name the surfaces searched (--surface): the null's weight "
+                   "IS its search coverage.")
+@click.option("--surface", "surfaces", multiple=True, metavar="SURFACE",
+              help="A surface the absence was checked against (repeatable; "
+                   "requires --absent-from).")
 def claim_add(text: str, source_ids: tuple[str, ...], subject_ids: tuple[str, ...],
               load_bearing: bool, notes: str | None, value: str | None,
-              unit: str | None) -> None:
+              unit: str | None, absent_from: str | None,
+              surfaces: tuple[str, ...]) -> None:
     """Assert a claim (status "asserted"), allocating the next C#."""
     root = require_notebook_root()
     page = claims.add_claim(root, text, list(source_ids),
                             load_bearing=load_bearing, notes=notes,
-                            value=value, unit=unit, subjects=list(subject_ids))
+                            value=value, unit=unit, subjects=list(subject_ids),
+                            absent_from=absent_from, surfaces=list(surfaces))
     srcs = ", ".join(claims.source_ids(page.fm)) or "none"
+    absence = ""
+    if absent_from:
+        count = f" ({len(surfaces)} surface{'s' if len(surfaces) != 1 else ''})" \
+            if surfaces else ""
+        absence = f" · absence: {absent_from}{count}"
     click.echo(f"{page.id} asserted · sources: {srcs} · "
-               f"corroboration: {_corroboration_label(page.fm)}")
+               f"corroboration: {_corroboration_label(page.fm)}{absence}")
     # Dangling cites are legal (§6.1) — doctor counts them — but say so now
     # rather than let a typo'd id ride silently until the next doctor run.
     known = {str(p.fm.get("id")) for p in pages.iter_pages(root, "references")}

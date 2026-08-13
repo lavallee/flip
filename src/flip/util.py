@@ -63,6 +63,12 @@ REF_RE = re.compile(r"^(?:(?P<handle>[a-z][a-z0-9-]*):)?(?P<id>[A-Z]+\d+)$")
 # '§' is the separator because ':' is taken by handles and '#' was retired as a
 # ref separator in 0.10; a label is slug-shaped so it doubles as a markdown
 # anchor (`references/<slug>.md#relevance-null`).
+# How far an absence assertion reaches (shared by the passed ledger and
+# absence claims): `corpus` speaks only for what the notebook holds;
+# anything wider must name the surfaces the desk can show an attempt
+# against; `world` asserts more than any search can witness.
+ABSENT_FROM = ("corpus", "named_surfaces", "world")
+
 EXCERPT_SEP = "§"
 EXCERPT_LABEL_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 EXCERPT_REF_RE = re.compile(
