@@ -177,6 +177,40 @@ def test_manifest_examples_show_the_current_profile_version():
     assert not offenders, "stale manifest example(s):\n" + "\n".join(offenders)
 
 
+_PROSE_PROFILE = re.compile(r"\bprofile\s+(\d+\.\d+)\b")
+
+
+def test_prose_profile_mentions_match_the_code():
+    """A doc saying "(profile 0.8)" in running prose is the same drift as a
+    stale manifest example, just outside the YAML shape the example check
+    matches — llms.txt carried 0.8 for a release after 0.9 shipped. Any
+    CURRENT-profile claim must agree with the code; historical mentions
+    (CHANGELOG, SPEC's version-history notes naming what 0.7/0.8 WERE) are
+    excluded by scoping the check to the profile numbers that are neither
+    current nor described as past ("was", "at 0.8", "0.8 →")."""
+    current = FLIP_PROFILE_VERSION
+    offenders = []
+    for rel in prose_files():
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        for match in _PROSE_PROFILE.finditer(text):
+            if match.group(1) == current:
+                continue
+            # historical framing gets a pass: look at the clause around it
+            window = text[max(0, match.start() - 60): match.end() + 60]
+            if re.search(
+                r"was|were|→|->|pre-|since|history|earlier|older|arrived"
+                r"|shipped|introduced|widened|changed at",
+                window,
+            ):
+                continue
+            line = text[: match.start()].count("\n") + 1
+            offenders.append(
+                f"{rel}:{line}: prose claims profile {match.group(1)}, "
+                f"current is {current}"
+            )
+    assert not offenders, "stale prose profile mention(s):\n" + "\n".join(offenders)
+
+
 # --- 3 & 4. version declarations ------------------------------------------------
 
 _SPEC_STATUS = re.compile(r"^\*\*Status:\*\*\s+draft\s+v(\d+\.\d+)", re.M)

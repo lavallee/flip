@@ -49,7 +49,50 @@ Design commitments:
   prose in the body; tools preserve frontmatter keys they don't own, so
   human edits and agent edits round-trip through each other.
 
-## Install
+## Use it from Claude Code
+
+The fastest way to use flip is conversationally: you direct the research
+the way you already talk to your agent, and flip is the discipline the
+agent works under. In [Claude Code](https://claude.com/claude-code):
+
+```
+/plugin marketplace add lyra-forge/marketplace
+/plugin install flip@lyra-forge
+```
+
+and put the CLI the skills drive on your PATH:
+
+```bash
+uv tool install flip-notebook      # or: pipx install flip-notebook
+```
+
+The plugin ships **seven skills** covering the notebook lifecycle —
+create, source capture, session hygiene, claim audit, handoff, lessons,
+kind authoring — plus a **custody hook** that, inside a notebook, puts the
+capture rule at the moment of a web fetch and names anything read but
+never captured before the turn ends. Then research the way you normally
+would:
+
+> **You:** People keep saying NJ school enrollment dipped in the
+> pandemic. Did it? Did it come back?
+>
+> **Your agent:** *starts a notebook, captures four NJ DOE enrollment
+> files (hashed at capture), grades them, computes totals two independent
+> ways, and answers — leaving behind claims verified by recomputation, an
+> answered question, and a new one it opened along the way.*
+
+What that conversation leaves behind is not a chat transcript: it is a
+browsable, auditable notebook —
+[real ones to read here](https://github.com/lavallee/flip-examples).
+No human typed the flip commands in those; that's the point.
+
+The full guide — what each skill does, how attribution works, what the
+custody hook catches, working across many notebooks — is
+**[docs/claude-code.md](docs/claude-code.md)**. The skills are plain
+`SKILL.md` files ([src/flip/skills/](src/flip/skills/)) usable by any
+agent runtime, not only Claude Code.
+
+## Install the CLI
 
 ```bash
 uv tool install flip-notebook      # or: pipx install flip-notebook
@@ -75,6 +118,11 @@ flip claim add "Enrollment fell 4.2% since 2021" --source F1 --load-bearing
 flip claim status C1 verified      # gated: refused until the corroboration bar is met
 flip decide --question "Which county first?" --decision "Start with Essex" --why "largest swing"
 flip pass "2019 funding blog post" --reason "republishes state PR verbatim"
+flip question add "What's driving the decline?" --resolves-via "NJ DOE fall snapshot"
+flip question note Q1 "charter transfers explain half of it" --answers narrower --source F1
+# evidence lands on the question's page; it stays open — a narrower answer is not the answer
+flip question answer Q1 --note "aging out + charter transfers" --reopen-when "2026-27 fall file posts"
+# answers carry their un-stop conditions; `flip show` lists armed reopen triggers
 flip show                          # the hot view: open questions, claims needing work, recent log
 flip doctor                        # lint: OKF conformance, profile minimums, verification bar
 ```
@@ -135,14 +183,18 @@ cites `T1§relevance-null` and travels with the words.
 
 Notebooks are built to be maintained by humans and agents together:
 
+- **Claude Code plugin** — `/plugin install flip@lyra-forge`: the seven
+  skills plus the custody hook, versioned with releases. The guide is
+  [docs/claude-code.md](docs/claude-code.md).
 - **[AGENTS.md](AGENTS.md)** — the five-minute tour, the lineage rules
   agents must honor (capture before cite, grade-C-until-promoted, the
   verification bar, the round-trip rule, `flip doctor`, `FLIP_ACTOR`), and
   task recipes.
 - **[llms.txt](llms.txt)** — doc map for LLM consumption.
-- **[src/flip/skills/](src/flip/skills/)** — procedural skills
+- **[src/flip/skills/](src/flip/skills/)** — the same skills
   (`notebook-create`, `notebook-source`, `notebook-log`, `notebook-audit`,
-  `notebook-handoff`, `notebook-lessons`) as plain `SKILL.md` files usable by
+  `notebook-handoff`, `notebook-lessons`, `notebook-kind-author`) as plain
+  `SKILL.md` files usable by
   any agent runtime. The skills also ship as a
   [spindle](https://github.com/lavallee/spindle) package named `flip`.
 
@@ -160,8 +212,11 @@ is [docs/obsidian.md](docs/obsidian.md).
 Status: spec draft v0.18 — notebooks are native OKF v0.2 bundles. The CLI
 covers the full surface (`cli`, `new`, `add-source` (incl. `--record` for a
 document that cannot be captured), `extract`, `grade` (incl. `--explain`),
-`log`, `decide`, `pass`, `question` (incl. `repose`), `claim` (incl. `verify`
-/ `test` / `stance` / `exposure` / `rival` / `supersede` / `source add`),
+`log`, `decide`, `pass`, `question` (incl. `note` / `repose` / `close` /
+`dormant` / `reopen` — the question journey), `claim` (incl. `verify`
+/ `test` / `stance` / `exposure` / `rival` / `supersede` / `source add` /
+`derives` / absence claims via `--absent-from`), `commission` (bounded
+follow-up work as a contract),
 `source` (incl. `retitle` / `recheck` / `pipeline` / `provenance`), `session`
 (incl. `transcript`), `transcript`, `forecast`, `kind`, `discipline`, `config`
 (incl. `init` / `show`), `show`, `open`, `resolve`, `rename`, `doctor`,
