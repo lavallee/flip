@@ -29,8 +29,14 @@ STATUSES = ("active", "dormant", "done", "published", "archived")
 # independence vocabulary independent|corroborated|self-reported|derivative,
 # `support:` tuple as the judgment store, letter grades derived (a pre-0.8
 # authored letter survives as a `support.seeded` digest until re-graded).
-# `flip migrate` rewrites 0.4–0.7 notebooks in place. uid gating stays 0.5+.
-FLIP_PROFILE_VERSION = "0.8"
+# 0.9 is the question-journey profile (design-question-pursuit-0.18): question
+# statuses grow closed|dormant (closed_reason/review_by/reopen_when keys),
+# evidence sections accrete on question bodies, formulations entries may carry
+# sharpened/note, claims may carry absence and derives_from, and commissions/
+# (K#) joins the entity directories. All additive: `flip migrate` restamps a
+# 0.8 notebook without touching its pages.
+# `flip migrate` rewrites 0.4–0.8 notebooks in place. uid gating stays 0.5+.
+FLIP_PROFILE_VERSION = "0.9"
 
 # The OKF version a flip notebook conforms to AT REST — flip is an extension
 # profile of OKF, not an exporter to it (SPEC §3). Named here so prose and code

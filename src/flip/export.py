@@ -328,6 +328,14 @@ def _claim_projection(page: pages.Page, source_fms: list[dict],
         subjects = claims_mod.subject_ids(fm)
         if subjects:
             out["subjects"] = subjects
+        # Absence scope and derivation edges (SPEC §7) travel when present:
+        # a null's coverage IS its weight, and a renderer that can't see
+        # derives_from can't show what a claim rests on.
+        if isinstance(fm.get("absence"), dict):
+            out["absence"] = dict(fm["absence"])
+        derived = claims_mod.derivation_ids(fm)
+        if derived:
+            out["derives_from"] = derived
         if fm.get("value") is not None:
             out["value"] = str(fm.get("value"))
             if fm.get("unit"):
@@ -359,6 +367,34 @@ def _question_projection(page: pages.Page, render_version: int = 1) -> dict:
     }
     if render_version >= 2:
         out["resolves_via"] = [str(s) for s in pages.as_list(fm.get("resolves_via"))]
+        # The journey keys (SPEC §7) travel only when the page carries them —
+        # a renderer reading no `reopen_when` has nothing to watch, which is
+        # the honest reading of a question that armed nothing.
+        for key in ("closed_reason", "review_by"):
+            if fm.get(key):
+                out[key] = str(fm[key])
+        triggers = [str(t) for t in pages.as_list(fm.get("reopen_when"))]
+        if triggers:
+            out["reopen_when"] = triggers
+    return out
+
+
+def _commission_projection(page: pages.Page) -> dict:
+    """One commission contract as a flip-render/2 node (SPEC §7): the four
+    contract fields, the lifecycle state, and the consumed receipt when the
+    run returned one."""
+    fm = page.fm
+    out = {
+        "id": fm.get("id") or page.slug,
+        "deliverable": str(fm.get("description", "")),
+        "status": str(fm.get("status", "proposed")),
+        "universe": str(fm.get("universe", "")),
+        "stop": str(fm.get("stop", "")),
+        "does_not_redo": str(fm.get("does_not_redo", "")),
+    }
+    for key in ("for", "roi_low", "roi_high", "consumed"):
+        if fm.get(key):
+            out[key] = str(fm[key])
     return out
 
 
@@ -484,6 +520,16 @@ def export_json(root: Path, include_private: bool = False, render_version: int =
         if render_version >= 2
         else None
     )
+    # Commissions ride flip-render/2 for the same reason.
+    commissions = (
+        sorted(
+            (_commission_projection(p) for p in pages.iter_pages(root, "commissions")
+             if str(p.fm.get("type", "")) == "Commission"),
+            key=lambda k: _id_num(k["id"]),
+        )
+        if render_version >= 2
+        else None
+    )
     # Session pages are the work log in entity form — their goals, and the
     # goal-derived filename slugs, are custody like log_tail (SPEC §17).
     sessions = (
@@ -529,6 +575,8 @@ def export_json(root: Path, include_private: bool = False, render_version: int =
         out["notebook"]["disciplines"] = [str(p) for p in m.disciplines]
     if forecasts is not None:
         out["forecasts"] = forecasts
+    if commissions is not None:
+        out["commissions"] = commissions
     if render_version >= 2:
         out["work"] = _work_pages(root)
         # Drafts arrived after work (flip-render/2, SPEC §11). They are the

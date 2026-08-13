@@ -182,7 +182,9 @@ group. The leaves you reach for most:
 | let a claim go | `flip claim rival <C#> <C#> --because "…"`, then `flip claim supersede <C#> --by <C#> --because "…"` |
 | keep the conversation itself | `flip session transcript <session> --file <path> [--participant --model]` — a `T#` source under ordinary custody |
 | cite one exchange, not the whole file | `flip transcript excerpt T1 --lines 88-104 --label <slug>` → cite `T1§<slug>` · `flip transcript list\|unpin` |
-| questions | `flip question add\|repose\|answer\|list` |
+| questions | `flip question add\|note\|repose\|answer\|close\|dormant\|reopen\|list` — evidence accretes via `note` (`--answers as-worded\|narrower\|adjacent`, `--zero-yield saturated\|bad-reformulation\|corpus-gap\|entity-collision`); answers/closes can arm `--reopen-when` triggers; `dormant --until` parks with a review date |
+| absence claims / derivation | `flip claim add --absent-from corpus\|named_surfaces\|world --surface …` (a null's weight is its coverage) · `flip claim derives add\|rm <C#> <C#>` (what a claim rests on; doctor walks the chain) |
+| commission contracts | `flip commission add "<deliverable>" --universe … --stop … --does-not-redo … [--for Q#] [--roi-low …]` · `flip commission status <K#> dispatched\|returned\|declined [--consumed …]` · `flip commission list [--status]` |
 | decisions / dead ends | `flip decide …` · `flip pass …` |
 | log / sessions | `flip log "<text>"` · `flip session start\|end` |
 | views | `flip show [--claims\|--stale] [--json]` · `flip ws show [--open\|--claims] [--json]` |

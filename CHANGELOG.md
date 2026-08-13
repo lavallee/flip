@@ -6,6 +6,62 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+The question-journey release, in progress (profile 0.9, design receipts in
+the project's own notebook). Everything here promotes what a month of
+manual, explicitly-guided pursuit practice already did by hand — dated
+evidence updates on open questions, scope verdicts, reopen conditions,
+coverage-scoped nulls, four-field commission contracts — into typed,
+doctor-checked records, informed by a literature/code review of how the
+field pursues, stops, and grades research questions.
+
+### Added
+
+- **The question journey.** A question page can now tell its whole story:
+  `flip question note Q#` accretes dated `## Evidence` sections without
+  touching status — `--answers as-worded|narrower|adjacent` records
+  whether evidence answered the question *as worded* (a narrower answer
+  stays on an open question instead of closing it), and `--zero-yield
+  saturated|bad-reformulation|corpus-gap|entity-collision` records an
+  empty probe WITH its cause, because a single zero round is
+  indistinguishable from saturation and only tagged zero rounds may count
+  toward stopping. `flip question close --reason
+  split|yielded|counter-example|dead-end|superseded` records the honest
+  ends that aren't answers; `dormant --until` parks with a review date
+  (`flip show` resurfaces it when due); `--reopen-when` on answer/close
+  arms written un-stop conditions (`flip show` lists them under REOPEN
+  TRIGGERS ARMED), and `reopen --because` restores open with the whole
+  journey — old answer included — still on the page. `repose` gains
+  `--sharpened scope|falsifiability|decomposability|evidence-anchored`
+  (+`--note`): instrumentation on the formulation history, recorded and
+  never scored.
+- **Absence claims.** `flip claim add --absent-from
+  corpus|named_surfaces|world [--surface …]` makes "looked and found
+  nothing" a first-class claim carrying its search coverage — the null's
+  evidentiary weight IS its coverage, the same rule the passed ledger
+  already enforced. Doctor's `world-absence` names a load-bearing absence
+  scoped to `world` (no search can witness one).
+- **Derivation edges.** `flip claim add --derives-from C#` / `flip claim
+  derives add|rm` declare what a claim RESTS ON (cycles refused). Doctor
+  walks the chain: `inherited-unsupported` surfaces every ancestor a
+  load-bearing claim leans on that cannot carry it; `dangling-derivation`
+  flags edges to missing pages.
+- **Commission contracts.** `commissions/<slug>.md` (ids K#): bounded
+  follow-up work written as a contract before dispatch — input universe,
+  deliverable, stop condition, does-not-redo boundary, all required;
+  optional ROI band whose low bound is the quoted expectation. Lifecycle
+  `proposed → dispatched → returned|declined`; returns carry `--consumed`,
+  the receipt that keeps continuation chains auditable. Nothing
+  dispatches; pages record contracts and outcomes.
+- **Render contract.** flip-render/2 gains `commissions`, question journey
+  keys (`closed_reason`/`review_by`/`reopen_when`), and claim
+  `absence`/`derives_from`; render/1 stays byte-stable.
+
+### Changed
+
+- Profile `flip:` 0.8 → 0.9 (all additive; `flip migrate` restamps a 0.8
+  notebook without touching pages). Question statuses extend to
+  `open|answered|closed|dormant`; `questions list` gains `--status`.
+
 ## [0.17.1] — 2026-08-12
 
 Both entries below came out of one research session that went wrong in the
