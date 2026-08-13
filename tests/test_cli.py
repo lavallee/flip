@@ -220,6 +220,60 @@ def test_question_list_text_and_json(tmp_path, monkeypatch):
     assert [(r["id"], r["status"]) for r in rows] == [("Q1", "answered"), ("Q2", "open")]
 
 
+def test_question_journey_commands(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    invoke(["question", "add", "who funded it?"])
+
+    noted = invoke(["question", "note", "Q1", "two filings name the trust",
+                    "--answers", "narrower"])
+    assert noted.exit_code == 0, noted.output
+    assert "Q1 evidence noted (open) · answers: narrower" in noted.output
+
+    zero = invoke(["question", "note", "Q1", "registry empty",
+                   "--zero-yield", "corpus-gap"])
+    assert zero.exit_code == 0, zero.output
+    assert "zero yield: corpus-gap" in zero.output
+
+    parked = invoke(["question", "dormant", "Q1", "--until", "2099-01-01",
+                     "--note", "waiting on filings"])
+    assert parked.exit_code == 0, parked.output
+    assert "Q1 dormant · review by 2099-01-01" in parked.output
+
+    woke = invoke(["question", "reopen", "Q1", "--because", "filing landed"])
+    assert woke.exit_code == 0, woke.output
+    assert "Q1 reopened" in woke.output
+
+    closed = invoke(["question", "close", "Q1", "--reason", "split",
+                     "--reopen-when", "the parts recombine"])
+    assert closed.exit_code == 0, closed.output
+    assert "Q1 closed · split" in closed.output
+
+    listing = invoke(["question", "list"])
+    assert "Q1 · closed · who funded it? · split" in listing.output
+    filtered = invoke(["question", "list", "--status", "open"])
+    assert "no open questions" in filtered.output
+
+
+def test_question_answer_reopen_when_and_repose_sharpened(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    invoke(["question", "add", "what about the money?"])
+    reposed = invoke(["question", "repose", "Q1",
+                      "which 2026 grants exceeded the cap?",
+                      "--sharpened", "scope", "--note", "named the year"])
+    assert reposed.exit_code == 0, reposed.output
+    assert "sharpened: scope" in reposed.output
+
+    answered = invoke(["question", "answer", "Q1", "--note", "three grants",
+                       "--reopen-when", "a new grant cycle posts"])
+    assert answered.exit_code == 0, answered.output
+    assert "reopens when: a new grant cycle posts" in answered.output
+
+    rows = json.loads(invoke(["question", "list", "--json"]).output)
+    assert rows[0]["reopen_when"] == ["a new grant cycle posts"]
+
+
 def test_pass_echoes_ts_and_reason(tmp_path, monkeypatch):
     root = make_notebook(tmp_path / "demo")
     monkeypatch.chdir(root)

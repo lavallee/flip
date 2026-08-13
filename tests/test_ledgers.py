@@ -394,3 +394,236 @@ def test_list_questions_text_excludes_answer_section(root: Path):
 
 def test_list_questions_empty_when_no_pages(root: Path):
     assert ledgers.list_questions(root) == []
+
+
+# --- question journey: evidence notes (SPEC §7) -------------------------------
+
+
+def test_note_question_appends_dated_evidence_section(root: Path):
+    ledgers.add_question(root, "who funded it?")
+    got = ledgers.note_question(root, "Q1", "two filings name the trust")
+    body = pages.read_page(got.path).body
+    assert body.startswith("who funded it?")
+    assert "\n## Evidence " in body
+    assert body.rstrip().endswith("two filings name the trust")
+    assert pages.read_page(got.path).fm["status"] == "open"  # status untouched
+
+
+def test_note_question_records_scope_verdict_in_heading(root: Path):
+    ledgers.add_question(root, "who funded it?")
+    got = ledgers.note_question(root, "Q1", "names the 2024 grants only",
+                                answers="narrower")
+    assert " — answers: narrower" in pages.read_page(got.path).body
+
+
+def test_note_question_cites_sources_and_refuses_unknown(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.add_decision(root, question="q", decision="d", why="w")  # D1 exists
+    got = ledgers.note_question(root, "Q1", "per the ruling", sources=["D1"])
+    assert "Sources: [D1]" in pages.read_page(got.path).body
+    with pytest.raises(SystemExit, match="unknown source id 'F9'"):
+        ledgers.note_question(root, "Q1", "text", sources=["F9"])
+
+
+def test_note_question_zero_yield_requires_valid_cause(root: Path):
+    ledgers.add_question(root, "who?")
+    got = ledgers.note_question(root, "Q1", "registry search returned nothing",
+                                zero_yield="corpus-gap")
+    assert " — zero yield: corpus-gap" in pages.read_page(got.path).body
+    with pytest.raises(SystemExit, match="invalid zero-yield cause 'tired'"):
+        ledgers.note_question(root, "Q1", "x", zero_yield="tired")
+
+
+def test_note_question_answers_and_zero_yield_exclusive(root: Path):
+    ledgers.add_question(root, "who?")
+    with pytest.raises(SystemExit, match="mutually exclusive"):
+        ledgers.note_question(root, "Q1", "x", answers="as-worded",
+                              zero_yield="saturated")
+
+
+def test_note_question_invalid_scope_raises(root: Path):
+    ledgers.add_question(root, "who?")
+    with pytest.raises(SystemExit, match="invalid answers scope 'fully'"):
+        ledgers.note_question(root, "Q1", "x", answers="fully")
+
+
+def test_note_question_logs_question_evidence_event(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.note_question(root, "Q1", "a lead")
+    events = util.read_jsonl(root / "log" / "log.jsonl")
+    assert any(e["text"].startswith('question-evidence Q1: "a lead"') for e in events)
+
+
+def test_note_question_allowed_on_answered_page(root: Path):
+    # evidence arriving after the answer is exactly what reopen triggers watch
+    ledgers.add_question(root, "who?")
+    ledgers.answer_question(root, "Q1", note="the trust")
+    got = ledgers.note_question(root, "Q1", "a 2027 filing contradicts this")
+    page = pages.read_page(got.path)
+    assert page.fm["status"] == "answered"
+    assert "a 2027 filing contradicts this" in page.body
+
+
+def test_note_question_keeps_list_text_current(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.note_question(root, "Q1", "some evidence")
+    assert ledgers.list_questions(root)[0]["text"] == "who?"
+
+
+# --- question journey: close / dormant / reopen (SPEC §7) ---------------------
+
+
+def test_close_question_records_reason_and_section(root: Path):
+    ledgers.add_question(root, "who funded it?")
+    got = ledgers.close_question(root, "Q1", "dead-end", note="registry sealed")
+    page = pages.read_page(got.path)
+    assert page.fm["status"] == "closed"
+    assert page.fm["closed_reason"] == "dead-end"
+    assert page.fm["closed"].endswith("Z")
+    assert page.fm["closed_by"] == "human:test"
+    assert "## Closed" in page.body and "— dead-end" in page.body
+    assert "registry sealed" in page.body
+
+
+def test_close_question_invalid_reason_raises(root: Path):
+    ledgers.add_question(root, "who?")
+    with pytest.raises(SystemExit, match="invalid close reason 'boring'"):
+        ledgers.close_question(root, "Q1", "boring")
+
+
+def test_close_answered_question_refused(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.answer_question(root, "Q1")
+    with pytest.raises(SystemExit, match="answered; closing would bury"):
+        ledgers.close_question(root, "Q1", "dead-end")
+
+
+def test_close_question_twice_raises(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.close_question(root, "Q1", "split")
+    with pytest.raises(SystemExit, match="already closed"):
+        ledgers.close_question(root, "Q1", "split")
+
+
+def test_answer_question_arms_reopen_triggers(root: Path):
+    ledgers.add_question(root, "who?")
+    got = ledgers.answer_question(root, "Q1", note="the trust",
+                                  reopen_when=["a new 990 lands", "  "])
+    assert pages.read_page(got.path).fm["reopen_when"] == ["a new 990 lands"]
+
+
+def test_close_question_arms_reopen_triggers(root: Path):
+    ledgers.add_question(root, "who?")
+    got = ledgers.close_question(root, "Q1", "yielded",
+                                 reopen_when=["owner asks again"])
+    assert pages.read_page(got.path).fm["reopen_when"] == ["owner asks again"]
+
+
+def test_dormant_question_sets_review_by(root: Path):
+    ledgers.add_question(root, "who?")
+    got = ledgers.dormant_question(root, "Q1", "2027-01-01", note="waiting on filing season")
+    page = pages.read_page(got.path)
+    assert page.fm["status"] == "dormant"
+    assert page.fm["review_by"] == "2027-01-01"
+    assert "## Dormant" in page.body and "review by 2027-01-01" in page.body
+
+
+def test_dormant_question_validates_date_and_status(root: Path):
+    ledgers.add_question(root, "who?")
+    with pytest.raises(SystemExit, match="invalid review date 'soon'"):
+        ledgers.dormant_question(root, "Q1", "soon")
+    ledgers.answer_question(root, "Q1")
+    with pytest.raises(SystemExit, match="only an open question"):
+        ledgers.dormant_question(root, "Q1", "2027-01-01")
+
+
+def test_reopen_question_restores_open_and_keeps_journey(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.answer_question(root, "Q1", note="the trust",
+                            reopen_when=["a new 990 lands"])
+    got = ledgers.reopen_question(root, "Q1", "the 990 landed")
+    page = pages.read_page(got.path)
+    assert page.fm["status"] == "open"
+    for gone in ("answered", "answered_by"):
+        assert gone not in page.fm
+    assert page.fm["reopen_when"] == ["a new 990 lands"]  # stays armed
+    assert "## Answer\nthe trust" in page.body  # the journey survives
+    assert "## Reopened" in page.body and "the 990 landed" in page.body
+
+
+def test_reopen_closed_question_clears_closed_keys(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.close_question(root, "Q1", "yielded")
+    page = pages.read_page(ledgers.reopen_question(root, "Q1", "back to us").path)
+    assert page.fm["status"] == "open"
+    for gone in ("closed", "closed_by", "closed_reason"):
+        assert gone not in page.fm
+
+
+def test_reopen_dormant_question_clears_review_by(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.dormant_question(root, "Q1", "2027-01-01")
+    page = pages.read_page(ledgers.reopen_question(root, "Q1", "woke early").path)
+    assert page.fm["status"] == "open"
+    assert "review_by" not in page.fm
+
+
+def test_reopen_open_question_refused(root: Path):
+    ledgers.add_question(root, "who?")
+    with pytest.raises(SystemExit, match="already open"):
+        ledgers.reopen_question(root, "Q1", "x")
+
+
+def test_reopen_logs_question_reopen_event(root: Path):
+    ledgers.add_question(root, "who?")
+    ledgers.close_question(root, "Q1", "dead-end")
+    ledgers.reopen_question(root, "Q1", "new registry access")
+    events = util.read_jsonl(root / "log" / "log.jsonl")
+    assert any(e["text"].startswith("question-reopen Q1:") for e in events)
+
+
+def test_open_questions_includes_dormant_excludes_closed(root: Path):
+    ledgers.add_question(root, "one?")
+    ledgers.add_question(root, "two?")
+    ledgers.add_question(root, "three?")
+    ledgers.close_question(root, "Q1", "dead-end")
+    ledgers.dormant_question(root, "Q2", "2027-01-01")
+    assert [q["id"] for q in ledgers.open_questions(root)] == ["Q2", "Q3"]
+
+
+def test_list_questions_surfaces_journey_keys(root: Path):
+    ledgers.add_question(root, "one?")
+    ledgers.add_question(root, "two?")
+    ledgers.close_question(root, "Q1", "split")
+    ledgers.answer_question(root, "Q2", reopen_when=["numbers restated"])
+    rows = ledgers.list_questions(root)
+    assert rows[0]["closed_reason"] == "split"
+    assert rows[1]["reopen_when"] == ["numbers restated"]
+
+
+# --- question journey: sharpened re-poses (SPEC §7) ---------------------------
+
+
+def test_repose_records_sharpened_axes_on_history_entry(root: Path):
+    ledgers.add_question(root, "what about the money?")
+    got = ledgers.repose_question(
+        root, "Q1", "which 2026 grants exceeded the cap?",
+        sharpened=["scope", "falsifiability"], note="named the cap and the year",
+    )
+    entry = pages.read_page(got.path).fm["formulations"][0]
+    assert entry["text"] == "what about the money?"
+    assert entry["sharpened"] == ["scope", "falsifiability"]
+    assert entry["note"] == "named the cap and the year"
+
+
+def test_repose_invalid_sharpened_axis_raises(root: Path):
+    ledgers.add_question(root, "who?")
+    with pytest.raises(SystemExit, match="invalid sharpened axis 'vibes'"):
+        ledgers.repose_question(root, "Q1", "which?", sharpened=["vibes"])
+
+
+def test_repose_without_instrumentation_keeps_plain_entry(root: Path):
+    ledgers.add_question(root, "who?")
+    got = ledgers.repose_question(root, "Q1", "which trust?")
+    entry = pages.read_page(got.path).fm["formulations"][0]
+    assert "sharpened" not in entry and "note" not in entry

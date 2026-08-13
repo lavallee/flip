@@ -971,25 +971,130 @@ def question_add(text: str, resolves_via: tuple[str, ...]) -> None:
     click.echo(f"{page.id} open · {page.fm.get('description', '')}{tail}")
 
 
+def _require_qid(qid: str) -> str:
+    if not re.fullmatch(r"Q\d+", qid):
+        raise SystemExit(f"'{qid}' is not a question id (expected Q<number>, e.g. Q2); "
+                         "`flip question list` shows them")
+    return qid
+
+
 @question.command("answer")
 @click.argument("qid", metavar="ID")
 @click.option("--note", default=None,
               help="Where the answer landed; recorded under '## Answer' on the page.")
-def question_answer(qid: str, note: str | None) -> None:
+@click.option("--reopen-when", "reopen_when", multiple=True, metavar="CONDITION",
+              help="A written observable condition under which this answer should "
+                   "be revisited (repeatable) — resolution says when to stop, "
+                   "this says when to un-stop.")
+def question_answer(qid: str, note: str | None, reopen_when: tuple[str, ...]) -> None:
     """Mark a question answered: status, answered timestamp, and actor land
-    on the page; the ask text stays. Pass --note to record the answer itself.
+    on the page; the ask text stays. Pass --note to record the answer itself,
+    --reopen-when to arm the conditions that would reopen it.
     """
-    if not re.fullmatch(r"Q\d+", qid):
-        raise SystemExit(f"'{qid}' is not a question id (expected Q<number>, e.g. Q2); "
-                         "`flip question list` shows them")
-    ledgers.answer_question(require_notebook_root(), qid, note=note)
-    click.echo(f"{qid} answered")
+    ledgers.answer_question(require_notebook_root(), _require_qid(qid), note=note,
+                            reopen_when=list(reopen_when))
+    tail = f" · reopens when: {'; '.join(reopen_when)}" if reopen_when else ""
+    click.echo(f"{qid} answered{tail}")
+
+
+@question.command("note")
+@click.argument("qid", metavar="ID")
+@click.argument("text")
+@click.option("--answers", "answers",
+              type=click.Choice(ledgers.ANSWER_SCOPES), default=None,
+              help="Scope verdict: did this evidence answer the question as "
+                   "worded, a narrower question, or an adjacent one? "
+                   "Narrower/adjacent keeps the question open with the partial "
+                   "answer preserved.")
+@click.option("--source", "source_ids", multiple=True, metavar="SOURCE_ID",
+              help="Evidence id cited by this note (repeatable; must resolve).")
+@click.option("--zero-yield", "zero_yield",
+              type=click.Choice(ledgers.ZERO_YIELD_CAUSES), default=None,
+              help="This probe came back empty — record WHY: a zero round "
+                   "without a cause is indistinguishable from saturation.")
+def question_note(qid: str, text: str, answers: str | None,
+                  source_ids: tuple[str, ...], zero_yield: str | None) -> None:
+    """Land evidence on a question without closing it (append-only).
+
+    Appends a dated '## Evidence' section to the page and logs a
+    question-evidence event. The question's status does not change: this is
+    how a standing question accretes what the work learns between re-poses,
+    including partial (narrower/adjacent) answers and empty probes.
+    """
+    page = ledgers.note_question(require_notebook_root(), _require_qid(qid), text,
+                                 answers=answers, sources=list(source_ids),
+                                 zero_yield=zero_yield)
+    scope = f" · answers: {answers}" if answers else ""
+    zero = f" · zero yield: {zero_yield}" if zero_yield else ""
+    click.echo(f"{qid} evidence noted ({page.fm.get('status', 'open')}){scope}{zero}")
+
+
+@question.command("close")
+@click.argument("qid", metavar="ID")
+@click.option("--reason", required=True, type=click.Choice(ledgers.CLOSED_REASONS),
+              help="How the question ended without an answer.")
+@click.option("--note", default=None,
+              help="What happened; recorded in the dated '## Closed' section.")
+@click.option("--reopen-when", "reopen_when", multiple=True, metavar="CONDITION",
+              help="A written observable condition under which to revisit "
+                   "(repeatable).")
+def question_close(qid: str, reason: str, note: str | None,
+                   reopen_when: tuple[str, ...]) -> None:
+    """Close a question without an answer — split, yielded to its owner,
+    killed by a counter-example, dropped as a dead end, or superseded.
+
+    Answering has its own path (`flip question answer`); this records the
+    other honest ends. The page keeps its id and full journey.
+    """
+    ledgers.close_question(require_notebook_root(), _require_qid(qid), reason,
+                           note=note, reopen_when=list(reopen_when))
+    click.echo(f"{qid} closed · {reason}")
+
+
+@question.command("dormant")
+@click.argument("qid", metavar="ID")
+@click.option("--until", required=True, metavar="YYYY-MM-DD",
+              help="Review date: the question resurfaces in `flip show` from "
+                   "this date.")
+@click.option("--note", default=None,
+              help="Why it's parked; recorded in the dated '## Dormant' section.")
+def question_dormant(qid: str, until: str, note: str | None) -> None:
+    """Park an open question with a review date (dormant is not dead).
+
+    The question leaves the everyday roster but `flip show` surfaces it
+    again once the review date passes.
+    """
+    ledgers.dormant_question(require_notebook_root(), _require_qid(qid), until,
+                             note=note)
+    click.echo(f"{qid} dormant · review by {until}")
+
+
+@question.command("reopen")
+@click.argument("qid", metavar="ID")
+@click.option("--because", required=True,
+              help="Which trigger fired, or what changed.")
+def question_reopen(qid: str, because: str) -> None:
+    """Reopen a settled question (answered, closed, or dormant → open).
+
+    The prior answer and every dated section stay on the page; a dated
+    '## Reopened' section records why, and a question-reopen event lands in
+    the log.
+    """
+    ledgers.reopen_question(require_notebook_root(), _require_qid(qid), because)
+    click.echo(f"{qid} reopened")
 
 
 @question.command("repose")
 @click.argument("qid", metavar="ID")
 @click.argument("text")
-def question_repose(qid: str, text: str) -> None:
+@click.option("--sharpened", "sharpened", multiple=True,
+              type=click.Choice(ledgers.SHARPENED_AXES),
+              help="Which axis this re-pose sharpened (repeatable). Recorded "
+                   "on the formulation history entry, never scored.")
+@click.option("--note", default=None,
+              help="How it sharpened; recorded on the history entry.")
+def question_repose(qid: str, text: str, sharpened: tuple[str, ...],
+                    note: str | None) -> None:
     """Re-pose a question with a sharper formulation (append-only).
 
     The new text becomes current; the superseded formulation is preserved in
@@ -997,31 +1102,39 @@ def question_repose(qid: str, text: str) -> None:
     a question-repose event lands in the log. The id, slug, and status stay —
     nothing is overwritten, so the full journey survives.
     """
-    if not re.fullmatch(r"Q\d+", qid):
-        raise SystemExit(f"'{qid}' is not a question id (expected Q<number>, e.g. Q2); "
-                         "`flip question list` shows them")
-    page = ledgers.repose_question(require_notebook_root(), qid, text)
+    page = ledgers.repose_question(require_notebook_root(), _require_qid(qid), text,
+                                   sharpened=list(sharpened), note=note)
+    tail = f" · sharpened: {', '.join(sharpened)}" if sharpened else ""
     click.echo(f"{qid} re-posed · {page.fm.get('description', '')} · "
-               f"{len(page.fm.get('formulations') or [])} prior formulation(s) kept")
+               f"{len(page.fm.get('formulations') or [])} prior formulation(s) kept{tail}")
 
 
 @question.command("list")
+@click.option("--status", "status",
+              type=click.Choice(("open", "answered", "closed", "dormant")),
+              default=None, help="Only questions in this status.")
 @click.option("--json", "as_json", is_flag=True, help="Emit the rows as JSON.")
-def question_list(as_json: bool) -> None:
-    """List every question with its current status: id · open/answered · text.
+def question_list(status: str | None, as_json: bool) -> None:
+    """List every question with its current status: id · status · text.
 
-    Open ones also surface in `flip show`; this is the full view (answered
+    Open ones also surface in `flip show`; this is the full view (settled
     questions keep their pages — ids are never reused).
     """
-    rows = ledgers.list_questions(require_notebook_root())
+    rows = ledgers.list_questions(require_notebook_root(), status=status)
     if as_json:
         click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
         return
     if not rows:
-        click.echo("no questions recorded (questions/ is absent or empty)")
+        click.echo(f"no {status} questions" if status
+                   else "no questions recorded (questions/ is absent or empty)")
         return
     for r in rows:
-        click.echo(f"{r.get('id', '?')} · {r.get('status', 'open')} · {r.get('text', '')}")
+        line = f"{r.get('id', '?')} · {r.get('status', 'open')} · {r.get('text', '')}"
+        if r.get("status") == "closed" and r.get("closed_reason"):
+            line += f" · {r['closed_reason']}"
+        if r.get("status") == "dormant" and r.get("review_by"):
+            line += f" · review by {r['review_by']}"
+        click.echo(line)
 
 
 # ---------------------------------------------------------------- claims
