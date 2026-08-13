@@ -53,6 +53,7 @@ _DIR_TITLES = {
     "decisions": "Decisions",
     "questions": "Questions",
     "forecasts": "Forecasts",
+    "commissions": "Commissions",
     "sessions": "Sessions",
 }
 

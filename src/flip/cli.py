@@ -23,6 +23,7 @@ import click
 from . import (
     beat as beat_mod,
     claims,
+    commissions as commissions_mod,
     integrations,
     pages,
     doctor as doctor_mod,
@@ -1135,6 +1136,88 @@ def question_list(status: str | None, as_json: bool) -> None:
             line += f" · {r['closed_reason']}"
         if r.get("status") == "dormant" and r.get("review_by"):
             line += f" · review by {r['review_by']}"
+        click.echo(line)
+
+
+# ---------------------------------------------------------------- commissions
+
+
+@main.group(cls=SuggestGroup)
+def commission() -> None:
+    """Commission contracts as pages (commissions/<slug>.md, ids K#).
+
+    Bounded follow-up work written as a contract BEFORE dispatch: input
+    universe, deliverable, stop condition, does-not-redo boundary. Chains
+    that carried these consumed prior outputs without re-discovery; chains
+    without them re-searched what they already held. Nothing here dispatches
+    anything — the page records the contract and its outcome.
+    """
+
+
+@commission.command("add")
+@click.argument("deliverable")
+@click.option("--universe", required=True,
+              help="The input universe this run works over — what it consumes.")
+@click.option("--stop", required=True,
+              help="The written condition under which the run stops.")
+@click.option("--does-not-redo", "does_not_redo", required=True,
+              help="The boundary: what this run must NOT re-search or re-derive.")
+@click.option("--for", "for_ref", default=None, metavar="REF",
+              help="The question or thread this serves (Q#/TH#; must resolve).")
+@click.option("--roi-low", "roi_low", default=None, metavar="TEXT",
+              help="Expected lift, LOW bound — quote this as the expectation; "
+                   "executed estimates to date held at their low bound.")
+@click.option("--roi-high", "roi_high", default=None, metavar="TEXT",
+              help="Upside bound (requires --roi-low). Directional, never "
+                   "additive across commissions.")
+def commission_add(deliverable: str, universe: str, stop: str, does_not_redo: str,
+                   for_ref: str | None, roi_low: str | None,
+                   roi_high: str | None) -> None:
+    """Write a commission contract (status "proposed"), allocating the next K#."""
+    page = commissions_mod.add_commission(
+        require_notebook_root(), deliverable, universe, stop, does_not_redo,
+        for_ref=for_ref, roi_low=roi_low, roi_high=roi_high)
+    tail = f" · for {for_ref}" if for_ref else ""
+    roi = f" · roi {roi_low}" + (f"–{roi_high}" if roi_high else "") if roi_low else ""
+    click.echo(f"{page.id} proposed · {page.fm.get('description', '')}{tail}{roi}")
+
+
+@commission.command("status")
+@click.argument("kid", metavar="ID")
+@click.argument("status", type=click.Choice(commissions_mod.STATUSES))
+@click.option("--note", default=None, help="What happened; lands in the dated section.")
+@click.option("--consumed", default=None,
+              help="What prior output the run consumed (returns only) — the "
+                   "receipt that keeps a continuation chain auditable.")
+def commission_status(kid: str, status: str, note: str | None,
+                      consumed: str | None) -> None:
+    """Move a commission along proposed → dispatched → returned | declined."""
+    page = commissions_mod.set_commission_status(
+        require_notebook_root(), kid, status, note=note, consumed=consumed)
+    tail = ""
+    if status == "returned" and not page.fm.get("consumed"):
+        tail = "  (no --consumed receipt — the chain audit will have nothing to check)"
+    click.echo(f"{kid} → {status}{tail}")
+
+
+@commission.command("list")
+@click.option("--status", default=None, type=click.Choice(commissions_mod.STATUSES),
+              help="Only commissions in this status.")
+@click.option("--json", "as_json", is_flag=True, help="Emit the rows as JSON.")
+def commission_list(status: str | None, as_json: bool) -> None:
+    """List commission contracts: id · status · deliverable · for."""
+    rows = commissions_mod.list_commissions(require_notebook_root(), status=status)
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        click.echo(f"no {status} commissions" if status
+                   else "no commissions recorded (commissions/ is absent or empty)")
+        return
+    for r in rows:
+        line = f"{r['id']} · {r['status']} · {r['deliverable']}"
+        if r.get("for"):
+            line += f" · for {r['for']}"
         click.echo(line)
 
 

@@ -274,6 +274,31 @@ def test_question_answer_reopen_when_and_repose_sharpened(tmp_path, monkeypatch)
     assert rows[0]["reopen_when"] == ["a new grant cycle posts"]
 
 
+def test_commission_commands(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    invoke(["question", "add", "which rows changed?"])
+    added = invoke(["commission", "add", "refresh tracker rows",
+                    "--universe", "the 180 active rows",
+                    "--stop", "every row re-checked once",
+                    "--does-not-redo", "no re-discovery of audited rows",
+                    "--for", "Q1", "--roi-low", "+0.5"])
+    assert added.exit_code == 0, added.output
+    assert "K1 proposed · refresh tracker rows · for Q1 · roi +0.5" in added.output
+
+    moved = invoke(["commission", "status", "K1", "dispatched"])
+    assert moved.exit_code == 0, moved.output
+
+    back = invoke(["commission", "status", "K1", "returned"])
+    assert back.exit_code == 0, back.output
+    assert "no --consumed receipt" in back.output
+
+    listing = invoke(["commission", "list"])
+    assert "K1 · returned · refresh tracker rows · for Q1" in listing.output
+    rows = json.loads(invoke(["commission", "list", "--json"]).output)
+    assert rows[0]["universe"] == "the 180 active rows"
+
+
 def test_pass_echoes_ts_and_reason(tmp_path, monkeypatch):
     root = make_notebook(tmp_path / "demo")
     monkeypatch.chdir(root)
