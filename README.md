@@ -83,7 +83,9 @@ would:
 
 What that conversation leaves behind is not a chat transcript: it is a
 browsable, auditable notebook —
-[real ones to read here](https://github.com/lavallee/flip-examples).
+[real ones to read here](https://github.com/lavallee/flip-examples), or
+[rendered](https://lavallee.github.io/flip-examples/), every page generated
+from the notebook itself.
 No human typed the flip commands in those; that's the point.
 
 The full guide — what each skill does, how attribution works, what the
