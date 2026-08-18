@@ -1289,12 +1289,15 @@ def test_claim_source_add_needs_at_least_one_citation(tmp_path, monkeypatch):
 # ------------------------------------------------- scale hardening (0.19) CLI
 
 
-def _stuffed_capture(root: Path) -> bytes:
+def _stuffed_capture(root: Path, with_provenance: bool = True) -> bytes:
     """A capture whose envelope holds a PDF inside a JSON string field."""
+    from flip.util import append_jsonl, sha256_file
+
     payload = b"%PDF-1.7\n" + b"z" * 4000 + b"\n%%EOF"
     raw = root / "sources" / "raw" / "A1"
     raw.mkdir(parents=True, exist_ok=True)
-    (raw / "capture.json").write_text(
+    envelope = raw / "capture.json"
+    envelope.write_text(
         json.dumps({"url": "https://example.com/p.pdf", "html": payload.decode("latin-1")}),
         encoding="utf-8",
     )
@@ -1305,6 +1308,16 @@ def _stuffed_capture(root: Path) -> bytes:
          "grade": "?", "status": "captured"},
         "# A Paper\n",
     )
+    if with_provenance:
+        append_jsonl(
+            root / "sources" / "_provenance.jsonl",
+            {"ts": "2026-08-01T09:00:00Z", "source_id": "A1",
+             "url": "https://example.com/p.pdf",
+             "local_path": "sources/raw/A1/capture.json",
+             "sha256": sha256_file(envelope), "bytes": envelope.stat().st_size,
+             "tool": "paperfetch", "tool_version": "paperfetch 2.1",
+             "strategy": "http-get", "mime": "application/pdf", "actor": "human:test"},
+        )
     return payload
 
 
@@ -1327,9 +1340,33 @@ def test_doctor_fix_rescues_a_document_from_its_envelope(tmp_path, monkeypatch):
     assert pages.read_page(root / "references" / "a-paper.md").fm["local"] == (
         "sources/raw/A1/capture-html.pdf"
     )
-    prov = (root / "sources" / "_provenance.jsonl").read_text(encoding="utf-8")
-    assert "builtin:doctor-fix" in prov
-    assert "re-materialized from a capture envelope" in prov
+    # the rescued bytes inherit the acquisition that fetched them: same URL,
+    # same method, same tool. A row that dropped those would turn an honest
+    # http-get capture into a source with no method on record — the very
+    # finding this release stopped inventing.
+    from flip.util import read_jsonl, sha256_file
+
+    rows = read_jsonl(root / "sources" / "_provenance.jsonl")
+    rescued_row = next(r for r in rows if r["local_path"].endswith("capture-html.pdf"))
+    assert rescued_row["strategy"] == "http-get"
+    assert rescued_row["url"] == "https://example.com/p.pdf"
+    assert rescued_row["tool"] == "paperfetch"
+    assert rescued_row["event"] == "rematerialize"
+    assert "materialized out of capture.json" in rescued_row["note"]
+    # the source still reports the method it was captured by
+    from flip import sources as sources_mod
+
+    assert sources_mod.latest_capture_event(root, "A1")["strategy"] == "http-get"
+    assert "unreported-method" not in invoke(["doctor"]).output
+
+    # the envelope changed while under custody, so its fixity row is superseded
+    # rather than left asserting a hash the file no longer has
+    envelope_rows = [r for r in rows if r["local_path"].endswith("capture.json")]
+    assert len(envelope_rows) == 2
+    assert envelope_rows[-1]["sha256"] == sha256_file(
+        root / "sources" / "raw" / "A1" / "capture.json"
+    )
+    assert "supersedes the prior fixity row" in envelope_rows[-1]["note"]
     # and the finding it repairs is gone
     assert "binary-in-envelope" not in invoke(["doctor"]).output
 

@@ -94,7 +94,7 @@ def test_renaming_a_hub_source_rewrites_every_citation(root: Path):
              "description": f"claim {n}", "status": "asserted",
              "sources": [{"id": "A1"}], "independent_corroboration": 0,
              "first_asserted": "2026-08-17"},
-            f"Rests on [X](../references/x.md), see also [X again](../references/x.md#p2).\n",
+            "Rests on [X](../references/x.md), see also [X again](../references/x.md#p2).\n",
         )
     (root / "notebook.md").write_text(
         "# t\n\nThe spine of this notebook is [X](references/x.md).\n", encoding="utf-8"

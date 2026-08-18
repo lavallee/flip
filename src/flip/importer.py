@@ -18,7 +18,7 @@ import os
 import shutil
 from pathlib import Path
 
-from . import registry, workspace
+from . import registry, views, workspace
 from .doctor import run_doctor
 from .manifest import load_manifest, save_manifest
 from .okf import STATE_FILE
@@ -129,6 +129,12 @@ def update_bundle(ws_root: Path, handle: str, src: Path) -> dict:
             shutil.rmtree(entry)
         else:
             entry.unlink()
+    # `.flip/` survives the wipe because the id reservations must — but the
+    # view cache inside it describes a page set that is about to be replaced
+    # wholesale, and `copy2` carries the source's mtimes, so the cheap
+    # fingerprint cannot always tell. Drop it: it is derived, and the next
+    # mutation rebuilds it from the pages that actually arrived.
+    (dest / views.VIEWCACHE).unlink(missing_ok=True)
     _copy_payload(payload, dest)
     m = load_manifest(dest)
     m.uid = uid

@@ -19,6 +19,7 @@ down a view — `flip doctor` is where corruption gets reported.
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections.abc import Iterable
 from datetime import datetime, timezone
@@ -773,23 +774,95 @@ def regenerate(root: Path, changed: Iterable[str] | None = None) -> None:
     )
     counts: dict[str, dict] = {}
     for dirname in pages.ENTITY_DIRS:
-        if dirname in dirty or dirname not in cache:
-            entries = _pages(root, dirname)
-            _write_dir_index(root, dirname, entries)
-            info: dict = {"count": len(entries)}
-            if dirname == "questions":
-                info["open"] = len(_open_questions(root, loaded=entries))
-            counts[dirname] = info
-        else:
-            counts[dirname] = cache[dirname]
-    _save_viewcache(root, counts, create=changed is not None)
+        cached = None if dirname in dirty else cache.get(dirname)
+        if cached is not None and _cache_entry_holds(root, dirname, cached):
+            counts[dirname] = cached
+            continue
+        entries = _pages(root, dirname)
+        _write_dir_index(root, dirname, entries)
+        info: dict = {"count": len(entries), **_dir_fingerprint(root, dirname)}
+        if dirname == "questions":
+            info["open"] = len(_open_questions(root, loaded=entries))
+            # The open count is a function of the pages AND of today's date: a
+            # dormant question resurfaces the morning its review date arrives,
+            # with nothing on disk having changed. Remember the earliest such
+            # date so the entry can expire itself instead of freezing a count
+            # that the calendar has already made wrong.
+            due = _earliest_review_due(entries)
+            if due:
+                info["review_due"] = due
+        counts[dirname] = info
+    if changed is not None:
+        _save_viewcache(root, counts)
     save_manifest(root, m, body=_root_body(root, m, events, counts))
 
 
+def _dir_fingerprint(root: Path, dirname: str) -> dict:
+    """A cheap witness that a directory's page set is unchanged: how many
+    entity files it holds and the newest mtime among them.
+
+    Costs one `scandir` and no parsing, and it is what makes the cache
+    *verifiable* rather than trusted. Without it the cache assumes flip is the
+    only writer — but pages are hand-editable by contract (SPEC §3), Obsidian
+    writes them, `flip import --update` replaces them wholesale, and git checks
+    them out. Any of those would otherwise leave a generated view stating a
+    count that no longer matches the notebook, healed by nothing.
+
+    The generated `index.md` is excluded: rewriting it is what this function's
+    caller just did, and including it would invalidate the entry every time.
+    """
+    directory = root / dirname
+    if not directory.is_dir():
+        return {"files": 0, "mtime_ns": 0}
+    n, newest = 0, 0
+    try:
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                name = entry.name
+                if name in pages.RESERVED or name.startswith((".", "_")):
+                    continue
+                if not name.endswith(".md") or not entry.is_file():
+                    continue
+                n += 1
+                newest = max(newest, entry.stat().st_mtime_ns)
+    except OSError:
+        return {"files": -1, "mtime_ns": 0}  # unreadable: never claim a match
+    return {"files": n, "mtime_ns": newest}
+
+
+def _cache_entry_holds(root: Path, dirname: str, entry: dict) -> bool:
+    """True when a cached entry still describes the directory on disk."""
+    due = entry.get("review_due")
+    if isinstance(due, str) and due and due <= _today():
+        return False  # a parked question's review date has arrived
+    now = _dir_fingerprint(root, dirname)
+    return (
+        entry.get("files") == now["files"]
+        and entry.get("mtime_ns") == now["mtime_ns"]
+        and now["files"] >= 0
+    )
+
+
+def _earliest_review_due(entries: list[pages.Page]) -> str:
+    """The soonest future `review_by` among dormant questions, or ""."""
+    dates = [
+        str(p.fm.get("review_by") or "")
+        for p in entries
+        if str(p.fm.get("status") or "") == "dormant"
+    ]
+    pending = sorted(d for d in dates if d and _review_pending(d))
+    return pending[0] if pending else ""
+
+
 def _load_viewcache(root: Path) -> dict:
-    """The derived per-directory counts, or {} when absent/corrupt/unreadable
-    (every miss is answered by recounting the real pages — the cache can only
-    ever save work, never change output)."""
+    """The derived per-directory counts, or {} when absent/corrupt/unreadable.
+
+    An entry is kept only if it carries every field the verification needs;
+    a partial entry (a `count` with no `open`, the shape an older or foreign
+    writer would leave) is dropped rather than half-trusted — "0 open" printed
+    from a missing key is exactly the silent wrongness the cache must not add.
+    Every miss is answered by recounting the real pages.
+    """
     try:
         data = json.loads((root / VIEWCACHE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -798,24 +871,27 @@ def _load_viewcache(root: Path) -> dict:
         return {}
     out = {}
     for key, value in data.items():
-        if isinstance(value, dict) and isinstance(value.get("count"), int):
-            out[key] = value
+        if not isinstance(value, dict):
+            continue
+        if not all(isinstance(value.get(f), int) for f in ("count", "files", "mtime_ns")):
+            continue
+        if key == "questions" and not isinstance(value.get("open"), int):
+            continue
+        out[key] = value
     return out
 
 
-def _save_viewcache(root: Path, counts: dict[str, dict], create: bool) -> None:
+def _save_viewcache(root: Path, counts: dict[str, dict]) -> None:
     """Best-effort write; a notebook on read-only media still gets its views.
 
-    Only an incremental caller (`create=True`) may bring the cache into
-    existence; a full rebuild refreshes one that is already there — so it can
-    never go stale — but creates nothing. That keeps full `regenerate(root)`
-    free of side files, which `flip export`'s never-mutates invariant (and
-    its test) depends on. Unchanged content is not rewritten.
+    Only an incremental caller writes at all. A full rebuild deliberately
+    leaves the file alone — creating it OR refreshing it would make
+    `flip export` (which regenerates fully) mutate the notebook it is
+    exporting, and the next incremental run re-grounds any stale entry through
+    the fingerprint anyway.
     """
-    path = root / VIEWCACHE
-    if not create and not path.is_file():
-        return
     text = json.dumps(counts, sort_keys=True) + "\n"
+    path = root / VIEWCACHE
     try:
         if path.is_file() and path.read_text(encoding="utf-8") == text:
             return

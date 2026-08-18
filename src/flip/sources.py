@@ -121,6 +121,14 @@ LADDER_RUNGS = tuple(m for m in CAPTURE_METHODS if m not in ("copy", "record-onl
 #                   one is a broken toolchain, the other is a gated source.
 UNCAPTURED_STATUSES = ("failed", "not-captured")
 
+# Statuses whose rows are NOT the source's capture, whether or not bytes
+# landed. `refused` is the odd one: the fetcher delivered, and flip declined to
+# open a page because the envelope described the acquisition in a word that
+# isn't a method. The bytes are held and hashed (so they are not orphan
+# custody), but nothing may read them as the capture — there is no page for
+# them to be the capture OF.
+NON_CAPTURE_STATUSES = (*UNCAPTURED_STATUSES, "refused")
+
 # Methods that produce a page whose linked assets are NOT captured — the bytes
 # are the document's text, not a faithful copy of what a reader saw.
 _TEXT_ONLY_METHODS = ("http-get", "http-alt-representation", "archive-replay")
@@ -770,6 +778,52 @@ def _id_sort_key(fm: dict) -> tuple:
     return (0, m.group(1), int(m.group(2))) if m else (1, str(fm.get("id", "")), 0)
 
 
+def _record_refusal(
+    root: Path,
+    source_id: str,
+    target: str,
+    run: "integrations.CaptureRun",
+    resolved,
+    note: str | None,
+) -> None:
+    """Log a capture that succeeded and was refused for what it said about
+    itself — one row per file that actually landed.
+
+    The rows carry `local_path` and `sha256` because the bytes are really
+    there: without them `flip doctor` reports each file as unregistered custody
+    forever, and the operator is left with an accusation instead of a record.
+    `status: refused` keeps them out of every consumer that walks the ledger
+    for captures, and no entity page exists, so nothing can cite them.
+    """
+    ts = utc_now()
+    actor = detect_actor()
+    finding = (
+        f"capture refused: the fetcher reported strategy {run.strategy!r}, which is "
+        "not a capture method. The bytes were fetched and are held here, "
+        "uncited, pending a fetcher fix"
+    )
+    for f in sorted(run.files):
+        append_jsonl(
+            root / "sources" / "_provenance.jsonl",
+            {
+                "ts": ts,
+                "source_id": source_id,
+                "url": target,
+                "local_path": f.relative_to(root).as_posix(),
+                "sha256": sha256_file(f),
+                "bytes": f.stat().st_size,
+                "status": "refused",
+                "tool": run.tool,
+                **({"tool_version": run.tool_version} if run.tool_version else {}),
+                **({"via": resolved.name} if resolved and resolved.name else {}),
+                "reported_strategy": run.strategy,
+                "finding": finding,
+                "actor": actor,
+                **({"note": note} if note else {}),
+            },
+        )
+
+
 def add_source(
     root: Path,
     target: str,
@@ -855,22 +909,6 @@ def add_source(
     else:
         try:
             run = integrations.run_capture(resolved, root, source_id, target)
-            # The envelope is untrusted input and this is the trust boundary,
-            # exactly as it is for --strategy above: a fetcher that reports a
-            # word outside the method vocabulary is usually reporting its own
-            # NAME (a measured corpus held `direct`, `googlebot`, `pdf` — tool
-            # trivia, not methods). Refusing here, with the vocabulary in
-            # hand, is what keeps two notebooks comparable across deployments;
-            # accepting it silently is how one corpus accrued 520 warnings.
-            if run.strategy is not None and run.strategy not in CAPTURE_METHODS:
-                raise SystemExit(
-                    f"fetcher for kind '{kind}' reported capture strategy "
-                    f"{run.strategy!r}, which is not a capture method (one of: "
-                    f"{', '.join(CAPTURE_METHODS)}). The provenance ledger "
-                    "records the METHOD there — the tool's name already lands "
-                    "in `tool`. Fix the fetcher's envelope, or drop its "
-                    "`strategy` key to record the method as unreported"
-                )
         except integrations.EmptyCapture as exc:
             # The tool ran fine and found nothing. That is a finding ABOUT THE
             # DOCUMENT — gated, withdrawn, not served to us — and the honest
@@ -910,6 +948,31 @@ def add_source(
                 },
             )
             raise
+        # The envelope is untrusted input and this is the trust boundary,
+        # exactly as it is for --strategy above: a fetcher reporting a word
+        # outside the method vocabulary is usually reporting its own NAME (a
+        # measured corpus held `direct`, `googlebot`, `pdf` — tool trivia, not
+        # methods). Refusing keeps two notebooks comparable across deployments;
+        # accepting it silently is how one corpus accrued 520 warnings.
+        #
+        # Deliberately OUTSIDE the try: the acquisition succeeded, and routing
+        # this through the `failed` handler would write the one thing the
+        # ledger must never say — that the fetcher looked and came back
+        # empty-handed, when it looked and delivered.
+        if run.strategy is not None and run.strategy not in CAPTURE_METHODS:
+            _record_refusal(root, source_id, target, run, resolved, note)
+            raise SystemExit(
+                f"fetcher for kind '{kind}' reported capture strategy "
+                f"{run.strategy!r}, which is not a capture method (one of: "
+                f"{', '.join(CAPTURE_METHODS)}). The provenance ledger records "
+                "the METHOD there — the tool's name already lands in `tool`. "
+                "Fix the fetcher's envelope, or drop its `strategy` key to "
+                "record the method as unreported.\n"
+                f"The bytes it fetched are held at sources/raw/{source_id}/ and "
+                "logged as a refused capture — no page was opened, so nothing "
+                "cites them. Re-run once the fetcher is fixed, or delete that "
+                "directory."
+            )
         files, tool, tool_version = run.files, run.tool, run.tool_version
         capture_kind, strategy, url, envelope = "config", run.strategy, target, run.envelope
 
@@ -1025,7 +1088,7 @@ def latest_capture_event(root: Path, source_id: str) -> dict | None:
     for event in read_jsonl(root / "sources" / "_provenance.jsonl"):
         if str(event.get("source_id") or "") != source_id or not event.get("sha256"):
             continue
-        if str(event.get("status") or "") in UNCAPTURED_STATUSES:
+        if str(event.get("status") or "") in NON_CAPTURE_STATUSES:
             continue
         if Path(str(event.get("local_path") or "")).name == ENVELOPE_FILENAME:
             continue

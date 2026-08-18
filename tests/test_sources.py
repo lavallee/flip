@@ -552,14 +552,39 @@ def test_envelope_tool_name_in_strategy_is_refused_at_the_boundary(tmp_path, mon
     script = _envelope_fetcher(tmp_path, '{"flip": {"strategy": "googlebot"}}')
     make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}}"})
 
-    with pytest.raises(SystemExit, match="not a capture method"):
+    with pytest.raises(SystemExit, match="not a capture method") as ei:
         sources.add_source(root, "https://example.com/story")
 
     ev = read_jsonl(root / "sources" / "_provenance.jsonl")[0]
-    assert ev["status"] == "failed"
-    assert "googlebot" in ev["error"]
-    # no reference page was opened for the refused capture
+    # `failed` would be a lie: the fetcher looked and delivered. The row says
+    # what happened — bytes fetched, capture refused, and what it reported.
+    assert ev["status"] == "refused"
+    assert ev["reported_strategy"] == "googlebot"
+    assert "capture refused" in ev["finding"]
+    # the bytes are hashed and registered, so they are not orphan custody
+    assert ev["sha256"] and ev["bytes"]
+    assert (root / ev["local_path"]).is_file()
+    # no reference page was opened, so nothing can cite them
     assert not list((root / "references").glob("*.md"))
+    # and the operator is told where the bytes are rather than left to find them
+    assert "sources/raw/A1/" in str(ei.value)
+
+
+def test_refused_capture_bytes_are_not_orphan_custody(tmp_path, monkeypatch):
+    # Without a registered row, every refusal leaves permanent unregistered-raw
+    # warnings that only hand-deletion clears.
+    from flip.doctor import run_doctor
+
+    root = make_notebook(tmp_path)
+    script = _envelope_fetcher(tmp_path, '{"flip": {"strategy": "googlebot"}}', to_dest=True)
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}} {{dest}}"})
+    with pytest.raises(SystemExit):
+        sources.add_source(root, "https://example.com/story")
+
+    findings = run_doctor(root)
+    assert [f for f in findings if f.code == "unregistered-raw"] == []
+    # and a refused row is never mistaken for the source's capture
+    assert sources.latest_capture_event(root, "A1") is None
 
 
 def test_envelope_ignores_out_of_vocab_hints(tmp_path, monkeypatch):

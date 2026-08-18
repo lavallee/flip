@@ -373,3 +373,108 @@ def test_configured_lanes_never_raises_on_a_broken_config(tmp_path, monkeypatch)
     monkeypatch.setenv("FLIP_HOME", str(tmp_path / "nothing-here"))
     assert integrations.configured_lanes() == []
     assert integrations.capture_lanes() == {}
+
+
+# --- binary payloads stuffed into envelope string fields (SPEC §5.1) ---------
+
+
+def test_every_stuffed_field_in_one_envelope_is_materialized(tmp_path):
+    """More than one payload in a single envelope is the case that hides bugs:
+    the first field works, and the second is only reached by a file nobody
+    wrote a test for. Both must land, each named for the field it came from."""
+    import json
+
+    dest = tmp_path / "A1"
+    dest.mkdir()
+    pdf = b"%PDF-1.7\n" + b"a" * 200
+    zip_bytes = b"PK\x03\x04" + b"b" * 200
+    envelope = dest / "capture.json"
+    envelope.write_text(
+        json.dumps({
+            "url": "https://example.com/bundle",
+            "html": pdf.decode("latin-1"),
+            "content": zip_bytes.decode("latin-1"),
+            "text": "an ordinary text field that is not a document",
+        }),
+        encoding="utf-8",
+    )
+
+    out = integrations.materialize_binary_payloads([envelope], dest)
+
+    assert (dest / "capture-html.pdf").read_bytes() == pdf
+    assert (dest / "capture-content.zip").read_bytes() == zip_bytes
+    assert {p.name for p in out} == {"capture.json", "capture-html.pdf", "capture-content.zip"}
+    data = json.loads(envelope.read_text(encoding="utf-8"))
+    assert data["html"].startswith("[flip: binary payload") and "capture-html.pdf" in data["html"]
+    assert "capture-content.zip" in data["content"]
+    assert data["text"] == "an ordinary text field that is not a document"  # untouched
+    assert data["url"] == "https://example.com/bundle"  # metadata untouched
+
+
+def test_a_materialized_name_never_overwrites_an_existing_file(tmp_path):
+    import json
+
+    dest = tmp_path / "A1"
+    dest.mkdir()
+    (dest / "capture-html.pdf").write_bytes(b"an earlier capture, not to be clobbered")
+    pdf = b"%PDF-1.7\n" + b"c" * 100
+    envelope = dest / "capture.json"
+    envelope.write_text(json.dumps({"html": pdf.decode("latin-1")}), encoding="utf-8")
+
+    integrations.materialize_binary_payloads([envelope], dest)
+
+    assert (dest / "capture-html.pdf").read_bytes() == b"an earlier capture, not to be clobbered"
+    assert (dest / "capture-html-2.pdf").read_bytes() == pdf
+
+
+def test_an_unencodable_envelope_survives_the_rescue(tmp_path):
+    """The envelope this function exists to preserve must not be the thing it
+    destroys. A lone surrogate — what any `JSON.stringify` makes of a title
+    clipped mid-pair, and what `errors="surrogateescape"` produces — is legal
+    in a JSON file and unencodable as UTF-8. `write_text` truncates before it
+    finds that out, so the original 20 KB envelope became 0 bytes *after* its
+    payload had been extracted and while its provenance row still swore to the
+    old hash.
+    """
+    import json
+
+    dest = tmp_path / "A1"
+    dest.mkdir()
+    pdf = b"%PDF-1.7\n" + b"d" * 300
+    envelope = dest / "capture.json"
+    # written the way a fetcher would: valid JSON text carrying a lone surrogate
+    envelope.write_text(
+        '{"title": "Deep Learning \\ud83d", "html": '
+        + json.dumps(pdf.decode("latin-1"))
+        + "}",
+        encoding="utf-8",
+    )
+
+    out = integrations.materialize_binary_payloads([envelope], dest)
+
+    assert (dest / "capture-html.pdf").read_bytes() == pdf
+    assert set(out) == {envelope, dest / "capture-html.pdf"}
+    # the envelope is still there, still parseable, and still carries the title
+    assert envelope.stat().st_size > 0
+    data = json.loads(envelope.read_text(encoding="utf-8"))
+    assert data["title"] == "Deep Learning \ud83d"
+    assert "capture-html.pdf" in data["html"]
+
+
+def test_a_lossy_payload_is_left_exactly_as_found(tmp_path):
+    """A decode that already lost bytes cannot be undone, and a breadcrumb
+    written over it would destroy the last evidence of what happened."""
+    import json
+
+    dest = tmp_path / "A1"
+    dest.mkdir()
+    lossy = "%PDF-1.7\n�� unrecoverable"
+    envelope = dest / "capture.json"
+    envelope.write_text(json.dumps({"html": lossy}), encoding="utf-8")
+    before = envelope.read_bytes()
+
+    out = integrations.materialize_binary_payloads([envelope], dest)
+
+    assert out == [envelope]
+    assert envelope.read_bytes() == before
+    assert not list(dest.glob("*.pdf"))

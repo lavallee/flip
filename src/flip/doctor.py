@@ -363,64 +363,176 @@ def fix_notebook(root: Path) -> list[str]:
     raw = root / "sources" / "raw"
     if not raw.is_dir():
         return []
+    try:
+        provenance = read_jsonl(root / PROVENANCE)
+    except ValueError:
+        raise SystemExit(
+            f"{PROVENANCE} has a corrupt line; `flip doctor` pinpoints it. "
+            "Repairing custody on top of an unreadable ledger would write rows "
+            "nobody can reconcile"
+        ) from None
     done: list[str] = []
+    touched = False
     for source_dir in sorted(p for p in raw.iterdir() if p.is_dir()):
-        before = {p for p in source_dir.rglob("*") if p.is_file()}
-        rescued = integrations.materialize_binary_payloads(sorted(before), source_dir)
-        new = [p for p in rescued if p not in before]
-        if not new:
-            continue
         sid = source_dir.name
-        for path in sorted(new):
-            rel = path.relative_to(root).as_posix()
-            append_jsonl(
-                root / "sources" / "_provenance.jsonl",
-                {
-                    "ts": utc_now(),
-                    "source_id": sid,
-                    "local_path": rel,
-                    "sha256": sha256_file(path),
-                    "bytes": path.stat().st_size,
-                    "tool": "builtin:doctor-fix",
-                    "actor": detect_actor(),
-                    "note": (
-                        "re-materialized from a capture envelope field; the bytes "
-                        "were already in custody, wrapped in a JSON string"
-                    ),
-                },
-            )
-            done.append(f"rescued {rel} from its envelope")
-        _repoint_local(root, sid)
-    if done:
+        # One unreadable capture must not strand the rest of the notebook
+        # halfway through a repair.
+        try:
+            rescued = _rescue_source_dir(root, sid, source_dir, provenance, done)
+        except OSError as exc:
+            done.append(f"skipped {sid}: {exc}")
+            continue
+        # Repoint whenever this source has been materialized — now, or by an
+        # earlier run that died before it got here. Never otherwise: `local` is
+        # the operator's declaration of the primary artifact, and a repair pass
+        # has no business rewriting it on sources it did not touch.
+        if rescued or _points_at_a_breadcrumb(root, sid, source_dir):
+            if _repoint_local(root, sid):
+                touched = True
+        touched = touched or rescued
+    if touched:
         from . import views
 
         views.regenerate(root, changed=("references",))
     return done
 
 
-def _repoint_local(root: Path, source_id: str) -> None:
+def _rescue_source_dir(
+    root: Path, sid: str, source_dir: Path, provenance: list[dict], done: list[str]
+) -> bool:
+    """Materialize every stuffed envelope under one source; log what happened."""
+    rescued_any = False
+    for envelope in sorted(p for p in source_dir.rglob("*.json") if p.is_file()):
+        env_rel = envelope.relative_to(root).as_posix()
+        origin = _latest_row_for(provenance, env_rel)
+        new = integrations.materialize_envelope(envelope, source_dir)
+        if not new:
+            continue
+        rescued_any = True
+        ts = utc_now()
+        actor = detect_actor()
+        # The rescued bytes were acquired by the ORIGINAL capture — same fetch,
+        # same method, same URL; only their storage shape changed. A row that
+        # dropped those facts would turn an honest `http-get` capture into a
+        # source with no method on record, which is precisely the finding this
+        # release added the honest-absence rule to stop inventing.
+        inherited = {
+            k: origin[k]
+            for k in ("url", "strategy", "tool", "tool_version", "mime", "retrieved_at")
+            if origin and origin.get(k) not in (None, "", [], {})
+        }
+        for path in sorted(new):
+            rel = path.relative_to(root).as_posix()
+            append_jsonl(
+                root / PROVENANCE,
+                {
+                    "ts": ts,
+                    "source_id": sid,
+                    **inherited,
+                    "local_path": rel,
+                    "sha256": sha256_file(path),
+                    "bytes": path.stat().st_size,
+                    "event": "rematerialize",
+                    "actor": actor,
+                    "note": (
+                        f"materialized out of {envelope.name} by `flip doctor --fix`; "
+                        "the bytes were already in custody, wrapped in a JSON string"
+                    ),
+                },
+            )
+            done.append(f"rescued {rel} from its envelope")
+        # The envelope itself changed, and it is under custody: its recorded
+        # sha256 stopped describing the file the moment the breadcrumb replaced
+        # the payload. Fixity is the one promise this lane makes.
+        append_jsonl(
+            root / PROVENANCE,
+            {
+                "ts": ts,
+                "source_id": sid,
+                **inherited,
+                "local_path": env_rel,
+                "sha256": sha256_file(envelope),
+                "bytes": envelope.stat().st_size,
+                "event": "rematerialize",
+                "actor": actor,
+                "note": (
+                    "payload materialized out of this envelope by `flip doctor "
+                    "--fix`; supersedes the prior fixity row for this file"
+                ),
+            },
+        )
+    return rescued_any
+
+
+def _latest_row_for(provenance: list[dict], local_path: str) -> dict | None:
+    """The newest ledger row describing one file, or None."""
+    best: dict | None = None
+    for row in provenance:
+        if str(row.get("local_path") or "") != local_path:
+            continue
+        if best is None or str(row.get("ts") or "") >= str(best.get("ts") or ""):
+            best = row
+    return best
+
+
+def _points_at_a_breadcrumb(root: Path, sid: str, source_dir: Path) -> bool:
+    """True when a source page's `local` names an envelope flip has already
+    emptied — the shape an interrupted repair leaves behind, where the page
+    declares a 90-byte breadcrumb to be its primary artifact."""
+    for page in _tolerant_source_pages(root):
+        if page.id != sid:
+            continue
+        local = str(page.fm.get("local") or "")
+        if not local.endswith(".json"):
+            return False
+        path = root / local
+        if not path.is_file() or path.stat().st_size > 64 * 1024:
+            return False
+        try:
+            return "[flip: binary payload" in path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return False
+    return False
+
+
+def _tolerant_source_pages(root: Path) -> list[pages.Page]:
+    """Reference pages, skipping any that won't parse.
+
+    Every other doctor path reads tolerantly and lets the corrupt page be
+    reported as a finding. The repair path must too: one hand-edited page with
+    broken YAML anywhere in `references/` would otherwise abort the run —
+    after some sources had been rescued and before their pages were repointed,
+    which is the one state that leaves `local` naming an emptied envelope.
+    """
+    out, _errors = pages.iter_pages_tolerant(root, "references")
+    return [p for p in out if str(p.fm.get("type") or "") == "Source"]
+
+
+def _repoint_local(root: Path, source_id: str) -> bool:
     """Point a source page's `local` at the document once it exists as a file.
 
     The page pointed at the envelope because the envelope WAS the biggest
     artifact while it held the document inside it; after the rescue the
     document is, and `local` has to mean the same thing it means everywhere
-    else — the primary artifact (SPEC §5.1).
+    else — the primary artifact (SPEC §5.1). Returns whether it wrote.
     """
-    for page in pages.iter_pages(root, "references"):
-        if page.id != source_id or str(page.fm.get("type") or "") != "Source":
+    for page in _tolerant_source_pages(root):
+        if page.id != source_id:
             continue
         capture_dir = root / "sources" / "raw" / source_id
         if not capture_dir.is_dir():
-            return
+            return False
         files = [p for p in capture_dir.rglob("*") if p.is_file()]
         if not files:
-            return
+            return False
         primary = sources_mod._primary_file(files)
         rel = primary.relative_to(root).as_posix()
         if str(page.fm.get("local") or "") != rel:
             page.fm["local"] = rel
             pages.write_page(page.path, page.fm, page.body)
-        return
+            return True
+        return False
+    return False
 
 
 def run_workspace_doctor(ws_root: Path, fix: bool = False) -> list[Finding]:
@@ -1275,7 +1387,7 @@ def _check_capture_fidelity(
         sid = str(event.get("source_id") or "")
         if not sid or sid not in page_ids:
             continue
-        if str(event.get("status") or "") in sources_mod.UNCAPTURED_STATUSES:
+        if str(event.get("status") or "") in sources_mod.NON_CAPTURE_STATUSES:
             continue
         if not event.get("sha256"):  # a recheck or failure row, not a capture
             continue
@@ -1533,7 +1645,7 @@ def _check_duplicate_custody(provenance: list[dict], findings: list[Finding]) ->
         sid = str(row.get("source_id") or "")
         if not sha or not sid:
             continue
-        if str(row.get("status") or "") in sources_mod.UNCAPTURED_STATUSES:
+        if str(row.get("status") or "") in sources_mod.NON_CAPTURE_STATUSES:
             continue
         if Path(str(row.get("local_path") or "")).name == sources_mod.ENVELOPE_FILENAME:
             continue
