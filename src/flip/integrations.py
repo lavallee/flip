@@ -541,7 +541,7 @@ _PAYLOAD_MAGIC = {
 _PAYLOAD_FIELDS = ("html", "text", "content", "body")
 
 
-def _materialize_binary_payloads(files: list[Path], dest: Path) -> list[Path]:
+def materialize_binary_payloads(files: list[Path], dest: Path) -> list[Path]:
     """Rescue document bytes stuffed into JSON string fields at capture time.
 
     For each captured ``*.json``: any ``_PAYLOAD_FIELDS`` string starting with
@@ -630,7 +630,7 @@ def run_capture(resolved: Resolved, root: Path, source_id: str, target: str) -> 
             key=resolved.key, dest=dest, tool=argv[0], template=template,
             captures_stdout=captures_stdout,
         )
-    new = _materialize_binary_payloads(new, dest)
+    new = materialize_binary_payloads(new, dest)
     envelope = _harvest_envelope(new, proc.stdout)
     # The envelope's `strategy` is a claim about the capture METHOD, passed
     # through verbatim for the caller to validate against the vocabulary.

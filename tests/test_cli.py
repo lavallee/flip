@@ -1284,3 +1284,150 @@ def test_claim_source_add_needs_at_least_one_citation(tmp_path, monkeypatch):
     result = invoke(["claim", "source", "add", "C1"])
     assert result.exit_code != 0
     assert "--about" in result.output
+
+
+# ------------------------------------------------- scale hardening (0.19) CLI
+
+
+def _stuffed_capture(root: Path) -> bytes:
+    """A capture whose envelope holds a PDF inside a JSON string field."""
+    payload = b"%PDF-1.7\n" + b"z" * 4000 + b"\n%%EOF"
+    raw = root / "sources" / "raw" / "A1"
+    raw.mkdir(parents=True, exist_ok=True)
+    (raw / "capture.json").write_text(
+        json.dumps({"url": "https://example.com/p.pdf", "html": payload.decode("latin-1")}),
+        encoding="utf-8",
+    )
+    pages.write_page(
+        root / "references" / "a-paper.md",
+        {"type": "Source", "id": "A1", "aliases": ["A1"], "title": "A Paper",
+         "description": "paper source", "local": "sources/raw/A1/capture.json",
+         "grade": "?", "status": "captured"},
+        "# A Paper\n",
+    )
+    return payload
+
+
+def test_doctor_fix_rescues_a_document_from_its_envelope(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    payload = _stuffed_capture(root)
+
+    result = invoke(["doctor", "--fix"])
+    assert result.exit_code == 0, result.output
+    assert "rescued sources/raw/A1/capture-html.pdf" in result.output
+
+    # the bytes survive exactly — a rescue that corrupts custody is worse than
+    # the bloat it fixes
+    assert (root / "sources" / "raw" / "A1" / "capture-html.pdf").read_bytes() == payload
+    envelope = json.loads((root / "sources" / "raw" / "A1" / "capture.json").read_text())
+    assert envelope["html"].startswith("[flip: binary payload")
+    assert envelope["url"] == "https://example.com/p.pdf"  # metadata untouched
+    # the page points at the document, and the rescue is in the ledger
+    assert pages.read_page(root / "references" / "a-paper.md").fm["local"] == (
+        "sources/raw/A1/capture-html.pdf"
+    )
+    prov = (root / "sources" / "_provenance.jsonl").read_text(encoding="utf-8")
+    assert "builtin:doctor-fix" in prov
+    assert "re-materialized from a capture envelope" in prov
+    # and the finding it repairs is gone
+    assert "binary-in-envelope" not in invoke(["doctor"]).output
+
+
+def test_doctor_fix_is_idempotent(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    _stuffed_capture(root)
+    assert invoke(["doctor", "--fix"]).exit_code == 0
+    prov_after_first = (root / "sources" / "_provenance.jsonl").read_text(encoding="utf-8")
+
+    second = invoke(["doctor", "--fix"])
+    assert second.exit_code == 0, second.output
+    assert "rescued" not in second.output  # nothing left to rescue
+    assert (root / "sources" / "_provenance.jsonl").read_text(encoding="utf-8") == prov_after_first
+
+
+def test_doctor_fix_leaves_unrecoverable_bytes_alone(tmp_path, monkeypatch):
+    # A lossy decode upstream means the bytes are already gone; a breadcrumb
+    # written over them would destroy the last record of what happened.
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    raw = root / "sources" / "raw" / "A1"
+    raw.mkdir(parents=True)
+    lossy = "%PDF-1.7\n�� broken � bytes"
+    (raw / "capture.json").write_text(json.dumps({"html": lossy}), encoding="utf-8")
+
+    assert invoke(["doctor", "--fix"]).exit_code == 0
+    assert json.loads((raw / "capture.json").read_text())["html"] == lossy
+    assert not list(raw.glob("*.pdf"))
+
+
+def test_doctor_code_narrows_and_rejects_unknown_codes(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    _stuffed_capture(root)
+
+    narrowed = invoke(["doctor", "--code", "binary-in-envelope", "--json"])
+    assert narrowed.exit_code == 0, narrowed.output
+    assert {f["code"] for f in json.loads(narrowed.output)} == {"binary-in-envelope"}
+
+    quiet = invoke(["doctor", "--code", "duplicate-custody"])
+    assert "ok: no findings for 'duplicate-custody'" in quiet.output
+
+    unknown = invoke(["doctor", "--code", "not-a-real-code"])
+    assert unknown.exit_code != 0
+    assert "unknown finding code" in unknown.output
+    assert "binary-in-envelope" in unknown.output  # it names what it does emit
+
+
+def test_doctor_limit_truncates_out_loud(tmp_path, monkeypatch):
+    # A truncated list that doesn't say so reads as complete.
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    for n in range(4):
+        raw = root / "sources" / "raw" / f"A{n}"
+        raw.mkdir(parents=True)
+        (raw / "capture.json").write_text(
+            json.dumps({"html": "%PDF-1.7 body"}), encoding="utf-8"
+        )
+
+    full = json.loads(invoke(["doctor", "--code", "binary-in-envelope", "--json"]).output)
+    assert len(full) == 4
+
+    limited = invoke(["doctor", "--code", "binary-in-envelope", "--limit", "2", "--json"])
+    payload = json.loads(limited.output)
+    assert len(payload["findings"]) == 2
+    assert payload["truncated"] == {"binary-in-envelope": 2}
+
+    assert invoke(["doctor", "--limit", "0"]).exit_code != 0
+
+
+def test_question_list_armed_is_the_roster_the_hot_view_points_at(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path / "demo")
+    monkeypatch.chdir(root)
+    assert invoke(["question", "add", "does the effect hold at scale"]).exit_code == 0
+    answered = invoke([
+        "question", "answer", "Q1", "--note", "it holds to 10k",
+        "--reopen-when", "a replication reports otherwise",
+    ])
+    assert answered.exit_code == 0, answered.output
+
+    armed = invoke(["question", "list", "--armed"])
+    assert armed.exit_code == 0, armed.output
+    assert "Q1" in armed.output
+    assert "when: a replication reports otherwise" in armed.output
+
+    # the hot view names this exact command when its own list is capped
+    assert "flip question list --armed" in views_footer_command()
+
+    clash = invoke(["question", "list", "--armed", "--status", "open"])
+    assert clash.exit_code != 0
+    assert "--armed already selects" in clash.output
+
+
+def views_footer_command() -> str:
+    from flip import views
+
+    return views._roster_overflow(
+        [{"id": f"Q{n}"} for n in range(views.HOT_ROSTER_CAP + 1)], "flip question list --armed"
+    )[0]

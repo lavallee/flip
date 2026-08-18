@@ -70,6 +70,8 @@ VIEWCACHE = Path(".flip") / "viewcache.json"
 
 LOG_JSONL = Path("log") / "log.jsonl"
 LOG_MD = "log.md"
+HANDOFF_MD = "HANDOFF.md"
+NEXT_STEPS_MD = "NEXT_STEPS.md"
 
 # Entity directory → (listing title, root-listing description builder input).
 _DIR_TITLES = {
@@ -188,6 +190,17 @@ def _open_questions(root: Path, loaded: list[pages.Page] | None = None) -> list[
         out.append(row)
     out.sort(key=lambda q: _id_num(q["id"]))
     return out
+
+
+def reopen_armed(root: Path) -> list[dict]:
+    """The full armed-trigger roster, for `flip question list --armed`.
+
+    The hot view shows the first few and counts the rest (a notebook whose
+    steady state is "everything answered, everything watched" rendered a hot
+    view that was 74 % this list); the whole roster lives here.
+    """
+    load_manifest(root)  # fail early with an actionable error if this isn't a notebook
+    return _reopen_armed(root)
 
 
 def _reopen_armed(root: Path) -> list[dict]:
@@ -409,23 +422,51 @@ def claims_view(root: Path, as_data: bool = False) -> str | dict:
 
 
 def stale_view(root: Path, as_data: bool = False) -> str | dict:
-    """What has gone cold: dated sources, open questions, stuck claims."""
+    """What has gone cold: dated sources, open questions, stuck claims.
+
+    "Undated" and "stale" are different facts and get different treatment. A
+    source nobody recorded a date for isn't known to be old — it is unmeasured,
+    and the repair is to record the date. One measured notebook rendered 98
+    rows that all read `date: unknown`, which is a staleness report that has
+    never once said anything about staleness; the cohort collapses to a count
+    with its fix, and the rows are reserved for sources with a real date past
+    the window.
+    """
     m = load_manifest(root)
     profile = _profile_or_default(m, root)
-    dated = _stale_sources(_source_rows(root), profile.freshness_months)
+    all_dated = _stale_sources(_source_rows(root), profile.freshness_months)
+    undated = [r for r in all_dated if not r.get("date")]
+    dated = [r for r in all_dated if r.get("date")]
     questions = _open_questions(root)
     stuck = _claims_needing_work(root)
     if as_data:
-        return {"dated_sources": dated, "open_questions": questions, "stuck_claims": stuck}
+        # `dated_sources` keeps its established meaning (every row the freshness
+        # rule selected) so nothing scripted against it breaks; the split rides
+        # alongside as new keys.
+        return {
+            "dated_sources": all_dated,
+            "stale_sources": dated,
+            "undated_sources": undated,
+            "open_questions": questions,
+            "stuck_claims": stuck,
+        }
     lines: list[str] = []
     if dated:
         lines.append("DATED SOURCES")
         for row in dated:
             lines.append(
                 f"  {row.get('id', '?')} · {_trunc(row.get('title', ''))}"
-                f" · date: {row.get('date') or 'unknown'}"
+                f" · date: {row.get('date')}"
                 f" · freshness: {row.get('freshness', '?')}"
             )
+        lines.append("")
+    if undated:
+        lines.append(
+            f"UNDATED SOURCES: {len(undated)} — judged dated with no date on "
+            "record, so nothing here says how old they are; write the "
+            "publication date as `date:` on each page to make freshness mean "
+            "something"
+        )
         lines.append("")
     if questions:
         lines.append("OPEN QUESTIONS")
@@ -905,6 +946,13 @@ def _root_body(root: Path, m: Manifest, events: list[dict],
         )
     if "sessions" in counts:
         bullets.append(f"* [Sessions](sessions/) - {_count(counts['sessions'], 'work session')}")
+    # Recognized root prose, listed only when it exists (SPEC §3): HANDOFF.md
+    # is where a cold reader starts, NEXT_STEPS.md is what to do about it.
+    # Neither is generated — flip lists them, never writes them.
+    if (root / HANDOFF_MD).is_file():
+        bullets.append(f"* [Handoff]({HANDOFF_MD}) - where things stand, for a cold pickup")
+    if (root / NEXT_STEPS_MD).is_file():
+        bullets.append(f"* [Next Steps]({NEXT_STEPS_MD}) - forward-looking work")
     if (root / LOG_MD).is_file():
         detail = f"{_count(len(events), 'logged event')}, newest first" if events else "work log"
         bullets.append(f"* [Update Log]({LOG_MD}) - {detail}")

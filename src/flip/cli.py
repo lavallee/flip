@@ -1115,14 +1115,41 @@ def question_repose(qid: str, text: str, sharpened: tuple[str, ...],
 @click.option("--status", "status",
               type=click.Choice(("open", "answered", "closed", "dormant")),
               default=None, help="Only questions in this status.")
+@click.option("--armed", is_flag=True,
+              help="Only settled questions whose reopen triggers are armed, with "
+                   "the written conditions that would reopen each one.")
 @click.option("--json", "as_json", is_flag=True, help="Emit the rows as JSON.")
-def question_list(status: str | None, as_json: bool) -> None:
+def question_list(status: str | None, armed: bool, as_json: bool) -> None:
     """List every question with its current status: id · status · text.
 
     Open ones also surface in `flip show`; this is the full view (settled
     questions keep their pages — ids are never reused).
+
+    `--armed` is the full roster `flip show` points at once its own list is
+    capped: answered and closed questions are not dead while a trigger is
+    written on them, and this is where you read what would wake each one.
     """
-    rows = ledgers.list_questions(require_notebook_root(), status=status)
+    root = require_notebook_root()
+    if armed:
+        if status:
+            raise SystemExit(
+                "--armed already selects the settled questions (answered and "
+                f"closed) that carry reopen triggers; --status {status} narrows "
+                "it to nothing useful. Drop one of them"
+            )
+        rows = views.reopen_armed(root)
+        if as_json:
+            click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+            return
+        if not rows:
+            click.echo("no armed reopen triggers (nothing settled is being watched)")
+            return
+        for r in rows:
+            click.echo(f"{r['id']} · {r['status']} · {r['text']}")
+            for trigger in r["reopen_when"]:
+                click.echo(f"    when: {trigger}")
+        return
+    rows = ledgers.list_questions(root, status=status)
     if as_json:
         click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
         return
@@ -1996,6 +2023,28 @@ def rename(entity_id: str, new_slug: str) -> None:
         click.echo(f"rewrote links in {changed} file(s)")
 
 
+def _limit_per_code(findings: list, limit: int | None) -> tuple[list, dict[str, int]]:
+    """Keep at most `limit` findings per code; return them and what was cut.
+
+    The dropped counts travel with the payload because a truncated list that
+    doesn't say it is truncated reads as complete — the failure this repo
+    names loudest everywhere else it caps something.
+    """
+    if limit is None:
+        return findings, {}
+    kept: list = []
+    seen: dict[str, int] = {}
+    dropped: dict[str, int] = {}
+    for f in findings:
+        n = seen.get(f.code, 0)
+        seen[f.code] = n + 1
+        if n < limit:
+            kept.append(f)
+        else:
+            dropped[f.code] = dropped.get(f.code, 0) + 1
+    return kept, dropped
+
+
 def _collapse_findings(findings: list, show: int = 3) -> list[str]:
     """Render findings, collapsing any code that repeats past `show`.
 
@@ -2029,9 +2078,17 @@ def _collapse_findings(findings: list, show: int = 3) -> list[str]:
               help="Lint the enclosing workspace instead: the handle table, "
                    "notebook coverage, uid lineage, and cross-notebook ambiguity.")
 @click.option("--fix", is_flag=True,
-              help="Workspace mode only: bind unregistered notebooks, backfill "
-                   "uids, and regenerate qualified aliases.")
-def doctor(as_json: bool, workspace_flag: bool, fix: bool) -> None:
+              help="Repair what can be repaired safely: in a notebook, "
+                   "re-materialize documents stuffed into capture envelopes; in "
+                   "workspace mode, bind unregistered notebooks, backfill uids, "
+                   "and regenerate qualified aliases.")
+@click.option("--code", "code", default=None,
+              help="Only findings with this code (see `flip doctor --json` keys).")
+@click.option("--limit", "limit", type=int, default=None,
+              help="Cap findings shown per code; the tail is counted, never "
+                   "dropped silently.")
+def doctor(as_json: bool, workspace_flag: bool, fix: bool,
+           code: str | None, limit: int | None) -> None:
     """Lint the notebook against the spec and its profile; exit 1 on errors.
 
     Checks manifest sanity, OKF conformance (frontmatter + type on every
@@ -2043,29 +2100,61 @@ def doctor(as_json: bool, workspace_flag: bool, fix: bool) -> None:
     With --workspace (or from a workspace root outside any notebook), lints
     the shared space instead (SPEC §18): duplicate uids, unbound notebooks,
     ids and slugs ambiguous across notebooks.
+
+    --code and --limit narrow the output. They matter most with --json, which
+    carries every finding in full: one measured notebook emitted 130 KB of it,
+    and an agent that reads that pays ~32 K tokens to learn one thing.
     """
+    if limit is not None and limit < 1:
+        raise SystemExit("--limit takes a positive number of findings per code")
     nb_root = find_notebook_root_pinned()
     if workspace_flag or (nb_root is None and find_workspace_root() is not None):
         ws_root = workspace_mod.require_workspace_root()
         findings = doctor_mod.run_workspace_doctor(ws_root, fix=fix)
     else:
+        root = require_notebook_root()
         if fix:
-            raise SystemExit("--fix applies to workspace mode only (flip 0.9); "
-                             "run `flip doctor --workspace --fix`")
-        findings = doctor_mod.run_doctor(require_notebook_root())
+            for line in doctor_mod.fix_notebook(root):
+                click.echo(line)
+        findings = doctor_mod.run_doctor(root)
+    if code is not None:
+        if code not in doctor_mod.CHECK_CODES:
+            raise SystemExit(
+                f"unknown finding code '{code}'; doctor emits: "
+                f"{', '.join(sorted(doctor_mod.CHECK_CODES))}"
+            )
+        findings = [f for f in findings if f.code == code]
     if as_json:
         # Each finding carries `expected: true|false` — the same real-vs-
         # appears-with-use distinction the text output segregates (E3).
-        click.echo(json.dumps([asdict(f) for f in findings], ensure_ascii=False, indent=2))
+        #
+        # --limit truncates per code and says so in the payload: a consumer
+        # must never have to guess whether a list is the whole list. Silent
+        # truncation would read as "covered everything" when it didn't.
+        shown, dropped = _limit_per_code(findings, limit)
+        payload: object = [asdict(f) for f in shown]
+        if dropped:
+            payload = {
+                "findings": [asdict(f) for f in shown],
+                "truncated": dropped,  # {code: how many more exist}
+                "note": "per-code limit applied (--limit); re-run without it for all",
+            }
+        click.echo(json.dumps(payload, ensure_ascii=False, indent=2))
     elif not findings:
-        click.echo("ok: no findings")
+        click.echo(f"ok: no findings for '{code}'" if code else "ok: no findings")
     else:
         real = [f for f in findings if not f.expected]
         expected = [f for f in findings if f.expected]
-        for line in _collapse_findings(real):
+        for line in _collapse_findings(real, show=limit or 3):
             click.echo(line)
         if not real:
-            click.echo("ok: no findings yet")
+            # Not "ok: no findings yet" — 250 expected notices used to print
+            # under that line, and the first line is what a hurried reader (or
+            # an agent grepping the head) takes for the verdict.
+            click.echo(
+                f"ok: nothing wrong; {len(expected)} expected-until-use "
+                f"notice{'' if len(expected) == 1 else 's'} below"
+            )
         if expected:
             if real:
                 click.echo("")
@@ -2073,7 +2162,7 @@ def doctor(as_json: bool, workspace_flag: bool, fix: bool) -> None:
                 "expected until use (these appear with the work, not problems yet — "
                 "don't re-run doctor for reassurance):"
             )
-            for line in _collapse_findings(expected):
+            for line in _collapse_findings(expected, show=limit or 3):
                 click.echo(f"  {line}")
     if any(f.level == "ERROR" for f in findings):
         raise SystemExit(1)

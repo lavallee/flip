@@ -364,6 +364,33 @@ def test_stale_view_source_without_date_or_freshness_not_flagged(tmp_path):
     assert stale_view(root) == "nothing stale"
 
 
+def test_undated_sources_collapse_to_a_count_with_their_repair(tmp_path):
+    # One measured notebook printed 98 rows that all read `date: unknown` — a
+    # staleness report that never once spoke about staleness. Undated is not
+    # old; it is unmeasured, and the repair is to record the date.
+    root = make_notebook(tmp_path)
+    for n in range(1, 4):
+        source_page(root, f"A{n}", f"undated {n}", freshness="dated")
+    source_page(root, "A9", "genuinely old", freshness="dated", date="2020-01-01")
+    text = stale_view(root)
+    assert "UNDATED SOURCES: 3" in text
+    assert "date:" in text and "A9" in text  # the one with a real date keeps its row
+    for n in range(1, 4):
+        assert f"A{n} ·" not in text
+    assert "unknown" not in text
+
+
+def test_stale_view_data_splits_undated_without_breaking_the_old_key(tmp_path):
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", "undated", freshness="dated")
+    source_page(root, "A2", "old", freshness="dated", date="2019-05-01")
+    data = stale_view(root, as_data=True)
+    # the established key keeps its established meaning for anything scripted
+    assert [r["id"] for r in data["dated_sources"]] == ["A1", "A2"]
+    assert [r["id"] for r in data["undated_sources"]] == ["A1"]
+    assert [r["id"] for r in data["stale_sources"]] == ["A2"]
+
+
 # --- regenerate: log.md -------------------------------------------------------
 
 
@@ -466,6 +493,30 @@ def test_regenerate_root_body_lists_sections_with_counts(tmp_path):
     # manifest frontmatter untouched, unknown keys preserved (SPEC §6.6)
     assert page.fm["slug"] == "test"
     assert page.fm["obsidian_tag"] == "keepme"
+
+
+def test_root_body_lists_recognized_prose_only_when_it_exists(tmp_path):
+    # NEXT_STEPS.md entered the spec by observation: seven of seven autonomous
+    # runs invented it while the spec'd HANDOFF.md appeared in three. flip
+    # lists them; it never writes them.
+    root = make_notebook(tmp_path)
+    regenerate(root)
+    body = pages.read_page(root / "index.md").body
+    assert "[Next Steps]" not in body and "[Handoff]" not in body
+
+    (root / "NEXT_STEPS.md").write_text("# Next steps\n\n* the next move\n", encoding="utf-8")
+    (root / "HANDOFF.md").write_text("# Handoff\n\nwhere things stand\n", encoding="utf-8")
+    regenerate(root)
+    body = pages.read_page(root / "index.md").body
+    assert "* [Handoff](HANDOFF.md) - where things stand, for a cold pickup" in body
+    assert "* [Next Steps](NEXT_STEPS.md) - forward-looking work" in body
+    # the cold-pickup surface comes first: it answers "where am I" before
+    # NEXT_STEPS answers "what do I do"
+    assert body.index("[Handoff]") < body.index("[Next Steps]")
+
+    (root / "NEXT_STEPS.md").unlink()
+    regenerate(root)
+    assert "[Next Steps]" not in pages.read_page(root / "index.md").body
 
 
 def test_regenerate_is_deterministic_and_byte_stable(tmp_path):

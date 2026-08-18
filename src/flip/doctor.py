@@ -65,12 +65,16 @@ from .util import (
     ROOT_FILE,
     WORKSPACE_FILE,
     age_months,
+    append_jsonl,
+    detect_actor,
     find_workspace_root,
     is_notebook_root,
     new_uid,
     read_jsonl,
+    require_notebook_root,
     sha256_file,
     split_ref,
+    utc_now,
 )
 
 PROVENANCE = "sources/_provenance.jsonl"
@@ -164,7 +168,7 @@ CHECK_CODES: frozenset[str] = frozenset({
     "binary-in-envelope", "duplicate-custody",
     "truncated-title", "machine-title", "ungraded-cited",
     # scale hardening (0.19): what a 1.66 GB, 682-source corpus taught
-    "notebook-md-bloat", "custody-in-git", "workspace-nudge",
+    "notebook-md-bloat", "next-steps-bloat", "custody-in-git", "workspace-nudge",
     # sources: text derivatives (SPEC §5.5)
     "thin-derivative", "missing-derivative", "unlogged-derivative",
     "unvocabularied-extraction",
@@ -337,6 +341,86 @@ def _check_provenance_open(
         findings.append(
             _error("provenance-open", msg, rel) if closed else _warn("provenance-open", msg, rel)
         )
+
+
+def fix_notebook(root: Path) -> list[str]:
+    """Repair what can be repaired without judgment; return what was done.
+
+    Only one repair so far, and it is mechanical: a document stuffed into a
+    capture envelope's string field is written out as its own file and the
+    field is replaced with a breadcrumb (the same act `run_capture` now
+    performs at capture time, so old and new captures end up in the same
+    shape). Every rescued file gets its own provenance row — the repair is a
+    custody event and the ledger is where custody events go — and the source
+    page's `local` follows if the document is now its largest real artifact.
+
+    A field whose bytes cannot round-trip (a lossy decode upstream) is LEFT
+    ALONE: the recoverable thing is gone, and overwriting the evidence of that
+    with a breadcrumb would destroy the only remaining record of what
+    happened. Nothing here judges, renames, or deletes.
+    """
+    root = require_notebook_root(root)
+    raw = root / "sources" / "raw"
+    if not raw.is_dir():
+        return []
+    done: list[str] = []
+    for source_dir in sorted(p for p in raw.iterdir() if p.is_dir()):
+        before = {p for p in source_dir.rglob("*") if p.is_file()}
+        rescued = integrations.materialize_binary_payloads(sorted(before), source_dir)
+        new = [p for p in rescued if p not in before]
+        if not new:
+            continue
+        sid = source_dir.name
+        for path in sorted(new):
+            rel = path.relative_to(root).as_posix()
+            append_jsonl(
+                root / "sources" / "_provenance.jsonl",
+                {
+                    "ts": utc_now(),
+                    "source_id": sid,
+                    "local_path": rel,
+                    "sha256": sha256_file(path),
+                    "bytes": path.stat().st_size,
+                    "tool": "builtin:doctor-fix",
+                    "actor": detect_actor(),
+                    "note": (
+                        "re-materialized from a capture envelope field; the bytes "
+                        "were already in custody, wrapped in a JSON string"
+                    ),
+                },
+            )
+            done.append(f"rescued {rel} from its envelope")
+        _repoint_local(root, sid)
+    if done:
+        from . import views
+
+        views.regenerate(root, changed=("references",))
+    return done
+
+
+def _repoint_local(root: Path, source_id: str) -> None:
+    """Point a source page's `local` at the document once it exists as a file.
+
+    The page pointed at the envelope because the envelope WAS the biggest
+    artifact while it held the document inside it; after the rescue the
+    document is, and `local` has to mean the same thing it means everywhere
+    else — the primary artifact (SPEC §5.1).
+    """
+    for page in pages.iter_pages(root, "references"):
+        if page.id != source_id or str(page.fm.get("type") or "") != "Source":
+            continue
+        capture_dir = root / "sources" / "raw" / source_id
+        if not capture_dir.is_dir():
+            return
+        files = [p for p in capture_dir.rglob("*") if p.is_file()]
+        if not files:
+            return
+        primary = sources_mod._primary_file(files)
+        rel = primary.relative_to(root).as_posix()
+        if str(page.fm.get("local") or "") != rel:
+            page.fm["local"] = rel
+            pages.write_page(page.path, page.fm, page.body)
+        return
 
 
 def run_workspace_doctor(ws_root: Path, fix: bool = False) -> list[Finding]:
@@ -835,6 +919,39 @@ def _check_reserved_files(root: Path, findings: list[Finding]) -> None:
             )
 
 
+def _check_prose_size(root: Path, name: str, code: str, findings: list[Finding]) -> None:
+    """Warn when a synthesis file has grown past the size where it is plausibly
+    still synthesis (SPEC §3).
+
+    The measured failure: a notebook.md at 63.5 KB whose `## Decisions` section
+    restated 25 decision pages and whose `## Sources` section restated 301
+    reference listings — an index wearing the costume of thought, charging
+    every reader (agents most of all) the whole ledger's tokens on every open
+    while saying nothing the ledgers didn't already hold, and drifting from
+    them the moment either side changed.
+    """
+    path = root / name
+    if not path.is_file():
+        return
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return
+    if size <= NOTEBOOK_MD_CAP:
+        return
+    findings.append(
+        _warn(
+            code,
+            f"{name} is {size // 1024}KB (the norm is under "
+            f"{NOTEBOOK_MD_CAP // 1024}KB): a synthesis file is prose, and "
+            "ledgered entities are cited by id, never re-listed — a section that "
+            "mirrors a ledger restates what the pages and generated views already "
+            "hold, and drifts from them; cut it back to citations",
+            name,
+        )
+    )
+
+
 def _check_notebook_md(root: Path, profile: Profile | None, findings: list[Finding]) -> None:
     path = root / "notebook.md"
     if not path.is_file():
@@ -846,20 +963,11 @@ def _check_notebook_md(root: Path, profile: Profile | None, findings: list[Findi
             )
         )
         return
-    size = path.stat().st_size
-    if size > NOTEBOOK_MD_CAP:
-        findings.append(
-            _warn(
-                "notebook-md-bloat",
-                f"notebook.md is {size // 1024}KB (the norm is under "
-                f"{NOTEBOOK_MD_CAP // 1024}KB): the synthesis file is prose, and "
-                "ledgered entities are cited by id, never re-listed — a section "
-                "that mirrors a ledger (decisions, sources, claims) restates what "
-                "the pages and generated views already hold, and drifts from them; "
-                "cut it back to citations",
-                "notebook.md",
-            )
-        )
+    _check_prose_size(root, "notebook.md", "notebook-md-bloat", findings)
+    # NEXT_STEPS.md is synthesis under the same rule, and drifted the same way
+    # in the wild: one measured file reached 24.7 KB of forward-looking work
+    # nobody could act on in one reading.
+    _check_prose_size(root, "NEXT_STEPS.md", "next-steps-bloat", findings)
     if profile is None:
         return
     try:
