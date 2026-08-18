@@ -61,6 +61,33 @@ traces to one of those numbers.
   pages. Only incremental callers create the cache; full rebuilds
   refresh but never create it, so `flip export` stays side-effect-free.
 
+- **Nine doctor findings for what autonomous capture actually produces.**
+  The linter was well-built for the failure modes flip anticipated and
+  blind to every one this corpus generated. New: `binary-in-envelope` (a
+  document's bytes inside a JSON string field, found by scanning only
+  each file's head — parsing multi-MB captures on every run is the cost
+  the check exists to avoid); `truncated-title` and `machine-title` (a
+  title is canonical frontmatter *and* the seed of the slug, so a
+  fetcher's display truncation costs the page its identity — 326 of 682
+  pages measured); `duplicate-custody` (identical bytes under two source
+  ids, envelope sidecars excluded); `ungraded-cited` (a grade `?` source
+  cited as evidence corroborates nothing — 62 measured, none previously
+  mentioned; subject citations are exempt, they owe an attribution test);
+  `custody-in-git`; `notebook-md-bloat` and `next-steps-bloat`; and
+  `workspace-nudge` (sibling notebooks with silently overlapping id
+  spaces). `unreported-method` splits absence from drift.
+- **`flip doctor --fix` works in a notebook, not only a workspace.** It
+  rescues documents stuffed into capture envelopes: each payload is
+  written out as its own file, gets its own custody row, and the source
+  page's `local` follows it once the document is the primary artifact.
+  Bytes that cannot round-trip are left alone — a lossy decode upstream
+  means the recoverable thing is already gone, and a breadcrumb written
+  over it would destroy the last record of what happened.
+- **`flip doctor --code` / `--limit`, and `flip question list --armed`.**
+  `--limit` reports what it cut, per code, inside the payload: a
+  truncated list that does not say so reads as complete. `--armed` is the
+  full roster the capped hot view names in its overflow footer.
+
 ### Changed
 
 - **Envelope strategy claims are validated at the trust boundary
@@ -79,6 +106,44 @@ traces to one of those numbers.
   their own file before provenance rows land, so every recorded hash
   reflects what actually entered custody; a payload already lost to a
   lossy decode upstream is left in place as evidence.
+- **Titles that were never titles are refused at capture.** A fetcher
+  title ending in a display ellipsis, or reading as a bibtex/JSON
+  fragment or the bare word `index`, falls back to the target-derived
+  name — the same guard that already refused binary payloads as titles.
+- **Slug collisions take the id-qualified form** (`a261-index`) instead
+  of a counter, because a counter names nothing: one corpus held eight
+  distinct sources whose entire slug identity was `index-3` … `index-10`.
+  Counters remain the fallback where no id is available, and existing
+  counter-suffixed files stay valid — no migration, no rename.
+- **One cause line instead of 243 copies of the vocabulary.** The
+  capture-method teaching moved to a `capture-method-drift` cause line
+  ahead of its group (mirroring `vocabulary-drift`); per-row messages
+  carry only the fact. The vocabulary rode every row at 494 B each, and
+  the repetition is what made a doctor run unreadable, not the finding.
+- **`flip doctor`'s header stops reading as a clean bill.** With no real
+  findings but expected-until-use notices present it counted them,
+  instead of printing "ok: no findings yet" above 250 warnings — the
+  first line is what a hurried reader, or an agent grepping the head,
+  takes for the verdict.
+- **`flip show --stale` separates undated from stale.** A source with no
+  recorded date is not old, it is unmeasured, and 98 rows all reading
+  `date: unknown` was a staleness report that never once spoke about
+  staleness. The undated cohort collapses to a count carrying its repair;
+  rows are reserved for sources with a real date past the window.
+  `--json` keeps `dated_sources` meaning what it meant and adds the split
+  alongside it.
+- **The agent-facing skills learned the notebook can be large.** A cheap
+  cold-orientation recipe (`flip show` → HANDOFF.md → targeted `flip
+  open`), an explicit "generated listings are directory signs, not
+  reading material", the narrowing flags named where `--json` was
+  previously recommended unqualified (130 KB / ~32 K tokens in one
+  notebook), and batching guidance for auditing many claims.
+
+The profile version stays at 0.9 deliberately. Everything 0.19 adds to
+the on-disk contract is optional and additive — a root file flip lists if
+it exists, a working directory flip already ignored — so no existing
+notebook needs to change anything, and bumping would have told every 0.9
+notebook it needed a migration that would do nothing.
 
 ### Fixed
 

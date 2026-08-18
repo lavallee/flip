@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.18 · 2026-08-12
+**Status:** draft v0.19 · 2026-08-17
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -174,7 +174,11 @@ concept pages, and no listing is generated over them.
 - **Entity filenames are human slugs, not ids**: `references/
   lecun-jepa-keynote.md`, `claims/ai-traffic-converts-42pct.md`. The stable
   id lives in frontmatter (§9). Slugs are `^[a-z0-9][a-z0-9-]*$`, derived
-  from the title/text at creation (collisions get `-2`, `-3`); `flip rename`
+  from the title/text at creation. A collision takes the id-qualified form
+  (`a261-index`) rather than a counter, because a counter names nothing —
+  one measured corpus held eight distinct sources whose entire slug identity
+  was `index-3` … `index-10`; a bare counter remains the fallback where no id
+  is available, and existing counter-suffixed files stay valid. `flip rename`
   changes a slug and rewrites every link to it.
 - Session files are UTC-stamped: `2026-07-10T1430-corpus-sweep.md`.
 - Private scratch files use a `_` prefix and are never rendered or listed.
