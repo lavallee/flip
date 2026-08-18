@@ -493,10 +493,16 @@ def _apply_attribution(body: str, cited: list[tuple[str, str]], defs: list[str])
 
 
 def _regenerate_views(root: Path) -> None:
-    """Refresh the generated index.md bodies / log.md after a mutation (SPEC §10)."""
+    """Refresh the generated index.md bodies / log.md after a mutation (SPEC §10).
+
+    Every mutation in this module writes claims/ pages and nothing else —
+    citing a source annotates the claim page, never the source page, and
+    rivals/supersede touch two pages that are both claims — so the narrowed
+    refresh is honest for the whole module.
+    """
     from . import views
 
-    views.regenerate(root)
+    views.regenerate(root, changed=("claims",))
 
 
 def add_claim(
@@ -617,7 +623,9 @@ def add_claim(
     body = "\n\n".join(parts) + "\n"
 
     claims_dir = root / "claims"
-    slug = pages.unique_slug(claims_dir, pages.slugify(text, fallback=claim_id.lower()))
+    slug = pages.unique_slug(
+        claims_dir, pages.slugify(text, fallback=claim_id.lower()), entity_id=claim_id
+    )
     path = pages.write_page(claims_dir / f"{slug}.md", fm, body)
     manifest.touch_updated(root)
     _regenerate_views(root)

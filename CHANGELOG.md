@@ -6,6 +6,88 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-08-17
+
+The scale-hardening release. Driven by a measured audit of a real
+7-notebook production corpus (682 sources, 1.66 GB) — the first corpus
+big enough to show where the format's costs grow with the notebook
+instead of with the work: 520 of 552 doctor findings were a single code,
+48 % of capture titles ended in a truncation ellipsis, 627 MB of the
+corpus was PDF bytes escaped into JSON string fields, one
+committed-custody notebook had grown a 931 MB `.git`, one notebook.md
+had swollen to 63.5 KB of duplicated ledger listings, and orienting a
+cold agent cost ~40 K tokens of generated views. Every change below
+traces to one of those numbers.
+
+### Added
+
+- **Custody storage stance (SPEC §5.6).** Where `sources/raw/` lives in
+  a git repo is now spec'd as an opinionated default with worked
+  alternatives, not a rule: git-LFS by default; or gitignore the raw
+  tree and commit the provenance ledger plus a sha256 manifest (custody
+  local, integrity provable, repo small); or commit custody wholesale
+  with its cost stated (the measured corpus reached a 931 MB `.git`
+  carrying a 104 MB blob in unrewritable history). The decision belongs
+  at `flip new` time — history cannot be cheaply unwritten — and doctor
+  now warns when it finds custody bytes committed as ordinary git
+  objects, so the notebook that never chose gets told while choosing is
+  still cheap.
+- **NEXT_STEPS.md and evaluation/ recognized (SPEC §3).** In seven
+  independent autonomous runs over real notebooks, all seven invented a
+  NEXT_STEPS.md while the spec'd HANDOFF.md appeared in three — when
+  every run routes around the spec identically, the spec has the hole.
+  NEXT_STEPS.md is an optional root file of bounded forward-looking
+  prose; HANDOFF.md remains the cold-pickup surface and may point to it.
+  `evaluation/` joins `analysis/` as a recognized working directory —
+  non-entity by contract: no frontmatter owed, nothing rendered.
+- **The working-memory norm (SPEC §3).** notebook.md means prose
+  synthesis; ledgered entities are cited by id, never re-listed (the
+  measured 63.5 KB notebook.md duplicated 25 decision pages and 301
+  reference listings). Doctor warns once notebook.md passes 24 KB.
+- **Bounded views (SPEC §10).** Generated directory listings cap at 50
+  entries and hot-view rosters at 8 lines per section, each with an
+  overflow footer carrying the remainder count and the list command that
+  serves the full roster (measured: a 301-source references/index.md ran
+  73 KB — ~18 K tokens for a directory sign; one steady-state hot view
+  was 74 % armed-trigger roster). Counts stay exact, list commands stay
+  complete, and every `--json` surface is uncapped.
+- **Incremental view regeneration (SPEC §10).** A mutating command names
+  the entity directories it touched; unchanged directories keep their
+  listings, with root-body counts served from `.flip/viewcache.json` — a
+  derived count cache, machine-local, never shipped, safe to delete
+  (absent or corrupt, every count is recounted from the pages). Output
+  is byte-identical to the full rebuild. Measured motivation: one
+  `flip log` append cost 1.06 s at 301 sources and 19.8 s at 10,300
+  pages. Only incremental callers create the cache; full rebuilds
+  refresh but never create it, so `flip export` stays side-effect-free.
+
+### Changed
+
+- **Envelope strategy claims are validated at the trust boundary
+  (SPEC §15).** A fetcher's `strategy` is checked against the capture
+  method vocabulary exactly as `--strategy` is, because out-of-vocabulary
+  claims are almost always the tool's own name (`direct`, `googlebot`,
+  `pdf` — measured), and the tool's name already lands in `tool`. A
+  fetcher that makes no claim now records **no method** — fidelity
+  derives `unknown` — replacing the `"config"` fallback that wrote a
+  word doctor itself rejected (85 self-inflicted warnings across the
+  measured corpus). Absence is the honest record.
+- **Binary payloads are materialized at capture (SPEC §5.1).** Document
+  bytes found stuffed into an envelope's JSON string fields (627 MB
+  measured, one 104 MB capture.json wrapping a 41.6 MB PDF at ~2.5×
+  escaping inflation) are re-encoded byte-preserving and written as
+  their own file before provenance rows land, so every recorded hash
+  reflects what actually entered custody; a payload already lost to a
+  lossy decode upstream is left in place as evidence.
+
+### Fixed
+
+- **The internal-name scrub now covers the whole public distribution.**
+  It covered only the deployable website, which is how an internal tool
+  name shipped in a src/ comment for months; the same name list now
+  scans `src/`, the packaged skills, `tests/`, `SPEC.md`, and `docs/`
+  (tests/test_name_scrub.py), and the leaked comment is scrubbed.
+
 ## [0.18.0] — 2026-08-12
 
 The question-journey release (profile 0.9, design receipts in the

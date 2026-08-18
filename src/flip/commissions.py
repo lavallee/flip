@@ -129,7 +129,9 @@ def add_commission(
             fm["roi_high"] = str(roi_high)
     fm["generated"] = util.generated_now()
     directory = root / "commissions"
-    slug = pages.unique_slug(directory, pages.slugify(deliverable, fallback=kid.lower()))
+    slug = pages.unique_slug(
+        directory, pages.slugify(deliverable, fallback=kid.lower()), entity_id=kid
+    )
     path = pages.write_page(directory / f"{slug}.md", fm, deliverable + "\n")
     _log_event(root, "commission-add", kid, _describe(deliverable))
     _finish(root)
@@ -233,4 +235,6 @@ def _id_num(entity_id: str) -> int:
 
 def _finish(root: Path) -> None:
     manifest.touch_updated(root)
-    views.regenerate(root)
+    # Both mutations here write one commissions/ page (plus a log event, which
+    # regenerate always re-renders); nothing else needs recounting.
+    views.regenerate(root, changed=("commissions",))

@@ -44,12 +44,20 @@ archived. They are not problems; don't re-run doctor for reassurance.
    custody, id/alias breakage, under-verified claims) before auditing
    content. Doctor exits 1 while ERRORs remain.
 
-   **Read the top line before counting the rest.** Doctor leads with any
-   *cause* it can identify — a `vocabulary-drift` line naming how many
-   sources share one root problem and which claims it explains — and
-   collapses codes that repeat past three (`--json` for every finding). A
-   long wall of findings is usually one fix, not a deeply unsound notebook.
-   Triage by cause, not by count.
+   **Read the top lines before counting the rest.** Doctor emits cause
+   lines for exactly two root problems: a `vocabulary-drift` line when
+   sources carry pre-0.8 independence vocabulary (naming which claims it
+   explains), and a capture-method group line when many sources share one
+   method problem. Every other code just repeats — don't hunt for a cause
+   line that isn't there; group those yourself with `--code`. A long wall
+   of findings is usually one fix, not a deeply unsound notebook (520 of
+   552 findings on one real corpus were a single code). Triage by cause,
+   not by count.
+
+   **`--json` returns every finding and scales with the count** — 130KB
+   measured on a 507-page notebook. Narrow before you machine-read:
+   `flip doctor --code <code>` keeps one finding code, `--limit N` caps
+   the list.
 
    **A corroboration count is not always a verdict on the evidence.** If a
    claim fails the bar, check whether doctor named sources it *could not
@@ -59,7 +67,9 @@ archived. They are not problems; don't re-run doctor for reassurance.
    because a number looked wrong is the expensive way to find out.
 2. **Pull the claim map.** `flip show --claims` (or
    `flip claim list --json`). Audit every claim marked `load_bearing` first,
-   then the rest.
+   then the rest. At scale, work in batches: pick a handful of claims, pull
+   their cited source pages together, clear the batch, move on — never open
+   every claim page at once.
 3. **Check which bar the claim is even under.** A claim citing only sources
    marked `--about` — the documents it is *about*, not witnesses to what it
    asserts — cannot be corroborated at all: the only conceivable second source

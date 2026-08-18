@@ -132,16 +132,16 @@ def _find_forecast(root: Path, fid: str) -> pages.Page:
     return page
 
 
-def _regenerate_views(root: Path) -> None:
+def _regenerate_views(root: Path, changed: tuple[str, ...] | None = None) -> None:
     """Refresh the generated index.md bodies / log.md after a mutation (SPEC §10)."""
     from . import views
 
-    views.regenerate(root)
+    views.regenerate(root, changed=changed)
 
 
-def _finish(root: Path) -> None:
+def _finish(root: Path, changed: tuple[str, ...] | None = None) -> None:
     manifest.touch_updated(root)
-    _regenerate_views(root)
+    _regenerate_views(root, changed=changed)
 
 
 def add_forecast(
@@ -246,9 +246,11 @@ def add_forecast(
 
     body = question + "\n"
     directory = root / "forecasts"
-    slug = pages.unique_slug(directory, pages.slugify(question, fallback=fid.lower()))
+    slug = pages.unique_slug(
+        directory, pages.slugify(question, fallback=fid.lower()), entity_id=fid
+    )
     path = pages.write_page(directory / f"{slug}.md", fm, body)
-    _finish(root)
+    _finish(root, changed=("forecasts",))
     return pages.Page(path=path, fm=fm, body=body)
 
 
@@ -295,7 +297,7 @@ def update_forecast(
     updates.append(record)
     page.fm["updates"] = updates
     pages.write_page(page.path, page.fm, page.body)
-    _finish(root)
+    _finish(root, changed=("forecasts",))
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 
@@ -362,7 +364,7 @@ def resolve_forecast(
         root / LOG,
         {"ts": ts, "text": f"forecast-resolve {fid}: {outcome}", "actor": actor},
     )
-    _finish(root)
+    _finish(root, changed=("forecasts",))
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 
@@ -388,7 +390,8 @@ def decline_forecast(
         row["fold_into"] = str(fold_into)
     row["actor"] = util.detect_actor()
     util.append_jsonl(root / DECLINED, row)
-    _finish(root)
+    # The decline lands in its ledger, never on a forecasts/ page — nothing to recount.
+    _finish(root, changed=())
     return row
 
 
@@ -532,10 +535,10 @@ def add_cluster(
     body = decision_question + "\n"
     directory = root / "forecasts"
     slug = pages.unique_slug(
-        directory, pages.slugify(decision_question, fallback=cid.lower())
+        directory, pages.slugify(decision_question, fallback=cid.lower()), entity_id=cid
     )
     path = pages.write_page(directory / f"{slug}.md", fm, body)
-    _finish(root)
+    _finish(root, changed=("forecasts",))
     return pages.Page(path=path, fm=fm, body=body)
 
 

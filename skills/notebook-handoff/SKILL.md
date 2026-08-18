@@ -9,6 +9,16 @@ The next reader has zero context and no access to your reasoning except what
 the notebook holds. HANDOFF.md is the cold-start view: state of play, not
 history (history is the ledgers' job).
 
+## Orient cheaply first
+
+The pickup path you are writing for: `flip show` → `HANDOFF.md` → targeted
+`flip open <id>`. Cold orientation by reading pages cost ~40K tokens on a
+507-page notebook; a handoff that makes the next actor browse directories
+has failed. Generated `index.md` files are directory listings, never reading
+material (`references/index.md` alone measured 73KB). At scale, point the
+reader at list commands with narrowing flags (`flip question list --status
+open`, `flip claim list --status needs-2nd`) instead of at directories.
+
 ## Command map (verbs → leaves)
 
 `flip cli` prints the full, always-current map; the leaves you reach for most:

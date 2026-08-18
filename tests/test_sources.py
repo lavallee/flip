@@ -621,7 +621,10 @@ def test_file_dataset_document_kinds_get_f_prefix_not_d(tmp_path, monkeypatch):
 # --- slugs ------------------------------------------------------------------
 
 
-def test_slug_collision_gets_numeric_suffix(tmp_path):
+def test_slug_collision_gets_id_qualified_suffix(tmp_path):
+    # a counter suffix names nothing — eight sources in one measured corpus
+    # had the entire slug identity index-3…index-10. The colliding capture
+    # carries its own id in the slug instead.
     root = make_notebook(tmp_path)
     a = tmp_path / "one" / "report.pdf"
     b = tmp_path / "two" / "report.pdf"
@@ -630,10 +633,10 @@ def test_slug_collision_gets_numeric_suffix(tmp_path):
         f.write_bytes(b"x")
 
     first = sources.add_source(root, str(a))
-    second = sources.add_source(root, str(b))  # same title -> -2 suffix
+    second = sources.add_source(root, str(b))  # same title -> id-qualified slug
 
     assert first.path.name == "report.md"
-    assert second.path.name == "report-2.md"
+    assert second.path.name == "f2-report.md"
     assert first.fm["id"] == "F1" and second.fm["id"] == "F2"
     assert pages.read_page(second.path).fm["id"] == "F2"
 
@@ -785,9 +788,9 @@ def test_list_sources_returns_fm_dicts_with_slug_and_path(tmp_path):
     assert [r["id"] for r in rows] == ["F1", "F2"]
     assert rows[0]["slug"] == p1.slug
     assert rows[0]["path"] == "references/doc.md"
-    assert rows[1]["path"] == "references/doc-2.md"
+    assert rows[1]["path"] == "references/f2-doc.md"
     assert rows[0]["grade"] == "?"
-    assert p2.slug == "doc-2"
+    assert p2.slug == "f2-doc"
 
 
 def test_list_sources_orders_by_id_number(tmp_path):
@@ -931,6 +934,33 @@ def test_binary_payload_titles_are_rejected(tmp_path):
         assert sources._plausible_title(bad) is None
     assert sources._plausible_title("  A Real Title: With A Colon  ") == \
         "A Real Title: With A Colon"
+
+
+def test_truncated_placeholder_and_fragment_titles_are_rejected(tmp_path):
+    # A trailing ellipsis is a display truncation (48% of one corpus's titles
+    # ended in one); "index" is the server's placeholder, not a name; a "{"/"@"
+    # prefix or '": "' infix is JSON/bibtex metadata handed over whole.
+    for bad in ("The Study That Was Clipped Mid…", "Clipped the ASCII way...",
+                "index", "Index", '{"title": "The Actual Name"}',
+                "@article{smith2026, title={X}}", 'title": "leaked fragment'):
+        assert sources._plausible_title(bad) is None
+    # a mid-string ellipsis is typography, not truncation — keep it
+    assert sources._plausible_title("Waiting… and what came after") == \
+        "Waiting… and what came after"
+
+
+def test_truncated_envelope_title_falls_back_to_target_name(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path)
+    script = _envelope_fetcher(
+        tmp_path, '{"flip": {"title": "A headline clipped for a list view…"}}'
+    )
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}}"})
+
+    page = sources.add_source(root, "https://example.com/reports/q3")
+
+    # rejection falls back to host+path, same as a fetcher with no title claim
+    assert page.fm["title"] == "example.com/reports/q3"
+    assert page.slug == "example-com-reports-q3"
 
 
 def test_local_path_never_routes_through_a_fetcher(tmp_path):

@@ -58,7 +58,7 @@ SOURCE_ROWS = [
         "status": "captured", "notes": "single vendor; treat with care",
         "supports": ["C1"],
     },
-    # same title → slug collision must yield vendor-study-2
+    # same title → slug collision must yield the id-qualified a2-vendor-study
     {"id": "A2", "kind": "web", "title": "Vendor study",
      "url": "https://example.com/study2", "local": "sources/raw/A2/page.html"},
     # no title → slug and title from the local basename; judgment defaults
@@ -223,8 +223,8 @@ def test_migrate_sources_become_reference_pages(tmp_path):
     assert page.fm["supports"] == ["C1"]
     assert "# Vendor study" in page.body
     assert "single vendor; treat with care" in page.body
-    # collision gets -2; id resolution works through frontmatter
-    assert pages.read_page(root / "references" / "vendor-study-2.md").fm["id"] == "A2"
+    # collision gets the id-qualified slug; id resolution works through frontmatter
+    assert pages.read_page(root / "references" / "a2-vendor-study.md").fm["id"] == "A2"
     assert pages.find_by_id(root, "A1").slug == "vendor-study"
 
 
@@ -447,7 +447,8 @@ def test_migrate_resumes_after_partial_run(tmp_path):
 def test_migrate_resume_skips_rows_whose_pages_exist(tmp_path):
     # an interrupted run wrote pages but was killed before unlinking the
     # ledger: the re-run must not duplicate those pages (or hand their slugs
-    # a -2 suffix and re-mint their ids) — it skips them as already migrated
+    # an id-qualified twin and re-mint their ids) — it skips them as already
+    # migrated
     root = make_v03(tmp_path)
     migrate(root)
     # interruption state: notebook.toml back, full ledgers back — every row's
@@ -465,9 +466,9 @@ def test_migrate_resume_skips_rows_whose_pages_exist(tmp_path):
                        "sessions": 0, "already_migrated": 7, "pages_okf02": 0,
                        "sources_08": 0, "uid_added": 0, "beat_link_rewritten": 0,
                        "profile": FLIP_PROFILE_VERSION}
-    # no duplicated pages, no -2 slugs, no duplicate ids
-    for dup in ("vendor-study-3.md", "conversion-is-42-higher-2.md",
-                "vendor-claims-only-2.md"):
+    # no duplicated pages, no id-qualified or counter dup slugs, no duplicate ids
+    for dup in ("a1-vendor-study.md", "a2-vendor-study-2.md",
+                "c1-conversion-is-42-higher.md", "d1-vendor-claims-only.md"):
         assert not list(root.rglob(dup)), dup
     ids = pages.all_ids(root)
     assert len([i for i in ids if i == "C1"]) == 1

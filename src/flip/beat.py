@@ -334,7 +334,9 @@ def add_thread(
     fm["generated"] = util.generated_now()
     body = (note or "").strip() or title
     directory = root / THREADS_DIR
-    slug = pages.unique_slug(directory, pages.slugify(title, fallback="thread"))
+    slug = pages.unique_slug(
+        directory, pages.slugify(title, fallback="thread"), entity_id=thread_id
+    )
     path = pages.write_page(directory / f"{slug}.md", fm, body + "\n")
     _finish(root)
     return pages.Page(path=path, fm=fm, body=body + "\n")

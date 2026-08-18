@@ -94,6 +94,11 @@ def prov_event(source_id: str, local_path: str) -> dict:
         "sha256": "0" * 64,
         "bytes": 1,
         "tool": "test",
+        # A capture row says HOW it got its bytes (SPEC §5.1); the fixture
+        # writes a local file, so `copy` is what it did. Without a method the
+        # row is a real (if small) gap and doctor now says so — which is the
+        # point of the check, and not what these fixtures are testing.
+        "strategy": "copy",
         "actor": "human:test",
     }
 
@@ -1543,10 +1548,37 @@ def test_a_tool_name_in_strategy_is_flagged_as_unvocabularied(tmp_path):
     root = make_notebook(tmp_path)
     source_page(root, "A1", prov=False)
     append_jsonl(root / "sources" / "_provenance.jsonl", capture_event("A1", "flip-fetch", 40_000))
-    found = [f for f in run_doctor(root) if f.code == "unvocabularied-method"]
-    assert len(found) == 1
-    assert "reads like a tool name" in found[0].message
+    findings = run_doctor(root)
+    found = [f for f in findings if f.code == "unvocabularied-method"]
+    assert len(found) == 1  # one row, one finding: the count still means affected sources
+    assert "'flip-fetch' is a tool name, not a method" in found[0].message
     assert found[0].expected is True  # legacy rows shouldn't read as breakage
+    # The teaching rides a cause line ahead of the group, once — carrying the
+    # vocabulary that used to be restated on every row (494 B × 243 rows in one
+    # measured notebook, which is what made the run unreadable).
+    cause = [f for f in findings if f.code == "capture-method-drift"]
+    assert len(cause) == 1
+    assert "self-contained-archive" in cause[0].message  # the vocabulary, stated once
+    assert "1 record a tool name" in cause[0].message
+    assert findings.index(cause[0]) < findings.index(found[0])
+
+
+def test_a_capture_row_with_no_method_is_distinct_from_a_tool_name(tmp_path):
+    # Absence and drift are different facts: nothing was ever claimed here, so
+    # nothing drifted from the vocabulary. Since 0.19 flip records the absence
+    # rather than minting a word its own linter then flags.
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", prov=False)
+    event = capture_event("A1", "http-get", 40_000)
+    del event["strategy"]
+    append_jsonl(root / "sources" / "_provenance.jsonl", event)
+    findings = run_doctor(root)
+    assert [f.code for f in findings if f.code == "unvocabularied-method"] == []
+    unreported = [f for f in findings if f.code == "unreported-method"]
+    assert len(unreported) == 1
+    assert "no capture method on record" in unreported[0].message
+    cause = [f for f in findings if f.code == "capture-method-drift"]
+    assert "1 record no method at all" in cause[0].message
 
 
 def test_failed_capture_rows_are_not_judged_for_fidelity(tmp_path):
@@ -1756,3 +1788,192 @@ def test_misattribution_on_a_subject_does_not_advise_unlinking(tmp_path):
     assert warns
     assert "Do NOT unlink" in warns[0].message
     assert "flip claim source rm" not in warns[0].message
+
+
+# --- scale hardening (0.19): what a 1.66 GB, 682-source corpus taught ---------
+
+
+def test_a_display_truncated_title_is_named_with_its_repair(tmp_path):
+    # 326 of 682 reference pages in one corpus stored a fetcher's truncated
+    # listing string as the canonical title — and the slug came from it, so the
+    # page's identity was lost, not just its label.
+    root = make_notebook(tmp_path)
+    path = source_page(root, "A1")
+    page = pages.read_page(path)
+    page.fm["title"] = "1. Med Phys. 2012 Jun;39(6Part21):3864. MO-C-BRCD-03: Th…"
+    pages.write_page(path, page.fm, page.body)
+    found = [f for f in run_doctor(root) if f.code == "truncated-title"]
+    assert len(found) == 1
+    assert "flip source retitle A1" in found[0].message
+
+
+def test_machine_output_stored_as_a_title_is_named(tmp_path):
+    # Eight distinct sources in one corpus slugged to index-3 … index-10.
+    root = make_notebook(tmp_path)
+    for sid, title in (("A1", "index"), ("A2", '{"status": "ok"}'), ("A3", "@inproceedings")):
+        path = source_page(root, sid)
+        page = pages.read_page(path)
+        page.fm["title"] = title
+        pages.write_page(path, page.fm, page.body)
+    found = [f for f in run_doctor(root) if f.code == "machine-title"]
+    assert len(found) == 3
+
+
+def test_a_real_title_draws_no_title_finding(tmp_path):
+    root = make_notebook(tmp_path)
+    path = source_page(root, "A1")
+    page = pages.read_page(path)
+    page.fm["title"] = "Reporting on the 2026 grid interconnection queue"
+    pages.write_page(path, page.fm, page.body)
+    found = codes(run_doctor(root))
+    assert "truncated-title" not in found
+    assert "machine-title" not in found
+
+
+def test_a_document_stuffed_into_an_envelope_field_is_named(tmp_path):
+    # 627 MB of one corpus was PDFs inside JSON strings: same hash, same ledger
+    # row, ~2.5× the bytes, and a text derivative made of mojibake.
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", prov=False)
+    raw = root / "sources" / "raw" / "A1"
+    raw.mkdir(parents=True, exist_ok=True)
+    (raw / "capture.json").write_text(
+        json.dumps({"url": "https://example.com/p.pdf", "html": "%PDF-1.7\nbody bytes"}),
+        encoding="utf-8",
+    )
+    found = [f for f in run_doctor(root) if f.code == "binary-in-envelope"]
+    assert len(found) == 1
+    assert "'html' field" in found[0].message
+    assert "flip doctor --fix" in found[0].message
+
+
+def test_an_escaped_payload_is_caught_and_a_rescued_one_is_not(tmp_path):
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", prov=False)
+    raw = root / "sources" / "raw" / "A1"
+    raw.mkdir(parents=True, exist_ok=True)
+    # json.dumps escapes the control bytes of a zip magic; the scan reads raw
+    # text, so it has to recognize the escaped form too
+    (raw / "escaped.json").write_text(
+        json.dumps({"content": "PK\x03\x04payload"}), encoding="utf-8"
+    )
+    # the breadcrumb flip leaves behind after materializing must NOT re-fire
+    (raw / "rescued.json").write_text(
+        json.dumps({"html": "[flip: binary payload (41 bytes, pdf) materialized to c-html.pdf]"}),
+        encoding="utf-8",
+    )
+    found = {Path(f.path).name for f in run_doctor(root) if f.code == "binary-in-envelope"}
+    assert found == {"escaped.json"}
+
+
+def test_the_same_bytes_under_two_source_ids_is_named(tmp_path):
+    # Four PDF pairs sat this way inside one notebook; `flip show --stale`
+    # counted each document twice.
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", prov=False)
+    source_page(root, "A2", prov=False)
+    prov = root / "sources" / "_provenance.jsonl"
+    for sid in ("A1", "A2"):
+        row = capture_event(sid, "http-get", 40_000)
+        row["sha256"] = "d" * 64
+        append_jsonl(prov, row)
+    found = [f for f in run_doctor(root) if f.code == "duplicate-custody"]
+    assert len(found) == 1
+    assert "sources A1, A2" in found[0].message
+
+
+def test_envelope_sidecars_sharing_a_hash_are_not_duplicate_custody(tmp_path):
+    # Every flip.json in a notebook plausibly matches; that is not the finding.
+    root = make_notebook(tmp_path)
+    prov = root / "sources" / "_provenance.jsonl"
+    for sid in ("A1", "A2"):
+        row = capture_event(sid, "http-get", 900)
+        row["sha256"] = "e" * 64
+        row["local_path"] = f"sources/raw/{sid}/flip.json"
+        append_jsonl(prov, row)
+    assert "duplicate-custody" not in codes(run_doctor(root))
+
+
+def test_an_ungraded_source_cited_as_evidence_is_named(tmp_path):
+    # 62 such sources sat uncounted in one corpus: the claim page reads as
+    # supported and the source corroborates nothing until someone judges it.
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="?")
+    claim_page(root, "C1", sources=["A1"])
+    found = [f for f in run_doctor(root) if f.code == "ungraded-cited"]
+    assert len(found) == 1
+    assert "cited as evidence by C1" in found[0].message
+    assert "flip grade A1" in found[0].message
+
+
+def test_an_ungraded_source_that_is_only_a_subject_is_exempt(tmp_path):
+    # A source you are writing ABOUT owes an attribution test, not a grade.
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="?")
+    path = claim_page(root, "C1", sources=[])
+    page = pages.read_page(path)
+    page.fm["sources"] = [{"id": "A1", "role": "subject"}]
+    pages.write_page(path, page.fm, page.body)
+    assert "ungraded-cited" not in codes(run_doctor(root))
+
+
+def test_an_uncited_ungraded_source_draws_no_ungraded_cited_finding(tmp_path):
+    # Captured and not yet judged is an ordinary mid-pass state.
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", grade="?")
+    assert "ungraded-cited" not in codes(run_doctor(root))
+
+
+def test_notebook_md_bloat_is_named_past_the_cap(tmp_path):
+    # One measured notebook.md hit 63.5KB, its Decisions section mirroring 25
+    # decision pages line by line.
+    root = make_notebook(tmp_path)
+    (root / "notebook.md").write_text(
+        NOTEBOOK_MD + ("\n* a line that restates a ledgered entity" * 1200), encoding="utf-8"
+    )
+    found = [f for f in run_doctor(root) if f.code == "notebook-md-bloat"]
+    assert len(found) == 1
+    assert "cited by id, never re-listed" in found[0].message
+
+
+def test_sibling_notebooks_with_no_workspace_are_nudged(tmp_path):
+    # Seven notebooks shared one repo with fully overlapping id spaces; the
+    # checks that would catch it only run at the workspace layer.
+    root = make_notebook(tmp_path)
+    sibling = tmp_path / "other-nb"
+    sibling.mkdir()
+    (sibling / "index.md").write_text(
+        MANIFEST_MD.format(kind="testkind", status="active", extra="", flip="0.4"),
+        encoding="utf-8",
+    )
+    found = [f for f in run_doctor(root) if f.code == "workspace-nudge"]
+    assert len(found) == 1
+    assert "flip ws" in found[0].message
+    assert found[0].expected is True  # nothing is wrong until you follow a ref
+
+
+def test_a_lone_notebook_is_not_nudged(tmp_path):
+    root = make_notebook(tmp_path)
+    assert "workspace-nudge" not in codes(run_doctor(root))
+
+
+def test_a_bound_workspace_is_not_nudged(tmp_path):
+    root = make_notebook(tmp_path)
+    sibling = tmp_path / "other-nb"
+    sibling.mkdir()
+    (sibling / "index.md").write_text(
+        MANIFEST_MD.format(kind="testkind", status="active", extra="", flip="0.4"),
+        encoding="utf-8",
+    )
+    ws = tmp_path / ".flip"
+    ws.mkdir(exist_ok=True)
+    (ws / "workspace.toml").write_text("version = 1\n[notebooks]\n", encoding="utf-8")
+    assert "workspace-nudge" not in codes(run_doctor(root))
+
+
+def test_custody_in_git_stays_quiet_outside_a_repo(tmp_path):
+    # A notebook is not required to live in a repository, and doctor never
+    # depends on one — git absent, failing or refusing is all the same silence.
+    root = make_notebook(tmp_path)
+    source_page(root, "A1")
+    assert "custody-in-git" not in codes(run_doctor(root))

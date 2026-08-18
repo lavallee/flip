@@ -60,7 +60,7 @@ def start_session(
     fm["started"] = util.utc_now()
     pages.write_page(path, fm, _SECTION_STUBS)
     manifest.touch_updated(root)
-    views.regenerate(root)
+    views.regenerate(root, changed=("sessions",))
     return path
 
 
@@ -133,7 +133,7 @@ def attach_transcript(
         body = (body + "\n\n" if body else "") + f"## Transcript\n\n{pointer}\n"
     pages.write_page(path, page.fm, body)
     manifest.touch_updated(root)
-    views.regenerate(root)
+    views.regenerate(root, changed=("sessions",))
     return path
 
 
@@ -160,5 +160,5 @@ def end_session(root: Path, path_or_slug: Path | str, summary: str) -> Path:
     body = (base + "\n\n" if base else "") + f"## Summary\n{summary}\n"
     pages.write_page(path, page.fm, body)
     manifest.touch_updated(root)
-    views.regenerate(root)
+    views.regenerate(root, changed=("sessions",))
     return path

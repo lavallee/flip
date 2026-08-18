@@ -710,7 +710,8 @@ _BINARY_TITLE_MAGIC = (
 
 
 def _plausible_title(value: object) -> str | None:
-    """A fetcher-supplied title, or None when it looks like binary payload."""
+    """A fetcher-supplied title, or None when it isn't plausibly one — binary
+    payload, a display truncation, a placeholder, or a metadata fragment."""
     if not isinstance(value, str):
         return None
     text = value.strip()
@@ -721,6 +722,21 @@ def _plausible_title(value: object) -> str | None:
     # A replacement char means bytes were decoded with errors="replace";
     # control bytes mean they weren't text to begin with. Either way: payload.
     if "�" in text or any(ch < " " and ch != "\t" for ch in text):
+        return None
+    # A trailing ellipsis is a display truncation, not a title: a fetcher that
+    # clips for its own UI hands the clipped string over, and the ellipsis
+    # bakes into canonical frontmatter and the slug (326/682 pages in one
+    # measured corpus ended in "…").
+    if text.endswith(("…", "...")):
+        return None
+    # "index" is a title only to the server that sent it. Eight sources in one
+    # corpus shared the slug identity index-3…index-10 — the target-derived
+    # name at least says which host's index this is.
+    if text.lower() == "index":
+        return None
+    # JSON/bibtex metadata read as a title: {"title": "…"} or @article{…
+    # handed over whole. The fragment names the record format, not the work.
+    if text.startswith(("{", "@")) or '": "' in text:
         return None
     return text
 
@@ -973,7 +989,9 @@ def add_source(
     # references/districts.md, not districts-csv.md (dogfood finding:
     # extension noise doubles up on .md captures — "…-survey-md.md").
     slug_source = Path(title).stem if capture_kind == "copy" else title
-    slug = pages.unique_slug(ref_dir, pages.slugify(slug_source, fallback=source_id.lower()))
+    slug = pages.unique_slug(
+        ref_dir, pages.slugify(slug_source, fallback=source_id.lower()), entity_id=source_id
+    )
     body = f"# {title}\n" + (f"\n{note}\n" if note else "")
     if capture_kind == "record":
         # Above the fold, in the reader's own words-per-minute: the one thing

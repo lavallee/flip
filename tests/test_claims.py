@@ -294,11 +294,11 @@ def test_claim_id_not_reused_after_page_deletion(sourced: Path):
     assert reserved == ["C1", "C2"]
 
 
-def test_claim_slug_collision_gets_numeric_suffix(sourced: Path):
+def test_claim_slug_collision_gets_id_qualified_suffix(sourced: Path):
     first = claims.add_claim(sourced, "the sky is blue", [])
     second = claims.add_claim(sourced, "the sky is blue!", [])  # same slug basis
     assert first.path.name == "the-sky-is-blue.md"
-    assert second.path.name == "the-sky-is-blue-2.md"
+    assert second.path.name == "c2-the-sky-is-blue.md"
     assert second.fm["id"] == "C2"
 
 

@@ -45,7 +45,13 @@ WITHHELD_NOTE = "_Source trail withheld by notebook policy; grading judgment sho
 
 
 def _regenerate_views(root: Path) -> None:
-    """Refresh generated index.md bodies / log.md before copying (SPEC §10)."""
+    """Refresh generated index.md bodies / log.md before copying (SPEC §10).
+
+    Deliberately the full rebuild, not the incremental path: export is not the
+    tail of one known mutation — entity pages are canonical and hand-editable,
+    so nothing bounds what changed since the last regenerate, and the copy
+    about to leave the notebook must reflect the pages, not a cache.
+    """
     from . import views
 
     views.regenerate(root)

@@ -310,7 +310,8 @@ def _write_transcript(
     manifest.touch_updated(root)
     from . import views
 
-    views.regenerate(root)
+    # Transcript pages live in references/; pin and unpin touch nothing else.
+    views.regenerate(root, changed=("references",))
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
