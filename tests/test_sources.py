@@ -209,7 +209,9 @@ def test_fetcher_end_to_end(tmp_path, monkeypatch):
         assert e["url"] == "https://example.com/story"
         assert e["tool"] == str(script)
         assert e["tool_version"] == "fakefetch 1.0 (test)"
-        assert e["strategy"] == "config"
+        # no envelope → no method claim; absence is the record (0.19), the old
+        # "config" fallback wrote a word doctor itself rejected
+        assert "strategy" not in e
         assert e["sha256"] == sha256_file(root / e["local_path"])
         assert e["bytes"] == (root / e["local_path"]).stat().st_size
 
@@ -439,7 +441,7 @@ def _envelope_fetcher(tmp_path, envelope_json, *, to_dest=False):
 ENVELOPE = (
     '{"flip": {"title": "Real Headline", '
     '"canonical_url": "https://example.com/canonical", '
-    '"strategy": "googlebot", "status": "paywalled", '
+    '"strategy": "browser-render", "status": "paywalled", '
     '"retrieved_at": "2026-07-01T00:00:00Z", "mime": "text/html", '
     '"backend_ref": "store:abc123", '
     '"independence_hint": "corroborated", "freshness_hint": "dated"}}'
@@ -468,7 +470,7 @@ def test_envelope_from_stdout_harvested_to_page_and_provenance(tmp_path, monkeyp
     assert "status=paywalled" in page.body
 
     ev = read_jsonl(root / "sources" / "_provenance.jsonl")[0]
-    assert ev["strategy"] == "googlebot"  # envelope strategy overrides "config"
+    assert ev["strategy"] == "browser-render"  # the envelope's method claim, validated
     assert ev["status"] == "paywalled"
     assert ev["retrieved_at"] == "2026-07-01T00:00:00Z"
     assert ev["mime"] == "text/html"
@@ -489,7 +491,7 @@ def test_envelope_from_flip_json_file(tmp_path, monkeypatch):
     assert page.fm["local"] == "sources/raw/A1/page.html"
     assert (root / "sources" / "raw" / "A1" / "flip.json").is_file()
     ev = {e["local_path"]: e for e in read_jsonl(root / "sources" / "_provenance.jsonl")}
-    assert ev["sources/raw/A1/page.html"]["strategy"] == "googlebot"
+    assert ev["sources/raw/A1/page.html"]["strategy"] == "browser-render"
 
 
 def test_envelope_from_cache_recorded_in_provenance(tmp_path, monkeypatch):
@@ -498,7 +500,7 @@ def test_envelope_from_cache_recorded_in_provenance(tmp_path, monkeypatch):
     root = make_notebook(tmp_path)
     script = _envelope_fetcher(
         tmp_path,
-        '{"flip": {"from_cache": true, "backend_ref": "store:xyz", "strategy": "store"}}',
+        '{"flip": {"from_cache": true, "backend_ref": "store:xyz"}}',
     )
     make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}}"})
 
@@ -507,7 +509,9 @@ def test_envelope_from_cache_recorded_in_provenance(tmp_path, monkeypatch):
     ev = read_jsonl(root / "sources" / "_provenance.jsonl")[0]
     assert ev["from_cache"] is True
     assert ev["backend_ref"] == "store:xyz"
-    assert ev["strategy"] == "store"
+    # a store hit that doesn't know the original acquisition method makes no
+    # claim; "store" is a backend's name, not a capture method
+    assert "strategy" not in ev
 
 
 def test_envelope_from_cache_false_is_not_recorded(tmp_path, monkeypatch):
@@ -534,8 +538,28 @@ def test_no_envelope_leaves_behavior_unchanged(tmp_path, monkeypatch):
     assert "resource" in page.fm and page.fm["resource"] == "https://example.com/story"
     assert "capture hints" not in page.body
     ev = read_jsonl(root / "sources" / "_provenance.jsonl")[0]
-    assert ev["strategy"] == "config"
+    assert "strategy" not in ev
     assert "status" not in ev
+
+
+def test_envelope_tool_name_in_strategy_is_refused_at_the_boundary(tmp_path, monkeypatch):
+    # The trust boundary works both ways: --strategy is validated, and so is
+    # the envelope's claim. A fetcher reporting a tool name instead of a
+    # method (measured: 520 such warnings across one corpus) is refused with
+    # the vocabulary in hand, and the attempt still lands in the ledger as a
+    # failed row: "tried, refused" stays distinguishable from "did not look".
+    root = make_notebook(tmp_path)
+    script = _envelope_fetcher(tmp_path, '{"flip": {"strategy": "googlebot"}}')
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}}"})
+
+    with pytest.raises(SystemExit, match="not a capture method"):
+        sources.add_source(root, "https://example.com/story")
+
+    ev = read_jsonl(root / "sources" / "_provenance.jsonl")[0]
+    assert ev["status"] == "failed"
+    assert "googlebot" in ev["error"]
+    # no reference page was opened for the refused capture
+    assert not list((root / "references").glob("*.md"))
 
 
 def test_envelope_ignores_out_of_vocab_hints(tmp_path, monkeypatch):

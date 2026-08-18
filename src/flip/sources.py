@@ -680,11 +680,11 @@ def _empty_capture_guidance(
     return "\n".join(lines)
 
 
-def _regenerate_views(root: Path) -> None:
+def _regenerate_views(root: Path, changed: tuple[str, ...] | None = None) -> None:
     """Refresh the generated index.md bodies / log.md after a mutation (SPEC §10)."""
     from . import views
 
-    views.regenerate(root)
+    views.regenerate(root, changed=changed)
 
 
 def _title_for(target: str, capture_kind: str) -> str:
@@ -839,6 +839,22 @@ def add_source(
     else:
         try:
             run = integrations.run_capture(resolved, root, source_id, target)
+            # The envelope is untrusted input and this is the trust boundary,
+            # exactly as it is for --strategy above: a fetcher that reports a
+            # word outside the method vocabulary is usually reporting its own
+            # NAME (a measured corpus held `direct`, `googlebot`, `pdf` — tool
+            # trivia, not methods). Refusing here, with the vocabulary in
+            # hand, is what keeps two notebooks comparable across deployments;
+            # accepting it silently is how one corpus accrued 520 warnings.
+            if run.strategy is not None and run.strategy not in CAPTURE_METHODS:
+                raise SystemExit(
+                    f"fetcher for kind '{kind}' reported capture strategy "
+                    f"{run.strategy!r}, which is not a capture method (one of: "
+                    f"{', '.join(CAPTURE_METHODS)}). The provenance ledger "
+                    "records the METHOD there — the tool's name already lands "
+                    "in `tool`. Fix the fetcher's envelope, or drop its "
+                    "`strategy` key to record the method as unreported"
+                )
         except integrations.EmptyCapture as exc:
             # The tool ran fine and found nothing. That is a finding ABOUT THE
             # DOCUMENT — gated, withdrawn, not served to us — and the honest
@@ -896,7 +912,11 @@ def add_source(
         }
         if tool_version:
             event["tool_version"] = tool_version
-        event["strategy"] = strategy
+        if strategy is not None:
+            # No key when the fetcher reported no method: absence is the true
+            # record (capture_fidelity derives `unknown` from it), where any
+            # invented word would be the misdescription SPEC §5.1 forbids.
+            event["strategy"] = strategy
         if envelope:
             # `attempts` records that a lower rung had to be retried before it
             # held — the difference between "this came back first time" and
@@ -970,7 +990,7 @@ def add_source(
         body += ("\n" if not body.endswith("\n") else "") + hint
     path = pages.write_page(ref_dir / f"{slug}.md", fm, body)
     manifest.touch_updated(root)
-    _regenerate_views(root)
+    _regenerate_views(root, changed=("references",))
     return pages.Page(path=path, fm=fm, body=body)
 
 

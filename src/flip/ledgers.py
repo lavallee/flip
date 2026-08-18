@@ -44,11 +44,14 @@ def _description(text: str, limit: int = DESCRIPTION_LIMIT) -> str:
     return s if len(s) <= limit else s[: limit - 1].rstrip() + "…"
 
 
-def _finish(root: Path) -> None:
+def _finish(root: Path, changed: tuple[str, ...] | None = None) -> None:
     """Common tail of every mutation: bump the manifest's `updated`, then
-    refresh the generated views (index.md bodies, log.md — SPEC §10)."""
+    refresh the generated views (index.md bodies, log.md — SPEC §10).
+
+    `changed` narrows the refresh to the entity dirs the mutation touched
+    (views.regenerate); None keeps the full rebuild."""
     manifest.touch_updated(root)
-    views.regenerate(root)
+    views.regenerate(root, changed=changed)
 
 
 # --- event ledgers (append-only JSONL) ----------------------------------------
@@ -60,7 +63,10 @@ def log_event(root: Path, text: str) -> dict:
     text = _require_text(text, "log text")
     row = {"ts": util.utc_now(), "text": text, "actor": util.detect_actor()}
     util.append_jsonl(root / LOG, row)
-    _finish(root)
+    # A log event touches no entity page, so nothing needs recounting — this
+    # call was O(every page in the notebook) purely by default (measured:
+    # 19.8 s for one line at 10,300 sources).
+    _finish(root, changed=())
     return row
 
 

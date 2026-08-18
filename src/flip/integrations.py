@@ -51,10 +51,10 @@ from pathlib import Path
 # Identifier schemes stripped from ``{id}``. A resolver is handed the bare
 # identifier because that is the form every one of them accepts; the schemed
 # form is what a human writes and what several resolvers silently miss (given
-# "arXiv:2606.15136", paperboy title-searches the string and returns unrelated
-# papers, then exits 0 — a clean run that captures nothing, which flip reports
-# as EmptyCapture, i.e. as a finding about the document rather than the bug it
-# actually is). {url} still carries the target exactly as given.
+# "arXiv:2606.15136", one measured paper resolver title-searches the string and
+# returns unrelated papers, then exits 0 — a clean run that captures nothing,
+# which flip reports as EmptyCapture, i.e. as a finding about the document
+# rather than the bug it actually is). {url} still carries the target as given.
 ID_SCHEMES = ("doi:", "arxiv:", "pmid:", "pmcid:", "hdl:", "isbn:", "urn:")
 
 
@@ -518,8 +518,82 @@ class CaptureRun:
     files: list[Path]
     tool: str
     tool_version: str | None
-    strategy: str
+    strategy: str | None   # the envelope's claim, verbatim; None when it made none
     envelope: dict | None
+
+
+# Magic prefixes that mean a JSON string field is holding a DOCUMENT's bytes,
+# not text — with the suffix its materialized file gets. Found in the field: a
+# fetcher that reads binary with a byte-preserving decode and hands the result
+# back as "html" produces a 104 MB capture.json wrapping a 41 MB PDF (~2.5×
+# inflation from escaping), whose text derivative is mojibake. The envelope
+# carries metadata; a document lands as its own file (SPEC §5.1).
+_PAYLOAD_MAGIC = {
+    "%PDF": ".pdf",
+    "PK\x03\x04": ".zip",
+    "\x89PNG": ".png",
+    "GIF8": ".gif",
+    "\x1f\x8b": ".gz",
+    "\xd0\xcf\x11\xe0": ".doc",
+    "%!PS": ".ps",
+}
+# Envelope fields a fetcher plausibly stuffs a payload into.
+_PAYLOAD_FIELDS = ("html", "text", "content", "body")
+
+
+def _materialize_binary_payloads(files: list[Path], dest: Path) -> list[Path]:
+    """Rescue document bytes stuffed into JSON string fields at capture time.
+
+    For each captured ``*.json``: any ``_PAYLOAD_FIELDS`` string starting with
+    a binary magic is re-encoded latin-1-strict (the byte-preserving decode is
+    the only one this can round-trip; a lossy decode fails the encode and the
+    field is left untouched for doctor to flag), written next to the JSON as
+    its own file, and replaced in the JSON with a one-line breadcrumb. Runs
+    before provenance rows are written so every hash reflects what actually
+    lands in custody. Returns the capture's files including any new ones.
+    """
+    out = list(files)
+    for path in files:
+        if path.suffix != ".json":
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, ValueError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        rewritten = False
+        for field in _PAYLOAD_FIELDS:
+            value = data.get(field)
+            if not isinstance(value, str):
+                continue
+            suffix = next(
+                (ext for magic, ext in _PAYLOAD_MAGIC.items() if value.startswith(magic)), None
+            )
+            if suffix is None:
+                continue
+            try:
+                payload = value.encode("latin-1")
+            except UnicodeEncodeError:
+                continue  # lossy decode upstream: bytes unrecoverable, leave the evidence
+            name = f"{path.stem}-{field}{suffix}"
+            target = dest / name
+            n = 2
+            while target.exists():
+                target = dest / f"{path.stem}-{field}-{n}{suffix}"
+                n += 1
+            target.write_bytes(payload)
+            data[field] = (
+                f"[flip: binary payload ({len(payload)} bytes, {suffix[1:]}) "
+                f"materialized to {target.name}]"
+            )
+            out.append(target)
+            rewritten = True
+        if rewritten:
+            path.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+    return out
 
 
 def run_capture(resolved: Resolved, root: Path, source_id: str, target: str) -> CaptureRun:
@@ -556,8 +630,15 @@ def run_capture(resolved: Resolved, root: Path, source_id: str, target: str) -> 
             key=resolved.key, dest=dest, tool=argv[0], template=template,
             captures_stdout=captures_stdout,
         )
+    new = _materialize_binary_payloads(new, dest)
     envelope = _harvest_envelope(new, proc.stdout)
-    strategy = "config"
+    # The envelope's `strategy` is a claim about the capture METHOD, passed
+    # through verbatim for the caller to validate against the vocabulary.
+    # When the fetcher makes no claim, the honest value is no value: the old
+    # `"config"` fallback wrote a word that is not in CAPTURE_METHODS, so flip
+    # itself minted findings its own doctor then flagged (85 of them across
+    # one measured corpus). Absence derives `unknown` fidelity downstream.
+    strategy = None
     if envelope and isinstance(envelope.get("strategy"), str):
         strategy = envelope["strategy"]
     return CaptureRun(
