@@ -1,7 +1,7 @@
 window.__FLIP_META__ = {
-  "generated": "2026-08-18T03:06:53+00:00",
-  "version": "0.20.0",
-  "revision": "d885bfa",
+  "generated": "2026-08-18T15:07:07+00:00",
+  "version": "0.21.0",
+  "revision": "0399aa9",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",
@@ -10,7 +10,7 @@ window.__FLIP_META__ = {
   "license": "MIT",
   "package": "flip-notebook",
   "tests": 1293,
-  "spec_status": "draft v0.20 \u00b7 2026-08-18",
+  "spec_status": "draft v0.21 \u00b7 2026-08-18",
   "spec_lines": 2117,
   "skills": [
     "notebook-audit",
@@ -123,6 +123,23 @@ window.__FLIP_META__ = {
           },
           {
             "name": "--dest",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip beat next",
+        "group": "flip beat",
+        "name": "next",
+        "purpose": "What this beat should pick up next, ranked, with the reason for each.",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--json",
+            "required": false
+          },
+          {
+            "name": "--limit",
             "required": false
           }
         ]

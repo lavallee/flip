@@ -928,3 +928,63 @@ def test_a_verify_refusal_names_the_subject_it_declined_to_count(sourced: Path):
     with pytest.raises(SystemExit) as ei:
         claims.set_claim_status(sourced, "C1", "verified")
     assert "A2 is cited as what this claim is ABOUT" in str(ei.value)
+
+
+class TestForeignCitations:
+    """A citation must be a references/ id, not an id from another series.
+
+    Dangling citations are legal (SPEC §6.1) and that legality is what made
+    this quiet: `--about Q2` wrote a QUESTION id into a claim's attribution and
+    reported "not captured yet", which is exactly what a real uncaptured source
+    reports. Five claims in one notebook carried it before anyone looked.
+    """
+
+    def test_about_refuses_a_question_id(self, sourced: Path):
+        with pytest.raises(SystemExit) as exc:
+            claims.add_claim(sourced, "the year is dated", ["A1"], subjects=["Q2"])
+        message = str(exc.value)
+        assert "--about Q2" in message
+        assert "questions/ id, not a source" in message
+        assert "flip question note" in message
+
+    def test_source_refuses_a_question_id(self, sourced: Path):
+        with pytest.raises(SystemExit) as exc:
+            claims.add_claim(sourced, "the year is dated", ["Q2"])
+        assert "--source Q2" in str(exc.value)
+
+    def test_a_claim_id_is_refused_and_points_at_derives_from(self, sourced: Path):
+        with pytest.raises(SystemExit) as exc:
+            claims.add_claim(sourced, "rests on another", ["C1"])
+        assert "--derives-from" in str(exc.value)
+
+    def test_refusal_happens_before_the_id_is_allocated(self, sourced: Path):
+        """A refusal after allocate_id burns a C# forever — ids are never
+        reused, so a rejected claim must not consume one."""
+        claims.add_claim(sourced, "first", ["A1"])
+        with pytest.raises(SystemExit):
+            claims.add_claim(sourced, "rejected", ["A1"], subjects=["Q2"])
+        good = claims.add_claim(sourced, "second", ["A1"])
+        assert good.id == "C2"
+
+    def test_an_uncaptured_source_id_is_still_legal(self, sourced: Path):
+        """The behaviour this must not break: A9 has no page yet and is a
+        perfectly good forward citation."""
+        page = claims.add_claim(sourced, "cited ahead of capture", ["A9"])
+        assert "A9" in claims.source_ids(page.fm)
+
+    def test_an_unknown_prefix_is_still_legal(self, sourced: Path):
+        """Only KNOWN non-source series are refused; anything unrecognised is
+        the dangling case and stays legal."""
+        page = claims.add_claim(sourced, "odd but allowed", ["ZZ3"])
+        assert "ZZ3" in claims.source_ids(page.fm)
+
+    def test_a_pinned_transcript_passage_survives_the_check(self, sourced: Path):
+        """T1§relevance-null is a source id with a fragment, not a foreign id."""
+        claims.reject_foreign_citations([("T1§relevance-null", "evidence")])
+
+    def test_the_linker_names_the_series_instead_of_saying_uncaptured(self, sourced: Path):
+        claims.add_claim(sourced, "anchor", ["A1"])
+        with pytest.raises(SystemExit) as exc:
+            claims.add_claim_sources(sourced, "C1", ["Q2"])
+        assert "questions/ id, not a source" in str(exc.value)
+        assert "capture the source" not in str(exc.value)

@@ -5,7 +5,7 @@ description = "A wiki tells an agent what we know. A notebook can prove where it
 kind = "explainer"
 status = "live"
 created = "2026-07-24"
-updated = "2026-08-12"
+updated = "2026-08-18"
 
 [build]
 commands = ["python3 build.py"]

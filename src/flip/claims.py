@@ -505,6 +505,54 @@ def _regenerate_views(root: Path) -> None:
     views.regenerate(root, changed=("claims",))
 
 
+# Prefixes whose pages live in references/ — the only ids that can ever be a
+# citation. Derived from the one map rather than restated, so a new source
+# series is picked up here for free.
+_SOURCE_PREFIXES = frozenset(
+    prefix for prefix, directory in pages.PREFIX_DIR.items() if directory == "references"
+)
+_PREFIXED_ID_RE = re.compile(r"^([A-Z]+)\d+$")
+
+
+def reject_foreign_citations(cited: list[tuple[str, str]]) -> None:
+    """Refuse a citation whose id belongs to another series.
+
+    A dangling citation is legal and deliberate (SPEC §6.1): cite A7 now,
+    capture it later, and doctor counts the gap meanwhile. That legality is
+    exactly what made this quiet — `flip claim add … --about Q2` took a
+    QUESTION id as a source, wrote it into the claim's attribution, and
+    reported it as "not captured yet", which is what a not-yet-captured source
+    looks like. Q2 is not a source that has yet to arrive; it is a page that
+    already exists in another series and can never become one. Five claims in
+    one notebook carried the citation before anyone noticed.
+
+    Only ids whose prefix is a KNOWN non-source series are refused. An
+    unrecognised prefix stays legal, because that is the dangling case.
+    """
+    for raw, role in cited:
+        # A pinned transcript passage cites its source with a §fragment.
+        ident = str(raw).split("§", 1)[0].strip()
+        match = _PREFIXED_ID_RE.match(ident)
+        if not match:
+            continue
+        prefix = match.group(1)
+        if prefix in _SOURCE_PREFIXES:
+            continue
+        home = pages.PREFIX_DIR.get(prefix)
+        if home is None:
+            continue
+        flag = "--about" if role == "subject" else "--source"
+        hint = {
+            "questions": "to attach evidence to a question, use `flip question note`",
+            "claims": "to say a claim rests on another, use --derives-from",
+            "decisions": "a decision is not evidence; cite the source it rested on",
+        }.get(home, f"{ident} is a page in {home}/")
+        raise SystemExit(
+            f"{flag} {ident}: that is a {home}/ id, not a source. {hint}. "
+            f"Citations take references/ ids ({', '.join(sorted(_SOURCE_PREFIXES))})."
+        )
+
+
 def add_claim(
     root: Path,
     text: str,
@@ -578,6 +626,9 @@ def add_claim(
             )
     cited = [(str(s), "evidence") for s in pages.as_list(sources)]
     cited += [(str(s), "subject") for s in pages.as_list(subjects)]
+    # Before allocate_id, like every other validation here: a refusal after
+    # allocation burns a C# forever.
+    reject_foreign_citations(cited)
     cited_ids = list(_group_refs(cited))  # excerpt refs collapse to their source
     claim_id = pages.allocate_id(root, "C")
     src_by_id = _source_pages_by_id(root)
@@ -934,6 +985,10 @@ def add_claim_sources(
             "no source ids given; pass at least one references/ id as evidence (e.g. A3), "
             "or as the source the claim is about (`--about P18`)"
         )
+    # Checked before the unknown-id refusal below, which would also catch these
+    # but would call a question id an uncaptured source and tell the operator to
+    # go capture it.
+    reject_foreign_citations(refs)
     page = _find_claim(root, claim_id)
     src_by_id = _source_pages_by_id(root)
     grouped = _group_refs(refs)

@@ -6,6 +6,33 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-08-18
+
+A citation is a reference, and only a reference.
+
+### Fixed
+
+- **`--source` and `--about` refuse an id from another series (SPEC §6.1,
+  §7).** `flip claim add … --about Q2` took a QUESTION id, wrote it into the
+  claim's attribution, and reported `Q2 not captured yet — dangling
+  citation(s)`. That message was true to the rules and wrong about the world:
+  dangling citations are legal and deliberate, so a forward reference to a
+  source you have not captured yet is supposed to look exactly like that. Q2
+  is not a source that has yet to arrive; it is a page that already exists in
+  another series and can never become one. Five claims in one notebook carried
+  the citation before anyone noticed.
+
+  Now refused, before the C# is allocated so a rejection cannot burn an id,
+  with a message that names the series and the right verb — a question id
+  points at `flip question note`, a claim id at `--derives-from`, a decision
+  id at the source the decision rested on. `flip claim source add` gets the
+  same check ahead of its unknown-id refusal, which would otherwise call a
+  question id an uncaptured source and send the operator off to capture it.
+
+  Only ids whose prefix is a **known** non-source series are refused.
+  Unrecognised prefixes and uncaptured `A#`/`F#` ids stay legal: that is the
+  dangling case, and it is the feature.
+
 ## [0.20.0] — 2026-08-18
 
 The loop release. A beat was already a standing mission; this makes it one
