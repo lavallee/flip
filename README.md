@@ -49,15 +49,24 @@ Design commitments:
   prose in the body; tools preserve frontmatter keys they don't own, so
   human edits and agent edits round-trip through each other.
 
-## Use it from Claude Code
+## Use it from Claude Code or Codex
 
 The fastest way to use flip is conversationally: you direct the research
 the way you already talk to your agent, and flip is the discipline the
-agent works under. In [Claude Code](https://claude.com/claude-code):
+agent works under.
+
+In [Claude Code](https://claude.com/claude-code):
 
 ```
 /plugin marketplace add lyra-forge/marketplace
 /plugin install flip@lyra-forge
+```
+
+In Codex:
+
+```bash
+codex plugin marketplace add lyra-forge/marketplace
+codex plugin add flip@lyra-forge
 ```
 
 and put the CLI the skills drive on your PATH:
@@ -66,12 +75,15 @@ and put the CLI the skills drive on your PATH:
 uv tool install flip-notebook      # or: pipx install flip-notebook
 ```
 
-The plugin ships **seven skills** covering the notebook lifecycle —
+Start a new session after installing. The plugin ships **seven skills**
+covering the notebook lifecycle —
 create, source capture, session hygiene, claim audit, handoff, lessons,
 kind authoring — plus a **custody hook** that, inside a notebook, puts the
 capture rule at the moment of a web fetch and names anything read but
-never captured before the turn ends. Then research the way you normally
-would:
+never captured before the turn ends. Codex installs the same seven skills;
+its hosted web tools do not expose the tool-hook events that the custody hook
+needs, so the skills carry that discipline there. Then research the way you
+normally would:
 
 > **You:** People keep saying NJ school enrollment dipped in the
 > pandemic. Did it? Did it come back?
@@ -185,8 +197,9 @@ cites `T1§relevance-null` and travels with the words.
 
 Notebooks are built to be maintained by humans and agents together:
 
-- **Claude Code plugin** — `/plugin install flip@lyra-forge`: the seven
-  skills plus the custody hook, versioned with releases. The guide is
+- **Claude Code and Codex plugin** — `/plugin install flip@lyra-forge` or
+  `codex plugin add flip@lyra-forge`: the seven skills, versioned with
+  releases. Claude Code also runs the custody hook. The full Claude guide is
   [docs/claude-code.md](docs/claude-code.md).
 - **[AGENTS.md](AGENTS.md)** — the five-minute tour, the lineage rules
   agents must honor (capture before cite, grade-C-until-promoted, the

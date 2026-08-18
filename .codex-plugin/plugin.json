@@ -1,0 +1,38 @@
+{
+  "name": "flip",
+  "version": "0.19.0",
+  "description": "Custody, grading, and corroboration discipline for durable, auditable research notebooks.",
+  "author": {
+    "name": "Marc Lavallee"
+  },
+  "repository": "https://github.com/lavallee/flip",
+  "license": "MIT",
+  "keywords": [
+    "research",
+    "notebooks",
+    "provenance",
+    "sources",
+    "claims",
+    "okf",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "flip — reporter's notebooks",
+    "shortDescription": "Auditable research notebooks for agents",
+    "longDescription": "Capture sources to local bytes, grade evidence, track claims and sessions, and carry provenance through research handoffs.",
+    "developerName": "Marc Lavallee",
+    "category": "Research",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/lavallee/flip",
+    "defaultPrompt": [
+      "Create a Flip notebook for this research question.",
+      "Capture and grade the sources supporting this claim.",
+      "Audit this notebook's claims and prepare a handoff."
+    ]
+  }
+}
