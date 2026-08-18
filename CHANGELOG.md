@@ -6,6 +6,29 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.19.1] — 2026-08-18
+
+Found by running 0.19.0's own repair over the corpus that motivated it.
+
+### Fixed
+
+- **`unrecoverable-payload`, split out of `binary-in-envelope`.** 0.19.0
+  assumed a document stuffed into a capture envelope was a storage-shape
+  problem, repairable by writing the bytes out. Run against the real
+  corpus, **all 70 payload fields turned out to be unrecoverable**: the
+  fetcher had decoded each document with a lossy codec *before* writing
+  it, so what sits in custody is a damaged rendering — U+FFFD where bytes
+  were replaced, code-page glyphs where they were reinterpreted — and no
+  repair can undo that. The finding now says so and points at the only
+  real remedy, which is to re-capture the source and fix the fetcher to
+  hand flip bytes rather than a decoded string. This matters beyond
+  tidiness: the capture row claims the document is in custody, and for
+  these sources that claim is false.
+- **`flip doctor --fix` reports what it declines.** It rescued nothing on
+  that corpus and said nothing about it — output an operator would
+  reasonably read as "there was nothing to do", when the truth was 33
+  documents it could not save. A repair that declines has to say so.
+
 ## [0.19.0] — 2026-08-17
 
 The scale-hardening release. Driven by a measured audit of a real
