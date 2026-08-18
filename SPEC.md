@@ -1517,10 +1517,24 @@ mutation, so one `flip log` append cost 1.06 s at 301 sources and 19.8 s at
 10,300 pages. The cache is machine-local state like the rest of `.flip/`
 (§17): it never ships, and it is safe to delete at any time — absent or
 corrupt, every count is recounted from the pages, so it can only ever save
-work, never change output. Only an incremental caller brings it into
-existence; a full rebuild refreshes one that already exists but creates
-nothing, so read-only projections (`flip export`) never leave a side file
-behind.
+work, never change output.
+
+**The cache is verified, not trusted**, because the generated views are not a
+function of the entity pages alone. Every entry carries a cheap fingerprint
+of the directory it describes — how many entity files it holds and the newest
+mtime among them, one directory scan and no parsing — and an entry whose
+fingerprint no longer matches is a miss. This is what keeps the invariant
+true when flip is not the only writer, which is the normal case and not the
+exception: pages are hand-editable by contract (§3), the reference client
+writes them (§20), `flip import --update` replaces them wholesale (§18), and
+git checks them out. The questions entry additionally remembers the earliest
+pending `review_by` date, because a dormant question resurfaces on the
+morning its review comes due with nothing on disk having changed (§7) — an
+entry that could not expire itself would freeze a count the calendar had
+already made wrong. Only an incremental caller ever writes the cache; a full
+rebuild leaves it untouched, so read-only projections (`flip export`) neither
+create a side file nor refresh one, and the next mutation re-grounds any
+stale entry through the fingerprint.
 
 ## 11. Renders and drafts
 
@@ -1815,7 +1829,18 @@ fetchers actually report outside the vocabulary is their own name (a
 measured corpus held `direct`, `googlebot`, `pdf`: tool trivia, not
 methods), and the tool's name already lands in `tool`. An out-of-vocabulary
 claim is refused with the vocabulary in hand, not recorded for doctor to
-flag later. **A fetcher that makes no claim records no method**: the
+flag later.
+
+A refusal is not a failure, and the ledger must not say it was. The
+acquisition succeeded — the fetcher looked and delivered — so the capture is
+logged with status **`refused`**, carrying the files it fetched with their
+hashes and the word it reported. Recording the bytes is what keeps them from
+becoming orphan custody the operator can only clear by hand; `refused` is
+what keeps them out of every consumer that walks the ledger for captures.
+No entity page is opened, so nothing can cite them, and the refusal names
+where they are so the operator can re-run or delete after fixing the fetcher.
+
+**A fetcher that makes no claim records no method**: the
 provenance row simply carries no `strategy` key, and fidelity derives
 `unknown` (§5.1). Absence is the honest record — an earlier fallback
 invented a placeholder word here, which put a claim nobody made into the

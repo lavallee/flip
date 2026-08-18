@@ -154,6 +154,36 @@ notebook it needed a migration that would do nothing.
 
 ### Fixed
 
+- **Ten defects found by an adversarial review of this release's own
+  diff**, each reproduced before being reported and each now pinned by a
+  regression test. The load-bearing ones: the envelope rescue wrote its
+  replacement with a call that truncates before it encodes, so an
+  envelope carrying a lone surrogate (what any `JSON.stringify` makes of
+  a title clipped mid-pair) was destroyed *after* its payload had been
+  extracted and while its ledger row still swore to the old hash —
+  nothing is written now until the whole rewrite is known to succeed,
+  and the replacement is atomic; the repair dropped the acquisition it
+  was repairing, turning an honest `http-get` capture into a source with
+  no method on record, and now inherits the capture's url/method/tool
+  because those are whose bytes they are; the breadcrumb rewrite changed
+  a file under custody without superseding its fixity row; and one
+  hand-edited page aborted an entire repair mid-run, which is the state
+  that leaves `local` naming an emptied envelope.
+- **A refused capture is no longer logged as a failure.** The strategy
+  check sat inside the acquisition's `try`, so its refusal was caught by
+  the failure handler and the ledger recorded that the fetcher looked and
+  came back empty-handed — when it looked and delivered. Refusals now log
+  as `refused` with the fetched files hashed and registered (so they are
+  not orphan custody), the reported word kept as evidence, and the error
+  names where the bytes are.
+- **The view cache is verified rather than trusted.** It assumed flip was
+  the only writer, but pages are hand-editable by contract, and the open
+  count depends on the calendar as well as the pages — a dormant question
+  resurfacing on its review date left the cache stating a count that the
+  same notebook rendered differently by a different path. Entries now
+  carry a directory fingerprint and, for questions, an expiry; a full
+  rebuild never writes the cache, so `flip export` cannot mutate the
+  notebook it is exporting.
 - **The internal-name scrub now covers the whole public distribution.**
   It covered only the deployable website, which is how an internal tool
   name shipped in a src/ comment for months; the same name list now
