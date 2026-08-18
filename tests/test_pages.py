@@ -192,3 +192,39 @@ def test_all_ids_unions_pages_provenance_and_reservations(tmp_path):
     )
     reserve_id(root, "Q7")
     assert {"C1", "A1", "Q7"} <= set(all_ids(root))
+
+
+# --- unique_slug ---------------------------------------------------------------
+
+
+def test_unique_slug_free_slug_is_never_qualified(tmp_path):
+    assert pages.unique_slug(tmp_path, "report", entity_id="A1") == "report"
+
+
+def test_unique_slug_collision_prefers_id_over_counter(tmp_path):
+    # a counter names nothing: one measured corpus held eight sources whose
+    # entire slug identity was index-3…index-10
+    (tmp_path / "report.md").write_text("", encoding="utf-8")
+    assert pages.unique_slug(tmp_path, "report", entity_id="A261") == "a261-report"
+    assert pages.unique_slug(tmp_path, "report") == "report-2"  # no id offered
+
+
+def test_unique_slug_reserved_name_collision_is_id_qualified(tmp_path):
+    # "index" collides with the reserved index.md even in an empty directory —
+    # this is exactly how a corpus minted index-3…index-10
+    assert pages.unique_slug(tmp_path, "index", entity_id="A261") == "a261-index"
+
+
+def test_unique_slug_counter_backstops_a_taken_qualified_slug(tmp_path):
+    for name in ("report.md", "a1-report.md"):
+        (tmp_path / name).write_text("", encoding="utf-8")
+    assert pages.unique_slug(tmp_path, "report", entity_id="A1") == "a1-report-2"
+
+
+def test_unique_slug_never_doubles_an_id_already_in_the_slug(tmp_path):
+    # slugify's fallback is often the id itself: qualifying "s1" with S1
+    # would mint s1-s1
+    (tmp_path / "s1.md").write_text("", encoding="utf-8")
+    assert pages.unique_slug(tmp_path, "s1", entity_id="S1") == "s1-2"
+    (tmp_path / "s1-report.md").write_text("", encoding="utf-8")
+    assert pages.unique_slug(tmp_path, "s1-report", entity_id="S1") == "s1-report-2"

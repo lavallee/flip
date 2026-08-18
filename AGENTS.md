@@ -192,7 +192,7 @@ group. The leaves you reach for most:
 | log / sessions | `flip log "<text>"` · `flip session start\|end` |
 | views | `flip show [--claims\|--stale] [--json]` · `flip ws show [--open\|--claims] [--json]` |
 | resolve an id | `flip open <ref>` · `flip resolve <ref> --json` |
-| lint | `flip doctor [--json]` · `flip doctor --workspace [--fix]` |
+| lint | `flip doctor [--json] [--code <code>] [--limit N]` · `flip doctor --fix` · `flip doctor --workspace [--fix]` |
 | render / export | `flip export json [--out -] [--include-private]` · `flip export bag\|csl\|okf` |
 
 **Attribution is the `--actor` flag or the `FLIP_ACTOR` env var — there is no
@@ -484,5 +484,8 @@ Procedural checklists for these workflows ship in
 `notebook-kind-author` —
 as plain `SKILL.md` files usable by any agent runtime, and as a
 [spindle](https://github.com/lavallee/spindle) package named `flip`. Claude
-Code users get the same skills plus the custody hook as a plugin:
-`/plugin install flip@lyra-forge` ([docs/claude-code.md](docs/claude-code.md)).
+Code and Codex users get the same skills as a plugin:
+`/plugin install flip@lyra-forge` or
+`codex plugin add flip@lyra-forge` ([plugin guide](docs/claude-code.md)). Claude
+Code also invokes the custody hook around `WebFetch`; Codex hosted web tools do
+not expose that hook event.

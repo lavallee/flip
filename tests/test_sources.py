@@ -209,7 +209,9 @@ def test_fetcher_end_to_end(tmp_path, monkeypatch):
         assert e["url"] == "https://example.com/story"
         assert e["tool"] == str(script)
         assert e["tool_version"] == "fakefetch 1.0 (test)"
-        assert e["strategy"] == "config"
+        # no envelope → no method claim; absence is the record (0.19), the old
+        # "config" fallback wrote a word doctor itself rejected
+        assert "strategy" not in e
         assert e["sha256"] == sha256_file(root / e["local_path"])
         assert e["bytes"] == (root / e["local_path"]).stat().st_size
 
@@ -439,7 +441,7 @@ def _envelope_fetcher(tmp_path, envelope_json, *, to_dest=False):
 ENVELOPE = (
     '{"flip": {"title": "Real Headline", '
     '"canonical_url": "https://example.com/canonical", '
-    '"strategy": "googlebot", "status": "paywalled", '
+    '"strategy": "browser-render", "status": "paywalled", '
     '"retrieved_at": "2026-07-01T00:00:00Z", "mime": "text/html", '
     '"backend_ref": "store:abc123", '
     '"independence_hint": "corroborated", "freshness_hint": "dated"}}'
@@ -468,7 +470,7 @@ def test_envelope_from_stdout_harvested_to_page_and_provenance(tmp_path, monkeyp
     assert "status=paywalled" in page.body
 
     ev = read_jsonl(root / "sources" / "_provenance.jsonl")[0]
-    assert ev["strategy"] == "googlebot"  # envelope strategy overrides "config"
+    assert ev["strategy"] == "browser-render"  # the envelope's method claim, validated
     assert ev["status"] == "paywalled"
     assert ev["retrieved_at"] == "2026-07-01T00:00:00Z"
     assert ev["mime"] == "text/html"
@@ -489,7 +491,7 @@ def test_envelope_from_flip_json_file(tmp_path, monkeypatch):
     assert page.fm["local"] == "sources/raw/A1/page.html"
     assert (root / "sources" / "raw" / "A1" / "flip.json").is_file()
     ev = {e["local_path"]: e for e in read_jsonl(root / "sources" / "_provenance.jsonl")}
-    assert ev["sources/raw/A1/page.html"]["strategy"] == "googlebot"
+    assert ev["sources/raw/A1/page.html"]["strategy"] == "browser-render"
 
 
 def test_envelope_from_cache_recorded_in_provenance(tmp_path, monkeypatch):
@@ -498,7 +500,7 @@ def test_envelope_from_cache_recorded_in_provenance(tmp_path, monkeypatch):
     root = make_notebook(tmp_path)
     script = _envelope_fetcher(
         tmp_path,
-        '{"flip": {"from_cache": true, "backend_ref": "store:xyz", "strategy": "store"}}',
+        '{"flip": {"from_cache": true, "backend_ref": "store:xyz"}}',
     )
     make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}}"})
 
@@ -507,7 +509,9 @@ def test_envelope_from_cache_recorded_in_provenance(tmp_path, monkeypatch):
     ev = read_jsonl(root / "sources" / "_provenance.jsonl")[0]
     assert ev["from_cache"] is True
     assert ev["backend_ref"] == "store:xyz"
-    assert ev["strategy"] == "store"
+    # a store hit that doesn't know the original acquisition method makes no
+    # claim; "store" is a backend's name, not a capture method
+    assert "strategy" not in ev
 
 
 def test_envelope_from_cache_false_is_not_recorded(tmp_path, monkeypatch):
@@ -534,8 +538,53 @@ def test_no_envelope_leaves_behavior_unchanged(tmp_path, monkeypatch):
     assert "resource" in page.fm and page.fm["resource"] == "https://example.com/story"
     assert "capture hints" not in page.body
     ev = read_jsonl(root / "sources" / "_provenance.jsonl")[0]
-    assert ev["strategy"] == "config"
+    assert "strategy" not in ev
     assert "status" not in ev
+
+
+def test_envelope_tool_name_in_strategy_is_refused_at_the_boundary(tmp_path, monkeypatch):
+    # The trust boundary works both ways: --strategy is validated, and so is
+    # the envelope's claim. A fetcher reporting a tool name instead of a
+    # method (measured: 520 such warnings across one corpus) is refused with
+    # the vocabulary in hand, and the attempt still lands in the ledger as a
+    # failed row: "tried, refused" stays distinguishable from "did not look".
+    root = make_notebook(tmp_path)
+    script = _envelope_fetcher(tmp_path, '{"flip": {"strategy": "googlebot"}}')
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}}"})
+
+    with pytest.raises(SystemExit, match="not a capture method") as ei:
+        sources.add_source(root, "https://example.com/story")
+
+    ev = read_jsonl(root / "sources" / "_provenance.jsonl")[0]
+    # `failed` would be a lie: the fetcher looked and delivered. The row says
+    # what happened — bytes fetched, capture refused, and what it reported.
+    assert ev["status"] == "refused"
+    assert ev["reported_strategy"] == "googlebot"
+    assert "capture refused" in ev["finding"]
+    # the bytes are hashed and registered, so they are not orphan custody
+    assert ev["sha256"] and ev["bytes"]
+    assert (root / ev["local_path"]).is_file()
+    # no reference page was opened, so nothing can cite them
+    assert not list((root / "references").glob("*.md"))
+    # and the operator is told where the bytes are rather than left to find them
+    assert "sources/raw/A1/" in str(ei.value)
+
+
+def test_refused_capture_bytes_are_not_orphan_custody(tmp_path, monkeypatch):
+    # Without a registered row, every refusal leaves permanent unregistered-raw
+    # warnings that only hand-deletion clears.
+    from flip.doctor import run_doctor
+
+    root = make_notebook(tmp_path)
+    script = _envelope_fetcher(tmp_path, '{"flip": {"strategy": "googlebot"}}', to_dest=True)
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}} {{dest}}"})
+    with pytest.raises(SystemExit):
+        sources.add_source(root, "https://example.com/story")
+
+    findings = run_doctor(root)
+    assert [f for f in findings if f.code == "unregistered-raw"] == []
+    # and a refused row is never mistaken for the source's capture
+    assert sources.latest_capture_event(root, "A1") is None
 
 
 def test_envelope_ignores_out_of_vocab_hints(tmp_path, monkeypatch):
@@ -597,7 +646,10 @@ def test_file_dataset_document_kinds_get_f_prefix_not_d(tmp_path, monkeypatch):
 # --- slugs ------------------------------------------------------------------
 
 
-def test_slug_collision_gets_numeric_suffix(tmp_path):
+def test_slug_collision_gets_id_qualified_suffix(tmp_path):
+    # a counter suffix names nothing — eight sources in one measured corpus
+    # had the entire slug identity index-3…index-10. The colliding capture
+    # carries its own id in the slug instead.
     root = make_notebook(tmp_path)
     a = tmp_path / "one" / "report.pdf"
     b = tmp_path / "two" / "report.pdf"
@@ -606,10 +658,10 @@ def test_slug_collision_gets_numeric_suffix(tmp_path):
         f.write_bytes(b"x")
 
     first = sources.add_source(root, str(a))
-    second = sources.add_source(root, str(b))  # same title -> -2 suffix
+    second = sources.add_source(root, str(b))  # same title -> id-qualified slug
 
     assert first.path.name == "report.md"
-    assert second.path.name == "report-2.md"
+    assert second.path.name == "f2-report.md"
     assert first.fm["id"] == "F1" and second.fm["id"] == "F2"
     assert pages.read_page(second.path).fm["id"] == "F2"
 
@@ -761,9 +813,9 @@ def test_list_sources_returns_fm_dicts_with_slug_and_path(tmp_path):
     assert [r["id"] for r in rows] == ["F1", "F2"]
     assert rows[0]["slug"] == p1.slug
     assert rows[0]["path"] == "references/doc.md"
-    assert rows[1]["path"] == "references/doc-2.md"
+    assert rows[1]["path"] == "references/f2-doc.md"
     assert rows[0]["grade"] == "?"
-    assert p2.slug == "doc-2"
+    assert p2.slug == "f2-doc"
 
 
 def test_list_sources_orders_by_id_number(tmp_path):
@@ -907,6 +959,33 @@ def test_binary_payload_titles_are_rejected(tmp_path):
         assert sources._plausible_title(bad) is None
     assert sources._plausible_title("  A Real Title: With A Colon  ") == \
         "A Real Title: With A Colon"
+
+
+def test_truncated_placeholder_and_fragment_titles_are_rejected(tmp_path):
+    # A trailing ellipsis is a display truncation (48% of one corpus's titles
+    # ended in one); "index" is the server's placeholder, not a name; a "{"/"@"
+    # prefix or '": "' infix is JSON/bibtex metadata handed over whole.
+    for bad in ("The Study That Was Clipped Mid…", "Clipped the ASCII way...",
+                "index", "Index", '{"title": "The Actual Name"}',
+                "@article{smith2026, title={X}}", 'title": "leaked fragment'):
+        assert sources._plausible_title(bad) is None
+    # a mid-string ellipsis is typography, not truncation — keep it
+    assert sources._plausible_title("Waiting… and what came after") == \
+        "Waiting… and what came after"
+
+
+def test_truncated_envelope_title_falls_back_to_target_name(tmp_path, monkeypatch):
+    root = make_notebook(tmp_path)
+    script = _envelope_fetcher(
+        tmp_path, '{"flip": {"title": "A headline clipped for a list view…"}}'
+    )
+    make_flip_home(tmp_path, monkeypatch, {"web": f"{script} {{url}}"})
+
+    page = sources.add_source(root, "https://example.com/reports/q3")
+
+    # rejection falls back to host+path, same as a fetcher with no title claim
+    assert page.fm["title"] == "example.com/reports/q3"
+    assert page.slug == "example-com-reports-q3"
 
 
 def test_local_path_never_routes_through_a_fetcher(tmp_path):

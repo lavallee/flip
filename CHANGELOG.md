@@ -6,6 +6,190 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-08-17
+
+The scale-hardening release. Driven by a measured audit of a real
+7-notebook production corpus (682 sources, 1.66 GB) — the first corpus
+big enough to show where the format's costs grow with the notebook
+instead of with the work: 520 of 552 doctor findings were a single code,
+48 % of capture titles ended in a truncation ellipsis, 627 MB of the
+corpus was PDF bytes escaped into JSON string fields, one
+committed-custody notebook had grown a 931 MB `.git`, one notebook.md
+had swollen to 63.5 KB of duplicated ledger listings, and orienting a
+cold agent cost ~40 K tokens of generated views. Every change below
+traces to one of those numbers.
+
+### Added
+
+- **Custody storage stance (SPEC §5.6).** Where `sources/raw/` lives in
+  a git repo is now spec'd as an opinionated default with worked
+  alternatives, not a rule: git-LFS by default; or gitignore the raw
+  tree and commit the provenance ledger plus a sha256 manifest (custody
+  local, integrity provable, repo small); or commit custody wholesale
+  with its cost stated (the measured corpus reached a 931 MB `.git`
+  carrying a 104 MB blob in unrewritable history). The decision belongs
+  at `flip new` time — history cannot be cheaply unwritten — and doctor
+  now warns when it finds custody bytes committed as ordinary git
+  objects, so the notebook that never chose gets told while choosing is
+  still cheap.
+- **NEXT_STEPS.md and evaluation/ recognized (SPEC §3).** In seven
+  independent autonomous runs over real notebooks, all seven invented a
+  NEXT_STEPS.md while the spec'd HANDOFF.md appeared in three — when
+  every run routes around the spec identically, the spec has the hole.
+  NEXT_STEPS.md is an optional root file of bounded forward-looking
+  prose; HANDOFF.md remains the cold-pickup surface and may point to it.
+  `evaluation/` joins `analysis/` as a recognized working directory —
+  non-entity by contract: no frontmatter owed, nothing rendered.
+- **The working-memory norm (SPEC §3).** notebook.md means prose
+  synthesis; ledgered entities are cited by id, never re-listed (the
+  measured 63.5 KB notebook.md duplicated 25 decision pages and 301
+  reference listings). Doctor warns once notebook.md passes 24 KB.
+- **Bounded views (SPEC §10).** Generated directory listings cap at 50
+  entries and hot-view rosters at 8 lines per section, each with an
+  overflow footer carrying the remainder count and the list command that
+  serves the full roster (measured: a 301-source references/index.md ran
+  73 KB — ~18 K tokens for a directory sign; one steady-state hot view
+  was 74 % armed-trigger roster). Counts stay exact, list commands stay
+  complete, and every `--json` surface is uncapped.
+- **Incremental view regeneration (SPEC §10).** A mutating command names
+  the entity directories it touched; unchanged directories keep their
+  listings, with root-body counts served from `.flip/viewcache.json` — a
+  derived count cache, machine-local, never shipped, safe to delete
+  (absent or corrupt, every count is recounted from the pages). Output
+  is byte-identical to the full rebuild. Measured motivation: one
+  `flip log` append cost 1.06 s at 301 sources and 19.8 s at 10,300
+  pages. Only incremental callers create the cache; full rebuilds
+  refresh but never create it, so `flip export` stays side-effect-free.
+  Measured after: a `flip log` append settles at **2 ms at any notebook
+  size** (from 1.06 s at 301 sources and 6.7 s at 3,301), and
+  `references/index.md` holds at ~4.8 KB where it ran 73 KB at 301
+  sources and projected 1.89 MB at 10,300. The first mutation after a
+  full rebuild still pays the full recount — that is the run that
+  populates the cache — which is the price of keeping export
+  side-effect-free, and it is paid once, not per mutation.
+
+- **Nine doctor findings for what autonomous capture actually produces.**
+  The linter was well-built for the failure modes flip anticipated and
+  blind to every one this corpus generated. New: `binary-in-envelope` (a
+  document's bytes inside a JSON string field, found by scanning only
+  each file's head — parsing multi-MB captures on every run is the cost
+  the check exists to avoid); `truncated-title` and `machine-title` (a
+  title is canonical frontmatter *and* the seed of the slug, so a
+  fetcher's display truncation costs the page its identity — 326 of 682
+  pages measured); `duplicate-custody` (identical bytes under two source
+  ids, envelope sidecars excluded); `ungraded-cited` (a grade `?` source
+  cited as evidence corroborates nothing — 62 measured, none previously
+  mentioned; subject citations are exempt, they owe an attribution test);
+  `custody-in-git`; `notebook-md-bloat` and `next-steps-bloat`; and
+  `workspace-nudge` (sibling notebooks with silently overlapping id
+  spaces). `unreported-method` splits absence from drift.
+- **`flip doctor --fix` works in a notebook, not only a workspace.** It
+  rescues documents stuffed into capture envelopes: each payload is
+  written out as its own file, gets its own custody row, and the source
+  page's `local` follows it once the document is the primary artifact.
+  Bytes that cannot round-trip are left alone — a lossy decode upstream
+  means the recoverable thing is already gone, and a breadcrumb written
+  over it would destroy the last record of what happened.
+- **`flip doctor --code` / `--limit`, and `flip question list --armed`.**
+  `--limit` reports what it cut, per code, inside the payload: a
+  truncated list that does not say so reads as complete. `--armed` is the
+  full roster the capped hot view names in its overflow footer.
+
+### Changed
+
+- **Envelope strategy claims are validated at the trust boundary
+  (SPEC §15).** A fetcher's `strategy` is checked against the capture
+  method vocabulary exactly as `--strategy` is, because out-of-vocabulary
+  claims are almost always the tool's own name (`direct`, `googlebot`,
+  `pdf` — measured), and the tool's name already lands in `tool`. A
+  fetcher that makes no claim now records **no method** — fidelity
+  derives `unknown` — replacing the `"config"` fallback that wrote a
+  word doctor itself rejected (85 self-inflicted warnings across the
+  measured corpus). Absence is the honest record.
+- **Binary payloads are materialized at capture (SPEC §5.1).** Document
+  bytes found stuffed into an envelope's JSON string fields (627 MB
+  measured, one 104 MB capture.json wrapping a 41.6 MB PDF at ~2.5×
+  escaping inflation) are re-encoded byte-preserving and written as
+  their own file before provenance rows land, so every recorded hash
+  reflects what actually entered custody; a payload already lost to a
+  lossy decode upstream is left in place as evidence.
+- **Titles that were never titles are refused at capture.** A fetcher
+  title ending in a display ellipsis, or reading as a bibtex/JSON
+  fragment or the bare word `index`, falls back to the target-derived
+  name — the same guard that already refused binary payloads as titles.
+- **Slug collisions take the id-qualified form** (`a261-index`) instead
+  of a counter, because a counter names nothing: one corpus held eight
+  distinct sources whose entire slug identity was `index-3` … `index-10`.
+  Counters remain the fallback where no id is available, and existing
+  counter-suffixed files stay valid — no migration, no rename.
+- **One cause line instead of 243 copies of the vocabulary.** The
+  capture-method teaching moved to a `capture-method-drift` cause line
+  ahead of its group (mirroring `vocabulary-drift`); per-row messages
+  carry only the fact. The vocabulary rode every row at 494 B each, and
+  the repetition is what made a doctor run unreadable, not the finding.
+- **`flip doctor`'s header stops reading as a clean bill.** With no real
+  findings but expected-until-use notices present it counted them,
+  instead of printing "ok: no findings yet" above 250 warnings — the
+  first line is what a hurried reader, or an agent grepping the head,
+  takes for the verdict.
+- **`flip show --stale` separates undated from stale.** A source with no
+  recorded date is not old, it is unmeasured, and 98 rows all reading
+  `date: unknown` was a staleness report that never once spoke about
+  staleness. The undated cohort collapses to a count carrying its repair;
+  rows are reserved for sources with a real date past the window.
+  `--json` keeps `dated_sources` meaning what it meant and adds the split
+  alongside it.
+- **The agent-facing skills learned the notebook can be large.** A cheap
+  cold-orientation recipe (`flip show` → HANDOFF.md → targeted `flip
+  open`), an explicit "generated listings are directory signs, not
+  reading material", the narrowing flags named where `--json` was
+  previously recommended unqualified (130 KB / ~32 K tokens in one
+  notebook), and batching guidance for auditing many claims.
+
+The profile version stays at 0.9 deliberately. Everything 0.19 adds to
+the on-disk contract is optional and additive — a root file flip lists if
+it exists, a working directory flip already ignored — so no existing
+notebook needs to change anything, and bumping would have told every 0.9
+notebook it needed a migration that would do nothing.
+
+### Fixed
+
+- **Ten defects found by an adversarial review of this release's own
+  diff**, each reproduced before being reported and each now pinned by a
+  regression test. The load-bearing ones: the envelope rescue wrote its
+  replacement with a call that truncates before it encodes, so an
+  envelope carrying a lone surrogate (what any `JSON.stringify` makes of
+  a title clipped mid-pair) was destroyed *after* its payload had been
+  extracted and while its ledger row still swore to the old hash —
+  nothing is written now until the whole rewrite is known to succeed,
+  and the replacement is atomic; the repair dropped the acquisition it
+  was repairing, turning an honest `http-get` capture into a source with
+  no method on record, and now inherits the capture's url/method/tool
+  because those are whose bytes they are; the breadcrumb rewrite changed
+  a file under custody without superseding its fixity row; and one
+  hand-edited page aborted an entire repair mid-run, which is the state
+  that leaves `local` naming an emptied envelope.
+- **A refused capture is no longer logged as a failure.** The strategy
+  check sat inside the acquisition's `try`, so its refusal was caught by
+  the failure handler and the ledger recorded that the fetcher looked and
+  came back empty-handed — when it looked and delivered. Refusals now log
+  as `refused` with the fetched files hashed and registered (so they are
+  not orphan custody), the reported word kept as evidence, and the error
+  names where the bytes are.
+- **The view cache is verified rather than trusted.** It assumed flip was
+  the only writer, but pages are hand-editable by contract, and the open
+  count depends on the calendar as well as the pages — a dormant question
+  resurfacing on its review date left the cache stating a count that the
+  same notebook rendered differently by a different path. Entries now
+  carry a directory fingerprint and, for questions, an expiry; a full
+  rebuild never writes the cache, so `flip export` cannot mutate the
+  notebook it is exporting.
+- **The internal-name scrub now covers the whole public distribution.**
+  It covered only the deployable website, which is how an internal tool
+  name shipped in a src/ comment for months; the same name list now
+  scans `src/`, the packaged skills, `tests/`, `SPEC.md`, and `docs/`
+  (tests/test_name_scrub.py), and the leaked comment is scrubbed.
+
 ## [0.18.0] — 2026-08-12
 
 The question-journey release (profile 0.9, design receipts in the

@@ -126,7 +126,7 @@ def test_add_decision_slug_from_text_with_collision_suffix(root: Path):
     p1 = ledgers.add_decision(root, "q?", "Use JSONL", "a")
     p2 = ledgers.add_decision(root, "q2?", "use jsonl!", "b")
     assert p1.path.name == "use-jsonl.md"
-    assert p2.path.name == "use-jsonl-2.md"
+    assert p2.path.name == "d2-use-jsonl.md"
     assert (p1.id, p2.id) == ("D1", "D2")
 
 

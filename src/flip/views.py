@@ -18,7 +18,10 @@ down a view — `flip doctor` is where corruption gets reported.
 
 from __future__ import annotations
 
+import json
+import os
 import re
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -43,8 +46,33 @@ NEEDS_WORK_STATUSES = ("asserted", "needs-2nd")
 RECENT_LOG_COUNT = 8
 TRUNCATE_WIDTH = 80
 
+# Caps on the two surfaces that grow with the notebook (measured: a 301-source
+# corpus produced a 73 KB references/index.md — ~18 K tokens for a directory
+# listing — and a hot view that was 74 % armed-trigger roster). A listing past
+# the cap shows the newest entries and says how many more exist; the full
+# roster lives in the list commands. `--json` surfaces stay complete.
+INDEX_LIST_CAP = 50
+HOT_ROSTER_CAP = 8
+
+# Entity dir → the command that lists the full roster (named in cap footers).
+_LIST_COMMANDS = {
+    "references": "flip source list",
+    "claims": "flip claim list",
+    "questions": "flip question list",
+    "commissions": "flip commission list",
+}
+
+# Derived cache of per-directory listing counts (plus the open-question count),
+# so an incremental regenerate can rebuild the root index.md body without
+# re-parsing every page in the unchanged directories. Purely derived: absent or
+# corrupt, every directory is recounted from the pages. Refreshed whenever a
+# directory's listing is rewritten.
+VIEWCACHE = Path(".flip") / "viewcache.json"
+
 LOG_JSONL = Path("log") / "log.jsonl"
 LOG_MD = "log.md"
+HANDOFF_MD = "HANDOFF.md"
+NEXT_STEPS_MD = "NEXT_STEPS.md"
 
 # Entity directory → (listing title, root-listing description builder input).
 _DIR_TITLES = {
@@ -127,7 +155,7 @@ def _review_pending(review_by: str) -> bool:
         return False
 
 
-def _open_questions(root: Path) -> list[dict]:
+def _open_questions(root: Path, loaded: list[pages.Page] | None = None) -> list[dict]:
     """Question pages still on the working roster (missing status = open).
 
     Open questions always; dormant ones only once their `review_by` date has
@@ -137,9 +165,12 @@ def _open_questions(root: Path) -> list[dict]:
     their own view (_reopen_armed). A status OUTSIDE the vocabulary stays on
     the roster — a typo must degrade to visible (doctor names the bad enum),
     never to a question silently missing from every surface.
+
+    `loaded` lets a caller that already parsed questions/ reuse those pages
+    rather than paying the parse twice.
     """
     out = []
-    for page in _pages(root, "questions"):
+    for page in (loaded if loaded is not None else _pages(root, "questions")):
         if str(page.fm.get("type", "")) != "Question":
             continue
         status = str(page.fm.get("status", "open"))
@@ -160,6 +191,17 @@ def _open_questions(root: Path) -> list[dict]:
         out.append(row)
     out.sort(key=lambda q: _id_num(q["id"]))
     return out
+
+
+def reopen_armed(root: Path) -> list[dict]:
+    """The full armed-trigger roster, for `flip question list --armed`.
+
+    The hot view shows the first few and counts the rest (a notebook whose
+    steady state is "everything answered, everything watched" rendered a hot
+    view that was 74 % this list); the whole roster lives here.
+    """
+    load_manifest(root)  # fail early with an actionable error if this isn't a notebook
+    return _reopen_armed(root)
 
 
 def _reopen_armed(root: Path) -> list[dict]:
@@ -284,6 +326,13 @@ def _claim_line(c: dict, with_status: bool = False) -> str:
     return " · ".join(parts)
 
 
+def _roster_overflow(rows: list, command: str) -> list[str]:
+    """The one-line footer under a capped hot-view roster, or nothing."""
+    if len(rows) <= HOT_ROSTER_CAP:
+        return []
+    return [f"  … and {len(rows) - HOT_ROSTER_CAP} more — `{command}`"]
+
+
 def hot_view(root: Path, as_data: bool = False) -> str | dict:
     """Current focus: open questions, claims needing work, recent activity."""
     m = load_manifest(root)
@@ -310,24 +359,35 @@ def hot_view(root: Path, as_data: bool = False) -> str | dict:
             "dated_sources": len(dated),
         }
     lines = [" · ".join([m.slug, m.kind, m.status + _idle_suffix(idle), m.updated])]
+    # Each roster is capped: the hot view is the resume-here screen, and a
+    # screen has a size by definition. Measured failure mode: a notebook whose
+    # steady state was "everything answered, everything watched" rendered a
+    # hot view that was 74 % armed-trigger roster, burying the one actionable
+    # claim. The count and the full roster survive in the footer's command;
+    # `--json` (as_data above) always carries everything.
     if questions:
         lines += ["", "OPEN QUESTIONS"]
-        for q in questions:
+        for q in questions[:HOT_ROSTER_CAP]:
             marker = ""
             if q.get("status") == "dormant":
                 marker = f"  [dormant · review due {q.get('review_by', '')}]"
             elif not q.get("resolves_via"):
                 marker = "  [unwatched — no resolves_via surface]"
             lines.append(f"  {q['id']} · {_trunc(q['text'])}" + marker)
+        lines += _roster_overflow(questions, "flip question list")
     if armed:
         lines += ["", "REOPEN TRIGGERS ARMED"]
         lines += [
             f"  {q['id']} · {q['status']} · when: {_trunc('; '.join(q['reopen_when']))}"
-            for q in armed
+            for q in armed[:HOT_ROSTER_CAP]
         ]
+        lines += _roster_overflow(armed, "flip question list --armed")
     if claims:
         lines += ["", "CLAIMS NEEDING WORK"]
-        lines += [f"  {_claim_line(c, with_status=True)}" for c in claims]
+        lines += [
+            f"  {_claim_line(c, with_status=True)}" for c in claims[:HOT_ROSTER_CAP]
+        ]
+        lines += _roster_overflow(claims, "flip claim list")
     if recent:
         lines += ["", "RECENT LOG"]
         lines += [
@@ -363,23 +423,51 @@ def claims_view(root: Path, as_data: bool = False) -> str | dict:
 
 
 def stale_view(root: Path, as_data: bool = False) -> str | dict:
-    """What has gone cold: dated sources, open questions, stuck claims."""
+    """What has gone cold: dated sources, open questions, stuck claims.
+
+    "Undated" and "stale" are different facts and get different treatment. A
+    source nobody recorded a date for isn't known to be old — it is unmeasured,
+    and the repair is to record the date. One measured notebook rendered 98
+    rows that all read `date: unknown`, which is a staleness report that has
+    never once said anything about staleness; the cohort collapses to a count
+    with its fix, and the rows are reserved for sources with a real date past
+    the window.
+    """
     m = load_manifest(root)
     profile = _profile_or_default(m, root)
-    dated = _stale_sources(_source_rows(root), profile.freshness_months)
+    all_dated = _stale_sources(_source_rows(root), profile.freshness_months)
+    undated = [r for r in all_dated if not r.get("date")]
+    dated = [r for r in all_dated if r.get("date")]
     questions = _open_questions(root)
     stuck = _claims_needing_work(root)
     if as_data:
-        return {"dated_sources": dated, "open_questions": questions, "stuck_claims": stuck}
+        # `dated_sources` keeps its established meaning (every row the freshness
+        # rule selected) so nothing scripted against it breaks; the split rides
+        # alongside as new keys.
+        return {
+            "dated_sources": all_dated,
+            "stale_sources": dated,
+            "undated_sources": undated,
+            "open_questions": questions,
+            "stuck_claims": stuck,
+        }
     lines: list[str] = []
     if dated:
         lines.append("DATED SOURCES")
         for row in dated:
             lines.append(
                 f"  {row.get('id', '?')} · {_trunc(row.get('title', ''))}"
-                f" · date: {row.get('date') or 'unknown'}"
+                f" · date: {row.get('date')}"
                 f" · freshness: {row.get('freshness', '?')}"
             )
+        lines.append("")
+    if undated:
+        lines.append(
+            f"UNDATED SOURCES: {len(undated)} — judged dated with no date on "
+            "record, so nothing here says how old they are; write the "
+            "publication date as `date:` on each page to make freshness mean "
+            "something"
+        )
         lines.append("")
     if questions:
         lines.append("OPEN QUESTIONS")
@@ -650,7 +738,7 @@ def _render_ws_show(data: dict, open_only: bool, claims_only: bool) -> str:
 # --- generated at-rest views (SPEC §10) --------------------------------------
 
 
-def regenerate(root: Path) -> None:
+def regenerate(root: Path, changed: Iterable[str] | None = None) -> None:
     """Rewrite the generated projections after a mutation (SPEC §6.5, §10).
 
     Writes, in order: log.md at the root (skipped while there are no log
@@ -659,6 +747,17 @@ def regenerate(root: Path) -> None:
     save_manifest, so the manifest frontmatter (including keys flip doesn't
     know) is preserved byte-for-key. Hand-edits to any of these don't survive;
     canonical records (entity pages, JSONL ledgers) are never touched.
+
+    `changed` names the entity directories this mutation touched. None (the
+    default) means "assume everything" — the full rebuild, and the only mode
+    before 0.19. A caller that knows better passes the touched set — `flip
+    log` passes `()` because a log event touches no entity page — and the
+    unchanged directories keep their listings, their counts served from the
+    derived viewcache. Measured motivation: the full rebuild re-parses every
+    page on every mutation, so one log line cost 1.06 s at 301 sources and
+    19.8 s at 10,300. Byte-for-byte identical output to the full rebuild as
+    long as the caller's `changed` set is honest; when the cache is absent or
+    stale for a directory, that directory is recounted from its pages.
     """
     m = load_manifest(root)  # validates the root before writing anything
     try:
@@ -667,9 +766,139 @@ def regenerate(root: Path) -> None:
         events = []  # corrupt ledger: leave log.md as-is; doctor pinpoints the line
     if events:
         write_log_md(root, events)
+    cache = _load_viewcache(root) if changed is not None else {}
+    dirty = (
+        set(pages.ENTITY_DIRS)
+        if changed is None
+        else {d for d in changed if d in pages.ENTITY_DIRS}
+    )
+    counts: dict[str, dict] = {}
     for dirname in pages.ENTITY_DIRS:
-        _write_dir_index(root, dirname)
-    save_manifest(root, m, body=_root_body(root, m, events))
+        cached = None if dirname in dirty else cache.get(dirname)
+        if cached is not None and _cache_entry_holds(root, dirname, cached):
+            counts[dirname] = cached
+            continue
+        entries = _pages(root, dirname)
+        _write_dir_index(root, dirname, entries)
+        info: dict = {"count": len(entries), **_dir_fingerprint(root, dirname)}
+        if dirname == "questions":
+            info["open"] = len(_open_questions(root, loaded=entries))
+            # The open count is a function of the pages AND of today's date: a
+            # dormant question resurfaces the morning its review date arrives,
+            # with nothing on disk having changed. Remember the earliest such
+            # date so the entry can expire itself instead of freezing a count
+            # that the calendar has already made wrong.
+            due = _earliest_review_due(entries)
+            if due:
+                info["review_due"] = due
+        counts[dirname] = info
+    if changed is not None:
+        _save_viewcache(root, counts)
+    save_manifest(root, m, body=_root_body(root, m, events, counts))
+
+
+def _dir_fingerprint(root: Path, dirname: str) -> dict:
+    """A cheap witness that a directory's page set is unchanged: how many
+    entity files it holds and the newest mtime among them.
+
+    Costs one `scandir` and no parsing, and it is what makes the cache
+    *verifiable* rather than trusted. Without it the cache assumes flip is the
+    only writer — but pages are hand-editable by contract (SPEC §3), Obsidian
+    writes them, `flip import --update` replaces them wholesale, and git checks
+    them out. Any of those would otherwise leave a generated view stating a
+    count that no longer matches the notebook, healed by nothing.
+
+    The generated `index.md` is excluded: rewriting it is what this function's
+    caller just did, and including it would invalidate the entry every time.
+    """
+    directory = root / dirname
+    if not directory.is_dir():
+        return {"files": 0, "mtime_ns": 0}
+    n, newest = 0, 0
+    try:
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                name = entry.name
+                if name in pages.RESERVED or name.startswith((".", "_")):
+                    continue
+                if not name.endswith(".md") or not entry.is_file():
+                    continue
+                n += 1
+                newest = max(newest, entry.stat().st_mtime_ns)
+    except OSError:
+        return {"files": -1, "mtime_ns": 0}  # unreadable: never claim a match
+    return {"files": n, "mtime_ns": newest}
+
+
+def _cache_entry_holds(root: Path, dirname: str, entry: dict) -> bool:
+    """True when a cached entry still describes the directory on disk."""
+    due = entry.get("review_due")
+    if isinstance(due, str) and due and due <= _today():
+        return False  # a parked question's review date has arrived
+    now = _dir_fingerprint(root, dirname)
+    return (
+        entry.get("files") == now["files"]
+        and entry.get("mtime_ns") == now["mtime_ns"]
+        and now["files"] >= 0
+    )
+
+
+def _earliest_review_due(entries: list[pages.Page]) -> str:
+    """The soonest future `review_by` among dormant questions, or ""."""
+    dates = [
+        str(p.fm.get("review_by") or "")
+        for p in entries
+        if str(p.fm.get("status") or "") == "dormant"
+    ]
+    pending = sorted(d for d in dates if d and _review_pending(d))
+    return pending[0] if pending else ""
+
+
+def _load_viewcache(root: Path) -> dict:
+    """The derived per-directory counts, or {} when absent/corrupt/unreadable.
+
+    An entry is kept only if it carries every field the verification needs;
+    a partial entry (a `count` with no `open`, the shape an older or foreign
+    writer would leave) is dropped rather than half-trusted — "0 open" printed
+    from a missing key is exactly the silent wrongness the cache must not add.
+    Every miss is answered by recounting the real pages.
+    """
+    try:
+        data = json.loads((root / VIEWCACHE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    out = {}
+    for key, value in data.items():
+        if not isinstance(value, dict):
+            continue
+        if not all(isinstance(value.get(f), int) for f in ("count", "files", "mtime_ns")):
+            continue
+        if key == "questions" and not isinstance(value.get("open"), int):
+            continue
+        out[key] = value
+    return out
+
+
+def _save_viewcache(root: Path, counts: dict[str, dict]) -> None:
+    """Best-effort write; a notebook on read-only media still gets its views.
+
+    Only an incremental caller writes at all. A full rebuild deliberately
+    leaves the file alone — creating it OR refreshing it would make
+    `flip export` (which regenerates fully) mutate the notebook it is
+    exporting, and the next incremental run re-grounds any stale entry through
+    the fingerprint anyway.
+    """
+    text = json.dumps(counts, sort_keys=True) + "\n"
+    path = root / VIEWCACHE
+    try:
+        if path.is_file() and path.read_text(encoding="utf-8") == text:
+            return
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    except OSError:
+        pass
 
 
 def write_log_md(root: Path, events: list[dict]) -> None:
@@ -691,8 +920,12 @@ def write_log_md(root: Path, events: list[dict]) -> None:
     (root / LOG_MD).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _write_dir_index(root: Path, dirname: str) -> None:
-    """<dirname>/index.md: one listing line per entity page, filename order.
+def _write_dir_index(root: Path, dirname: str, entries: list[pages.Page]) -> None:
+    """<dirname>/index.md: one listing line per entity page, filename order —
+    up to INDEX_LIST_CAP. Past the cap the listing shows the newest entries
+    (id order, newest first) and counts the rest, naming the list command that
+    serves the full roster: a generated listing is a directory sign, and a
+    73 KB sign (measured, 301 sources) costs any reader ~18 K tokens.
 
     Empty structure is worse than absent structure (SPEC §1.10): when the
     directory holds no entity pages, a previously generated listing (its
@@ -702,20 +935,32 @@ def _write_dir_index(root: Path, dirname: str) -> None:
     directory = root / dirname
     if not directory.is_dir():
         return
-    entries = _pages(root, dirname)
     index = directory / "index.md"
     if not entries:
         if index.is_file() and is_generated_index(index):
             index.unlink()
         return
+    if len(entries) > INDEX_LIST_CAP:
+        shown = sorted(entries, key=lambda p: _id_num(p.id or ""), reverse=True)
+        shown = shown[:INDEX_LIST_CAP]
+    else:
+        shown = entries
     lines = [f"# {_DIR_TITLES.get(dirname, dirname.title())}", ""]
-    for page in entries:
+    for page in shown:
         label = _one_line(page.fm.get("title") or page.id or page.slug)
         line = f"* [{label}]({page.slug}.md)"
         desc = _one_line(page.fm.get("description", ""))
         if desc:
             line += f" - {desc}"
         lines.append(line)
+    if len(entries) > len(shown):
+        cmd = _LIST_COMMANDS.get(dirname)
+        hint = f" — `{cmd}` lists all" if cmd else ""
+        lines += [
+            "",
+            f"*…and {len(entries) - len(shown)} more "
+            f"(newest {len(shown)} listed{hint}).*",
+        ]
     index.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -734,15 +979,19 @@ def _count(n: int, noun: str) -> str:
     return f"{n} {noun}{'' if n == 1 else 's'}"
 
 
-def _root_body(root: Path, m: Manifest, events: list[dict]) -> str:
+def _root_body(root: Path, m: Manifest, events: list[dict],
+               dir_counts: dict[str, dict]) -> str:
     """The root index.md body: title heading + OKF directory listing (SPEC §4).
 
     Sections appear once they have content — an empty entity directory gets
-    no bullet, matching _write_dir_index dropping its listing.
+    no bullet, matching _write_dir_index dropping its listing. Counts arrive
+    from regenerate (freshly counted or viewcache-served) so this body never
+    forces a parse of every page in the notebook.
     """
     lines = [f"# {m.title or m.slug}"]
     bullets: list[str] = []
-    counts = {d: n for d in pages.ENTITY_DIRS if (n := len(_pages(root, d)))}
+    counts = {d: n for d in pages.ENTITY_DIRS
+              if (n := dir_counts.get(d, {}).get("count", 0))}
     if "references" in counts:
         bullets.append(
             f"* [References](references/) - {_count(counts['references'], 'captured source')} "
@@ -757,7 +1006,7 @@ def _root_body(root: Path, m: Manifest, events: list[dict]) -> str:
             f"* [Decisions](decisions/) - {_count(counts['decisions'], 'recorded decision')}"
         )
     if "questions" in counts:
-        open_n = len(_open_questions(root))
+        open_n = dir_counts.get("questions", {}).get("open", 0)
         bullets.append(
             f"* [Questions](questions/) - {_count(counts['questions'], 'question')}, {open_n} open"
         )
@@ -773,6 +1022,13 @@ def _root_body(root: Path, m: Manifest, events: list[dict]) -> str:
         )
     if "sessions" in counts:
         bullets.append(f"* [Sessions](sessions/) - {_count(counts['sessions'], 'work session')}")
+    # Recognized root prose, listed only when it exists (SPEC §3): HANDOFF.md
+    # is where a cold reader starts, NEXT_STEPS.md is what to do about it.
+    # Neither is generated — flip lists them, never writes them.
+    if (root / HANDOFF_MD).is_file():
+        bullets.append(f"* [Handoff]({HANDOFF_MD}) - where things stand, for a cold pickup")
+    if (root / NEXT_STEPS_MD).is_file():
+        bullets.append(f"* [Next Steps]({NEXT_STEPS_MD}) - forward-looking work")
     if (root / LOG_MD).is_file():
         detail = f"{_count(len(events), 'logged event')}, newest first" if events else "work log"
         bullets.append(f"* [Update Log]({LOG_MD}) - {detail}")

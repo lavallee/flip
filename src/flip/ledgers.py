@@ -44,11 +44,14 @@ def _description(text: str, limit: int = DESCRIPTION_LIMIT) -> str:
     return s if len(s) <= limit else s[: limit - 1].rstrip() + "…"
 
 
-def _finish(root: Path) -> None:
+def _finish(root: Path, changed: tuple[str, ...] | None = None) -> None:
     """Common tail of every mutation: bump the manifest's `updated`, then
-    refresh the generated views (index.md bodies, log.md — SPEC §10)."""
+    refresh the generated views (index.md bodies, log.md — SPEC §10).
+
+    `changed` narrows the refresh to the entity dirs the mutation touched
+    (views.regenerate); None keeps the full rebuild."""
     manifest.touch_updated(root)
-    views.regenerate(root)
+    views.regenerate(root, changed=changed)
 
 
 # --- event ledgers (append-only JSONL) ----------------------------------------
@@ -60,7 +63,10 @@ def log_event(root: Path, text: str) -> dict:
     text = _require_text(text, "log text")
     row = {"ts": util.utc_now(), "text": text, "actor": util.detect_actor()}
     util.append_jsonl(root / LOG, row)
-    _finish(root)
+    # A log event touches no entity page, so nothing needs recounting — this
+    # call was O(every page in the notebook) purely by default (measured:
+    # 19.8 s for one line at 10,300 sources).
+    _finish(root, changed=())
     return row
 
 
@@ -133,7 +139,8 @@ def add_passed(
         row["surfaces"] = named
     row["actor"] = util.detect_actor()
     util.append_jsonl(root / PASSED, row)
-    _finish(root)
+    # passed.jsonl feeds no generated view; like a log event, nothing to recount.
+    _finish(root, changed=())
     return row
 
 
@@ -179,9 +186,9 @@ def add_decision(
         paragraphs.append("**Rejected.** " + "; ".join(str(a) for a in alternatives_rejected))
     body = "\n\n".join(paragraphs) + "\n"
     directory = root / "decisions"
-    slug = pages.unique_slug(directory, pages.slugify(decision, fallback="decision"))
+    slug = pages.unique_slug(directory, pages.slugify(decision, fallback="decision"), entity_id=did)
     path = pages.write_page(directory / f"{slug}.md", fm, body)
-    _finish(root)
+    _finish(root, changed=("decisions",))
     return pages.Page(path=path, fm=fm, body=body)
 
 
@@ -213,9 +220,9 @@ def add_question(root: Path, text: str, resolves_via: list[str] | None = None) -
         fm["resolves_via"] = vias
     fm["generated"] = util.generated_now()
     directory = root / "questions"
-    slug = pages.unique_slug(directory, pages.slugify(text, fallback="question"))
+    slug = pages.unique_slug(directory, pages.slugify(text, fallback="question"), entity_id=qid)
     path = pages.write_page(directory / f"{slug}.md", fm, text + "\n")
-    _finish(root)
+    _finish(root, changed=("questions",))
     return pages.Page(path=path, fm=fm, body=text + "\n")
 
 
@@ -308,7 +315,7 @@ def answer_question(
     pages.write_page(page.path, page.fm, body)
     _log_question_event(root, "question-answer", qid,
                         _description(note) if note else "answered")
-    _finish(root)
+    _finish(root, changed=("questions",))
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
@@ -365,7 +372,7 @@ def note_question(
     body = _append_section(page.body, heading, section)
     pages.write_page(page.path, page.fm, body)
     _log_question_event(root, "question-evidence", qid, _description(text))
-    _finish(root)
+    _finish(root, changed=("questions",))
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
@@ -408,7 +415,7 @@ def close_question(
     body = _append_section(page.body, f"Closed {util.today()} — {reason}", note)
     pages.write_page(page.path, page.fm, body)
     _log_question_event(root, "question-close", qid, reason)
-    _finish(root)
+    _finish(root, changed=("questions",))
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
@@ -443,7 +450,7 @@ def dormant_question(
     body = _append_section(page.body, f"Dormant {util.today()} — review by {until}", note)
     pages.write_page(page.path, page.fm, body)
     _log_question_event(root, "question-dormant", qid, f"review by {until}")
-    _finish(root)
+    _finish(root, changed=("questions",))
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
@@ -469,7 +476,7 @@ def reopen_question(root: Path, qid: str, because: str) -> pages.Page:
     body = _append_section(page.body, f"Reopened {util.today()}", because)
     pages.write_page(page.path, page.fm, body)
     _log_question_event(root, "question-reopen", qid, _description(because))
-    _finish(root)
+    _finish(root, changed=("questions",))
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
@@ -538,7 +545,7 @@ def repose_question(
             "actor": util.detect_actor(),
         },
     )
-    _finish(root)
+    _finish(root, changed=("questions",))
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 

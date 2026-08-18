@@ -8,6 +8,16 @@ description: Session hygiene for a working episode — invoke around every LLM r
 The reasoning chain is evidence too. One session record per working episode;
 promote what matters out of it before the episode ends.
 
+## Orient cheaply first
+
+`flip show` → `HANDOFF.md` → targeted `flip open <id>`, in that order — cold
+orientation by reading pages cost ~40K tokens on a 507-page notebook.
+Generated `index.md` files are directory listings, never reading material
+(`references/index.md` alone measured 73KB). At scale, narrow before you
+read: `flip question list --status open`, `flip claim list --status
+needs-2nd`, `flip source list` — then open only the pages this episode
+touches.
+
 ## Command map (verbs → leaves)
 
 `flip cli` prints the full, always-current map; the leaves you reach for most:

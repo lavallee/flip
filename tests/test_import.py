@@ -290,6 +290,36 @@ def test_update_replaces_pages_keeps_local_reservations(tmp_path):
     assert load_manifest(dest).uid == load_manifest(src).uid
 
 
+def test_update_does_not_leave_a_cache_describing_the_replaced_pages(tmp_path):
+    """`.flip/` survives the wipe because the id reservations must — but the
+    view cache inside it describes the page set `--update` just replaced. Left
+    behind, one later unrelated `flip log` rewrote a correct generated view
+    into a wrong one and kept it wrong. (`copy2` carries the source's mtimes,
+    so the cheap fingerprint cannot always catch this by itself.)"""
+    from flip import ledgers, views
+
+    ws_root = make_ws(tmp_path)
+    src = make_src(tmp_path)
+    dest = ws_root / import_bundle(ws_root, src)["path"]
+    ledgers.log_event(dest, "local work, which populates the cache")
+    assert (dest / views.VIEWCACHE).is_file()
+
+    pages.write_page(
+        src / "questions" / "what-else-grows.md",
+        {"type": "Question", "id": "Q7", "aliases": ["Q7"], "status": "open",
+         "description": "what else grows here?"},
+        "what else grows here?\n",
+    )
+    update_bundle(ws_root, "recipes", src)
+    ledgers.log_event(dest, "one unrelated line after the update")
+    after_incremental = pages.read_page(dest / "index.md").body
+
+    views.regenerate(dest)  # full rebuild: recounted from the pages that arrived
+
+    assert pages.read_page(dest / "index.md").body == after_incremental
+    assert "1 question, 1 open" in after_incremental  # the page that arrived is counted
+
+
 def test_update_uid_mismatch_refuses(tmp_path):
     ws_root = make_ws(tmp_path)
     import_bundle(ws_root, make_src(tmp_path))

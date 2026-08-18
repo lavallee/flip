@@ -152,10 +152,30 @@ def slugify(text: str, fallback: str = "item", max_words: int = 8) -> str:
     return slug or fallback
 
 
-def unique_slug(directory: Path, slug: str) -> str:
-    """First free filename for `slug` in `directory` (slug, slug-2, slug-3…)."""
+def unique_slug(directory: Path, slug: str, entity_id: str | None = None) -> str:
+    """First free filename for `slug` in `directory`.
+
+    A collision prefers the id-qualified form (a261-index) over a bare counter
+    (index-3): a counter names nothing, and one measured corpus held eight
+    sources whose entire slug identity was index-3…index-10. The counter is
+    the fallback when no id is offered — existing counter-suffixed files on
+    disk stay valid, no rename.
+    """
+    def taken(candidate: str) -> bool:
+        return (directory / f"{candidate}.md").exists() or f"{candidate}.md" in RESERVED
+
+    if not taken(slug):
+        return slug
+    if entity_id:
+        eid = entity_id.lower()
+        # Don't double the id when the slug already carries it (slugify's
+        # fallback is often the id itself: s1 → s1-s1 helps nobody).
+        if slug != eid and not slug.startswith(f"{eid}-"):
+            slug = f"{eid}-{slug}"
+            if not taken(slug):
+                return slug
     candidate, n = slug, 1
-    while (directory / f"{candidate}.md").exists() or f"{candidate}.md" in RESERVED:
+    while taken(candidate):
         n += 1
         candidate = f"{slug}-{n}"
     return candidate

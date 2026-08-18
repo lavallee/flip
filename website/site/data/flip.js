@@ -1,7 +1,7 @@
 window.__FLIP_META__ = {
-  "generated": "2026-08-13T02:41:53+00:00",
-  "version": "0.18.0",
-  "revision": "5fd1fbd",
+  "generated": "2026-08-18T02:27:55+00:00",
+  "version": "0.19.0",
+  "revision": "4924547",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",
@@ -9,9 +9,9 @@ window.__FLIP_META__ = {
   ],
   "license": "MIT",
   "package": "flip-notebook",
-  "tests": 1226,
-  "spec_status": "draft v0.17 \u00b7 2026-08-10",
-  "spec_lines": 1903,
+  "tests": 1276,
+  "spec_status": "draft v0.19 \u00b7 2026-08-17",
+  "spec_lines": 2065,
   "skills": [
     "notebook-audit",
     "notebook-create",
@@ -674,6 +674,14 @@ window.__FLIP_META__ = {
           {
             "name": "--fix",
             "required": false
+          },
+          {
+            "name": "--code",
+            "required": false
+          },
+          {
+            "name": "--limit",
+            "required": false
           }
         ]
       },
@@ -1269,6 +1277,10 @@ window.__FLIP_META__ = {
         "options": [
           {
             "name": "--status",
+            "required": false
+          },
+          {
+            "name": "--armed",
             "required": false
           },
           {

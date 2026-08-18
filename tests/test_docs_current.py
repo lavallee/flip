@@ -239,15 +239,18 @@ def test_declared_spec_version_matches_the_package():
 
 
 def test_every_version_declaration_agrees():
-    """The lockstep bump, mechanized. RELEASING.md lists five places plus the
-    plugin manifest and notes that 'versions have drifted before' — a checklist
+    """The lockstep bump, mechanized. RELEASING.md lists six package
+    declarations and notes that versions have drifted before — a checklist
     item a human verifies by eye is exactly the thing to make a test."""
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     spindle = tomllib.loads(
         (ROOT / "src" / "flip" / "spindle-package.toml").read_text(encoding="utf-8")
     )
-    plugin = json.loads(
+    claude_plugin = json.loads(
         (ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    codex_plugin = json.loads(
+        (ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
     declared = {
         "pyproject [project]": pyproject["project"]["version"],
@@ -258,7 +261,8 @@ def test_every_version_declaration_agrees():
             "version"
         ],
         "src/flip/__init__.py __version__": __version__,
-        ".claude-plugin/plugin.json": plugin["version"],
+        ".claude-plugin/plugin.json": claude_plugin["version"],
+        ".codex-plugin/plugin.json": codex_plugin["version"],
     }
     distinct = set(declared.values())
     assert len(distinct) == 1, "version declarations disagree:\n" + "\n".join(

@@ -1,15 +1,17 @@
-# flip in Claude Code
+# flip in Claude Code and Codex
 
 flip was built to be operated conversationally: you direct the research the
 way you already talk to your agent, and flip is the discipline the agent
 works under — capture before cite, judgments recorded, claims gated, the
-whole trail in plain files. This guide covers the Claude Code plugin: what
-it installs, what each piece does, and what a working session looks like.
+whole trail in plain files. This guide covers the Claude Code and Codex
+plugins: what they install, what each piece does, and what a working session
+looks like.
 
 Nothing here is Claude Code-specific in substance. The skills are plain
 `SKILL.md` files any agent runtime can load, and every behavior described
 below is the CLI underneath. The plugin is packaging: the skills, a custody
-hook, and a versioned channel that tracks releases.
+hook where the harness exposes the needed event, and a versioned channel that
+tracks releases.
 
 ## Install
 
@@ -20,16 +22,26 @@ In Claude Code:
 /plugin install flip@lyra-forge
 ```
 
+In Codex:
+
+```bash
+codex plugin marketplace add lyra-forge/marketplace
+codex plugin add flip@lyra-forge
+```
+
 And the CLI the skills drive, on your PATH:
 
 ```bash
 uv tool install flip-notebook      # or: pipx install flip-notebook
 ```
 
-The marketplace does not pin versions, so `/plugin update flip@lyra-forge`
-(or `claude plugin update flip@lyra-forge` from a shell) tracks releases.
-The plugin's version matches the PyPI release it shipped with; keeping the
-CLI and plugin in step is one `uv tool upgrade flip-notebook` away.
+The marketplace does not pin Flip, so it tracks the default branch. In Claude
+Code, update with `/plugin marketplace update lyra-forge` followed by
+`/plugin update flip@lyra-forge`. In Codex, run
+`codex plugin marketplace upgrade lyra-forge` followed by
+`codex plugin add flip@lyra-forge`. Start a new session after either update.
+The plugin's version matches the PyPI release it shipped with; keeping the CLI
+and plugin in step is one `uv tool upgrade flip-notebook` away.
 
 ## What a session looks like
 
@@ -61,8 +73,8 @@ had a human typing the commands.
 
 ## The seven skills
 
-Each skill is a procedure the agent loads when the work calls for it
-(namespaced `flip:notebook-*`):
+Each skill is a procedure the agent loads when the work calls for it. Claude
+Code names them `/flip:notebook-*`; Codex names them `$flip:notebook-*`:
 
 | skill | when it engages | what it enforces |
 |---|---|---|
@@ -77,7 +89,7 @@ Each skill is a procedure the agent loads when the work calls for it
 Two conventions matter more than any skill:
 
 - **Attribution is `FLIP_ACTOR` (or the `--actor` flag)** — `agent:claude`,
-  `human:marc`. Every event and page records who did it; OKF consumers
+  `agent:codex`, `human:marc`. Every event and page records who did it; OKF consumers
   derive trust tiers from the `human:` prefix. There is no other actor
   mechanism, so an agent that invents flags gets refused rather than
   misattributed.
@@ -103,6 +115,13 @@ It is conservative by construction: a URL counts as captured on a loose
 match against provenance, so it under-reports rather than nags falsely.
 Web *search* is deliberately not hooked — discovery is capture-free by
 doctrine; a search returns leads, and a lead is not evidence.
+
+Claude Code exposes `WebFetch` to the hook, so all three behaviors above run
+there. Codex packages the same hook, but its hosted web tools do not traverse
+the local tool-hook path and therefore cannot trigger these fetch checks. In
+Codex, the seven skills still carry capture-before-cite, and `flip doctor`
+still audits the resulting notebook; do not describe that as equivalent live
+hook coverage.
 
 ## Directing the work
 
@@ -135,10 +154,9 @@ starts from when the work spans notebooks.
 
 ## Other runtimes
 
-The plugin is one packaging of [src/flip/skills/](../src/flip/skills/) —
-plain `SKILL.md` files with no Claude-specific syntax. Codex users can add
-the same marketplace (`codex plugin add flip@lyra-forge`); any other
-runtime can load the files directly or via the
+The two plugin manifests package [src/flip/skills/](../src/flip/skills/) —
+plain `SKILL.md` files with no harness-specific syntax. Other runtimes can
+load the files directly or via the
 [spindle](https://github.com/lavallee/spindle) package named `flip`.
 [AGENTS.md](../AGENTS.md) is the runtime-neutral contract: the five-minute
 tour, the lineage rules, and task recipes.

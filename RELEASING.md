@@ -16,10 +16,11 @@ Spec-stage checklist (until the CLI lands, a "release" is a spec draft):
 6. `gh release create vX.Y.Z` with focused notes and a compare link.
 
 Code path (the CLI has landed): ruff + pytest green locally, and the
-version bumped **in lockstep in all six places** — `pyproject.toml`
-`[project]` and `[tool.spindle.package]`, `src/flip/spindle-package.toml`,
-`src/flip/__init__.py` `__version__`, `.claude-plugin/plugin.json`, and the
-`**Status:** draft vX.Y` lines in `SPEC.md` and `README.md`. All of that is
+six package declarations move **in lockstep** — `pyproject.toml` `[project]`
+and `[tool.spindle.package]`, `src/flip/spindle-package.toml`,
+`src/flip/__init__.py` `__version__`, `.claude-plugin/plugin.json`, and
+`.codex-plugin/plugin.json`. The `**Status:** draft vX.Y` lines in `SPEC.md`
+and `README.md` must match too. All of that is
 now **enforced by tests, not by eye** — see the docs-consistency gate below.
 If any skill changed, re-sync the plugin copy —
 `rm -rf skills && cp -r src/flip/skills skills` —
@@ -48,7 +49,8 @@ prose against the code:
    pass alone") is legitimate and deliberately not matched.
 4. **The announced spec version** in SPEC.md and README matches
    `flip.__version__`.
-5. **Every version declaration agrees** — the six-place bump above.
+5. **Every version declaration agrees** — the six package declarations and
+   both status lines above.
 
 **Prose files are discovered, not listed.** Anything matching `*.md` at the
 root, `docs/*.md`, `src/flip/skills/*/SKILL.md`, `website/site/*.html`,

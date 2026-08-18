@@ -51,10 +51,10 @@ from pathlib import Path
 # Identifier schemes stripped from ``{id}``. A resolver is handed the bare
 # identifier because that is the form every one of them accepts; the schemed
 # form is what a human writes and what several resolvers silently miss (given
-# "arXiv:2606.15136", paperboy title-searches the string and returns unrelated
-# papers, then exits 0 — a clean run that captures nothing, which flip reports
-# as EmptyCapture, i.e. as a finding about the document rather than the bug it
-# actually is). {url} still carries the target exactly as given.
+# "arXiv:2606.15136", one measured paper resolver title-searches the string and
+# returns unrelated papers, then exits 0 — a clean run that captures nothing,
+# which flip reports as EmptyCapture, i.e. as a finding about the document
+# rather than the bug it actually is). {url} still carries the target as given.
 ID_SCHEMES = ("doi:", "arxiv:", "pmid:", "pmcid:", "hdl:", "isbn:", "urn:")
 
 
@@ -518,8 +518,133 @@ class CaptureRun:
     files: list[Path]
     tool: str
     tool_version: str | None
-    strategy: str
+    strategy: str | None   # the envelope's claim, verbatim; None when it made none
     envelope: dict | None
+
+
+# Magic prefixes that mean a JSON string field is holding a DOCUMENT's bytes,
+# not text — with the suffix its materialized file gets. Found in the field: a
+# fetcher that reads binary with a byte-preserving decode and hands the result
+# back as "html" produces a 104 MB capture.json wrapping a 41 MB PDF (~2.5×
+# inflation from escaping), whose text derivative is mojibake. The envelope
+# carries metadata; a document lands as its own file (SPEC §5.1).
+_PAYLOAD_MAGIC = {
+    "%PDF": ".pdf",
+    "PK\x03\x04": ".zip",
+    "\x89PNG": ".png",
+    "GIF8": ".gif",
+    "\x1f\x8b": ".gz",
+    "\xd0\xcf\x11\xe0": ".doc",
+    "%!PS": ".ps",
+}
+# Envelope fields a fetcher plausibly stuffs a payload into.
+_PAYLOAD_FIELDS = ("html", "text", "content", "body")
+
+
+def materialize_binary_payloads(files: list[Path], dest: Path) -> list[Path]:
+    """Rescue document bytes stuffed into JSON string fields at capture time.
+
+    For each captured ``*.json``: any ``_PAYLOAD_FIELDS`` string starting with
+    a binary magic is re-encoded latin-1-strict (the byte-preserving decode is
+    the only one this can round-trip; a lossy decode fails the encode and the
+    field is left untouched, evidence of what happened rather than a
+    breadcrumb written over the last trace of it), written next to the JSON as
+    its own file, and replaced in the JSON with a one-line breadcrumb. Runs
+    before provenance rows are written so every hash reflects what actually
+    lands in custody. Returns the capture's files including any new ones.
+
+    **Nothing is written until the whole rewrite is known to succeed**, and the
+    envelope is replaced atomically. The order matters more than it looks: a
+    fetcher that clipped a title mid-surrogate-pair (any `JSON.stringify` can,
+    and `errors="surrogateescape"` does) yields a dict that serializes but
+    cannot be encoded to UTF-8 — and `write_text` truncates the file before it
+    discovers that. The envelope this function exists to preserve would be the
+    thing it destroyed, after its bytes were already the only copy.
+    """
+    out = list(files)
+    for path in files:
+        if path.suffix != ".json":
+            continue
+        try:
+            new_files = materialize_envelope(path, dest)
+        except OSError:
+            continue  # an unreadable/unwritable capture is doctor's to report
+        out.extend(new_files)
+    return out
+
+
+def _encoded_json(data: dict) -> bytes:
+    """Serialize an envelope to the bytes that will replace it.
+
+    Falls back to escaped ASCII rather than giving up: a lone surrogate is
+    unencodable as UTF-8 but round-trips perfectly as `\\udXXX`, so the
+    envelope keeps every character it arrived with.
+    """
+    try:
+        return json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+    except UnicodeEncodeError:
+        return json.dumps(data, ensure_ascii=True, indent=2).encode("utf-8")
+
+
+def materialize_envelope(path: Path, dest: Path) -> list[Path]:
+    """One envelope: plan the whole rescue, then commit it. Returns new files.
+
+    Public because the repair path (`flip doctor --fix`) needs to know WHICH
+    envelope each rescued file came out of, so the file can inherit that
+    capture's provenance instead of arriving as if from nowhere.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return []
+    if not isinstance(data, dict):
+        return []
+
+    planned: list[tuple[Path, bytes]] = []
+    claimed: set[Path] = set()
+    for key in _PAYLOAD_FIELDS:
+        value = data.get(key)
+        if not isinstance(value, str):
+            continue
+        suffix = next(
+            (ext for magic, ext in _PAYLOAD_MAGIC.items() if value.startswith(magic)), None
+        )
+        if suffix is None:
+            continue
+        try:
+            payload = value.encode("latin-1")
+        except UnicodeEncodeError:
+            continue  # lossy decode upstream: bytes unrecoverable, leave the evidence
+        target = dest / f"{path.stem}-{key}{suffix}"
+        n = 2
+        while target.exists() or target in claimed:
+            target = dest / f"{path.stem}-{key}-{n}{suffix}"
+            n += 1
+        claimed.add(target)
+        planned.append((target, payload))
+        data[key] = (
+            f"[flip: binary payload ({len(payload)} bytes, {suffix[1:]}) "
+            f"materialized to {target.name}]"
+        )
+    if not planned:
+        return []
+
+    # Everything that can fail has now failed, or won't: the replacement bytes
+    # exist before the first file is touched.
+    blob = _encoded_json(data)
+    written: list[Path] = []
+    try:
+        for target, payload in planned:
+            target.write_bytes(payload)
+            written.append(target)
+        tmp = path.with_name(path.name + ".flip-tmp")
+        tmp.write_bytes(blob)
+        os.replace(tmp, path)
+    except OSError:
+        for target in written:  # leave no half-rescue behind
+            target.unlink(missing_ok=True)
+        raise
+    return written
 
 
 def run_capture(resolved: Resolved, root: Path, source_id: str, target: str) -> CaptureRun:
@@ -556,8 +681,15 @@ def run_capture(resolved: Resolved, root: Path, source_id: str, target: str) -> 
             key=resolved.key, dest=dest, tool=argv[0], template=template,
             captures_stdout=captures_stdout,
         )
+    new = materialize_binary_payloads(new, dest)
     envelope = _harvest_envelope(new, proc.stdout)
-    strategy = "config"
+    # The envelope's `strategy` is a claim about the capture METHOD, passed
+    # through verbatim for the caller to validate against the vocabulary.
+    # When the fetcher makes no claim, the honest value is no value: the old
+    # `"config"` fallback wrote a word that is not in CAPTURE_METHODS, so flip
+    # itself minted findings its own doctor then flagged (85 of them across
+    # one measured corpus). Absence derives `unknown` fidelity downstream.
+    strategy = None
     if envelope and isinstance(envelope.get("strategy"), str):
         strategy = envelope["strategy"]
     return CaptureRun(

@@ -170,7 +170,7 @@ def _write_source_page(root: Path, row: dict) -> pages.Page:
     fm["status"] = str(row.get("status") or "captured")
     fm.update({k: v for k, v in row.items() if k not in _SOURCE_CONSUMED})
     directory = root / "references"
-    slug = pages.unique_slug(directory, pages.slugify(title, fallback=sid.lower()))
+    slug = pages.unique_slug(directory, pages.slugify(title, fallback=sid.lower()), entity_id=sid)
     body = f"# {title}\n" + (f"\n{notes}\n" if notes else "")
     path = pages.write_page(directory / f"{slug}.md", fm, body)
     return pages.Page(path=path, fm=fm, body=body)
@@ -234,7 +234,7 @@ def _write_claim_page(root: Path, row: dict, src_by_id: dict[str, pages.Page]) -
         parts.append("\n".join(defs))
     body = "\n\n".join(parts) + "\n"
     directory = root / "claims"
-    slug = pages.unique_slug(directory, pages.slugify(text, fallback=cid.lower()))
+    slug = pages.unique_slug(directory, pages.slugify(text, fallback=cid.lower()), entity_id=cid)
     path = pages.write_page(directory / f"{slug}.md", fm, body)
     return pages.Page(path=path, fm=fm, body=body)
 
@@ -272,7 +272,7 @@ def _write_decision_page(root: Path, row: dict) -> pages.Page:
         paragraphs.append("**Rejected.** " + "; ".join(rejected))
     body = "\n\n".join(paragraphs) + "\n"
     directory = root / "decisions"
-    slug = pages.unique_slug(directory, pages.slugify(decision, fallback="decision"))
+    slug = pages.unique_slug(directory, pages.slugify(decision, fallback="decision"), entity_id=did)
     path = pages.write_page(directory / f"{slug}.md", fm, body)
     return pages.Page(path=path, fm=fm, body=body)
 
@@ -339,7 +339,7 @@ def _write_question_page(root: Path, rec: dict) -> pages.Page:
             body = body.rstrip("\n") + f"\n\n## Answer\n{note}\n"
     fm.update(rec["extras"])
     directory = root / "questions"
-    slug = pages.unique_slug(directory, pages.slugify(text, fallback="question"))
+    slug = pages.unique_slug(directory, pages.slugify(text, fallback="question"), entity_id=qid)
     path = pages.write_page(directory / f"{slug}.md", fm, body)
     return pages.Page(path=path, fm=fm, body=body)
 

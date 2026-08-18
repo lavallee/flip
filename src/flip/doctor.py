@@ -27,7 +27,9 @@ mode. doctor imports workspace; workspace never imports doctor.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -63,11 +65,16 @@ from .util import (
     ROOT_FILE,
     WORKSPACE_FILE,
     age_months,
+    append_jsonl,
+    detect_actor,
+    find_workspace_root,
     is_notebook_root,
     new_uid,
     read_jsonl,
+    require_notebook_root,
     sha256_file,
     split_ref,
+    utc_now,
 )
 
 PROVENANCE = "sources/_provenance.jsonl"
@@ -105,6 +112,36 @@ CLOSED_STATUSES = ("done", "published", "archived")
 _LINK_RE = re.compile(r"\]\(([^)\s]+)")
 _SCHEME_RE = re.compile(r"^[a-z][a-z0-9+.-]*:")
 
+# notebook.md is prose synthesis; ledgered entities are cited by id and never
+# re-listed (SPEC §3). Above this, some section is almost certainly mirroring a
+# ledger — the measured outlier ran 63.5KB, its "Decisions" section duplicating
+# 25 decision pages line by line.
+NOTEBOOK_MD_CAP = 24 * 1024
+
+# binary-in-envelope reads only this much of each sources/raw/**/*.json — the
+# offending files are the multi-MB ones (627 MB of PDF bytes sat in JSON
+# strings across one measured corpus), and json-parsing them on every doctor
+# run is exactly the cost this check must not incur. In the raw text, a stuffed
+# document is a payload field opening with a binary magic, either verbatim
+# ("%PDF") or \u-escaped ("PK", what json.dumps makes of control
+# bytes); a rescued field opens with flip's own breadcrumb and matches neither.
+_ENVELOPE_HEAD_BYTES = 64 * 1024
+_BINARY_PAYLOAD_RE = re.compile(
+    '"(?P<field>' + "|".join(integrations._PAYLOAD_FIELDS) + ')"\\s*:\\s*"(?:'
+    + "|".join(
+        sorted(
+            {re.escape(m) for m in integrations._PAYLOAD_MAGIC}
+            | {re.escape(json.dumps(m)[1:-1]) for m in integrations._PAYLOAD_MAGIC}
+        )
+    )
+    + ")"
+)
+
+# Custody tracked as plain git objects above this many bytes gets named: every
+# capture lands in history forever, and the measured failure was a 931 MB .git
+# grown from committed sources/raw/. Below it, the repo can absorb the habit.
+_CUSTODY_TRACKED_CAP = 50 * 1024 * 1024
+
 # The check registry (design-composition-0.14.md, ship item 3): every finding
 # code doctor can emit, promoted to a stable, documented API. Discipline files
 # reference these codes in gates/checks (Form A), and disciplines.py validates
@@ -127,6 +164,11 @@ CHECK_CODES: frozenset[str] = frozenset({
     "enum-without-evidence", "seeded-grade", "grade-drift",
     "orphan-provenance", "stale-freshness", "unregistered-raw",
     "source-drift", "drifted-evidence", "thin-capture", "unvocabularied-method",
+    "unreported-method", "capture-method-drift",
+    "binary-in-envelope", "duplicate-custody",
+    "truncated-title", "machine-title", "ungraded-cited",
+    # scale hardening (0.19): what a 1.66 GB, 682-source corpus taught
+    "notebook-md-bloat", "next-steps-bloat", "custody-in-git", "workspace-nudge",
     # sources: text derivatives (SPEC §5.5)
     "thin-derivative", "missing-derivative", "unlogged-derivative",
     "unvocabularied-extraction",
@@ -202,17 +244,23 @@ def run_doctor(root: Path) -> list[Finding]:
 
     source_pages = [p for p in by_dir.get("references", []) if p.fm.get("type") == "Source"]
     _check_sources(root, source_pages, provenance, findings)
+    _check_titles(root, source_pages, findings)
     _check_freshness(root, source_pages, profile, findings)
     _check_raw(root, provenance, findings)
+    _check_envelopes(root, findings)
+    _check_duplicate_custody(provenance, findings)
+    _check_custody_in_git(root, findings)
     _check_derivatives(root, source_pages, findings)
     claim_pages = [p for p in by_dir.get("claims", []) if p.fm.get("type") == "Claim"]
     _check_claims(root, claim_pages, source_pages, profile, findings)
+    _check_ungraded_cited(root, claim_pages, source_pages, findings)
     _check_stance(root, manifest, claim_pages, findings)
     _check_transcripts(root, source_pages, claim_pages, findings)
     _check_forecasts(root, by_dir, findings)
     _check_questions(root, by_dir, findings)
     _check_commissions(root, by_dir, findings)
     _check_provenance_open(root, manifest, claim_pages, source_pages, findings)
+    _check_workspace_nudge(root, findings)
     _check_kind_contract(root, manifest, findings)
     _check_disciplines(root, manifest, findings)
     _lead_with_causes(root, source_pages, claim_pages, findings)
@@ -293,6 +341,198 @@ def _check_provenance_open(
         findings.append(
             _error("provenance-open", msg, rel) if closed else _warn("provenance-open", msg, rel)
         )
+
+
+def fix_notebook(root: Path) -> list[str]:
+    """Repair what can be repaired without judgment; return what was done.
+
+    Only one repair so far, and it is mechanical: a document stuffed into a
+    capture envelope's string field is written out as its own file and the
+    field is replaced with a breadcrumb (the same act `run_capture` now
+    performs at capture time, so old and new captures end up in the same
+    shape). Every rescued file gets its own provenance row — the repair is a
+    custody event and the ledger is where custody events go — and the source
+    page's `local` follows if the document is now its largest real artifact.
+
+    A field whose bytes cannot round-trip (a lossy decode upstream) is LEFT
+    ALONE: the recoverable thing is gone, and overwriting the evidence of that
+    with a breadcrumb would destroy the only remaining record of what
+    happened. Nothing here judges, renames, or deletes.
+    """
+    root = require_notebook_root(root)
+    raw = root / "sources" / "raw"
+    if not raw.is_dir():
+        return []
+    try:
+        provenance = read_jsonl(root / PROVENANCE)
+    except ValueError:
+        raise SystemExit(
+            f"{PROVENANCE} has a corrupt line; `flip doctor` pinpoints it. "
+            "Repairing custody on top of an unreadable ledger would write rows "
+            "nobody can reconcile"
+        ) from None
+    done: list[str] = []
+    touched = False
+    for source_dir in sorted(p for p in raw.iterdir() if p.is_dir()):
+        sid = source_dir.name
+        # One unreadable capture must not strand the rest of the notebook
+        # halfway through a repair.
+        try:
+            rescued = _rescue_source_dir(root, sid, source_dir, provenance, done)
+        except OSError as exc:
+            done.append(f"skipped {sid}: {exc}")
+            continue
+        # Repoint whenever this source has been materialized — now, or by an
+        # earlier run that died before it got here. Never otherwise: `local` is
+        # the operator's declaration of the primary artifact, and a repair pass
+        # has no business rewriting it on sources it did not touch.
+        if rescued or _points_at_a_breadcrumb(root, sid, source_dir):
+            if _repoint_local(root, sid):
+                touched = True
+        touched = touched or rescued
+    if touched:
+        from . import views
+
+        views.regenerate(root, changed=("references",))
+    return done
+
+
+def _rescue_source_dir(
+    root: Path, sid: str, source_dir: Path, provenance: list[dict], done: list[str]
+) -> bool:
+    """Materialize every stuffed envelope under one source; log what happened."""
+    rescued_any = False
+    for envelope in sorted(p for p in source_dir.rglob("*.json") if p.is_file()):
+        env_rel = envelope.relative_to(root).as_posix()
+        origin = _latest_row_for(provenance, env_rel)
+        new = integrations.materialize_envelope(envelope, source_dir)
+        if not new:
+            continue
+        rescued_any = True
+        ts = utc_now()
+        actor = detect_actor()
+        # The rescued bytes were acquired by the ORIGINAL capture — same fetch,
+        # same method, same URL; only their storage shape changed. A row that
+        # dropped those facts would turn an honest `http-get` capture into a
+        # source with no method on record, which is precisely the finding this
+        # release added the honest-absence rule to stop inventing.
+        inherited = {
+            k: origin[k]
+            for k in ("url", "strategy", "tool", "tool_version", "mime", "retrieved_at")
+            if origin and origin.get(k) not in (None, "", [], {})
+        }
+        for path in sorted(new):
+            rel = path.relative_to(root).as_posix()
+            append_jsonl(
+                root / PROVENANCE,
+                {
+                    "ts": ts,
+                    "source_id": sid,
+                    **inherited,
+                    "local_path": rel,
+                    "sha256": sha256_file(path),
+                    "bytes": path.stat().st_size,
+                    "event": "rematerialize",
+                    "actor": actor,
+                    "note": (
+                        f"materialized out of {envelope.name} by `flip doctor --fix`; "
+                        "the bytes were already in custody, wrapped in a JSON string"
+                    ),
+                },
+            )
+            done.append(f"rescued {rel} from its envelope")
+        # The envelope itself changed, and it is under custody: its recorded
+        # sha256 stopped describing the file the moment the breadcrumb replaced
+        # the payload. Fixity is the one promise this lane makes.
+        append_jsonl(
+            root / PROVENANCE,
+            {
+                "ts": ts,
+                "source_id": sid,
+                **inherited,
+                "local_path": env_rel,
+                "sha256": sha256_file(envelope),
+                "bytes": envelope.stat().st_size,
+                "event": "rematerialize",
+                "actor": actor,
+                "note": (
+                    "payload materialized out of this envelope by `flip doctor "
+                    "--fix`; supersedes the prior fixity row for this file"
+                ),
+            },
+        )
+    return rescued_any
+
+
+def _latest_row_for(provenance: list[dict], local_path: str) -> dict | None:
+    """The newest ledger row describing one file, or None."""
+    best: dict | None = None
+    for row in provenance:
+        if str(row.get("local_path") or "") != local_path:
+            continue
+        if best is None or str(row.get("ts") or "") >= str(best.get("ts") or ""):
+            best = row
+    return best
+
+
+def _points_at_a_breadcrumb(root: Path, sid: str, source_dir: Path) -> bool:
+    """True when a source page's `local` names an envelope flip has already
+    emptied — the shape an interrupted repair leaves behind, where the page
+    declares a 90-byte breadcrumb to be its primary artifact."""
+    for page in _tolerant_source_pages(root):
+        if page.id != sid:
+            continue
+        local = str(page.fm.get("local") or "")
+        if not local.endswith(".json"):
+            return False
+        path = root / local
+        if not path.is_file() or path.stat().st_size > 64 * 1024:
+            return False
+        try:
+            return "[flip: binary payload" in path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return False
+    return False
+
+
+def _tolerant_source_pages(root: Path) -> list[pages.Page]:
+    """Reference pages, skipping any that won't parse.
+
+    Every other doctor path reads tolerantly and lets the corrupt page be
+    reported as a finding. The repair path must too: one hand-edited page with
+    broken YAML anywhere in `references/` would otherwise abort the run —
+    after some sources had been rescued and before their pages were repointed,
+    which is the one state that leaves `local` naming an emptied envelope.
+    """
+    out, _errors = pages.iter_pages_tolerant(root, "references")
+    return [p for p in out if str(p.fm.get("type") or "") == "Source"]
+
+
+def _repoint_local(root: Path, source_id: str) -> bool:
+    """Point a source page's `local` at the document once it exists as a file.
+
+    The page pointed at the envelope because the envelope WAS the biggest
+    artifact while it held the document inside it; after the rescue the
+    document is, and `local` has to mean the same thing it means everywhere
+    else — the primary artifact (SPEC §5.1). Returns whether it wrote.
+    """
+    for page in _tolerant_source_pages(root):
+        if page.id != source_id:
+            continue
+        capture_dir = root / "sources" / "raw" / source_id
+        if not capture_dir.is_dir():
+            return False
+        files = [p for p in capture_dir.rglob("*") if p.is_file()]
+        if not files:
+            return False
+        primary = sources_mod._primary_file(files)
+        rel = primary.relative_to(root).as_posix()
+        if str(page.fm.get("local") or "") != rel:
+            page.fm["local"] = rel
+            pages.write_page(page.path, page.fm, page.body)
+            return True
+        return False
+    return False
 
 
 def run_workspace_doctor(ws_root: Path, fix: bool = False) -> list[Finding]:
@@ -791,6 +1031,39 @@ def _check_reserved_files(root: Path, findings: list[Finding]) -> None:
             )
 
 
+def _check_prose_size(root: Path, name: str, code: str, findings: list[Finding]) -> None:
+    """Warn when a synthesis file has grown past the size where it is plausibly
+    still synthesis (SPEC §3).
+
+    The measured failure: a notebook.md at 63.5 KB whose `## Decisions` section
+    restated 25 decision pages and whose `## Sources` section restated 301
+    reference listings — an index wearing the costume of thought, charging
+    every reader (agents most of all) the whole ledger's tokens on every open
+    while saying nothing the ledgers didn't already hold, and drifting from
+    them the moment either side changed.
+    """
+    path = root / name
+    if not path.is_file():
+        return
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return
+    if size <= NOTEBOOK_MD_CAP:
+        return
+    findings.append(
+        _warn(
+            code,
+            f"{name} is {size // 1024}KB (the norm is under "
+            f"{NOTEBOOK_MD_CAP // 1024}KB): a synthesis file is prose, and "
+            "ledgered entities are cited by id, never re-listed — a section that "
+            "mirrors a ledger restates what the pages and generated views already "
+            "hold, and drifts from them; cut it back to citations",
+            name,
+        )
+    )
+
+
 def _check_notebook_md(root: Path, profile: Profile | None, findings: list[Finding]) -> None:
     path = root / "notebook.md"
     if not path.is_file():
@@ -802,6 +1075,11 @@ def _check_notebook_md(root: Path, profile: Profile | None, findings: list[Findi
             )
         )
         return
+    _check_prose_size(root, "notebook.md", "notebook-md-bloat", findings)
+    # NEXT_STEPS.md is synthesis under the same rule, and drifted the same way
+    # in the wild: one measured file reached 24.7 KB of forward-looking work
+    # nobody could act on in one reading.
+    _check_prose_size(root, "NEXT_STEPS.md", "next-steps-bloat", findings)
     if profile is None:
         return
     try:
@@ -1109,7 +1387,7 @@ def _check_capture_fidelity(
         sid = str(event.get("source_id") or "")
         if not sid or sid not in page_ids:
             continue
-        if str(event.get("status") or "") in sources_mod.UNCAPTURED_STATUSES:
+        if str(event.get("status") or "") in sources_mod.NON_CAPTURE_STATUSES:
             continue
         if not event.get("sha256"):  # a recheck or failure row, not a capture
             continue
@@ -1125,6 +1403,8 @@ def _check_capture_fidelity(
         if same_capture and (prior.get("bytes") or 0) >= (event.get("bytes") or 0):
             continue
         latest[sid] = event
+    unvocabularied: list[tuple[str, str]] = []  # (sid, the word that isn't a method)
+    unreported: list[str] = []
     for sid, event in sorted(latest.items()):
         fidelity = sources_mod.capture_fidelity(event)
         method = str(event.get("strategy") or "")
@@ -1157,13 +1437,53 @@ def _check_capture_fidelity(
                 )
             )
         elif fidelity == "unknown" and method:
+            unvocabularied.append((sid, method))
+        elif fidelity == "unknown":
+            # No `strategy` key at all: the fetcher made no claim about its
+            # method, and add_source recorded that absence honestly rather than
+            # minting a word. Distinct from unvocabularied-method — nothing here
+            # drifted from the vocabulary, nothing was ever said.
+            unreported.append(sid)
+    # The teaching happens once, on a cause line ahead of the group — the full
+    # explanation used to ride every row (494 B × 243 rows in one measured
+    # notebook), and the repetition is what made the run unreadable, not the
+    # finding. Per-row lines carry only the fact; `_collapse_findings` caps them.
+    if unvocabularied or unreported:
+        bits = []
+        if unvocabularied:
+            bits.append(f"{len(unvocabularied)} record a tool name where the method belongs")
+        if unreported:
+            bits.append(f"{len(unreported)} record no method at all")
+        findings.append(
+            _warn(
+                "capture-method-drift",
+                f"{len(unvocabularied) + len(unreported)} capture row(s) can't say how "
+                f"the bytes were obtained: {'; '.join(bits)}. The method is one of: "
+                f"{', '.join(sources_mod.CAPTURE_METHODS)} — the ledger already records "
+                "the tool, and a method is what makes two notebooks comparable across "
+                "deployments. Have each fetcher report one in its envelope; until then "
+                "capture fidelity stays 'unknown'",
+                PROVENANCE,
+                expected=True,
+            )
+        )
+    if unvocabularied:
+        for sid, method in unvocabularied:
             findings.append(
                 _warn(
                     "unvocabularied-method",
-                    f"source {sid}: capture strategy '{method}' is not a capture "
-                    f"method (one of: {', '.join(sources_mod.CAPTURE_METHODS)}) — it "
-                    "reads like a tool name. Methods travel between deployments and "
-                    "tool names don't; have the fetcher report one in its envelope",
+                    f"source {sid}: capture strategy '{method}' is a tool name, "
+                    "not a method",
+                    PROVENANCE,
+                    expected=True,
+                )
+            )
+    if unreported:
+        for sid in unreported:
+            findings.append(
+                _warn(
+                    "unreported-method",
+                    f"source {sid}: no capture method on record",
                     PROVENANCE,
                     expected=True,
                 )
@@ -1215,6 +1535,286 @@ def _check_raw(root: Path, provenance: list[dict], findings: list[Finding]) -> N
                     rel,
                 )
             )
+
+
+def _check_titles(
+    root: Path, source_pages: list[pages.Page], findings: list[Finding]
+) -> None:
+    """A source page's title is canonical frontmatter AND the seed of its slug,
+    so a title that was never a title costs the page its identity permanently.
+
+    Two shapes, both measured on one corpus: 326 of 682 reference pages carried
+    a title ending in a display ellipsis (a fetcher handing back a truncated
+    listing string), and eight distinct sources ended up slugged `index-3`
+    through `index-10`. `_plausible_title` refuses both at capture now; these
+    findings are for the pages already on disk, which are repairable but not
+    self-repairing.
+    """
+    for page in source_pages:
+        title = str(page.fm.get("title") or "").strip()
+        if not title:
+            continue
+        rel = _rel(page, root)
+        if title.endswith(("…", "...")):
+            findings.append(
+                _warn(
+                    "truncated-title",
+                    f"source {page.id or '?'}: title ends mid-word — a display "
+                    "truncation was stored as the canonical title, and the slug "
+                    f"was derived from it: `flip source retitle {page.id or '<id>'} "
+                    '"<full title>"`',
+                    rel,
+                )
+            )
+        elif _machine_title(title):
+            findings.append(
+                _warn(
+                    "machine-title",
+                    f"source {page.id or '?'}: title {title[:40]!r} is machine "
+                    "output (a bibtex/JSON fragment, or a placeholder like "
+                    "'index'), not a name a reader can recognize — several such "
+                    "sources collide on one meaningless slug: `flip source "
+                    f'retitle {page.id or "<id>"} "<full title>"`',
+                    rel,
+                )
+            )
+
+
+def _machine_title(title: str) -> bool:
+    """True for a title that is structured output rather than a name."""
+    if title.strip().lower() == "index":
+        return True
+    if title.lstrip().startswith(("{", "@", "inproceedings", "article{")):
+        return True
+    return '": "' in title
+
+
+def _check_envelopes(root: Path, findings: list[Finding]) -> None:
+    """A capture envelope carries metadata; the document lands as its own file.
+
+    A fetcher that decodes a document and hands the bytes back inside a JSON
+    string produces a capture that is ~2.5× the size of the document (escaping)
+    and a text derivative made of mojibake — one measured corpus held 627 MB of
+    PDFs this way, the largest a 104 MB `capture.json` around a 41.6 MB PDF.
+    Nothing about the page or its ledger row says so; the hash is honest about
+    a file whose CONTENT is a wrapper.
+
+    Reads only the head of each JSON (`_ENVELOPE_HEAD_BYTES`): the offending
+    files are the multi-MB ones, and parsing those on every run is exactly the
+    cost this check exists to avoid paying twice.
+    """
+    raw = root / "sources" / "raw"
+    if not raw.is_dir():
+        return
+    for path in sorted(raw.rglob("*.json")):
+        if not path.is_file():
+            continue
+        try:
+            with path.open("r", encoding="utf-8", errors="replace") as fh:
+                head = fh.read(_ENVELOPE_HEAD_BYTES)
+        except OSError:
+            continue
+        m = _BINARY_PAYLOAD_RE.search(head)
+        if not m:
+            continue
+        rel = path.relative_to(root).as_posix()
+        findings.append(
+            _warn(
+                "binary-in-envelope",
+                f"{rel} holds a document's bytes in its '{m.group('field')}' "
+                "field — the envelope is metadata, and a document belongs in a "
+                "file of its own (as a JSON string it costs ~2.5× its size and "
+                "extracts as mojibake): `flip doctor --fix` writes the payload "
+                "out and leaves a breadcrumb in its place",
+                rel,
+            )
+        )
+
+
+def _check_duplicate_custody(provenance: list[dict], findings: list[Finding]) -> None:
+    """The same bytes in custody under two source ids: one document, two
+    identities, two grades to keep in step, and a `--stale` roster that counts
+    it twice. Measured: four PDF pairs inside a single notebook.
+
+    Envelope sidecars are excluded — every `flip.json` in a notebook plausibly
+    shares a hash, and that is not this finding.
+    """
+    by_hash: dict[str, set[str]] = {}
+    for row in provenance:
+        sha = str(row.get("sha256") or "")
+        sid = str(row.get("source_id") or "")
+        if not sha or not sid:
+            continue
+        if str(row.get("status") or "") in sources_mod.NON_CAPTURE_STATUSES:
+            continue
+        if Path(str(row.get("local_path") or "")).name == sources_mod.ENVELOPE_FILENAME:
+            continue
+        by_hash.setdefault(sha, set()).add(sid)
+    for sha, sids in sorted(by_hash.items()):
+        if len(sids) < 2:
+            continue
+        named = ", ".join(sorted(sids))
+        findings.append(
+            _warn(
+                "duplicate-custody",
+                f"sources {named} hold identical bytes (sha256 {sha[:12]}…): one "
+                "document captured twice under two identities — cite one and "
+                "supersede the other, or keep both deliberately if they are "
+                "genuinely different editions that happen to match",
+                PROVENANCE,
+            )
+        )
+
+
+def _check_custody_in_git(root: Path, findings: list[Finding]) -> None:
+    """Custody committed as plain git objects is a decision that cannot be
+    cheaply unmade: one measured repo carried a 931 MB `.git` with a 104 MB
+    blob in history, and by the time anyone notices, rewriting it is the only
+    remedy. SPEC §5.6 names git-LFS as the default and the alternatives.
+
+    Deliberately quiet unless it already matters (`_CUSTODY_TRACKED_CAP`), and
+    fully tolerant of git being absent, failing, or refusing — a notebook is
+    not required to live in a repository, and doctor never depends on one.
+    """
+    raw = root / "sources" / "raw"
+    if not raw.is_dir():
+        return
+    try:
+        proc = subprocess.run(
+            ["git", "ls-files", "-s", "--", "sources/raw"],
+            cwd=root, capture_output=True, text=True, timeout=30, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return
+    if proc.returncode != 0 or not proc.stdout.strip():
+        return
+    tracked = [
+        line.split("\t", 1)[1]
+        for line in proc.stdout.splitlines()
+        if "\t" in line
+    ]
+    if not tracked:
+        return
+    total = 0
+    for rel in tracked:
+        try:
+            total += (root / rel).stat().st_size
+        except OSError:
+            continue
+    if total <= _CUSTODY_TRACKED_CAP:
+        return
+    if _lfs_tracked(root):
+        return
+    findings.append(
+        _warn(
+            "custody-in-git",
+            f"{len(tracked)} custody file(s) totalling {total // (1024 * 1024)}MB are "
+            "tracked as plain git objects, so every capture is in history forever "
+            "(a measured corpus reached a 931MB .git this way). flip's default is "
+            "git-LFS for `sources/raw/`; gitignoring it and committing the "
+            "provenance ledger keeps custody local with integrity still provable "
+            "(SPEC §5.6). History cannot be cheaply unwritten — decide now",
+            "sources/raw",
+        )
+    )
+
+
+def _lfs_tracked(root: Path) -> bool:
+    """True when a .gitattributes at or above the notebook puts custody through
+    the LFS filter — the default stance being followed, so nothing to say."""
+    for directory in [root, *root.parents]:
+        path = directory / ".gitattributes"
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            if "filter=lfs" in line and ("sources/raw" in line or line.strip().startswith("*")):
+                return True
+        if (directory / ".git").exists():
+            break
+    return False
+
+
+def _check_ungraded_cited(
+    root: Path,
+    claim_pages: list[pages.Page],
+    source_pages: list[pages.Page],
+    findings: list[Finding],
+) -> None:
+    """A source at grade '?' cited as EVIDENCE corroborates nothing (SPEC §5.4)
+    — it is in custody, and nobody has judged it yet. The claim reads as
+    supported on the page and is not, which is the quiet version of the failure
+    the whole grading lane exists to make loud. 62 such sources sat uncounted in
+    one measured corpus, none of them mentioned by doctor.
+
+    Subject citations (`--about`) are exempt: a source you are writing ABOUT
+    owes an attribution test, not a grade.
+    """
+    ungraded = {
+        p.id: p
+        for p in source_pages
+        if p.id and str(p.fm.get("grade") or "?") == "?"
+    }
+    if not ungraded:
+        return
+    citing: dict[str, set[str]] = {}
+    for page in claim_pages:
+        for sid in evidence_ids(page.fm):
+            if str(sid) in ungraded:
+                citing.setdefault(str(sid), set()).add(page.id or "?")
+    for sid, claim_ids in sorted(citing.items()):
+        findings.append(
+            _warn(
+                "ungraded-cited",
+                f"source {sid} is cited as evidence by {', '.join(sorted(claim_ids))} "
+                "but carries no grade, so it corroborates nothing — judge it: "
+                f"`flip grade {sid} --independence … --basis …` "
+                f"(`flip grade {sid} --explain` shows what moves the letter)",
+                _rel(ungraded[sid], root),
+            )
+        )
+
+
+def _check_workspace_nudge(root: Path, findings: list[Finding]) -> None:
+    """Sibling notebooks in one repo with no workspace binding: every id space
+    overlaps invisibly (`A3` names a different document in each), and the
+    checks that would catch it — ambiguous ids, slug collisions, duplicate uids
+    — only run at the workspace layer. Seven notebooks sat this way in one
+    measured repo, `flip doctor --workspace` refusing on all of them.
+
+    An expected-until-use notice: nothing is wrong until you follow a
+    cross-notebook reference.
+    """
+    if find_workspace_root(root) is not None:
+        return
+    parent = root.parent
+    if parent == root:
+        return
+    siblings = []
+    try:
+        candidates = sorted(p for p in parent.iterdir() if p.is_dir())
+    except OSError:
+        return
+    for candidate in candidates:
+        if candidate.resolve() == root.resolve():
+            continue
+        if is_notebook_root(candidate):
+            siblings.append(candidate.name)
+    if not siblings:
+        return
+    shown = ", ".join(siblings[:3]) + (f" and {len(siblings) - 3} more" if len(siblings) > 3 else "")
+    findings.append(
+        _warn(
+            "workspace-nudge",
+            f"{len(siblings)} sibling notebook(s) share this directory ({shown}) with "
+            "no workspace binding, so their id spaces overlap unchecked — `flip ws "
+            "init` here binds them under handles, makes `handle:id` refs resolvable, "
+            "and lets `flip doctor --workspace` see ambiguous ids and slug collisions",
+            ROOT_FILE,
+            expected=True,
+        )
+    )
 
 
 def _check_derivatives(

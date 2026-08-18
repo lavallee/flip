@@ -1,5 +1,5 @@
-"""The Claude Code plugin's skills/ tree is a synced copy of the canonical
-skills packaged with the CLI (src/flip/skills). RELEASING.md says `cp -r`;
+"""The Claude Code and Codex plugins' shared skills/ tree is a synced copy of
+the canonical skills packaged with the CLI (src/flip/skills). RELEASING.md says `cp -r`;
 this test is what makes that instruction load-bearing — any drift between
 the two trees fails the suite byte-for-byte in both directions."""
 

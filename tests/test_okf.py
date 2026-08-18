@@ -239,6 +239,31 @@ def test_export_never_mutates_the_notebook(tmp_path):
     assert snapshot() == before
 
 
+def test_export_leaves_even_a_stale_view_cache_alone(tmp_path):
+    """Export regenerates in full, and a full rebuild must not write the
+    derived cache — not create it, and not refresh a drifted one either.
+    Refreshing looks harmless and is still a write to the notebook being
+    exported, which is the whole invariant."""
+    import json
+
+    from flip import ledgers, views
+
+    nb = make_notebook(tmp_path / "nb", trail=False)
+    ledgers.add_question(nb, "does the cache stay put?")
+    ledgers.log_event(nb, "populate the cache")  # incremental: creates it
+    cache = nb / views.VIEWCACHE
+    assert cache.is_file()
+
+    drifted = json.loads(cache.read_text(encoding="utf-8"))
+    drifted["questions"] = {**drifted["questions"], "count": 99, "open": 99}
+    cache.write_text(json.dumps(drifted), encoding="utf-8")
+    before = cache.read_bytes()
+
+    export_okf(nb, tmp_path / "bundle")
+
+    assert cache.read_bytes() == before
+
+
 # -- source trail withheld ---------------------------------------------------
 
 

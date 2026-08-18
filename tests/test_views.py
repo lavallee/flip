@@ -364,6 +364,33 @@ def test_stale_view_source_without_date_or_freshness_not_flagged(tmp_path):
     assert stale_view(root) == "nothing stale"
 
 
+def test_undated_sources_collapse_to_a_count_with_their_repair(tmp_path):
+    # One measured notebook printed 98 rows that all read `date: unknown` — a
+    # staleness report that never once spoke about staleness. Undated is not
+    # old; it is unmeasured, and the repair is to record the date.
+    root = make_notebook(tmp_path)
+    for n in range(1, 4):
+        source_page(root, f"A{n}", f"undated {n}", freshness="dated")
+    source_page(root, "A9", "genuinely old", freshness="dated", date="2020-01-01")
+    text = stale_view(root)
+    assert "UNDATED SOURCES: 3" in text
+    assert "date:" in text and "A9" in text  # the one with a real date keeps its row
+    for n in range(1, 4):
+        assert f"A{n} ·" not in text
+    assert "unknown" not in text
+
+
+def test_stale_view_data_splits_undated_without_breaking_the_old_key(tmp_path):
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", "undated", freshness="dated")
+    source_page(root, "A2", "old", freshness="dated", date="2019-05-01")
+    data = stale_view(root, as_data=True)
+    # the established key keeps its established meaning for anything scripted
+    assert [r["id"] for r in data["dated_sources"]] == ["A1", "A2"]
+    assert [r["id"] for r in data["undated_sources"]] == ["A1"]
+    assert [r["id"] for r in data["stale_sources"]] == ["A2"]
+
+
 # --- regenerate: log.md -------------------------------------------------------
 
 
@@ -468,6 +495,30 @@ def test_regenerate_root_body_lists_sections_with_counts(tmp_path):
     assert page.fm["obsidian_tag"] == "keepme"
 
 
+def test_root_body_lists_recognized_prose_only_when_it_exists(tmp_path):
+    # NEXT_STEPS.md entered the spec by observation: seven of seven autonomous
+    # runs invented it while the spec'd HANDOFF.md appeared in three. flip
+    # lists them; it never writes them.
+    root = make_notebook(tmp_path)
+    regenerate(root)
+    body = pages.read_page(root / "index.md").body
+    assert "[Next Steps]" not in body and "[Handoff]" not in body
+
+    (root / "NEXT_STEPS.md").write_text("# Next steps\n\n* the next move\n", encoding="utf-8")
+    (root / "HANDOFF.md").write_text("# Handoff\n\nwhere things stand\n", encoding="utf-8")
+    regenerate(root)
+    body = pages.read_page(root / "index.md").body
+    assert "* [Handoff](HANDOFF.md) - where things stand, for a cold pickup" in body
+    assert "* [Next Steps](NEXT_STEPS.md) - forward-looking work" in body
+    # the cold-pickup surface comes first: it answers "where am I" before
+    # NEXT_STEPS answers "what do I do"
+    assert body.index("[Handoff]") < body.index("[Next Steps]")
+
+    (root / "NEXT_STEPS.md").unlink()
+    regenerate(root)
+    assert "[Next Steps]" not in pages.read_page(root / "index.md").body
+
+
 def test_regenerate_is_deterministic_and_byte_stable(tmp_path):
     root = make_notebook(tmp_path)
     source_page(root, "A1", "one")
@@ -518,6 +569,165 @@ def test_regenerate_exists_for_core_module_hooks():
     # sources/claims call views.regenerate via a defensive getattr; make sure
     # the hook they look for is the public callable this module exports.
     assert callable(getattr(views, "regenerate"))
+
+
+# --- incremental regeneration: equivalence and the derived viewcache ------------
+
+from flip import claims as claims_mod  # noqa: E402
+from flip import commissions as commissions_mod  # noqa: E402
+from flip import forecast as forecast_mod  # noqa: E402
+from flip import sessions as sessions_mod  # noqa: E402
+from flip import sources as sources_mod  # noqa: E402
+
+VIEWCACHE_REL = Path(".flip") / "viewcache.json"
+
+
+def test_incremental_mutation_sequence_matches_full_rebuild(tmp_path):
+    # The load-bearing equivalence: a representative sequence through the
+    # normal mutation APIs (each passing its own honest `changed` set) must
+    # leave every generated file byte-identical to what a full rebuild
+    # produces from the same canonical state. If any caller's `changed` set
+    # lies, this is the test that catches the stale byte.
+    root = make_notebook(tmp_path)
+    paper = tmp_path / "paper.txt"
+    paper.write_text("finding\n", encoding="utf-8")
+    witness = tmp_path / "witness.txt"
+    witness.write_text("independent confirmation\n", encoding="utf-8")
+
+    ledgers.log_event(root, "captured the paper")
+    src = sources_mod.add_source(root, str(paper), note="primary capture")
+    second = sources_mod.add_source(root, str(witness), note="second witness")
+    claim = claims_mod.add_claim(root, "the paper shows X", [src.fm["id"]])
+    claims_mod.add_claim_sources(root, claim.fm["id"], [second.fm["id"]])
+    q = ledgers.add_question(root, "does X hold at scale?")
+    ledgers.add_question(root, "who verified X?")
+    ledgers.answer_question(root, q.fm["id"], note="it holds",
+                            reopen_when=["new data lands"])
+    ledgers.add_decision(root, "keep X?", "keep X", "the evidence holds")
+    ledgers.add_passed(root, "vendor blog post", "marketing, not evidence")
+    session = sessions_mod.start_session(root, "corpus-sweep")
+    sessions_mod.end_session(root, session, "swept the corpus")
+    forecast_mod.add_forecast(
+        root, "will X replicate?", "2027-03-31", ["replication study"],
+        "the study never runs", 0.6, 0.4,
+    )
+    commissions_mod.add_commission(
+        root, "audit X", "the captured paper", "one pass", "no re-capture",
+    )
+
+    generated = ["index.md", "log.md"] + [f"{d}/index.md" for d in pages.ENTITY_DIRS]
+    before = {
+        rel: (root / rel).read_text(encoding="utf-8")
+        for rel in generated
+        if (root / rel).is_file()
+    }
+    # Every surface the sequence touched must actually be in the snapshot,
+    # or the equivalence below would pass vacuously.
+    assert set(before) == {
+        "index.md", "log.md", "references/index.md", "claims/index.md",
+        "decisions/index.md", "questions/index.md", "forecasts/index.md",
+        "commissions/index.md", "sessions/index.md",
+    }
+    regenerate(root)  # full rebuild: recounts every directory from its pages
+    for rel, text in before.items():
+        assert (root / rel).read_text(encoding="utf-8") == text, rel
+
+
+def test_a_hand_authored_page_is_picked_up_by_the_next_mutation(tmp_path):
+    # Pages are hand-editable by contract (SPEC §3) — Obsidian writes them,
+    # `flip import --update` replaces them wholesale, git checks them out. A
+    # cache that assumed flip was the only writer left the root body and the
+    # directory listing stating a count that no longer matched the notebook,
+    # healed by nothing. The fingerprint is what makes the entry verifiable.
+    root = make_notebook(tmp_path)
+    ledgers.add_question(root, "first?")
+    question_page(root, "Q2", "hand-added outside the APIs")
+
+    ledgers.log_event(root, "an unrelated log line")
+
+    assert "2 questions, 2 open" in pages.read_page(root / "index.md").body
+    assert "Q2" in (root / "questions" / "index.md").read_text(encoding="utf-8")
+
+
+def test_a_hand_deleted_page_is_picked_up_too(tmp_path):
+    root = make_notebook(tmp_path)
+    ledgers.add_question(root, "first?")
+    ledgers.add_question(root, "second?")
+    ledgers.log_event(root, "populate the cache")
+    assert "2 questions" in pages.read_page(root / "index.md").body
+
+    next(iter((root / "questions").glob("*.md"))).unlink()
+    ledgers.log_event(root, "an unrelated log line")
+
+    assert "1 question, 1 open" in pages.read_page(root / "index.md").body
+
+
+def test_a_dormant_review_date_arriving_is_not_frozen_by_the_cache(tmp_path, monkeypatch):
+    # The open count is a function of the pages AND of today's date: a parked
+    # question resurfaces the morning its review date arrives, with nothing on
+    # disk having changed. A cache that froze the count would make the root
+    # body disagree with `flip show`, which computes live — the same canonical
+    # state rendering differently depending on the path taken to it.
+    root = make_notebook(tmp_path)
+    ledgers.add_question(root, "open one")
+    q = ledgers.add_question(root, "parked one")
+    ledgers.dormant_question(root, q.fm["id"], until="2026-08-20")
+    ledgers.log_event(root, "populate the cache")
+    assert "2 questions, 1 open" in pages.read_page(root / "index.md").body
+
+    monkeypatch.setattr(views, "_today", lambda: "2026-08-21")
+    ledgers.log_event(root, "the morning the review comes due")
+
+    assert "2 questions, 2 open" in pages.read_page(root / "index.md").body
+
+
+def test_corrupt_viewcache_degrades_to_recounting(tmp_path):
+    # The cache is purely derived: garbage in .flip/viewcache.json must never
+    # crash a mutation or change a generated byte — every miss is answered by
+    # recounting the real pages. A PARTIAL entry counts as garbage: a `count`
+    # with no `open` would otherwise print "0 open" from a missing key.
+    root = make_notebook(tmp_path)
+    ledgers.add_question(root, "who pays for the audit?")
+    cache_path = root / VIEWCACHE_REL
+    for garbage in ("{not json", '["a", "list"]', '{"questions": 7}',
+                    '{"questions": {"count": "three"}}',
+                    '{"questions": {"count": 1, "files": 1, "mtime_ns": 1}}',
+                    '{"questions": {"count": 99, "open": 99}}'):
+        cache_path.write_text(garbage, encoding="utf-8")
+        ledgers.log_event(root, "still standing")
+        assert "1 question, 1 open" in pages.read_page(root / "index.md").body, garbage
+
+
+def test_a_stale_fingerprint_is_never_trusted(tmp_path):
+    # The entry names a page set; if the directory no longer matches it, the
+    # entry is a miss whatever its counts say.
+    root = make_notebook(tmp_path)
+    ledgers.add_question(root, "first?")
+    ledgers.log_event(root, "populate the cache")
+    cache_path = root / VIEWCACHE_REL
+    cache = json.loads(cache_path.read_text(encoding="utf-8"))
+    cache["questions"] = {**cache["questions"], "count": 99, "open": 99}
+    cache_path.write_text(json.dumps(cache), encoding="utf-8")
+
+    # fingerprint still matches, so the doctored counts ARE served — that is
+    # the cache doing its job on a file only flip should be writing
+    ledgers.log_event(root, "trusting the fingerprint")
+    assert "99 questions" in pages.read_page(root / "index.md").body
+
+    # but touch the directory and the entry stops being believed
+    question_page(root, "Q2", "a new page changes the fingerprint")
+    ledgers.log_event(root, "and now it is re-grounded")
+    assert "2 questions, 2 open" in pages.read_page(root / "index.md").body
+
+
+def test_full_regenerate_never_creates_the_viewcache(tmp_path):
+    # `flip export` regenerates in full and its never-mutates invariant
+    # depends on a full rebuild leaving no side files behind.
+    root = make_notebook(tmp_path)
+    question_page(root, "Q1", "hand-authored")
+    regenerate(root)
+    regenerate(root)
+    assert not (root / VIEWCACHE_REL).exists()
 
 
 # --- ws_show: the merged workspace roster (SPEC §18) ----------------------------

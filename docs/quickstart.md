@@ -8,13 +8,15 @@ knowledge bundle — any markdown tool can browse and edit it.
 
 ## Two ways in
 
-**Conversational (recommended):** install the
-[Claude Code plugin](claude-code.md) — `/plugin marketplace add
-lyra-forge/marketplace`, `/plugin install flip@lyra-forge` — and direct
-research the way you already talk to your agent; the agent runs the
-notebook under flip's discipline and every command below happens on your
-behalf. That guide covers the skills, the custody hook, and what a session
-leaves behind.
+**Conversational (recommended):** install the agent plugin. In Claude Code,
+run `/plugin marketplace add lyra-forge/marketplace` and
+`/plugin install flip@lyra-forge`; in Codex, run
+`codex plugin marketplace add lyra-forge/marketplace` and
+`codex plugin add flip@lyra-forge`. Then direct research the way you already
+talk to your agent; the agent runs the notebook under flip's discipline and
+every command below happens on your behalf. The
+[Claude Code guide](claude-code.md) covers the skills, the custody hook, and
+what a session leaves behind.
 
 **Direct:** the rest of this page is the CLI walkthrough — the same
 operations by hand, which is also the fastest way to understand what the
@@ -61,6 +63,27 @@ If you're an agent (or supervising one), set the actor once:
 ```bash
 export FLIP_ACTOR="human:marc"     # or agent:claude, tool:ingest-script
 ```
+
+### Decide now where the captured bytes live
+
+Almost everything a notebook weighs is `sources/raw/` — in one measured
+corpus, 98% of it, and 1.6 GB across seven notebooks. If the notebook is in
+a git repo, decide before you capture much, because history cannot be
+cheaply unwritten: one of those repos reached a 931 MB `.git` carrying a
+104 MB blob, and by the time anyone noticed, only a history rewrite would
+undo it. flip's default is **git-LFS for `sources/raw/`**:
+
+```bash
+git lfs track "sources/raw/**"     # custody in the repo, history stays small
+```
+
+The worked alternatives (SPEC §5.6) are to gitignore `sources/raw/` and
+commit the provenance ledger, which keeps custody local while its integrity
+stays provable from the recorded hashes, or to commit custody wholesale and
+accept the size. It is a default, not a rule — but it is not a decision you
+want to make late. `flip doctor` warns once tracked custody passes 50 MB
+with no LFS filter, so the notebook that never chose gets told while
+choosing is still cheap.
 
 ## The core loop
 

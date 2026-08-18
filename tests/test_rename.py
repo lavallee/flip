@@ -78,3 +78,46 @@ def test_rename_leaves_titled_links_to_other_files_alone(root: Path):
     assert '[other](../references/other.md "Other title")' in prose.read_text(
         encoding="utf-8"
     )
+
+
+def test_renaming_a_hub_source_rewrites_every_citation(root: Path):
+    """A hub source is the untested case at scale: one measured notebook cited
+    a single meta-review 113 times across 49 claim pages plus its notebook.md,
+    so a rename that missed even one link would leave a dangling citation
+    somewhere nobody would look. The fan-out itself is what is under test."""
+    from flip.doctor import run_doctor
+
+    for n in range(1, 41):
+        pages.write_page(
+            root / "claims" / f"c{n}.md",
+            {"type": "Claim", "id": f"C{n}", "aliases": [f"C{n}"],
+             "description": f"claim {n}", "status": "asserted",
+             "sources": [{"id": "A1"}], "independent_corroboration": 0,
+             "first_asserted": "2026-08-17"},
+            "Rests on [X](../references/x.md), see also [X again](../references/x.md#p2).\n",
+        )
+    (root / "notebook.md").write_text(
+        "# t\n\nThe spine of this notebook is [X](references/x.md).\n", encoding="utf-8"
+    )
+    pages.write_page(
+        root / "questions" / "q1.md",
+        {"type": "Question", "id": "Q1", "aliases": ["Q1"],
+         "description": "does X hold?", "status": "open"},
+        "Turns on [X](../references/x.md).\n",
+    )
+
+    _old, _new, changed = rename_entity(root, "A1", "the-meta-review")
+
+    assert changed >= 42  # 40 claim pages + notebook.md + the question page
+    for path in [
+        *(root / "claims").glob("c*.md"),
+        root / "notebook.md",
+        root / "questions" / "q1.md",
+    ]:
+        text = path.read_text(encoding="utf-8")
+        assert "x.md" not in text, path
+        assert "the-meta-review.md" in text, path
+    # the fragment survives its rewrite — a quote anchor is part of the citation
+    assert "the-meta-review.md#p2" in (root / "claims" / "c1.md").read_text(encoding="utf-8")
+    # and nothing is left dangling for doctor to find
+    assert not [f for f in run_doctor(root) if f.code == "dangling-citation"]

@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.18 · 2026-08-12
+**Status:** draft v0.19 · 2026-08-17
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -104,6 +104,8 @@ from its local files alone.
     <UTC stamp>-<slug>.md
   analysis/                # graduated prose: hypotheses.md, findings.md, …
                            #   (concept pages: any type fits)
+  evaluation/              # non-entity working files: harnesses, scoring runs,
+                           #   checks — never entity pages, no frontmatter owed
   sources/
     raw/                   # verbatim bytes as captured (non-md; OKF-unconstrained)
     text/                  # readable derivatives of raw/, 1:1 by source id
@@ -120,6 +122,7 @@ from its local files alone.
   drafts/                  # versioned drafts: v0/, v1/, current -> vN
   renders/                 # generated downstream artifacts (gitignored by default)
   HANDOFF.md               # cold-start resume view (graduates from notebook.md)
+  NEXT_STEPS.md            # optional: forward-looking work, bounded prose
   lessons.md               # end-of-life distillation, for other notebooks
 ```
 
@@ -131,12 +134,51 @@ define the rest. Directories appear when first needed.
 everything under `sources/raw/`, `derived/`, and the `_*.jsonl` ledgers is
 non-markdown sidecar content, which OKF explicitly leaves unconstrained.
 
+### notebook.md — working memory is synthesis
+
+Working memory means **prose**: the current understanding, the live tensions,
+what changed and why — thought written down, not records copied over.
+Ledgered entities are cited by id (`[A3]`, `[C7]`, `[D2]`) and never
+re-listed in notebook.md: the pages are canonical and one `flip open` away,
+the generated listings already exist (§10), and a copy starts drifting from
+its original the moment either moves. The failure mode is real and expensive:
+a measured notebook.md reached 63.5 KB by duplicating 25 decision pages and
+301 reference listings into its own body — an index wearing the costume of
+thought, charging every reader (agents most of all) the whole ledger's tokens
+on every open while saying nothing the ledgers didn't. `flip doctor` warns
+once notebook.md passes 24 KB, because past that size the file has almost
+certainly stopped being synthesis.
+
+### NEXT_STEPS.md — forward-looking work, recognized
+
+`NEXT_STEPS.md` is an optional root file for forward-looking work: bounded
+prose about what to do next — open moves, priorities, parked intentions, in
+the operator's own order. It entered the spec by observation, not design: in
+seven independent autonomous runs over real notebooks, all seven invented
+exactly this file, while the spec'd HANDOFF.md appeared in three of seven.
+When every run routes around the spec in the same direction, the hole is in
+the spec. The two files answer different questions and do not merge:
+**HANDOFF.md remains the cold-pickup surface** — where things stand, for a
+reader arriving cold — and may point at NEXT_STEPS.md for what to do about
+it. Like notebook.md, it is synthesis that cites ids and re-lists nothing.
+
+`evaluation/` is recognized on the same evidence: a **non-entity working
+directory** alongside `analysis/` for harnesses, scoring runs, and checks.
+The distinction is the point — `analysis/` holds concept pages (typed
+frontmatter, H# ids resolve there), while files under `evaluation/` are
+working material: no frontmatter is owed, doctor does not read them as
+concept pages, and no listing is generated over them.
+
 ### Naming rules
 
 - **Entity filenames are human slugs, not ids**: `references/
   lecun-jepa-keynote.md`, `claims/ai-traffic-converts-42pct.md`. The stable
   id lives in frontmatter (§9). Slugs are `^[a-z0-9][a-z0-9-]*$`, derived
-  from the title/text at creation (collisions get `-2`, `-3`); `flip rename`
+  from the title/text at creation. A collision takes the id-qualified form
+  (`a261-index`) rather than a counter, because a counter names nothing —
+  one measured corpus held eight distinct sources whose entire slug identity
+  was `index-3` … `index-10`; a bare counter remains the fallback where no id
+  is available, and existing counter-suffixed files stay valid. `flip rename`
   changes a slug and rewrites every link to it.
 - Session files are UTC-stamped: `2026-07-10T1430-corpus-sweep.md`.
 - Private scratch files use a `_` prefix and are never rendered or listed.
@@ -225,6 +267,17 @@ Two identity keys arrived with profile 0.5:
   the original file. API pulls: the verbatim response JSON.
 - Once captured, a raw file is immutable; recapture creates a new dated
   entry, it does not overwrite.
+- **The envelope carries metadata; a document lands as its own file.** A
+  capture tool that hands document bytes back inside a JSON string field has
+  packed a payload where metadata goes, and the mistake compounds: JSON
+  escaping inflates the bytes ~2.5×, and the "text derivative" of the wrapper
+  is mojibake (measured: 627 MB of PDF bytes escaped into JSON strings across
+  one corpus, one 104 MB `capture.json` wrapping a 41.6 MB PDF). flip
+  materializes such payloads to their own file **at capture time, before
+  provenance is written**, so every recorded hash reflects what actually
+  landed in custody; a payload whose bytes were already lost to a lossy
+  decode upstream is left in place as evidence rather than corrupted further,
+  for doctor to name.
 
 **Capture methods — the ladder.** `strategy` in the capture log records *how*
 the bytes were obtained, from a fixed vocabulary; the *actor* is already
@@ -572,6 +625,46 @@ lands and a lane exists, and named by doctor thereafter.
 and the package must not acquire an opinion about PDF libraries (§16). The
 starter config carries a fully commented `[extractors]` stanza, and every
 refusal names the operator's own file and lanes.
+
+### 5.6 Custody storage — where the bytes live in a git repo
+
+Custody is bytes, often large ones, and git remembers every version of
+everything forever. What a git-managed notebook does with `sources/raw/` is a
+policy decision the operator owns — flip does not build paternalistic
+software, and like the acquisition stance (§5.1) this is **a default with
+worked alternatives, not a rule**: an opinion for the common case, and every
+part of it is the operator's to change.
+
+**The default: track `sources/raw/` with git-LFS.** Custody stays versioned,
+cloneable, and inside the same repository as the judgments that rest on it;
+the working tree carries real bytes; history carries pointers instead of
+payloads, so the repo never swallows its own archive. This is the stance to
+deviate from knowingly.
+
+Two worked alternatives, each honest about what it trades:
+
+- **Ledger-committed custody.** gitignore `sources/raw/` and commit the
+  provenance ledger (`sources/_provenance.jsonl`) plus a sha256 manifest of
+  the raw tree. Custody stays local, integrity stays provable — anyone
+  holding the bytes can verify them against the committed hashes — and the
+  repo stays small. The trade: a clone is not custody; the bytes travel by a
+  separate channel (`flip export bag`, a share, a blob store).
+- **Committed custody, wholesale.** Commit `sources/raw/` as ordinary git
+  objects. Every clone is a full custody copy — the strongest availability
+  story there is — and the cost compounds silently and permanently: a
+  measured corpus reached a **931 MB `.git`** carrying a 104 MB blob in
+  history, and git history cannot be cheaply unwritten — rewriting it
+  invalidates every clone, every commit ref, every collaborator's checkout.
+
+**Decide at `flip new` time.** The whole reason this is a creation-time
+decision is the last line above: the default failure mode is not choosing,
+capturing for months under git's own default (wholesale commit), and
+discovering the weight only when the repo is already too heavy to move —
+at which point every option involves rewriting history. `flip doctor` warns
+when it finds raw custody bytes committed as ordinary git objects (the
+custody-in-git warning, so the notebook that never chose gets told while
+choosing is still cheap); a repo that chose wholesale commit on purpose is
+the operator's call, taken with its cost stated.
 
 ## 6. The flip profile — lineage rules for LLM-built wikis
 
@@ -1403,6 +1496,46 @@ latest session) from pages and ledgers; `index.md` bodies and `log.md` are
 their at-rest equivalents, regenerated by flip on every mutating command.
 Nothing is deleted to keep context small — hot vs cold is a projection.
 
+**Generated listings are bounded.** A directory listing is a sign, not the
+roster. Past `INDEX_LIST_CAP` (50) entries, a generated `index.md` lists the
+newest entries and counts the rest in an overflow footer that names the list
+command serving the full roster — measured: a 301-source `references/
+index.md` ran 73 KB, ~18 K tokens spent on a directory sign. Hot-view
+rosters cap at `HOT_ROSTER_CAP` (8) lines per section with the same footer —
+measured: one steady-state hot view was 74 % armed-trigger roster, burying
+the single actionable claim. The caps bound only the prose projections:
+counts stay exact, the list commands (`flip source|claim|question|commission
+list`) carry the complete roster, and every `--json` surface is complete —
+an agent that needs everything asks for data, not prose.
+
+**Regeneration is incremental, and byte-identical to the full rebuild.** A
+mutating command names the entity directories it touched; unchanged
+directories keep their listings, with the root `index.md` body's counts
+served from **`.flip/viewcache.json`** — a derived count cache and nothing
+more. Measured motivation: the full rebuild re-parses every page on every
+mutation, so one `flip log` append cost 1.06 s at 301 sources and 19.8 s at
+10,300 pages. The cache is machine-local state like the rest of `.flip/`
+(§17): it never ships, and it is safe to delete at any time — absent or
+corrupt, every count is recounted from the pages, so it can only ever save
+work, never change output.
+
+**The cache is verified, not trusted**, because the generated views are not a
+function of the entity pages alone. Every entry carries a cheap fingerprint
+of the directory it describes — how many entity files it holds and the newest
+mtime among them, one directory scan and no parsing — and an entry whose
+fingerprint no longer matches is a miss. This is what keeps the invariant
+true when flip is not the only writer, which is the normal case and not the
+exception: pages are hand-editable by contract (§3), the reference client
+writes them (§20), `flip import --update` replaces them wholesale (§18), and
+git checks them out. The questions entry additionally remembers the earliest
+pending `review_by` date, because a dormant question resurfaces on the
+morning its review comes due with nothing on disk having changed (§7) — an
+entry that could not expire itself would freeze a count the calendar had
+already made wrong. Only an incremental caller ever writes the cache; a full
+rebuild leaves it untouched, so read-only projections (`flip export`) neither
+create a side file nor refresh one, and the next mutation re-grounds any
+stale entry through the fingerprint.
+
 ## 11. Renders and drafts
 
 - Drafts are versioned explicitly: `drafts/v0/`, `drafts/v1/`, `current`
@@ -1689,6 +1822,34 @@ provenance. **Hints are recorded as a page note, never the grade** — grading
 stays a judgment made after reading (SPEC §5.4). An absent envelope changes
 nothing; a strict producer, a tolerant consumer.
 
+Two of those keys are trust boundaries, not pass-throughs. **`strategy` is a
+claim about the capture method and is validated against the §5.1 vocabulary
+at the boundary** — the same check `--strategy` faces — because what
+fetchers actually report outside the vocabulary is their own name (a
+measured corpus held `direct`, `googlebot`, `pdf`: tool trivia, not
+methods), and the tool's name already lands in `tool`. An out-of-vocabulary
+claim is refused with the vocabulary in hand, not recorded for doctor to
+flag later.
+
+A refusal is not a failure, and the ledger must not say it was. The
+acquisition succeeded — the fetcher looked and delivered — so the capture is
+logged with status **`refused`**, carrying the files it fetched with their
+hashes and the word it reported. Recording the bytes is what keeps them from
+becoming orphan custody the operator can only clear by hand; `refused` is
+what keeps them out of every consumer that walks the ledger for captures.
+No entity page is opened, so nothing can cite them, and the refusal names
+where they are so the operator can re-run or delete after fixing the fetcher.
+
+**A fetcher that makes no claim records no method**: the
+provenance row simply carries no `strategy` key, and fidelity derives
+`unknown` (§5.1). Absence is the honest record — an earlier fallback
+invented a placeholder word here, which put a claim nobody made into the
+ledger and made flip mint findings its own doctor then flagged (85 of them
+across one measured corpus). And a document is never accepted as an envelope
+field: binary payloads found in an envelope's content strings are
+materialized to their own file at capture (§5.1) — the envelope carries
+metadata; the document lands as itself.
+
 This is how a shared blob/archive store plugs in without flip knowing it exists:
 a capture command may check the store first and, on a hit, serve the stored
 bytes (still writing the mandatory local copy) with `from_cache: true` and
@@ -1783,8 +1944,9 @@ documentation, or portable skills.
 
 Identity travels with the bundle; local state does not. `uid` and `origin`
 ride in the root `index.md` frontmatter, so every export and bag carries
-them; `.flip/` (id reservations, the workspace table) and workspace handles
-never ship — the receiving side chooses its own handle.
+them; `.flip/` (id reservations, the workspace table, the derived view
+cache — §10) and workspace handles never ship — the receiving side chooses
+its own handle.
 
 **`flip import <src>`** is the reverse projection: bring a shared notebook
 into the enclosing workspace (§18) from a notebook directory, an OKF export
