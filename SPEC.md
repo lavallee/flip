@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.19 · 2026-08-18
+**Status:** draft v0.20 · 2026-08-18
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -1682,6 +1682,58 @@ beat. In a workspace (§18), handles bind *notebooks* only — a beat root is
 not bindable, but workspace discovery walks through it to the real
 notebooks under `notebooks/`. Beat-level doctor, saturation warnings ("this
 well is over-visited"), and richer coverage roll-ups are future work (§19).
+
+### 14.1 Running a beat on a loop
+
+A beat is already a standing mission, so it is where a **loop policy** lives:
+an optional `auto:` block in the beat manifest, and one computed view over it.
+
+```yaml
+auto:
+  selection: [in-flight, commissioned, due, open-question, thread]
+  stop: no unblocked item this pass
+  authority: capture, grade, claim, publish; never delete custody
+  materiality: a reader-relevant public change, not a status edit
+  surfaces: [the public site, the shared worklist]
+  cadence: daily
+```
+
+Every key is **policy that a reader honours, not behaviour flip enforces**.
+`selection` is the exception, because it is the one key flip computes with: it
+orders the lanes of `flip beat next`, and a lane outside the vocabulary is
+refused rather than ignored — a mission running a policy nobody wrote is the
+one failure an autonomous pass cannot notice from the inside. Unknown keys
+ride along verbatim, like every other manifest.
+
+**`flip beat next`** answers the question a pass opens with: *what should I
+pick up?* It ranks what the beat and its notebooks already record — load-
+bearing claims whose bar is unmet (`in-flight`), commissions dispatched and
+not returned (`commissioned`), forecasts at their date and questions off
+dormancy (`due`), the open-question roster, and un-graduated threads by triage
+score — each row carrying the reason it is there. Computed, never stored, like
+triage. Order is deterministic within a lane, so two agents reading one corpus
+choose the same item. A directory under `notebooks/` that cannot be read is
+*reported*, never skipped: to the caller, "skipped it" and "found nothing in
+it" look identical, and only one is a reason to go look.
+
+This exists because re-grounding was the measured cost of running a corpus on
+a loop — orienting cold in a 507-page notebook ran ~40K tokens of generated
+views before any research happened, and every pass paid it again.
+
+**flip does not run the loop, and holds no cadence.** A harness — a cron job,
+an agent runtime, a person at a terminal — decides when to wake, what budget a
+pass carries, and whether its authority is real; `cadence:` records the
+intent so the harness and the agent read one policy instead of two. The
+contract a harness needs is small: invoke something, read `flip beat next
+--json`, do the work, and leave the ledgers as the receipt. Nothing in this
+section names a runtime, and nothing in flip schedules anything.
+
+Deliberately not here yet: **pass accounting**. A mission's `materiality`
+prose is exactly the kind of anti-gaming rule that ought to be machine-checked
+— a pass that edited a status and called it progress should be visible as one
+— but deriving that honestly from the event log needs a session receipt this
+version does not define, and a check that guessed would give false confidence
+about the thing it exists to doubt. See §19.
 
 ## 15. Tooling — the flip CLI
 

@@ -9,6 +9,7 @@
 - [AGENTS.md](AGENTS.md): How agents should use flip — the five-minute tour with real output, the lineage-rule contract (capture before cite, round-trip rule, verification bar, a position is not a status), and task recipes including question pursuit.
 - [docs/claude-code.md](docs/claude-code.md): The Claude Code and Codex plugins — installation and updates, the seven skills, custody-hook coverage by harness, attribution, and what a conversational session leaves behind.
 - [docs/quickstart.md](docs/quickstart.md): Human-facing walkthrough — the conversational lane and the CLI lane, create a notebook, the capture→grade→claim→verify loop, holding a position and testing it, the question journey, keeping a conversation citable, ids and renames, integration-lane configuration (fetchers and extractors), profiles, migrating from v0.3, and using the notebook as an Obsidian vault.
+- [docs/loops.md](docs/loops.md): Running a beat on a loop — the `auto:` policy block, `flip beat next` (the ranked frontier a pass re-grounds on instead of re-reading the notebook), the small harness contract, and what flip deliberately leaves to the scheduler.
 - [docs/internals.md](docs/internals.md): Module map and code contracts for the reference implementation (normative for contributors).
 
 ## Optional

@@ -6,6 +6,51 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-08-18
+
+The loop release. A beat was already a standing mission; this makes it one
+a scheduler can drive without flip learning to schedule.
+
+### Added
+
+- **`auto:` — a loop policy on the beat manifest (SPEC §14.1).**
+  `selection`, `stop`, `authority`, `materiality`, `surfaces`, `cadence`.
+  Every key is policy a reader honours rather than behaviour flip
+  enforces, with one exception: `selection` orders the lanes below, and a
+  lane outside the vocabulary is refused rather than ignored — a mission
+  running a policy nobody wrote is the one failure an autonomous pass
+  cannot notice from the inside. Unknown keys ride along verbatim.
+- **`flip beat next [--json] [--limit N]`** — the ranked frontier a pass
+  re-grounds on. It answers *what should I pick up?* from what the beat
+  and its notebooks already record: load-bearing claims below the
+  verification bar, commissions dispatched and not returned, forecasts at
+  their date and questions off dormancy, the open-question roster, and
+  un-graduated threads by triage score — each row carrying the reason it
+  is there. Computed, never stored, like triage.
+
+  This exists because re-grounding was the measured cost of running a
+  corpus on a loop: orienting cold in a 507-page notebook ran ~40K tokens
+  of generated views, before any research happened, on every pass.
+
+  Order inside a lane is deterministic (notebook slug, then id), so two
+  agents reading one corpus choose the same item. An empty frontier is
+  **not** reported as "done" — flip cannot tell that from "blocked", and
+  the mission's `stop` condition is what does. A directory under
+  `notebooks/` that cannot be read is reported, never skipped: to the
+  caller, "skipped it" and "found nothing in it" look identical, and only
+  one is a reason to go look.
+- **[docs/loops.md](docs/loops.md)** — the harness contract, which is
+  small on purpose: invoke something, read `flip beat next --json`, do the
+  work, let the ledgers be the receipt. No runtime is named, and flip
+  schedules nothing.
+
+Deliberately not here: **pass accounting.** A mission's `materiality` rule
+is exactly the kind of anti-gaming prose that ought to be machine-checked —
+a pass that edited a status and called it progress should be visible as one
+— but deriving that honestly needs a session receipt this version does not
+define, and a check that guessed would hand you false confidence about the
+one thing it exists to doubt.
+
 ## [0.19.1] — 2026-08-18
 
 Found by running 0.19.0's own repair over the corpus that motivated it.

@@ -2673,6 +2673,34 @@ def beat_show(as_json: bool) -> None:
     click.echo(json.dumps(out, ensure_ascii=False, indent=2) if as_json else out)
 
 
+@beat.command("next")
+@click.option("--json", "as_json", is_flag=True, help="Emit the frontier as JSON.")
+@click.option("--limit", "limit", type=int, default=None,
+              help="Show only the top N items (the total is always reported).")
+def beat_next(as_json: bool, limit: int | None) -> None:
+    """What this beat should pick up next, ranked, with the reason for each.
+
+    The re-grounding primitive for a standing loop: instead of re-reading a
+    notebook to work out where the last pass left off — measured at ~40K
+    tokens of generated views in a large one — a pass asks for the frontier
+    and gets in-flight claims, dispatched commissions, forecasts and parked
+    questions come due, open questions, and un-graduated threads, ordered by
+    the beat's `auto: selection:` policy.
+
+    Computed, never stored, like beat triage. flip does not run the loop and
+    holds no cadence: a harness decides when to wake and what authority a
+    pass carries; the `auto:` block is where that standing policy is written
+    so both the harness and the agent read the same one.
+    """
+    from . import auto as auto_mod
+
+    if limit is not None and limit < 1:
+        raise SystemExit("--limit takes a positive number of items")
+    data = auto_mod.frontier(beat_mod.require_beat_root(), limit=limit)
+    click.echo(json.dumps(data, ensure_ascii=False, indent=2) if as_json
+               else auto_mod.render(data))
+
+
 @beat.command("log")
 @click.argument("text")
 def beat_log(text: str) -> None:
