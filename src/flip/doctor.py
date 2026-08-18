@@ -126,6 +126,9 @@ NOTEBOOK_MD_CAP = 24 * 1024
 # ("%PDF") or \u-escaped ("PK", what json.dumps makes of control
 # bytes); a rescued field opens with flip's own breadcrumb and matches neither.
 _ENVELOPE_HEAD_BYTES = 64 * 1024
+# A `\uXXXX` escape naming a code point above U+00FF — a character that was
+# never a byte, so a payload carrying one was decoded lossily before capture.
+_HIGH_ESCAPE_RE = re.compile(r"\\u(?!00)[0-9a-fA-F]{4}")
 _BINARY_PAYLOAD_RE = re.compile(
     '"(?P<field>' + "|".join(integrations._PAYLOAD_FIELDS) + ')"\\s*:\\s*"(?:'
     + "|".join(
@@ -165,7 +168,7 @@ CHECK_CODES: frozenset[str] = frozenset({
     "orphan-provenance", "stale-freshness", "unregistered-raw",
     "source-drift", "drifted-evidence", "thin-capture", "unvocabularied-method",
     "unreported-method", "capture-method-drift",
-    "binary-in-envelope", "duplicate-custody",
+    "binary-in-envelope", "unrecoverable-payload", "duplicate-custody",
     "truncated-title", "machine-title", "ungraded-cited",
     # scale hardening (0.19): what a 1.66 GB, 682-source corpus taught
     "notebook-md-bloat", "next-steps-bloat", "custody-in-git", "workspace-nudge",
@@ -407,6 +410,17 @@ def _rescue_source_dir(
         origin = _latest_row_for(provenance, env_rel)
         new = integrations.materialize_envelope(envelope, source_dir)
         if not new:
+            # A repair that declines must say so. Silence here reads as "there
+            # was nothing to do", and the one corpus this was built for had 70
+            # payload fields, every one of them unrecoverable: an operator who
+            # ran --fix and saw no output would have concluded the notebook was
+            # fine, when what it actually holds is damaged renderings of
+            # documents its ledger claims custody of.
+            if _envelope_holds_a_payload(envelope):
+                done.append(
+                    f"declined {env_rel}: its payload was decoded lossily before "
+                    "capture — the bytes cannot be recovered, only re-captured"
+                )
             continue
         rescued_any = True
         ts = utc_now()
@@ -462,6 +476,17 @@ def _rescue_source_dir(
             },
         )
     return rescued_any
+
+
+def _envelope_holds_a_payload(envelope: Path) -> bool:
+    """True when this envelope still carries a document in a string field —
+    the same head-scan `_check_envelopes` uses, so the repair's report and the
+    finding can never disagree about what is in there."""
+    try:
+        with envelope.open("r", encoding="utf-8", errors="replace") as fh:
+            return bool(_BINARY_PAYLOAD_RE.search(fh.read(_ENVELOPE_HEAD_BYTES)))
+    except OSError:
+        return False
 
 
 def _latest_row_for(provenance: list[dict], local_path: str) -> dict | None:
@@ -1618,6 +1643,27 @@ def _check_envelopes(root: Path, findings: list[Finding]) -> None:
         if not m:
             continue
         rel = path.relative_to(root).as_posix()
+        if _payload_is_lossy(head, m.end()):
+            # Far worse than a storage-shape problem, and it must not be
+            # reported as one: the fetcher decoded the document with a lossy
+            # codec before writing it here, so the bytes on disk cannot
+            # reconstruct it. The capture row says the document is in custody.
+            # It is not, and no repair can put it there.
+            findings.append(
+                _warn(
+                    "unrecoverable-payload",
+                    f"{rel} holds what is left of a document in its "
+                    f"'{m.group('field')}' field, decoded with a lossy codec "
+                    "before it was written — the original bytes are gone, and "
+                    "`--fix` cannot bring them back. The capture row still says "
+                    "this document is in custody; it holds a damaged rendering "
+                    "of it. Re-capture the source (`flip source recheck`, then "
+                    "`flip add-source`), and fix the fetcher to hand flip the "
+                    "bytes rather than a decoded string (SPEC §15)",
+                    rel,
+                )
+            )
+            continue
         findings.append(
             _warn(
                 "binary-in-envelope",
@@ -1629,6 +1675,26 @@ def _check_envelopes(root: Path, findings: list[Finding]) -> None:
                 rel,
             )
         )
+
+
+def _payload_is_lossy(head: str, start: int, window: int = 4096) -> bool:
+    """True when a payload's opening characters cannot be bytes any more.
+
+    A payload that still round-trips holds only U+0000–U+00FF (that is what
+    `latin-1` means, and it is the only decode `materialize` can undo). Any
+    character above that range is proof a lossy codec ran before the fetcher
+    wrote the file: U+FFFD where bytes were replaced, or a code-page glyph
+    where they were reinterpreted. Reading the same head the scan already
+    read keeps the check free — no parsing, no second pass over a file that
+    can be tens of megabytes.
+
+    Both spellings count, because a JSON writer may or may not escape: the
+    character itself when the file was written with `ensure_ascii=False`, or
+    the six-character `\\uXXXX` escape when it wasn't. Only the escapes above
+    `\\u00ff` qualify — `\\u00e9` is a byte and rescuable.
+    """
+    text = head[start:start + window]
+    return any(ch > "ÿ" for ch in text) or bool(_HIGH_ESCAPE_RE.search(text))
 
 
 def _check_duplicate_custody(provenance: list[dict], findings: list[Finding]) -> None:

@@ -1,7 +1,7 @@
 window.__FLIP_META__ = {
-  "generated": "2026-08-18T02:27:55+00:00",
-  "version": "0.19.0",
-  "revision": "4924547",
+  "generated": "2026-08-18T02:57:38+00:00",
+  "version": "0.19.1",
+  "revision": "a21a451",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",
@@ -9,8 +9,8 @@ window.__FLIP_META__ = {
   ],
   "license": "MIT",
   "package": "flip-notebook",
-  "tests": 1276,
-  "spec_status": "draft v0.19 \u00b7 2026-08-17",
+  "tests": 1279,
+  "spec_status": "draft v0.19 \u00b7 2026-08-18",
   "spec_lines": 2065,
   "skills": [
     "notebook-audit",

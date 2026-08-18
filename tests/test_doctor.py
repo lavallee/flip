@@ -1866,6 +1866,61 @@ def test_an_escaped_payload_is_caught_and_a_rescued_one_is_not(tmp_path):
     assert found == {"escaped.json"}
 
 
+def test_a_payload_decoded_lossily_is_named_as_unrecoverable(tmp_path):
+    # The shape a real corpus turned out to hold: EVERY one of its 70 stuffed
+    # payload fields had been decoded with a lossy codec before capture, so
+    # `--fix` could repair none of them. Reporting that as an ordinary
+    # storage-shape problem told the operator to run a repair that would
+    # silently do nothing, while the capture row went on claiming custody of a
+    # document the notebook cannot reconstruct.
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", prov=False)
+    raw = root / "sources" / "raw" / "A1"
+    raw.mkdir(parents=True, exist_ok=True)
+    (raw / "capture.json").write_text(
+        json.dumps({"url": "https://example.com/p.pdf",
+                    "html": "%PDF-1.7\n�� broken � rendering"}),
+        encoding="utf-8",
+    )
+    found = [f for f in run_doctor(root) if f.code == "unrecoverable-payload"]
+    assert len(found) == 1
+    assert "cannot bring them back" in found[0].message
+    assert "Re-capture the source" in found[0].message
+    # and it is NOT reported as the repairable kind
+    assert "binary-in-envelope" not in codes(run_doctor(root))
+
+
+def test_a_code_page_reinterpretation_is_unrecoverable_too(tmp_path):
+    # Not every lossy decode leaves U+FFFD: one measured capture came back
+    # through a code page, so its bytes read as box-drawing glyphs.
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", prov=False)
+    raw = root / "sources" / "raw" / "A1"
+    raw.mkdir(parents=True, exist_ok=True)
+    (raw / "capture.json").write_text(
+        json.dumps({"html": "%PDF-1.7\n┐┐ reinterpreted"}), encoding="utf-8"
+    )
+    assert "unrecoverable-payload" in codes(run_doctor(root))
+
+
+def test_a_recoverable_payload_is_still_the_repairable_kind(tmp_path):
+    # latin-1-round-trippable bytes are exactly what `--fix` can rescue, and
+    # they must not be swept into the unrecoverable bucket by a stray
+    # high character elsewhere in the file.
+    root = make_notebook(tmp_path)
+    source_page(root, "A1", prov=False)
+    raw = root / "sources" / "raw" / "A1"
+    raw.mkdir(parents=True, exist_ok=True)
+    (raw / "capture.json").write_text(
+        json.dumps({"title": "Ünicode is fine out here — ✓",
+                    "html": (b"%PDF-1.7\n" + bytes(range(256)) * 4).decode("latin-1")}),
+        encoding="utf-8",
+    )
+    found = codes(run_doctor(root))
+    assert "binary-in-envelope" in found
+    assert "unrecoverable-payload" not in found
+
+
 def test_the_same_bytes_under_two_source_ids_is_named(tmp_path):
     # Four PDF pairs sat this way inside one notebook; `flip show --stale`
     # counted each document twice.
