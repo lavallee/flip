@@ -60,6 +60,13 @@ traces to one of those numbers.
   `flip log` append cost 1.06 s at 301 sources and 19.8 s at 10,300
   pages. Only incremental callers create the cache; full rebuilds
   refresh but never create it, so `flip export` stays side-effect-free.
+  Measured after: a `flip log` append settles at **2 ms at any notebook
+  size** (from 1.06 s at 301 sources and 6.7 s at 3,301), and
+  `references/index.md` holds at ~4.8 KB where it ran 73 KB at 301
+  sources and projected 1.89 MB at 10,300. The first mutation after a
+  full rebuild still pays the full recount — that is the run that
+  populates the cache — which is the price of keeping export
+  side-effect-free, and it is paid once, not per mutation.
 
 - **Nine doctor findings for what autonomous capture actually produces.**
   The linter was well-built for the failure modes flip anticipated and
