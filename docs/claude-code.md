@@ -20,9 +20,8 @@ tracks releases.
 
 ## Install for the harness
 
-The CLI performs and validates notebook operations. The plugin supplies the
-skills that teach the harness when and how to perform them. Install both; humans
-normally direct the work conversationally rather than operating the CLI.
+Install the plugin; its skills guide the rest of setup. Humans normally direct
+the work conversationally rather than operating the CLI.
 
 In Claude Code:
 
@@ -38,19 +37,18 @@ codex plugin marketplace add lyra-forge/marketplace
 codex plugin add flip@lyra-forge
 ```
 
-Put the CLI the skills drive on your PATH:
-
-```bash
-uv tool install flip-notebook      # or: pipx install flip-notebook
-```
+Start a new session. When an approved pilot invokes the creation skill, it checks
+whether `flip` is on the agent's PATH. If not, the agent asks to install
+`flip-notebook` once with `uv tool` or `pipx`, as a tool rather than a project
+dependency, and verifies the installed version before creating the notebook.
 
 The marketplace does not pin Flip, so it tracks the default branch. In Claude
 Code, update with `/plugin marketplace update lyra-forge` followed by
 `/plugin update flip@lyra-forge`. In Codex, run
 `codex plugin marketplace upgrade lyra-forge` followed by
 `codex plugin add flip@lyra-forge`. Start a new session after either update.
-The plugin's version matches the PyPI release it shipped with; keeping the CLI
-and plugin in step is one `uv tool upgrade flip-notebook` away.
+The plugin's version matches the PyPI release it shipped with; the skill can
+also guide `uv tool upgrade flip-notebook` when the CLI needs to catch up.
 
 ## What a session looks like
 

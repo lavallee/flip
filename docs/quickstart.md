@@ -13,13 +13,14 @@ guide](agent-orientation.md). It inspects the existing workflow read-only,
 recommends the smallest useful pilot, and treats `defer` or `not a fit` as valid
 outcomes. No repository change or installation is part of that assessment.
 
-**Conversational (recommended):** install the CLI and agent plugin. In Claude Code,
-run `/plugin marketplace add lyra-forge/marketplace` and
+**Conversational (recommended):** install the agent plugin. In Claude Code, run
+`/plugin marketplace add lyra-forge/marketplace` and
 `/plugin install flip@lyra-forge`; in Codex, run
 `codex plugin marketplace add lyra-forge/marketplace` and
 `codex plugin add flip@lyra-forge`. Then direct research the way you already
-talk to your agent; the agent runs the notebook under flip's discipline and
-every command below happens on your behalf. The
+talk to your agent. Its creation skill checks for the CLI and, when a pilot is
+approved, guides the one-time tool install if needed. The agent then runs the
+notebook under flip's discipline and every command below happens on your behalf. The
 [Claude Code guide](claude-code.md) covers the skills, the custody hook, and
 what a session leaves behind.
 

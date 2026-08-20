@@ -8,9 +8,12 @@ description: Start a new flip notebook — invoke when research begins and there
 Interview, pick a profile, scaffold, seed the tip. A notebook exists to hold
 one piece of research; don't create it until you can say what that piece is.
 
-**Preflight:** if `flip --version` fails, install the CLI first —
-`uv tool install flip-notebook` (or `pipx install flip-notebook`; Python
-3.12+). One tool, no services; everything below is plain files on disk.
+**Preflight:** run `flip --version`. If it fails, tell the person the plugin is
+ready but its CLI is not yet on the agent's PATH. With their approval, install it
+as a standalone tool — `uv tool install flip-notebook` (or
+`pipx install flip-notebook`; Python 3.12+) — then run `flip --version` again.
+Do not add it to the repository's project dependencies. One tool, no services;
+everything below is plain files on disk.
 
 ## Command map (verbs → leaves)
 

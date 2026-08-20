@@ -246,15 +246,27 @@
 
 /* -- home: adoption path and value ---------------------------------------- */
 
-.orientation-card { margin-top: 0; }
-.orientation-card .cmd {
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  padding: var(--sp-4);
+.orientation-card {
+  align-self: center;
+  border-top: 2px solid var(--accent);
+  padding: var(--sp-6) 0;
 }
 
-.orientation-card .record__caption strong { color: var(--text-2); }
+.orientation-card p {
+  max-width: 26rem;
+  margin: 0 0 var(--sp-5);
+  font-family: var(--font-ui);
+  font-size: var(--text-2xl);
+  font-weight: 650;
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+
+.handoff-cta[data-copied="yes"] {
+  color: var(--success);
+  background: transparent;
+  border-color: var(--success);
+}
 
 .harness-band {
   border-top: 2px solid var(--accent);

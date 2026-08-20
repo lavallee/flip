@@ -117,12 +117,13 @@ the nav; `notebook.html` is reached from the pages that earn it, below.
 - **Mode:** operator.
 - **Dials:** variance low, density compact, motion none, type register
   interface, imagery role none.
-- **Task anatomy:** agent handoff followed by a linear install. Read-only fit
-  prompt → CLI → harness plugin → new session → conversational direction. The
-  exact CLI lifecycle remains below as inspectable under-the-hood output.
+- **Task anatomy:** agent handoff followed by a linear install. One simple fit
+  invitation → harness plugin → skill-guided CLI preflight → conversational
+  direction. The exact CLI lifecycle remains below as inspectable
+  under-the-hood output.
 - **Structural fingerprint:** *orientation → authority → operation.* The page
-  first protects the existing workflow from premature mutation, then names the
-  two install components, then shows what the agent does for the human.
+  first protects the existing workflow from premature mutation, then gives the
+  agent responsibility for setup, then shows what it does for the human.
 - **Deliberately absent:** an assumption that the human will operate the CLI or
   that adoption should begin with a repository-wide migration.
 

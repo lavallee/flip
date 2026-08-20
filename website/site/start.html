@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Give flip to your agent</title>
-<meta name="description" content="Ask your agent whether flip fits, install the CLI and harness plugin, then direct source-grounded research conversationally.">
+<meta name="description" content="Ask your agent whether flip fits, install the plugin, then direct source-grounded research conversationally.">
 <link rel="icon" href="lib/artoo-kit/favicon.svg">
 <link rel="stylesheet" href="lib/artoo-kit/tokens.css">
 <link rel="stylesheet" href="lib/artoo-kit/base.css">
@@ -31,46 +31,37 @@
   <header>
     <p class="section-kicker">Start</p>
     <h1>Give flip to your agent</h1>
-    <p class="lede">Let the agent assess the fit, install the CLI and harness plugin,
-      then direct the research the way you already do. The CLI is the enforcement
-      surface underneath—not the expected human interface.</p>
+    <p class="lede">Let the agent assess the fit, install the plugin, and handle the
+      remaining setup. Then direct the research the way you already do. The CLI is
+      the enforcement surface underneath—not the expected human interface.</p>
   </header>
 
   <section id="assess-fit" class="orientation-section">
-    <p class="section-kicker">Before installing</p>
-    <h2>Ask your agent whether flip belongs here</h2>
-    <p>The orientation guide gives an agent a read-only assessment procedure. It must
-      find the current owners of evidence and workflow state, recommend the smallest
-      useful pilot, name the costs, and report before touching the repository.</p>
-    <p class="pane-label">Paste this into the agent already working in the repository</p>
-    <div class="cmd cmd--prompt"><code>Read https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md. Inspect this repository and its current research workflow read-only. Do not install anything or change files yet. Tell me whether flip is a fit, the smallest useful pilot, where it should live, which notebook kind fits, what it would coexist with, and what the costs and failure modes would be.</code></div>
-    <p><a href="https://github.com/lavallee/flip/blob/main/docs/agent-orientation.md">Read the orientation guide yourself →</a></p>
+    <h2>Curious about how flip can work for you?</h2>
+    <p><a class="btn btn--solid handoff-cta"
+      href="https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md"
+      data-copy-text="Read https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md. Inspect this repository and its current research workflow read-only. Do not install or change files yet. Tell me whether flip is a fit, the smallest useful pilot, where it should live, what it would coexist with, and what it would cost."
+      data-copied-label="Copied — paste it into your agent">Hand this to your agent</a></p>
   </section>
 
   <section id="install">
     <p class="section-kicker">Approved pilot</p>
-    <h2>Install for the harness</h2>
-    <p>There are two parts. The CLI writes and validates the portable notebook. The
-      plugin packages the skills that teach the harness when and how to use it.</p>
+    <h2>Install the plugin</h2>
+    <p>It gives the harness the skills that operate flip. When the first approved
+      notebook begins, the creation skill checks for the CLI and guides its one-time
+      installation if it is not already on the agent's PATH.</p>
 
     <ol class="steps steps--compact">
       <li>
-        <h3>Put the CLI on the agent's PATH</h3>
-        <div class="cmd"><code>uv tool install flip-notebook</code></div>
-        <p>Or <code>pipx install flip-notebook</code>. This is a tool install, not a
-          project dependency. Python <span data-fact="python">3.12+</span>; two
-          libraries; no service, network call, or model call in the core.</p>
-      </li>
-
-      <li>
-        <h3>Add the plugin</h3>
+        <h3>Add flip to your harness</h3>
         <p class="install-label">Claude Code</p>
         <div class="cmd cmd--bare"><code>/plugin marketplace add lyra-forge/marketplace
 /plugin install flip@lyra-forge</code></div>
         <p class="install-label">Codex</p>
         <div class="cmd"><code>codex plugin marketplace add lyra-forge/marketplace
 codex plugin add flip@lyra-forge</code></div>
-        <p>Both receive the same seven notebook skills. Claude Code also receives a
+        <p>Both receive the same seven notebook skills. Start a new session after
+          installation. Claude Code also receives a
           custody hook around <code>WebFetch</code>. Codex's hosted web tools do not
           traverse that local hook path, so the skills and final doctor pass carry the
           capture discipline there.</p>

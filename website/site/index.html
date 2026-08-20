@@ -43,13 +43,12 @@
       <a class="btn btn--quiet" href="https://lavallee.github.io/flip-examples/">See real notebooks</a>
     </p>
   </div>
-  <div>
-    <p class="pane-label">Paste this into the agent already working in your repository</p>
-    <div class="record orientation-card">
-      <div class="record__chip"><strong>Read-only fit check</strong></div>
-      <div class="cmd cmd--prompt"><code>Read https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md. Inspect this repository and its research workflow read-only. Do not install or change files yet. Tell me whether flip is a fit, the smallest useful pilot, where it should live, what it would coexist with, and what it would cost.</code></div>
-      <p class="record__caption">The guide makes <strong>pilot</strong>, <strong>defer</strong>, and <strong>not a fit</strong> legitimate outcomes.</p>
-    </div>
+  <div class="orientation-card">
+    <p>Curious about how flip can work for you?</p>
+    <a class="btn btn--solid handoff-cta"
+      href="https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md"
+      data-copy-text="Read https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md. Inspect this repository and its research workflow read-only. Do not install or change files yet. Tell me whether flip is a fit, the smallest useful pilot, where it should live, what it would coexist with, and what it would cost."
+      data-copied-label="Copied — paste it into your agent">Hand this to your agent</a>
   </div>
 </header>
 
@@ -58,23 +57,19 @@
   <section id="harness" class="harness-band">
     <div>
       <p class="section-kicker">Harness first</p>
-      <h2>Install two pieces. Then talk normally.</h2>
-      <p class="lede">The CLI enforces the notebook contract. The plugin teaches the
-        harness when and how to use it. Humans rarely need to type flip commands.</p>
+      <h2>Install the plugin. Then talk normally.</h2>
+      <p class="lede">The plugin teaches your agent when and how to use flip. When a
+        pilot is approved, its creation skill checks for the CLI and guides the
+        one-time tool install if needed.</p>
     </div>
     <div class="install-grid">
       <div>
-        <h3>1. Put flip on the agent's PATH</h3>
-        <div class="cmd"><code>uv tool install flip-notebook</code></div>
-        <p>Or <code>pipx install flip-notebook</code>. Python
-          <span data-fact="python">3.12+</span>; no service required.</p>
-      </div>
-      <div>
-        <h3>2. Add the harness plugin</h3>
-        <p class="install-label">Claude Code</p>
+        <h3>Claude Code</h3>
         <div class="cmd cmd--bare"><code>/plugin marketplace add lyra-forge/marketplace
 /plugin install flip@lyra-forge</code></div>
-        <p class="install-label">Codex</p>
+      </div>
+      <div>
+        <h3>Codex</h3>
         <div class="cmd"><code>codex plugin marketplace add lyra-forge/marketplace
 codex plugin add flip@lyra-forge</code></div>
       </div>

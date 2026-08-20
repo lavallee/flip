@@ -10,6 +10,32 @@
   // Added by script so a reader without clipboard support never sees a
   // control that cannot do anything (no dead affordances). Idempotent, so
   // pages that swap in new command lines can call it again.
+  function wireCopy(control, value, copiedLabel) {
+    if (control.getAttribute("data-copy-ready") === "yes") return;
+    var originalLabel = control.textContent;
+    control.setAttribute("data-copy-ready", "yes");
+    control.addEventListener("click", function (event) {
+      event.preventDefault();
+      navigator.clipboard.writeText(value).then(function () {
+        control.textContent = copiedLabel || "copied";
+        control.setAttribute("data-copied", "yes");
+        window.setTimeout(function () {
+          control.textContent = originalLabel;
+          control.removeAttribute("data-copied");
+        }, 1600);
+      }, function () {
+        if (control.tagName === "A" && control.href) {
+          window.location.href = control.href;
+          return;
+        }
+        control.textContent = "copy failed";
+        window.setTimeout(function () {
+          control.textContent = originalLabel;
+        }, 1600);
+      });
+    });
+  }
+
   function enhance() {
     if (!navigator.clipboard || window.isSecureContext === false) return;
     document.querySelectorAll(".cmd").forEach(function (cmd) {
@@ -21,19 +47,16 @@
       button.className = "copy";
       button.textContent = "copy";
       button.setAttribute("aria-label", "Copy command: " + code.textContent);
-      button.addEventListener("click", function () {
-        navigator.clipboard.writeText(code.textContent).then(function () {
-          button.textContent = "copied";
-          button.setAttribute("data-copied", "yes");
-          window.setTimeout(function () {
-            button.textContent = "copy";
-            button.removeAttribute("data-copied");
-          }, 1600);
-        }, function () {
-          button.textContent = "press ⌘C";
-        });
-      });
+      wireCopy(button, code.textContent, "copied");
       cmd.appendChild(button);
+    });
+
+    document.querySelectorAll("[data-copy-text]").forEach(function (control) {
+      wireCopy(
+        control,
+        control.getAttribute("data-copy-text"),
+        control.getAttribute("data-copied-label")
+      );
     });
   }
 

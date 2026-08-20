@@ -155,12 +155,12 @@ differing in kind.
   a way *into* the spec, never a replacement that can drift from it.
 - **The comparison strip** on the home page — categorical, adjacent, no
   ranking, one row per valid axis above.
-- **The orientation handoff** in the hero and start page — one copyable prompt
-  that tells the active agent to inspect the workflow read-only, report fit and
-  costs, and propose the smallest pilot before changing anything.
-- **The harness install path** — CLI and plugin presented as two distinct pieces,
-  followed by a conversational first instruction. Manual CLI use is explicitly
-  under the hood rather than the presumed human interface.
+- **The orientation handoff** in the hero and start page — one plain-language
+  invitation whose action copies the full agent brief without making the person
+  read or understand it first.
+- **The harness install path** — the plugin is the human-facing install. Its
+  creation skill checks for and guides installation of the CLI when an approved
+  pilot actually needs it. Manual CLI use is explicitly under the hood.
 - **The claim ledger** in the footer — the site's own provenance panel, from
   its own flip notebook, via `flip export json`.
 - Rejected: a chart of any kind. There is no measured distribution here, and

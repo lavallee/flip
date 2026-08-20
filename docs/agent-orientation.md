@@ -82,9 +82,11 @@ notebook. Its lineage rules are the contract. In particular:
 - preserve unknown frontmatter keys and append-only ledgers;
 - run `flip doctor` before handoff and resolve every error.
 
-Install the CLI and the plugin or skills for the active harness. Then begin the
-approved pilot conversationally. Humans should direct the question and the
-boundaries; the agent should operate the CLI and maintain the notebook.
+Install the plugin for the active harness first. Its creation skill checks for
+the CLI and, with the person's approval, installs `flip-notebook` as a standalone
+tool if needed before beginning the pilot. Humans should direct the question and
+the boundaries; the agent should handle setup, operate the CLI, and maintain the
+notebook.
 
 The deeper guides are:
 

@@ -17,33 +17,13 @@ an attributed trail in plain files. Humans rarely need to type the CLI commands.
 
 ## Start with your agent
 
-### Ask before installing
+### Curious about how flip can work for you?
 
-If you are considering grafting flip into an existing workflow, hand this to
-your agent:
-
-> Read the [flip agent orientation
-> guide](https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md).
-> Inspect this repository and its current research workflow read-only. Do not
-> install anything or change files yet. Tell me whether flip is a fit, the
-> smallest useful pilot, where it should live, which notebook kind fits, what it
-> would coexist with, and what the costs and failure modes would be.
-
-The guide gives the agent a bounded assessment procedure and makes `pilot`,
-`defer`, and `not a fit` all legitimate outcomes.
+**[Hand this to your agent.](https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md)**
 
 ### Install for your harness
 
-There are two pieces: the `flip` CLI enforces the notebook contract; the plugin
-teaches the harness when and how to use it.
-
-Install the CLI once:
-
-```bash
-uv tool install flip-notebook      # or: pipx install flip-notebook
-```
-
-Then install the plugin in Claude Code:
+Install the plugin in Claude Code:
 
 ```text
 /plugin marketplace add lyra-forge/marketplace
@@ -62,6 +42,11 @@ skills covering notebook creation, source custody, session hygiene, claim audit,
 handoff, lessons, and outcome-kind authoring. Claude Code also receives a custody
 hook around web fetches; Codex's hosted web tools do not expose that hook event,
 so its skills and `flip doctor` carry the discipline instead.
+
+When an approved pilot starts, the creation skill checks whether the `flip` CLI
+is available and guides its one-time installation as a standalone tool if needed.
+The executable enforces the notebook contract; the human does not have to assemble
+the two layers up front.
 
 Other harnesses can read [AGENTS.md](AGENTS.md) as the runtime-neutral contract
 and load the plain [`SKILL.md` files](src/flip/skills/) directly or through the

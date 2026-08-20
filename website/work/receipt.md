@@ -127,6 +127,13 @@ draft-spec boundaries. `start.html` now assumes the human directs research while
 the agent operates the CLI, with the exact commands retained as inspectable
 under-the-hood output.
 
+The follow-up pass removed the fit-check instructions from the reader's surface:
+“Curious about how flip can work for you? Hand this to your agent” is now the
+whole call to action, while the button copies the complete read-only brief. It
+also made the plugin the only human-facing install; the notebook creation skill
+now checks for and guides the separate CLI tool install when an approved pilot
+actually needs it.
+
 Checks at the working-tree revision:
 
 - `artoo build website`, `artoo status website`, and `artoo doctor website`: clean;
