@@ -668,6 +668,7 @@ def test_a_dormant_review_date_arriving_is_not_frozen_by_the_cache(tmp_path, mon
     # disk having changed. A cache that froze the count would make the root
     # body disagree with `flip show`, which computes live — the same canonical
     # state rendering differently depending on the path taken to it.
+    monkeypatch.setattr(views, "_today", lambda: "2026-08-19")
     root = make_notebook(tmp_path)
     ledgers.add_question(root, "open one")
     q = ledgers.add_question(root, "parked one")
@@ -675,7 +676,7 @@ def test_a_dormant_review_date_arriving_is_not_frozen_by_the_cache(tmp_path, mon
     ledgers.log_event(root, "populate the cache")
     assert "2 questions, 1 open" in pages.read_page(root / "index.md").body
 
-    monkeypatch.setattr(views, "_today", lambda: "2026-08-21")
+    monkeypatch.setattr(views, "_today", lambda: "2026-08-20")
     ledgers.log_event(root, "the morning the review comes due")
 
     assert "2 questions, 2 open" in pages.read_page(root / "index.md").body
