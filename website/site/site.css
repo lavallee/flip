@@ -220,6 +220,12 @@
   max-width: 34rem;
 }
 
+.hero__dek--format {
+  margin-top: var(--sp-3);
+  font-size: var(--text-base);
+  color: var(--muted);
+}
+
 .hero__actions {
   display: flex;
   flex-wrap: wrap;

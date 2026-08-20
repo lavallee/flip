@@ -134,6 +134,20 @@ also made the plugin the only human-facing install; the notebook creation skill
 now checks for and guides the separate CLI tool install when an approved pilot
 actually needs it.
 
+The next pass removed the duplicated, defensive “Ask your agent if it fits” hero
+action. “See flip in action” now leads with proof; the adjacent “Hand this to your
+agent” invitation is the sole fit-assessment path, and “Get flip” is the direct
+installation path.
+
+The headline now makes the behavioral change explicit: “Help your agent be a
+reporter, not a stenographer.” The supporting copy names what that means—source
+judgment, claim-to-evidence tracing, question refinement, and pursuing research
+beyond the first plausible answer—then closes on the human-agent contract.
+
+That supporting copy is now two paragraphs: CLI tools and skills describe what
+the agent does; the spec describes the portable agentic reporter's notebook and
+its fit with OKF and LLM- and wiki-friendly tools such as Obsidian.
+
 Checks at the working-tree revision:
 
 - `artoo build website`, `artoo status website`, and `artoo doctor website`: clean;

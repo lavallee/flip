@@ -1,19 +1,24 @@
 # flip
 
-## Research that can keep going
+## Help your agent be a reporter, not a stenographer
 
-flip turns an agent's one-off answer into a source-grounded notebook that
-another human or agent can continue, challenge, and publish from.
+flip's CLI tools and skills help agents judge the sources they build on, trace
+claims to evidence, formulate and refine research questions, and pursue them
+beyond the first plausible answer. You steer the research; the agent maintains
+the record.
 
-You direct the research in Claude Code, Codex, or another agent harness. The
-agent operates flip: it captures the material the work relies on, records how
-each source was judged, keeps claims and questions at honest states, and leaves
-an attributed trail in plain files. Humans rarely need to type the CLI commands.
+The flip spec defines an agentic reporter's notebook format that works with OKF
+and LLM- and wiki-friendly tools like Obsidian.
 
-**[Ask your agent if flip fits](docs/agent-orientation.md)** ·
-**[Install it in a harness](#install-for-your-harness)** ·
-**[See real notebooks](https://lavallee.github.io/flip-examples/)** ·
-**[Watch one come together](https://lavallee.github.io/flip/flipbook.html)**
+In Claude Code, Codex, or another agent harness, the agent operates flip: it
+captures the material the work relies on, records how each source was judged,
+keeps claims and questions at honest states, and leaves an attributed trail in
+plain files. Humans rarely need to type the CLI commands.
+
+**[See flip in action](https://lavallee.github.io/flip/flipbook.html)** ·
+**[Explore real notebooks](https://lavallee.github.io/flip-examples/)** ·
+**[Give flip to your agent](docs/agent-orientation.md)** ·
+**[Get flip](#install-for-your-harness)**
 
 ## Start with your agent
 

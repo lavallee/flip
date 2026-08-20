@@ -59,9 +59,10 @@ the nav; `notebook.html` is reached from the pages that earn it, below.
 - **Mode:** marketing, with editorial passages for the argument body.
 - **Dials:** variance high, density relaxed, motion functional, type register
   branded, imagery role evidence-only.
-- **Task anatomy:** value-led product argument. Continuable research → copyable
-  read-only agent assessment → harness install → category evidence → three
-  outcomes → real use cases → enforcement → format → honest limits.
+- **Task anatomy:** value-led product argument. Reporting, not stenography →
+  working product demonstration → optional agent handoff → harness install →
+  category evidence → three outcomes → real use cases → enforcement → format →
+  honest limits.
 - **Structural fingerprint:** *the widening spiral.* One claim stated flat,
   then re-entered three times at increasing resolution — headline, then the
   four enforcement rules as a scannable strip, then a worked fragment of real

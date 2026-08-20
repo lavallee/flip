@@ -4,10 +4,10 @@ Private working document. Artoo keeps this file outside `site/`; it is not deplo
 
 ## Reader decision
 
-A person already doing research through an agent harness should be able to hand
-that agent one orientation guide, get a read-only fit assessment for the existing
-workflow, and—if the answer is yes—install the CLI and harness plugin and start a
-bounded pilot without learning flip's command surface first.
+A person already doing research through an agent harness should quickly grasp the
+benefit, see the workflow operate on a real notebook, and either give the agent an
+orientation guide or install the harness plugin and start a bounded pilot without
+learning flip's command surface first.
 
 The decision is not "is this a nice note-taking app." It is a substrate
 choice with lock-in consequences: what my agents produce a year from now,
@@ -22,11 +22,15 @@ site that showed only the CLI would misrepresent the format.
 
 ## Headline claim
 
-**Research that can keep going.** flip turns an agent's one-off answer into a
-source-grounded notebook that another human or agent can continue, challenge,
-and publish from. Auditability is the mechanism: custody, separate judgment,
-claim gates, question journeys, tests, actor attribution, and logged generation
-in plain Markdown and append-only ledgers.
+**Help your agent be a reporter, not a stenographer.** flip's CLI tools and
+skills help agents judge the sources they build on, trace claims to evidence,
+formulate and refine research questions, and pursue them beyond the first
+plausible answer. You steer the research; the agent maintains the record. The
+flip spec separately defines an agentic reporter's notebook format that works
+with OKF and LLM- and wiki-friendly tools like Obsidian. Auditability is the
+mechanism: custody, separate judgment, claim gates, question journeys, tests,
+actor attribution, and logged generation in plain Markdown and append-only
+ledgers.
 
 ## Supported claims
 
@@ -158,6 +162,9 @@ differing in kind.
 - **The orientation handoff** in the hero and start page — one plain-language
   invitation whose action copies the full agent brief without making the person
   read or understand it first.
+- **The hero action** demonstrates the product in the flipbook. The adjacent
+  orientation handoff owns fit assessment by itself; the action row does not ask
+  the same question twice.
 - **The harness install path** — the plugin is the human-facing install. Its
   creation skill checks for and guides installation of the CLI when an approved
   pilot actually needs it. Manual CLI use is explicitly under the hood.
