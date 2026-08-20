@@ -1,24 +1,24 @@
 {
-  "generated": "2026-08-20T16:24:25+00:00",
+  "generated": "2026-08-20T20:02:43+00:00",
   "notebook": {
-    "slug": "sourdough-rise",
-    "title": "Does hydration change sourdough rise time?",
+    "slug": "okf-origins",
+    "title": "Where OKF came from and where it may go",
     "kind": "research-review"
   },
   "steps": [
     {
       "n": 1,
-      "id": "new",
-      "say": "Someone in the baking club swears higher hydration makes sourdough rise faster. Can you actually look into it \u2014 properly, with the trail kept?",
-      "reply": "Started a research-review notebook: two files, the manifest and our working memory. Everything else appears as we work.",
-      "act": "Open the notebook",
-      "title": "Scaffold a notebook",
-      "narrative": "A notebook is a directory, not a database. `flip new` writes two files: the manifest and the prose working memory. The `--kind` selects a profile, which decides what this notebook must contain before it can be called done \u2014 not before it can be started.",
+      "id": "assignment",
+      "say": "let's use flip to track the origins of OKF and what precedents it builds on, what critiques / gaps currently exist, and whether there's any evidence of a roadmap or other planning.",
+      "reply": "I\u2019ll run that as a bounded research review: trace the public origin chain, keep accepted spec separate from proposals, and make any roadmap null name the exact surfaces checked.",
+      "act": "The assignment",
+      "title": "Open a reporting notebook",
+      "narrative": "The person supplies the reporting question, not a sequence of database chores. The agent chooses the research-review profile and the notebook starts as ordinary Markdown.",
       "spec": "4",
       "commands": [
-        "flip new sourdough-rise --kind research-review --title 'Does hydration change sourdough rise time?'"
+        "flip new okf-origins --kind research-review --title 'Where OKF came from and where it may go' --visibility public"
       ],
-      "stdout": "created research-review notebook 'sourdough-rise' at /tmp/flip-site-fa9p7iu5/sourdough-rise\nnext: cd /tmp/flip-site-fa9p7iu5/sourdough-rise && flip log \"started\" \u2014 see `flip --help` for the toolkit",
+      "stdout": "created research-review notebook 'okf-origins' at /tmp/flip-site-07m6mrhm/okf-origins\nnext: cd /tmp/flip-site-07m6mrhm/okf-origins && flip log \"started\" \u2014 see `flip --help` for the toolkit",
       "exit_code": 0,
       "refused": false,
       "tree": [
@@ -34,26 +34,35 @@
       "record": {
         "path": "index.md",
         "lang": "markdown",
-        "caption": "index.md \u2014 the manifest lives in the root frontmatter, where any OKF consumer already looks.",
-        "text": "---\nokf_version: '0.2'\nflip: '0.9'\nslug: sourdough-rise\nuid: nb-601t56y5\ntitle: Does hydration change sourdough rise time?\nkind: research-review\nstatus: active\ncreated: '2026-08-20'\nupdated: '2026-08-20'\nvisibility: internal\nrenders_public: false\nsource_trail_public: false\ncitation_rule: public-terminus\n---\n\n# Does hydration change sourdough rise time?"
+        "caption": "The manifest: one portable OKF bundle, before the research begins.",
+        "text": "---\nokf_version: '0.2'\nflip: '0.9'\nslug: okf-origins\nuid: nb-ybhj733k\ntitle: Where OKF came from and where it may go\nkind: research-review\nstatus: active\ncreated: '2026-08-20'\nupdated: '2026-08-20'\nvisibility: public\nrenders_public: false\nsource_trail_public: false\ncitation_rule: public-terminus\n---\n\n# Where OKF came from and where it may go"
       }
     },
     {
       "n": 2,
-      "id": "session",
+      "id": "frame",
       "say": "",
-      "reply": "Logging myself first: this episode gets a session page, so the reasoning trail is part of the record.",
-      "act": "Open the notebook",
-      "title": "Log the episode",
-      "narrative": "Generation is logged. Every working episode that writes pages \u2014 human or model \u2014 gets a session page recording the actor, the model, and the tools it had. The reasoning chain is part of the bundle, not something you reconstruct from a chat history later.",
-      "spec": "8",
+      "reply": "I\u2019ve turned the assignment into four watched questions and opened a session, so the investigation can outlive this chat.",
+      "act": "Reporting",
+      "title": "Frame the investigation",
+      "narrative": "The agent decomposes one assignment into origin, precedent, gap, and planning questions. Each is a page with an immutable id and a surface that could resolve it.",
+      "spec": "7",
       "commands": [
-        "flip session start hydration-sweep --model claude-opus-5 --tools flip --tools python"
+        "flip session start okf-origins --model agent-harness --tools web-search --tools github --tools flip",
+        "flip question add 'What are the traceable origins of OKF?' --resolves-via 'launch material and repository history'",
+        "flip question add 'What precedents does OKF build on?' --resolves-via 'author statements and the named predecessor'",
+        "flip question add 'What critiques and gaps are visible now?' --resolves-via 'spec boundaries and public proposals'",
+        "flip question add 'Is there evidence of a roadmap or other planning?' --resolves-via 'repository files, milestones, spec deferrals, and proposals'",
+        "flip log 'started: trace OKF origins, gaps, and planning evidence'"
       ],
-      "stdout": "/tmp/flip-site-fa9p7iu5/sourdough-rise/sessions/2026-08-20T1624-hydration-sweep.md",
+      "stdout": "/tmp/flip-site-07m6mrhm/okf-origins/sessions/2026-08-20T2002-okf-origins.md\n\nQ1 open \u00b7 What are the traceable origins of OKF? \u00b7 watches: launch material and repository history\n\nQ2 open \u00b7 What precedents does OKF build on? \u00b7 watches: author statements and the named predecessor\n\nQ3 open \u00b7 What critiques and gaps are visible now? \u00b7 watches: spec boundaries and public proposals\n\nQ4 open \u00b7 Is there evidence of a roadmap or other planning? \u00b7 watches: repository files, milestones, spec deferrals, and proposals\n\nlogged 2026-08-20T20:02:37Z \u00b7 agent:harness",
       "exit_code": 0,
       "refused": false,
       "tree": [
+        {
+          "path": ".flip/ids",
+          "state": "added"
+        },
         {
           "path": ".flip/viewcache.json",
           "state": "added"
@@ -63,11 +72,39 @@
           "state": "changed"
         },
         {
+          "path": "log.md",
+          "state": "added"
+        },
+        {
+          "path": "log/log.jsonl",
+          "state": "added"
+        },
+        {
           "path": "notebook.md",
           "state": "same"
         },
         {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
+          "path": "questions/index.md",
+          "state": "added"
+        },
+        {
+          "path": "questions/is-there-evidence-of-a-roadmap-or-other.md",
+          "state": "added"
+        },
+        {
+          "path": "questions/what-are-the-traceable-origins-of-okf.md",
+          "state": "added"
+        },
+        {
+          "path": "questions/what-critiques-and-gaps-are-visible-now.md",
+          "state": "added"
+        },
+        {
+          "path": "questions/what-precedents-does-okf-build-on.md",
+          "state": "added"
+        },
+        {
+          "path": "sessions/2026-08-20T2002-okf-origins.md",
           "state": "added"
         },
         {
@@ -77,37 +114,67 @@
       ],
       "record": {
         "lang": "markdown",
-        "caption": "sessions/ \u2014 one page per episode, stamped in UTC. Synthesis recorded here is a lead, grade C, until promoted through references/.",
-        "text": "---\ntype: Work Session\ngenerated:\n  by: human:baker\n  at: '2026-08-20T16:24:23Z'\nmodel: claude-opus-5\ntools:\n- flip\n- python\nstarted: '2026-08-20T16:24:23Z'\n---\n\n## Goal\n\n## Prompt\n\n## Key outputs\n\n## Transcript",
-        "path": "sessions/2026-08-20T1624-hydration-sweep.md"
+        "caption": "The session records the actor, model surface, tools, and goal.",
+        "text": "---\ntype: Work Session\ngenerated:\n  by: agent:harness\n  at: '2026-08-20T20:02:37Z'\nmodel: agent-harness\ntools:\n- web-search\n- github\n- flip\nstarted: '2026-08-20T20:02:37Z'\n---\n\n## Goal\n\n## Prompt\n\n## Key outputs\n\n## Transcript",
+        "path": "sessions/2026-08-20T2002-okf-origins.md"
       }
     },
     {
       "n": 3,
-      "id": "question",
+      "id": "lineage",
       "say": "",
-      "reply": "Filed it as Q1 \u2014 your question is a page with an id now, not a memory.",
-      "act": "Open the notebook",
-      "title": "Write down the question",
-      "narrative": "Questions are entity pages with immutable ids, so they can be cited, re-posed with a sharper formulation, and answered later without losing the earlier wording.",
+      "reply": "The direct lineage is explicit: OKF\u2019s launch account says it formalizes Karpathy\u2019s earlier LLM-wiki pattern. I\u2019ve kept the deeper Memex connection second-order, because LLM-wiki makes it; the OKF launch post does not.",
+      "act": "Reporting",
+      "title": "Trace the declared precedent",
+      "narrative": "The agent captures before citing, grades after reading, and uses an attribution test for claims about what one document says. A second witness cannot exist for the contents of one document.",
       "spec": "7",
       "commands": [
-        "flip question add 'Does higher hydration shorten the time to double?'"
+        "flip add-source ../okf-launch.md --note 'dated public-source packet; full capture in flip-examples'",
+        "flip grade F1 --independence derivative --basis synthesis --method 'compact packet from the held launch post'",
+        "flip add-source ../llm-wiki.md --note 'dated public-source packet; full capture in flip-examples'",
+        "flip grade F2 --independence derivative --basis synthesis --method 'compact packet from the held idea file'",
+        "flip claim add 'OKF'\"'\"'s launch account says v0.1 formalizes the LLM-wiki pattern' --about F1 --load-bearing",
+        "flip claim test C1 --probe attribution --error 'the launch account names no LLM-wiki lineage' --would-detect 'LLM-wiki is absent or described as unrelated' --if-absent 'the account says OKF formalizes LLM-wiki' --against F1 --result survived",
+        "flip claim status C1 verified",
+        "flip claim add 'LLM-wiki predates the OKF launch and names Memex as a deeper precedent' --about F2 --load-bearing",
+        "flip claim test C2 --probe attribution --error 'the idea file lacks the date or Memex connection' --would-detect 'either element is absent' --if-absent 'both appear in the held file' --against F2 --result survived",
+        "flip claim status C2 verified",
+        "flip question answer Q2 --note 'Direct precedent: LLM-wiki. Familiar substrate: Markdown/YAML/Git and wiki tools. Memex is second-order lineage.'"
       ],
-      "stdout": "Q1 open \u00b7 Does higher hydration shorten the time to double? \u00b7 unwatched",
+      "stdout": "F1 \u00b7 sources/raw/F1.md \u00b7 references/okf-launch.md (grade ?)\njudge it after reading: flip grade F1 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF1 \u00b7 grade D (derived) \u00b7 derivative \u00b7 synthesis \u00b7 freshness unset\n\nF2 \u00b7 sources/raw/F2.md \u00b7 references/llm-wiki.md (grade ?)\njudge it after reading: flip grade F2 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF2 \u00b7 grade D (derived) \u00b7 derivative \u00b7 synthesis \u00b7 freshness unset\n\nC1 asserted \u00b7 sources: F1 \u00b7 corroboration: n/a (subject)\n\nC1 \u00b7 attribution test survived (severe) \u00b7 exposure: severely-tested\n\nC1 \u2192 verified \u00b7 corroboration: n/a (subject)\n\nC2 asserted \u00b7 sources: F2 \u00b7 corroboration: n/a (subject)\n\nC2 \u00b7 attribution test survived (severe) \u00b7 exposure: severely-tested\n\nC2 \u2192 verified \u00b7 corroboration: n/a (subject)\n\nQ2 answered",
       "exit_code": 0,
       "refused": false,
       "tree": [
         {
           "path": ".flip/ids",
-          "state": "added"
+          "state": "changed"
         },
         {
           "path": ".flip/viewcache.json",
           "state": "changed"
         },
         {
+          "path": "claims/index.md",
+          "state": "added"
+        },
+        {
+          "path": "claims/llm-wiki-predates-the-okf-launch-and-names.md",
+          "state": "added"
+        },
+        {
+          "path": "claims/okf-s-launch-account-says-v0-1-formalizes.md",
+          "state": "added"
+        },
+        {
           "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "log.md",
+          "state": "changed"
+        },
+        {
+          "path": "log/log.jsonl",
           "state": "changed"
         },
         {
@@ -115,42 +182,87 @@
           "state": "same"
         },
         {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
-          "state": "added"
-        },
-        {
           "path": "questions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "questions/is-there-evidence-of-a-roadmap-or-other.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/what-are-the-traceable-origins-of-okf.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/what-critiques-and-gaps-are-visible-now.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/what-precedents-does-okf-build-on.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/index.md",
           "state": "added"
         },
         {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
+          "path": "references/llm-wiki.md",
+          "state": "added"
+        },
+        {
+          "path": "references/okf-launch.md",
+          "state": "added"
+        },
+        {
+          "path": "sessions/2026-08-20T2002-okf-origins.md",
           "state": "same"
         },
         {
           "path": "sessions/index.md",
-          "state": "same"
+          "state": "changed"
+        },
+        {
+          "path": "sources/_provenance.jsonl",
+          "state": "added"
+        },
+        {
+          "path": "sources/raw/F1.md",
+          "state": "added"
+        },
+        {
+          "path": "sources/raw/F2.md",
+          "state": "added"
         }
       ],
       "record": {
         "lang": "markdown",
-        "caption": "The filename is a human slug; the immutable id Q1 lives in frontmatter.",
-        "text": "---\ntype: Question\nid: Q1\naliases:\n- Q1\ndescription: Does higher hydration shorten the time to double?\nstatus: open\ngenerated:\n  by: human:baker\n  at: '2026-08-20T16:24:23Z'\n---\n\nDoes higher hydration shorten the time to double?",
-        "path": "questions/does-higher-hydration-shorten-the-time-to-double.md"
+        "caption": "A document-subject claim earns verification through a severe attribution test, not fake corroboration.",
+        "text": "---\ntype: Claim\nid: C2\naliases:\n- C2\ndescription: LLM-wiki predates the OKF launch and names Memex as a deeper precedent\nstatus: verified\nload_bearing: true\nsources:\n- id: F2\n  role: subject\n  resource: /references/llm-wiki.md\n  title: llm-wiki.md\nfirst_asserted: '2026-08-20'\ngenerated:\n  by: agent:harness\n  at: '2026-08-20T20:02:38Z'\ntests:\n- probe: attribution\n  error: the idea file lacks the date or Memex connection\n  would_detect: either element is absent\n  if_absent: both appear in the held file\n  result: survived\n  against:\n  - F2\n  at: '2026-08-20T20:02:38Z'\n  by: agent:harness\n---\n\nLLM-wiki predates the OKF launch and names Memex as a deeper precedent[^F2]\n\n[^F2]: [llm-wiki.md](../references/llm-wiki.md)",
+        "path": "claims/llm-wiki-predates-the-okf-launch-and-names.md"
       }
     },
     {
       "n": 4,
-      "id": "capture",
-      "say": "The King Arthur hydration guide is the obvious place to start \u2014 bring it in.",
-      "reply": "Captured it. The bytes are stored and hashed \u2014 whatever that page does later, we hold what we cited.",
-      "act": "Take custody",
-      "title": "Capture a source",
-      "narrative": "Capture copies the bytes into the notebook and hashes them. From here the notebook does not depend on that file still existing anywhere else \u2014 this is the custody principle, and it is the difference between citing something and holding it.",
+      "id": "history-gap",
+      "say": "",
+      "reply": "There\u2019s a real break in the origin record. The first public GoogleCloudPlatform commit is a June snapshot import whose PR explicitly says upstream history was not preserved; the public spec history then has only two July v0.2 changes.",
+      "act": "Reporting",
+      "title": "Keep the missing history visible",
+      "narrative": "A notebook can hold a confident finding and its boundary at the same time. The import record establishes what was omitted; the commit endpoint establishes what the public history does contain.",
       "spec": "5",
       "commands": [
-        "flip add-source ../ridgeway-club-trial.md --note 'Independent club replication, 44 bakes'"
+        "flip add-source ../import-pr.json --note 'public PR metadata packet'",
+        "flip grade F3 --independence self-reported --basis official-record --method 'merged pull-request record'",
+        "flip add-source ../spec-commits.json --note 'GitHub commits endpoint packet'",
+        "flip grade F4 --independence independent --basis platform-data --method 'GitHub commits endpoint' --base-defined",
+        "flip claim add 'The public OKF spec history contains a June snapshot import and two July v0.2 changes' --source F4 --load-bearing",
+        "flip claim status C3 verified",
+        "flip claim add 'The import PR says upstream Git history was not preserved' --about F3 --load-bearing",
+        "flip claim test C4 --probe attribution --error 'the PR preserves or does not discuss upstream history' --would-detect 'a subtree import or silence' --if-absent 'the PR calls it a history-free snapshot' --against F3 --result survived",
+        "flip claim status C4 verified",
+        "flip question answer Q1 --note 'The traceable chain ends at a history-free June snapshot before the July v0.2 changes.'"
       ],
-      "stdout": "F1 \u00b7 sources/raw/F1.md \u00b7 references/ridgeway-club-trial.md (grade ?)\njudge it after reading: flip grade F1 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]",
+      "stdout": "F3 \u00b7 sources/raw/F3.json \u00b7 references/import-pr.md (grade ?)\njudge it after reading: flip grade F3 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF3 \u00b7 grade C (derived) \u00b7 self-reported \u00b7 official-record \u00b7 freshness unset\n\nF4 \u00b7 sources/raw/F4.json \u00b7 references/spec-commits.md (grade ?)\njudge it after reading: flip grade F4 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF4 \u00b7 grade A (derived) \u00b7 independent \u00b7 platform-data \u00b7 base_defined: true \u00b7 freshness unset\n\nC3 asserted \u00b7 sources: F4 \u00b7 corroboration: 1\n\nC3 \u2192 verified \u00b7 corroboration: 1\n\nC4 asserted \u00b7 sources: F3 \u00b7 corroboration: n/a (subject)\n\nC4 \u00b7 attribution test survived (severe) \u00b7 exposure: severely-tested\n\nC4 \u2192 verified \u00b7 corroboration: n/a (subject)\n\nQ1 answered",
       "exit_code": 0,
       "refused": false,
       "tree": [
@@ -163,7 +275,35 @@
           "state": "changed"
         },
         {
+          "path": "claims/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "claims/llm-wiki-predates-the-okf-launch-and-names.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/okf-s-launch-account-says-v0-1-formalizes.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/the-import-pr-says-upstream-git-history-was.md",
+          "state": "added"
+        },
+        {
+          "path": "claims/the-public-okf-spec-history-contains-a-june.md",
+          "state": "added"
+        },
+        {
           "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "log.md",
+          "state": "changed"
+        },
+        {
+          "path": "log/log.jsonl",
           "state": "changed"
         },
         {
@@ -171,143 +311,386 @@
           "state": "same"
         },
         {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "path": "questions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "questions/is-there-evidence-of-a-roadmap-or-other.md",
           "state": "same"
         },
         {
-          "path": "questions/index.md",
+          "path": "questions/what-are-the-traceable-origins-of-okf.md",
+          "state": "changed"
+        },
+        {
+          "path": "questions/what-critiques-and-gaps-are-visible-now.md",
           "state": "same"
+        },
+        {
+          "path": "questions/what-precedents-does-okf-build-on.md",
+          "state": "same"
+        },
+        {
+          "path": "references/import-pr.md",
+          "state": "added"
         },
         {
           "path": "references/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/llm-wiki.md",
+          "state": "same"
+        },
+        {
+          "path": "references/okf-launch.md",
+          "state": "same"
+        },
+        {
+          "path": "references/spec-commits.md",
           "state": "added"
         },
         {
-          "path": "references/ridgeway-club-trial.md",
-          "state": "added"
-        },
-        {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
+          "path": "sessions/2026-08-20T2002-okf-origins.md",
           "state": "same"
         },
         {
           "path": "sessions/index.md",
-          "state": "same"
+          "state": "changed"
         },
         {
           "path": "sources/_provenance.jsonl",
-          "state": "added"
+          "state": "changed"
         },
         {
           "path": "sources/raw/F1.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F2.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F3.json",
+          "state": "added"
+        },
+        {
+          "path": "sources/raw/F4.json",
           "state": "added"
         }
       ],
       "record": {
-        "path": "sources/_provenance.jsonl",
-        "lang": "json",
-        "caption": "sources/_provenance.jsonl \u2014 the fixity record, appended and never rewritten. Hash at capture, per file.",
-        "text": "{\n  \"ts\": \"2026-08-20T16:24:23Z\",\n  \"source_id\": \"F1\",\n  \"url\": \"file:///tmp/flip-site-fa9p7iu5/ridgeway-club-trial.md\",\n  \"local_path\": \"sources/raw/F1.md\",\n  \"sha256\": \"23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40\",\n  \"bytes\": 543,\n  \"tool\": \"builtin:copy\",\n  \"strategy\": \"copy\",\n  \"actor\": \"human:baker\",\n  \"note\": \"Independent club replication, 44 bakes\"\n}"
+        "lang": "markdown",
+        "caption": "The omission stays attached to the origin finding instead of disappearing from the summary.",
+        "text": "---\ntype: Claim\nid: C4\naliases:\n- C4\ndescription: The import PR says upstream Git history was not preserved\nstatus: verified\nload_bearing: true\nsources:\n- id: F3\n  role: subject\n  resource: /references/import-pr.md\n  title: import-pr.json\nfirst_asserted: '2026-08-20'\ngenerated:\n  by: agent:harness\n  at: '2026-08-20T20:02:39Z'\ntests:\n- probe: attribution\n  error: the PR preserves or does not discuss upstream history\n  would_detect: a subtree import or silence\n  if_absent: the PR calls it a history-free snapshot\n  result: survived\n  against:\n  - F3\n  at: '2026-08-20T20:02:39Z'\n  by: agent:harness\n---\n\nThe import PR says upstream Git history was not preserved[^F3]\n\n[^F3]: [import-pr.json](../references/import-pr.md)",
+        "path": "claims/the-import-pr-says-upstream-git-history-was.md"
       }
     },
     {
       "n": 5,
-      "id": "ungraded",
+      "id": "gaps",
       "say": "",
-      "reply": "It's in as F1 \u2014 but see the grade: '?'. Captured isn't judged; it counts for nothing until I've actually read it.",
-      "act": "Take custody",
-      "title": "Capture is not judgment",
-      "narrative": "The source page opens at grade `?`. flip will not guess a grade from where a file came from, and an ungraded source counts toward nothing \u2014 so at this moment the notebook holds evidence it is not yet entitled to rely on.",
-      "spec": "5",
+      "reply": "The gaps cluster rather than scatter: stable identity, agent routing, relationship semantics, large-bundle retrieval, and cross-bundle composition. I\u2019m treating these as public proposals and questions\u2014not as accepted OKF commitments.",
+      "act": "Reporting",
+      "title": "Corroborate the gap map",
+      "narrative": "The synthesis is supported by six separately authored public threads. The spec's deliberate boundaries are kept distinct from criticisms so non-goals do not get mislabeled as defects.",
+      "spec": "7",
       "commands": [
-        "flip show --stale"
+        "flip add-source ../okf-spec.md --note 'current spec packet'",
+        "flip grade F5 --independence self-reported --basis official-record --method 'current normative spec'",
+        "flip add-source ../issue-identity.md --note 'public proposal packet'",
+        "flip grade F6 --independence independent --basis single-operator --method 'public proposal at its canonical URL'",
+        "flip add-source ../issue-routing.md --note 'public proposal packet'",
+        "flip grade F7 --independence independent --basis single-operator --method 'public proposal at its canonical URL'",
+        "flip add-source ../issue-links.md --note 'public proposal packet'",
+        "flip grade F8 --independence independent --basis single-operator --method 'public proposal at its canonical URL'",
+        "flip add-source ../issue-retrieval.md --note 'public proposal packet'",
+        "flip grade F9 --independence independent --basis single-operator --method 'public proposal at its canonical URL'",
+        "flip add-source ../issue-composition.md --note 'public proposal packet'",
+        "flip grade F10 --independence independent --basis single-operator --method 'public proposal at its canonical URL'",
+        "flip add-source ../issue-orientation.md --note 'public proposal packet'",
+        "flip grade F11 --independence independent --basis single-operator --method 'public proposal at its canonical URL'",
+        "flip claim add 'OKF deliberately leaves query infrastructure and runtime packaging outside the format and defers several runtime concerns' --about F5 --load-bearing",
+        "flip claim test C5 --probe attribution --error 'the spec does not name those boundaries' --would-detect 'the non-goal and deferred lists omit them' --if-absent 'the lists name them directly' --against F5 --result survived",
+        "flip claim status C5 verified",
+        "flip claim add 'Visible proposals cluster around identity, routing, relationships, retrieval, and composition' --source F6 --source F7 --source F8 --source F9 --source F10 --source F11 --load-bearing",
+        "flip claim status C6 verified",
+        "flip question answer Q3 --note 'Five recurring gap classes, with spec boundaries kept separate from contributor proposals.'"
       ],
-      "stdout": "OPEN QUESTIONS\n  Q1 \u00b7 Does higher hydration shorten the time to double?  [unwatched \u2014 no resolves_via surface]",
+      "stdout": "F5 \u00b7 sources/raw/F5.md \u00b7 references/okf-spec.md (grade ?)\njudge it after reading: flip grade F5 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF5 \u00b7 grade C (derived) \u00b7 self-reported \u00b7 official-record \u00b7 freshness unset\n\nF6 \u00b7 sources/raw/F6.md \u00b7 references/issue-identity.md (grade ?)\njudge it after reading: flip grade F6 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF6 \u00b7 grade B (derived) \u00b7 independent \u00b7 single-operator \u00b7 freshness unset\n\nF7 \u00b7 sources/raw/F7.md \u00b7 references/issue-routing.md (grade ?)\njudge it after reading: flip grade F7 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF7 \u00b7 grade B (derived) \u00b7 independent \u00b7 single-operator \u00b7 freshness unset\n\nF8 \u00b7 sources/raw/F8.md \u00b7 references/issue-links.md (grade ?)\njudge it after reading: flip grade F8 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF8 \u00b7 grade B (derived) \u00b7 independent \u00b7 single-operator \u00b7 freshness unset\n\nF9 \u00b7 sources/raw/F9.md \u00b7 references/issue-retrieval.md (grade ?)\njudge it after reading: flip grade F9 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF9 \u00b7 grade B (derived) \u00b7 independent \u00b7 single-operator \u00b7 freshness unset\n\nF10 \u00b7 sources/raw/F10.md \u00b7 references/issue-composition.md (grade ?)\njudge it after reading: flip grade F10 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF10 \u00b7 grade B (derived) \u00b7 independent \u00b7 single-operator \u00b7 freshness unset\n\nF11 \u00b7 sources/raw/F11.md \u00b7 references/issue-orientation.md (grade ?)\njudge it after reading: flip grade F11 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF11 \u00b7 grade B (derived) \u00b7 independent \u00b7 single-operator \u00b7 freshness unset\n\nC5 asserted \u00b7 sources: F5 \u00b7 corroboration: n/a (subject)\n\nC5 \u00b7 attribution test survived (severe) \u00b7 exposure: severely-tested\n\nC5 \u2192 verified \u00b7 corroboration: n/a (subject)\n\nC6 asserted \u00b7 sources: F6, F7, F8, F9, F10, F11 \u00b7 corroboration: 6\n\nC6 \u2192 verified \u00b7 corroboration: 6\n\nQ3 answered",
       "exit_code": 0,
       "refused": false,
       "tree": [
         {
           "path": ".flip/ids",
-          "state": "same"
+          "state": "changed"
         },
         {
           "path": ".flip/viewcache.json",
+          "state": "changed"
+        },
+        {
+          "path": "claims/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "claims/llm-wiki-predates-the-okf-launch-and-names.md",
           "state": "same"
         },
         {
-          "path": "index.md",
+          "path": "claims/okf-deliberately-leaves-query-infrastructure-and-runtime-packagi.md",
+          "state": "added"
+        },
+        {
+          "path": "claims/okf-s-launch-account-says-v0-1-formalizes.md",
           "state": "same"
+        },
+        {
+          "path": "claims/the-import-pr-says-upstream-git-history-was.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/the-public-okf-spec-history-contains-a-june.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/visible-proposals-cluster-around-identity-routing-relationships.md",
+          "state": "added"
+        },
+        {
+          "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "log.md",
+          "state": "changed"
+        },
+        {
+          "path": "log/log.jsonl",
+          "state": "changed"
         },
         {
           "path": "notebook.md",
           "state": "same"
         },
         {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "path": "questions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "questions/is-there-evidence-of-a-roadmap-or-other.md",
           "state": "same"
         },
         {
-          "path": "questions/index.md",
+          "path": "questions/what-are-the-traceable-origins-of-okf.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/what-critiques-and-gaps-are-visible-now.md",
+          "state": "changed"
+        },
+        {
+          "path": "questions/what-precedents-does-okf-build-on.md",
+          "state": "same"
+        },
+        {
+          "path": "references/import-pr.md",
           "state": "same"
         },
         {
           "path": "references/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "references/issue-composition.md",
+          "state": "added"
+        },
+        {
+          "path": "references/issue-identity.md",
+          "state": "added"
+        },
+        {
+          "path": "references/issue-links.md",
+          "state": "added"
+        },
+        {
+          "path": "references/issue-orientation.md",
+          "state": "added"
+        },
+        {
+          "path": "references/issue-retrieval.md",
+          "state": "added"
+        },
+        {
+          "path": "references/issue-routing.md",
+          "state": "added"
+        },
+        {
+          "path": "references/llm-wiki.md",
           "state": "same"
         },
         {
-          "path": "references/ridgeway-club-trial.md",
+          "path": "references/okf-launch.md",
           "state": "same"
         },
         {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
+          "path": "references/okf-spec.md",
+          "state": "added"
+        },
+        {
+          "path": "references/spec-commits.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-08-20T2002-okf-origins.md",
           "state": "same"
         },
         {
           "path": "sessions/index.md",
-          "state": "same"
+          "state": "changed"
         },
         {
           "path": "sources/_provenance.jsonl",
-          "state": "same"
+          "state": "changed"
         },
         {
           "path": "sources/raw/F1.md",
           "state": "same"
+        },
+        {
+          "path": "sources/raw/F10.md",
+          "state": "added"
+        },
+        {
+          "path": "sources/raw/F11.md",
+          "state": "added"
+        },
+        {
+          "path": "sources/raw/F2.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F3.json",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F4.json",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F5.md",
+          "state": "added"
+        },
+        {
+          "path": "sources/raw/F6.md",
+          "state": "added"
+        },
+        {
+          "path": "sources/raw/F7.md",
+          "state": "added"
+        },
+        {
+          "path": "sources/raw/F8.md",
+          "state": "added"
+        },
+        {
+          "path": "sources/raw/F9.md",
+          "state": "added"
         }
       ],
       "record": {
         "lang": "markdown",
-        "caption": "grade: '?' \u2014 captured, unjudged, and worth nothing to a claim.",
-        "text": "---\ntype: Source\nid: F1\naliases:\n- F1\ntitle: ridgeway-club-trial.md\ndescription: Independent club replication, 44 bakes\nlocal: sources/raw/F1.md\ngrade: '?'\nstatus: captured\ngenerated:\n  by: human:baker\n  at: '2026-08-20T16:24:23Z'\n---\n\n# ridgeway-club-trial.md\n\nIndependent club replication, 44 bakes",
-        "path": "references/ridgeway-club-trial.md"
+        "caption": "The cluster claim clears the bar through six independent proposal records.",
+        "text": "---\ntype: Claim\nid: C6\naliases:\n- C6\ndescription: Visible proposals cluster around identity, routing, relationships, retrieval,\n  and composition\nstatus: verified\nload_bearing: true\nsources:\n- id: F6\n  resource: /references/issue-identity.md\n  title: issue-identity.md\n- id: F7\n  resource: /references/issue-routing.md\n  title: issue-routing.md\n- id: F8\n  resource: /references/issue-links.md\n  title: issue-links.md\n- id: F9\n  resource: /references/issue-retrieval.md\n  title: issue-retrieval.md\n- id: F10\n  resource: /references/issue-composition.md\n  title: issue-composition.md\n- id: F11\n  resource: /references/issue-orientation.md\n  title: issue-orientation.md\nindependent_corroboration: 6\nfirst_asserted: '2026-08-20'\ngenerated:\n  by: agent:harness\n  at: '2026-08-20T20:02:41Z'\n---\n\nVisible proposals cluster around identity, routing, relationships, retrieval, and composition[^F6][^F7][^F8][^F9][^F10][^F11]\n\n[^F6]: [issue-identity.md](../references/issue-identity.md)\n[^F7]: [issue-routing.md](../references/issue-routing.md)\n[^F8]: [issue-links.md](../references/issue-links.md)",
+        "truncated": true,
+        "path": "claims/visible-proposals-cluster-around-identity-routing-relationships.md"
       }
     },
     {
       "n": 6,
-      "id": "grade",
-      "say": "You've read it now \u2014 how good is it, actually?",
-      "reply": "Read it. An organized trial by people who aren't us, method stated \u2014 that derives to B, independent. The letter follows the description.",
-      "act": "Take custody",
-      "title": "Grade it, as a separate act",
-      "narrative": "Grading is a recorded judgment by a named actor, after reading \u2014 and it describes the evidence rather than scoring it. Independence, basis, method: the letter grade is derived from the description, never authored. An organised trial run by people who are not us, who measured it directly, method stated: that derives to B.",
-      "spec": "5",
+      "id": "roadmap",
+      "say": "",
+      "reply": "I found no formal roadmap on the checked file and milestone surfaces, but I did find planning: named deferred work, a release shaped by proposals, and active extension designs. The honest answer is direction of travel without a public schedule.",
+      "act": "Reporting",
+      "title": "Test the roadmap null",
+      "narrative": "Absence is useful only with coverage attached. The decision page excludes an unobservable project board, while a separate positive claim records the weaker planning signals that were found.",
+      "spec": "7",
       "commands": [
-        "flip grade F1 --independence independent --basis panel --method 'blind community trial, 40 bakers, self-reported rise times' --notes 'Organised trial we did not run; proofing vessels not standardised.'"
+        "flip add-source ../roadmap-check.json --note 'bounded repository-surface check'",
+        "flip grade F12 --independence independent --basis platform-data --method 'repository contents and milestones endpoints' --base-defined",
+        "flip claim add 'No formal public roadmap was found on the checked root, okf directory, or milestone surfaces' --source F12 --absent-from named_surfaces --surface 'repository root contents' --surface 'okf directory contents' --surface 'all-state milestones' --load-bearing",
+        "flip claim status C7 verified",
+        "flip claim add 'There is public planning evidence short of a formal roadmap' --source F12 --load-bearing",
+        "flip claim status C8 verified",
+        "flip decide --question 'How far can the roadmap null reach?' --decision 'Only the three checked repository surfaces' --why 'Project-board contents were not observable' --rejected 'Infer that no planning exists'",
+        "flip question answer Q4 --note 'No formal roadmap on checked surfaces; positive planning signals exist without dates or sequence.' --reopen-when 'a roadmap, milestone, dated release plan, or observable project board appears'"
       ],
-      "stdout": "F1 \u00b7 grade B (derived) \u00b7 independent \u00b7 panel \u00b7 freshness unset",
+      "stdout": "F12 \u00b7 sources/raw/F12.json \u00b7 references/roadmap-check.md (grade ?)\njudge it after reading: flip grade F12 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF12 \u00b7 grade A (derived) \u00b7 independent \u00b7 platform-data \u00b7 base_defined: true \u00b7 freshness unset\n\nC7 asserted \u00b7 sources: F12 \u00b7 corroboration: 1 \u00b7 absence: named_surfaces (3 surfaces)\n\nC7 \u2192 verified \u00b7 corroboration: 1\n\nC8 asserted \u00b7 sources: F12 \u00b7 corroboration: 1\n\nC8 \u2192 verified \u00b7 corroboration: 1\n\nD1 \u00b7 Only the three checked repository surfaces\n\nQ4 answered \u00b7 reopens when: a roadmap, milestone, dated release plan, or observable project board appears",
       "exit_code": 0,
       "refused": false,
       "tree": [
         {
           "path": ".flip/ids",
-          "state": "same"
+          "state": "changed"
         },
         {
           "path": ".flip/viewcache.json",
+          "state": "changed"
+        },
+        {
+          "path": "claims/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "claims/llm-wiki-predates-the-okf-launch-and-names.md",
           "state": "same"
         },
         {
+          "path": "claims/no-formal-public-roadmap-was-found-on-the.md",
+          "state": "added"
+        },
+        {
+          "path": "claims/okf-deliberately-leaves-query-infrastructure-and-runtime-packagi.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/okf-s-launch-account-says-v0-1-formalizes.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/the-import-pr-says-upstream-git-history-was.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/the-public-okf-spec-history-contains-a-june.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/there-is-public-planning-evidence-short-of-a.md",
+          "state": "added"
+        },
+        {
+          "path": "claims/visible-proposals-cluster-around-identity-routing-relationships.md",
+          "state": "same"
+        },
+        {
+          "path": "decisions/index.md",
+          "state": "added"
+        },
+        {
+          "path": "decisions/only-the-three-checked-repository-surfaces.md",
+          "state": "added"
+        },
+        {
           "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "log.md",
+          "state": "changed"
+        },
+        {
+          "path": "log/log.jsonl",
           "state": "changed"
         },
         {
@@ -315,23 +698,79 @@
           "state": "same"
         },
         {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "path": "questions/index.md",
+          "state": "changed"
+        },
+        {
+          "path": "questions/is-there-evidence-of-a-roadmap-or-other.md",
+          "state": "changed"
+        },
+        {
+          "path": "questions/what-are-the-traceable-origins-of-okf.md",
           "state": "same"
         },
         {
-          "path": "questions/index.md",
-          "state": "changed"
+          "path": "questions/what-critiques-and-gaps-are-visible-now.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/what-precedents-does-okf-build-on.md",
+          "state": "same"
+        },
+        {
+          "path": "references/import-pr.md",
+          "state": "same"
         },
         {
           "path": "references/index.md",
           "state": "changed"
         },
         {
-          "path": "references/ridgeway-club-trial.md",
-          "state": "changed"
+          "path": "references/issue-composition.md",
+          "state": "same"
         },
         {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
+          "path": "references/issue-identity.md",
+          "state": "same"
+        },
+        {
+          "path": "references/issue-links.md",
+          "state": "same"
+        },
+        {
+          "path": "references/issue-orientation.md",
+          "state": "same"
+        },
+        {
+          "path": "references/issue-retrieval.md",
+          "state": "same"
+        },
+        {
+          "path": "references/issue-routing.md",
+          "state": "same"
+        },
+        {
+          "path": "references/llm-wiki.md",
+          "state": "same"
+        },
+        {
+          "path": "references/okf-launch.md",
+          "state": "same"
+        },
+        {
+          "path": "references/okf-spec.md",
+          "state": "same"
+        },
+        {
+          "path": "references/roadmap-check.md",
+          "state": "added"
+        },
+        {
+          "path": "references/spec-commits.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-08-20T2002-okf-origins.md",
           "state": "same"
         },
         {
@@ -340,33 +779,81 @@
         },
         {
           "path": "sources/_provenance.jsonl",
-          "state": "same"
+          "state": "changed"
         },
         {
           "path": "sources/raw/F1.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F10.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F11.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F12.json",
+          "state": "added"
+        },
+        {
+          "path": "sources/raw/F2.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F3.json",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F4.json",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F5.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F6.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F7.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F8.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F9.md",
           "state": "same"
         }
       ],
       "record": {
         "lang": "markdown",
-        "caption": "The same page after judgment. Only the judgment keys changed; everything else round-trips untouched.",
-        "text": "---\ntype: Source\nid: F1\naliases:\n- F1\ntitle: ridgeway-club-trial.md\ndescription: Independent club replication, 44 bakes\nlocal: sources/raw/F1.md\ngrade: B\nstatus: captured\ngenerated:\n  by: human:baker\n  at: '2026-08-20T16:24:23Z'\nsupport:\n  basis: panel\n  method: blind community trial, 40 bakers, self-reported rise times\nindependence: independent\nnotes: Organised trial we did not run; proofing vessels not standardised.\n---\n\n# ridgeway-club-trial.md\n\nIndependent club replication, 44 bakes",
-        "path": "references/ridgeway-club-trial.md"
+        "caption": "A bounded null and a positive planning claim coexist; neither is stretched to replace the other.",
+        "text": "---\ntype: Claim\nid: C8\naliases:\n- C8\ndescription: There is public planning evidence short of a formal roadmap\nstatus: verified\nload_bearing: true\nsources:\n- id: F12\n  resource: /references/roadmap-check.md\n  title: roadmap-check.json\nindependent_corroboration: 1\nfirst_asserted: '2026-08-20'\ngenerated:\n  by: agent:harness\n  at: '2026-08-20T20:02:42Z'\n---\n\nThere is public planning evidence short of a formal roadmap[^F12]\n\n[^F12]: [roadmap-check.json](../references/roadmap-check.md)",
+        "path": "claims/there-is-public-planning-evidence-short-of-a.md"
       }
     },
     {
       "n": 7,
-      "id": "claim",
-      "say": "So what's the answer so far?",
-      "reply": "Asserted as C1, load-bearing, cited to F1. One source: corroboration 1.",
-      "act": "Make a claim stick",
-      "title": "Assert a claim",
-      "narrative": "A claim is a discrete assertion with an id, a status, and an edge to the sources behind it. It enters as `asserted` \u2014 the status a machine-generated assertion always starts in. `--load-bearing` means the work falls over if this is wrong, and it is what makes `flip doctor` care.",
-      "spec": "7",
+      "id": "handoff",
+      "say": "",
+      "reply": "The notebook is ready: the assignment, periodic findings, and final answer are captured as a transcript; the source and claim records sit underneath it for anyone who wants to audit or continue.",
+      "act": "The handoff",
+      "title": "Keep the conversation and audit the record",
+      "narrative": "The transcript is ordinary custody, not a screenshot. The session closes with a cold-pickup summary, then doctor checks the bundle. The full 18-source notebook is linked beside this walkthrough.",
+      "spec": "8",
       "commands": [
-        "flip claim add 'Doubling time falls about a quarter between 65% and 80% hydration' --source F1 --load-bearing"
+        "flip session transcript okf-origins --file ../conversation.md --participant human:maintainer --participant agent:harness --model agent-harness",
+        "flip transcript excerpt T1 --lines 3-7 --label assignment",
+        "flip log 'handoff: origins bounded; gaps mapped; roadmap null scoped'",
+        "flip session end okf-origins --summary 'Eight verified claims; four assignment questions answered; transcript captured.'",
+        "flip doctor"
       ],
-      "stdout": "C1 asserted \u00b7 sources: F1 \u00b7 corroboration: 1",
+      "stdout": "sources/raw/T1.md  (11 lines)\ncaptured as T1  /tmp/flip-site-07m6mrhm/okf-origins/references/conversation.md\nlinked from /tmp/flip-site-07m6mrhm/okf-origins/sessions/2026-08-20T2002-okf-origins.md\npin a passage: flip transcript excerpt T1 --lines A-B --label <label>\n\nT1\u00a7assignment\n  lines 3-7, 45 words, sha256 4b62928da440\n  cite it: flip claim add \"\u2026\" --source T1\u00a7assignment\n  \u2026or --about T1\u00a7assignment if the claim is about what was SAID here \u2014 a conversation is the only witness to itself, so that citation is never counted and owes `flip claim test --probe attribution` instead\n\nlogged 2026-08-20T20:02:42Z \u00b7 agent:harness\n\nended /tmp/flip-site-07m6mrhm/okf-origins/sessions/2026-08-20T2002-okf-origins.md\n\nok: no findings",
       "exit_code": 0,
       "refused": false,
       "tree": [
@@ -379,15 +866,59 @@
           "state": "changed"
         },
         {
-          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
-          "state": "added"
+          "path": "claims/index.md",
+          "state": "same"
         },
         {
-          "path": "claims/index.md",
-          "state": "added"
+          "path": "claims/llm-wiki-predates-the-okf-launch-and-names.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/no-formal-public-roadmap-was-found-on-the.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/okf-deliberately-leaves-query-infrastructure-and-runtime-packagi.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/okf-s-launch-account-says-v0-1-formalizes.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/the-import-pr-says-upstream-git-history-was.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/the-public-okf-spec-history-contains-a-june.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/there-is-public-planning-evidence-short-of-a.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/visible-proposals-cluster-around-identity-routing-relationships.md",
+          "state": "same"
+        },
+        {
+          "path": "decisions/index.md",
+          "state": "same"
+        },
+        {
+          "path": "decisions/only-the-three-checked-repository-surfaces.md",
+          "state": "same"
         },
         {
           "path": "index.md",
+          "state": "changed"
+        },
+        {
+          "path": "log.md",
+          "state": "changed"
+        },
+        {
+          "path": "log/log.jsonl",
           "state": "changed"
         },
         {
@@ -395,11 +926,31 @@
           "state": "same"
         },
         {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
+          "path": "questions/index.md",
           "state": "same"
         },
         {
-          "path": "questions/index.md",
+          "path": "questions/is-there-evidence-of-a-roadmap-or-other.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/what-are-the-traceable-origins-of-okf.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/what-critiques-and-gaps-are-visible-now.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/what-precedents-does-okf-build-on.md",
+          "state": "same"
+        },
+        {
+          "path": "references/conversation.md",
+          "state": "added"
+        },
+        {
+          "path": "references/import-pr.md",
           "state": "same"
         },
         {
@@ -407,992 +958,135 @@
           "state": "changed"
         },
         {
-          "path": "references/ridgeway-club-trial.md",
+          "path": "references/issue-composition.md",
           "state": "same"
         },
         {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
+          "path": "references/issue-identity.md",
           "state": "same"
+        },
+        {
+          "path": "references/issue-links.md",
+          "state": "same"
+        },
+        {
+          "path": "references/issue-orientation.md",
+          "state": "same"
+        },
+        {
+          "path": "references/issue-retrieval.md",
+          "state": "same"
+        },
+        {
+          "path": "references/issue-routing.md",
+          "state": "same"
+        },
+        {
+          "path": "references/llm-wiki.md",
+          "state": "same"
+        },
+        {
+          "path": "references/okf-launch.md",
+          "state": "same"
+        },
+        {
+          "path": "references/okf-spec.md",
+          "state": "same"
+        },
+        {
+          "path": "references/roadmap-check.md",
+          "state": "same"
+        },
+        {
+          "path": "references/spec-commits.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-08-20T2002-okf-origins.md",
+          "state": "changed"
         },
         {
           "path": "sessions/index.md",
-          "state": "same"
+          "state": "changed"
         },
         {
           "path": "sources/_provenance.jsonl",
-          "state": "same"
+          "state": "changed"
         },
         {
           "path": "sources/raw/F1.md",
           "state": "same"
+        },
+        {
+          "path": "sources/raw/F10.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F11.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F12.json",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F2.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F3.json",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F4.json",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F5.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F6.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F7.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F8.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F9.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/T1.md",
+          "state": "added"
         }
       ],
       "record": {
         "lang": "markdown",
-        "caption": "status: asserted \u00b7 independent_corroboration: 1 \u2014 recomputed by the tooling, not trusted from the page.",
-        "text": "---\ntype: Claim\nid: C1\naliases:\n- C1\ndescription: Doubling time falls about a quarter between 65% and 80% hydration\nstatus: asserted\nload_bearing: true\nsources:\n- id: F1\n  resource: /references/ridgeway-club-trial.md\n  title: ridgeway-club-trial.md\nindependent_corroboration: 1\nfirst_asserted: '2026-08-20'\ngenerated:\n  by: human:baker\n  at: '2026-08-20T16:24:24Z'\n---\n\nDoubling time falls about a quarter between 65% and 80% hydration[^F1]\n\n[^F1]: [ridgeway-club-trial.md](../references/ridgeway-club-trial.md)",
-        "path": "claims/doubling-time-falls-about-a-quarter-between-65.md"
+        "caption": "The transcript is a T# source under the same custody rules as every other input.",
+        "text": "---\ntype: Source\nid: T1\naliases:\n- T1\ntitle: conversation.md\ndescription: conversation source\nmedium: conversation\nparticipants:\n- human:maintainer\n- agent:harness\nmodel: agent-harness\nlines: 11\nlocal: sources/raw/T1.md\ngrade: '?'\nstatus: captured\ngenerated:\n  by: agent:harness\n  at: '2026-08-20T20:02:42Z'\nexcerpts:\n- label: assignment\n  lines:\n  - 3\n  - 7\n  sha256: 4b62928da44003b4403d03fb3415cd6fc24753128abd1909673598b0714dd2a3\n  words: 45\n---\n\n# conversation.md\n\n## Excerpts\n\n### assignment\n\nLines 3\u20137 \u00b7 sha256 `4b62928da440`\n\n> **Human:** let's use flip to track the origins of OKF and what precedents it\n> builds on, what critiques / gaps currently exist, and whether there's any\n> evidence of a roadmap or other planning.\n>",
+        "truncated": true,
+        "path": "references/conversation.md"
       }
     },
     {
       "n": 8,
-      "id": "refused",
-      "say": "Good enough for me \u2014 mark it confirmed.",
-      "reply": "I tried \u2014 flip refused, exit code 1. The profile wants two independent sources or a derived A, and my confidence doesn't override the bar.",
-      "act": "Make a claim stick",
-      "title": "Try to call it verified",
-      "narrative": "This is the enforcement. This notebook is a research-review, so its bar is two independent judged sources \u2014 and one is not corroboration. The command is refused, not warned about: refused, with a non-zero exit code. An agent cannot promote its own assertion by asserting harder. The bar is the profile's, and it is mechanical.",
-      "spec": "7",
-      "commands": [
-        "flip claim status C1 verified"
-      ],
-      "stdout": "cannot verify C1: 1 independent source(s) of 2 required and no grade-A source among its sources (evidence: F1); add sources whose independence is 'independent' to the claim or upgrade one to grade A via `flip grade`; or record a skeptic/recompute pass with `flip claim verify C1 --method adversarial|recomputation`",
-      "exit_code": 1,
-      "refused": true,
-      "tree": [
-        {
-          "path": ".flip/ids",
-          "state": "same"
-        },
-        {
-          "path": ".flip/viewcache.json",
-          "state": "same"
-        },
-        {
-          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
-          "state": "same"
-        },
-        {
-          "path": "claims/index.md",
-          "state": "same"
-        },
-        {
-          "path": "index.md",
-          "state": "same"
-        },
-        {
-          "path": "notebook.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/ridgeway-club-trial.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/_provenance.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F1.md",
-          "state": "same"
-        }
-      ],
-      "record": {
-        "lang": "text",
-        "caption": "Exit code 1. The claim keeps the status it earned.",
-        "text": "cannot verify C1: 1 independent source(s) of 2 required and no grade-A source among its sources (evidence: F1); add sources whose independence is 'independent' to the claim or upgrade one to grade A via `flip grade`; or record a skeptic/recompute pass with `flip claim verify C1 --method adversarial|recomputation`",
-        "path": "stdout"
-      }
-    },
-    {
-      "n": 9,
-      "id": "second",
-      "say": "Fine. What would it take to actually know?",
-      "reply": "So we baked. Twelve bakes at four hydration levels \u2014 our own measurement, captured with fixity and graded A: independent, measured, base defined.",
-      "act": "Make a claim stick",
-      "title": "Go and measure it yourself",
-      "narrative": "So we bake. Twelve bakes at four hydration levels, one kitchen, one flour lot \u2014 data we extracted ourselves, which is what grade A means: independent evidence, measured basis, defined base. Capture the file and the notebook owns the bytes; describe the evidence and the A derives itself.",
-      "spec": "5",
-      "commands": [
-        "flip add-source ../rise-times.csv --note 'Our own kitchen log, 12 bakes at four hydration levels'",
-        "flip grade F2 --independence independent --basis measured --n '12 bakes at four hydration levels' --base-defined --notes 'Data we measured ourselves; one kitchen, one flour lot, 12 bakes.'"
-      ],
-      "stdout": "F2 \u00b7 sources/raw/F2.csv \u00b7 references/rise-times.md (grade ?)\njudge it after reading: flip grade F2 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF2 \u00b7 grade A (derived) \u00b7 independent \u00b7 measured \u00b7 base_defined: true \u00b7 freshness unset",
-      "exit_code": 0,
-      "refused": false,
-      "tree": [
-        {
-          "path": ".flip/ids",
-          "state": "changed"
-        },
-        {
-          "path": ".flip/viewcache.json",
-          "state": "changed"
-        },
-        {
-          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
-          "state": "same"
-        },
-        {
-          "path": "claims/index.md",
-          "state": "changed"
-        },
-        {
-          "path": "index.md",
-          "state": "changed"
-        },
-        {
-          "path": "notebook.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/index.md",
-          "state": "changed"
-        },
-        {
-          "path": "references/index.md",
-          "state": "changed"
-        },
-        {
-          "path": "references/ridgeway-club-trial.md",
-          "state": "same"
-        },
-        {
-          "path": "references/rise-times.md",
-          "state": "added"
-        },
-        {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/index.md",
-          "state": "changed"
-        },
-        {
-          "path": "sources/_provenance.jsonl",
-          "state": "changed"
-        },
-        {
-          "path": "sources/raw/F1.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F2.csv",
-          "state": "added"
-        }
-      ],
-      "record": {
-        "path": "sources/_provenance.jsonl",
-        "lang": "json",
-        "caption": "A second custody event. The ledger only ever grows.",
-        "text": "{\n  \"ts\": \"2026-08-20T16:24:24Z\",\n  \"source_id\": \"F2\",\n  \"url\": \"file:///tmp/flip-site-fa9p7iu5/rise-times.csv\",\n  \"local_path\": \"sources/raw/F2.csv\",\n  \"sha256\": \"d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c\",\n  \"bytes\": 427,\n  \"tool\": \"builtin:copy\",\n  \"strategy\": \"copy\",\n  \"actor\": \"human:baker\",\n  \"note\": \"Our own kitchen log, 12 bakes at four hydration levels\"\n}"
-      }
-    },
-    {
-      "n": 10,
-      "id": "passed",
-      "say": "What about that forum thread everyone keeps linking?",
-      "reply": "Looked at it \u2014 it republishes the same trial we already hold, so it adds nothing. Recorded as passed-on with the reason, so neither of us re-chases it.",
-      "act": "Make a claim stick",
-      "title": "Record what you rejected",
-      "narrative": "A flour miller's spec sheet makes a rise claim with no trial data behind it. Passing on it is worth recording: negative evidence stops the next session \u2014 human or agent \u2014 from rediscovering and re-chasing the same dead end.",
-      "spec": "8",
-      "commands": [
-        "flip pass 'Millwright Flour spec sheet rise claim' --reason 'Vendor marketing copy; no trial data, self-interested on the exact question.'"
-      ],
-      "stdout": "passed 2026-08-20T16:24:24Z \u00b7 Vendor marketing copy; no trial data, self-interested on the exact question.",
-      "exit_code": 0,
-      "refused": false,
-      "tree": [
-        {
-          "path": ".flip/ids",
-          "state": "same"
-        },
-        {
-          "path": ".flip/viewcache.json",
-          "state": "changed"
-        },
-        {
-          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
-          "state": "same"
-        },
-        {
-          "path": "claims/index.md",
-          "state": "same"
-        },
-        {
-          "path": "index.md",
-          "state": "changed"
-        },
-        {
-          "path": "log/passed.jsonl",
-          "state": "added"
-        },
-        {
-          "path": "notebook.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/index.md",
-          "state": "changed"
-        },
-        {
-          "path": "references/ridgeway-club-trial.md",
-          "state": "same"
-        },
-        {
-          "path": "references/rise-times.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/_provenance.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F1.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F2.csv",
-          "state": "same"
-        }
-      ],
-      "record": {
-        "path": "log/passed.jsonl",
-        "lang": "json",
-        "caption": "log/passed.jsonl \u2014 the notebook remembers what it decided not to use.",
-        "text": "{\n  \"ts\": \"2026-08-20T16:24:24Z\",\n  \"text\": \"Millwright Flour spec sheet rise claim\",\n  \"reason\": \"Vendor marketing copy; no trial data, self-interested on the exact question.\",\n  \"actor\": \"human:baker\"\n}"
-      }
-    },
-    {
-      "n": 11,
-      "id": "link",
+      "id": "answer",
       "say": "",
-      "reply": "Linked F2 to the claim. Corroboration recomputed to 2; the attribution regenerated itself.",
-      "act": "Make a claim stick",
-      "title": "Link the second source",
-      "narrative": "Linking regenerates the claim's citation block and recomputes its corroboration count from the graded sources it actually has. The number on the page is never taken on faith.",
-      "spec": "7",
-      "commands": [
-        "flip claim source add C1 F2"
-      ],
-      "stdout": "C1 \u00b7 linked F2 \u00b7 sources: F1, F2 \u00b7 corroboration: 2",
-      "exit_code": 0,
-      "refused": false,
-      "tree": [
-        {
-          "path": ".flip/ids",
-          "state": "same"
-        },
-        {
-          "path": ".flip/viewcache.json",
-          "state": "changed"
-        },
-        {
-          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
-          "state": "changed"
-        },
-        {
-          "path": "claims/index.md",
-          "state": "changed"
-        },
-        {
-          "path": "index.md",
-          "state": "changed"
-        },
-        {
-          "path": "log/passed.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "notebook.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/ridgeway-club-trial.md",
-          "state": "same"
-        },
-        {
-          "path": "references/rise-times.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/_provenance.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F1.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F2.csv",
-          "state": "same"
-        }
-      ],
-      "record": {
-        "lang": "markdown",
-        "caption": "independent_corroboration: 2, and footnote attribution regenerated from the edges.",
-        "text": "---\ntype: Claim\nid: C1\naliases:\n- C1\ndescription: Doubling time falls about a quarter between 65% and 80% hydration\nstatus: asserted\nload_bearing: true\nsources:\n- id: F1\n  resource: /references/ridgeway-club-trial.md\n  title: ridgeway-club-trial.md\n- id: F2\n  resource: /references/rise-times.md\n  title: rise-times.csv\nindependent_corroboration: 2\nfirst_asserted: '2026-08-20'\ngenerated:\n  by: human:baker\n  at: '2026-08-20T16:24:24Z'\n---\n\nDoubling time falls about a quarter between 65% and 80% hydration[^F1][^F2]\n\n[^F1]: [ridgeway-club-trial.md](../references/ridgeway-club-trial.md)\n[^F2]: [rise-times.csv](../references/rise-times.md)",
-        "path": "claims/doubling-time-falls-about-a-quarter-between-65.md"
-      }
-    },
-    {
-      "n": 12,
-      "id": "verified",
-      "say": "Try again now.",
-      "reply": "Now it passes: C1 is verified \u2014 earned mechanically, and re-checkable by anyone with the files.",
-      "act": "Make a claim stick",
-      "title": "Now it passes",
-      "narrative": "Same command as before, different answer \u2014 because the evidence changed, not because anyone insisted. The default bar is two independent judged sources *or* one grade-A primary, and the notebook now has both: a second independent trial, and first-party data we measured ourselves. Either would have cleared it.",
-      "spec": "7",
-      "commands": [
-        "flip claim status C1 verified"
-      ],
-      "stdout": "C1 \u2192 verified \u00b7 corroboration: 2",
-      "exit_code": 0,
-      "refused": false,
-      "tree": [
-        {
-          "path": ".flip/ids",
-          "state": "same"
-        },
-        {
-          "path": ".flip/viewcache.json",
-          "state": "changed"
-        },
-        {
-          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
-          "state": "changed"
-        },
-        {
-          "path": "claims/index.md",
-          "state": "changed"
-        },
-        {
-          "path": "index.md",
-          "state": "changed"
-        },
-        {
-          "path": "log/passed.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "notebook.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/ridgeway-club-trial.md",
-          "state": "same"
-        },
-        {
-          "path": "references/rise-times.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/_provenance.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F1.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F2.csv",
-          "state": "same"
-        }
-      ],
-      "record": {
-        "lang": "markdown",
-        "caption": "status: verified \u2014 earned mechanically, and re-checkable by anyone with the files.",
-        "text": "---\ntype: Claim\nid: C1\naliases:\n- C1\ndescription: Doubling time falls about a quarter between 65% and 80% hydration\nstatus: verified\nload_bearing: true\nsources:\n- id: F1\n  resource: /references/ridgeway-club-trial.md\n  title: ridgeway-club-trial.md\n- id: F2\n  resource: /references/rise-times.md\n  title: rise-times.csv\nindependent_corroboration: 2\nfirst_asserted: '2026-08-20'\ngenerated:\n  by: human:baker\n  at: '2026-08-20T16:24:24Z'\n---\n\nDoubling time falls about a quarter between 65% and 80% hydration[^F1][^F2]\n\n[^F1]: [ridgeway-club-trial.md](../references/ridgeway-club-trial.md)\n[^F2]: [rise-times.csv](../references/rise-times.md)",
-        "path": "claims/doubling-time-falls-about-a-quarter-between-65.md"
-      }
-    },
-    {
-      "n": 13,
-      "id": "tested",
-      "say": "Hang on. Does the club write-up actually say that, or did we read it in?",
-      "reply": "Fair question, so I went looking for the error rather than for agreement. Recorded what I probed for, how it would have shown up, and what I'd have seen instead. It survived.",
-      "act": "Test what you claim",
-      "title": "Ask the claim something it could fail",
-      "narrative": "`flip claim verify` records confirmations \u2014 it is OKF's key, and its entries say a check was run and held. A probe that goes looking for an error and *finds* one has nowhere to live in that vocabulary, so flip keeps a separate append-only `tests:` list where a failure is a first-class result. A test counts as severe only with four things on the record: the error it looked for, how that error would have shown up, what would have appeared *instead* had the error not been there, and what did the testing. The third is the one people skip, and it is the one that makes it a test at all \u2014 a probe that fires either way discriminates nothing, however carefully it was run.",
-      "spec": "7",
-      "commands": [
-        "flip claim test C1 --probe attribution --error 'the club write-up does not report the gap C1 cites it for' --would-detect 'the pooled-result paragraph names a different pair of hydration levels, or no median gap at all' --if-absent 'the write-up states a 61-minute median between the 65% and 80% groups, as cited' --against F1 --result survived"
-      ],
-      "stdout": "C1 \u00b7 attribution test survived (severe) \u00b7 exposure: severely-tested",
-      "exit_code": 0,
-      "refused": false,
-      "tree": [
-        {
-          "path": ".flip/ids",
-          "state": "same"
-        },
-        {
-          "path": ".flip/viewcache.json",
-          "state": "changed"
-        },
-        {
-          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
-          "state": "changed"
-        },
-        {
-          "path": "claims/index.md",
-          "state": "changed"
-        },
-        {
-          "path": "index.md",
-          "state": "changed"
-        },
-        {
-          "path": "log/passed.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "notebook.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/ridgeway-club-trial.md",
-          "state": "same"
-        },
-        {
-          "path": "references/rise-times.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/_provenance.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F1.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F2.csv",
-          "state": "same"
-        }
-      ],
-      "record": {
-        "lang": "markdown",
-        "caption": "tests: \u2014 appended, never edited over. A probe that had failed would sit in the same list, saying so.",
-        "text": "---\ntype: Claim\nid: C1\naliases:\n- C1\ndescription: Doubling time falls about a quarter between 65% and 80% hydration\nstatus: verified\nload_bearing: true\nsources:\n- id: F1\n  resource: /references/ridgeway-club-trial.md\n  title: ridgeway-club-trial.md\n- id: F2\n  resource: /references/rise-times.md\n  title: rise-times.csv\nindependent_corroboration: 2\nfirst_asserted: '2026-08-20'\ngenerated:\n  by: human:baker\n  at: '2026-08-20T16:24:24Z'\ntests:\n- probe: attribution\n  error: the club write-up does not report the gap C1 cites it for\n  would_detect: the pooled-result paragraph names a different pair of hydration levels, or\n    no median gap at all\n  if_absent: the write-up states a 61-minute median between the 65% and 80% groups, as cited\n  result: survived\n  against:\n  - F1\n  at: '2026-08-20T16:24:24Z'\n  by: human:baker\n---\n\nDoubling time falls about a quarter between 65% and 80% hydration[^F1][^F2]\n\n[^F1]: [ridgeway-club-trial.md](../references/ridgeway-club-trial.md)\n[^F2]: [rise-times.csv](../references/rise-times.md)",
-        "path": "claims/doubling-time-falls-about-a-quarter-between-65.md"
-      }
-    },
-    {
-      "n": 14,
-      "id": "exposed",
-      "say": "And what is that actually worth?",
-      "reply": "It's the difference between 'nobody looked' and 'someone looked hard and it held'. flip works that out on demand instead of storing a verdict \u2014 here is the whole derivation.",
-      "act": "Test what you claim",
-      "title": "What the record adds up to",
-      "narrative": "`exposure` is computed from the test record every time it is asked for and never written to the page \u2014 the same discipline as the grade. Five readings: bent, severely-tested, misattributed, refuted, untestable. A claim nobody has tested reads `bent`, and deliberately not as a neutral default: the onus is on whoever is making the claim and nobody has discharged it yet. The gate runs one way only. A severe test that went looking for the error and found it refuses `verified` whatever the corroboration count says \u2014 and no test can open a gate the sources have not.",
-      "spec": "7",
-      "commands": [
-        "flip claim exposure C1"
-      ],
-      "stdout": "C1 \u00b7 exposure severely-tested (derived, never stored) \u00b7 status verified\n  because: a test that would probably have caught the error ran, and did not catch it \u2014 the strongest thing this axis says\n  tests on record:\n    attribution \u00b7 survived \u00b7 severe \u2014 named the error, says how it would have shown up, says what it would have shown otherwise, and is locatable\n      looked for: the club write-up does not report the gap C1 cites it for\n      against: F1\n  notebook stance: none recorded (nobody has decided, which is not the same as abstaining)\n  next: severely-tested is the ceiling here; corroboration is a separate axis (`flip claim source add C1 <id>`)",
-      "exit_code": 0,
-      "refused": false,
-      "tree": [
-        {
-          "path": ".flip/ids",
-          "state": "same"
-        },
-        {
-          "path": ".flip/viewcache.json",
-          "state": "same"
-        },
-        {
-          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
-          "state": "same"
-        },
-        {
-          "path": "claims/index.md",
-          "state": "same"
-        },
-        {
-          "path": "index.md",
-          "state": "same"
-        },
-        {
-          "path": "log/passed.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "notebook.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/ridgeway-club-trial.md",
-          "state": "same"
-        },
-        {
-          "path": "references/rise-times.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/_provenance.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F1.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F2.csv",
-          "state": "same"
-        }
-      ],
-      "record": {
-        "lang": "text",
-        "caption": "Derived on read, with its reasons attached \u2014 the twin of `flip grade --explain`.",
-        "text": "C1 \u00b7 exposure severely-tested (derived, never stored) \u00b7 status verified\n  because: a test that would probably have caught the error ran, and did not catch it \u2014 the strongest thing this axis says\n  tests on record:\n    attribution \u00b7 survived \u00b7 severe \u2014 named the error, says how it would have shown up, says what it would have shown otherwise, and is locatable\n      looked for: the club write-up does not report the gap C1 cites it for\n      against: F1\n  notebook stance: none recorded (nobody has decided, which is not the same as abstaining)\n  next: severely-tested is the ceiling here; corroboration is a separate axis (`flip claim source add C1 <id>`)",
-        "path": "stdout"
-      }
-    },
-    {
-      "n": 15,
-      "id": "kept",
-      "say": "Most of the caveat came out of the call with their organiser, though.",
-      "reply": "Then the call is a source. Captured it whole as T1 and pinned the four lines the caveat lives in, so a claim can cite the exchange rather than a two-hour file.",
-      "act": "Keep the record",
-      "title": "Keep the conversation, cite the passage",
-      "narrative": "Claims and graded sources are the residue of thinking, not the thinking. `flip session transcript` puts the conversation under exactly the custody a fetched document gets \u2014 immutable bytes, a hash, one capture row \u2014 and records the method as `human-in-loop`, because a person was in the conversation and handed flip the file. `flip transcript excerpt` then pins a passage: the quote is read out of the capture and hashed, never taken from the caller, so a pinned passage is always the words it says it is. A claim cites `T1\u00a7vessels-not-standardised` and travels with them; several passages of one conversation are several citations and one source.",
-      "spec": "8",
-      "commands": [
-        "flip session transcript hydration-sweep --file ../club-call.md --participant human:trial-organiser --title 'Call with the Ridgeway club'\"'\"'s trial organiser' --note 'Kept verbatim; the vessel caveat is the reason C1 is hedged.'",
-        "flip transcript excerpt T1 --lines 8-11 --label vessels-not-standardised --note 'The organiser'\"'\"'s own words on what the trial did not control.'"
-      ],
-      "stdout": "sources/raw/T1.md  (17 lines)\ncaptured as T1  /tmp/flip-site-fa9p7iu5/sourdough-rise/references/club-call.md\nlinked from /tmp/flip-site-fa9p7iu5/sourdough-rise/sessions/2026-08-20T1624-hydration-sweep.md\npin a passage: flip transcript excerpt T1 --lines A-B --label <label>\n\nT1\u00a7vessels-not-standardised\n  lines 8-11, 35 words, sha256 55b3c58a9aa5\n  cite it: flip claim add \"\u2026\" --source T1\u00a7vessels-not-standardised\n  \u2026or --about T1\u00a7vessels-not-standardised if the claim is about what was SAID here \u2014 a conversation is the only witness to itself, so that citation is never counted and owes `flip claim test --probe attribution` instead",
-      "exit_code": 0,
-      "refused": false,
-      "tree": [
-        {
-          "path": ".flip/ids",
-          "state": "changed"
-        },
-        {
-          "path": ".flip/viewcache.json",
-          "state": "changed"
-        },
-        {
-          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
-          "state": "same"
-        },
-        {
-          "path": "claims/index.md",
-          "state": "changed"
-        },
-        {
-          "path": "index.md",
-          "state": "changed"
-        },
-        {
-          "path": "log/passed.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "notebook.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/index.md",
-          "state": "changed"
-        },
-        {
-          "path": "references/club-call.md",
-          "state": "added"
-        },
-        {
-          "path": "references/index.md",
-          "state": "changed"
-        },
-        {
-          "path": "references/ridgeway-club-trial.md",
-          "state": "same"
-        },
-        {
-          "path": "references/rise-times.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
-          "state": "changed"
-        },
-        {
-          "path": "sessions/index.md",
-          "state": "changed"
-        },
-        {
-          "path": "sources/_provenance.jsonl",
-          "state": "changed"
-        },
-        {
-          "path": "sources/raw/F1.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F2.csv",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/T1.md",
-          "state": "added"
-        }
-      ],
-      "record": {
-        "lang": "text",
-        "caption": "The pinned passage, hashed out of the capture. Unpinning it is refused while a claim cites it.",
-        "text": "sources/raw/T1.md  (17 lines)\ncaptured as T1  /tmp/flip-site-fa9p7iu5/sourdough-rise/references/club-call.md\nlinked from /tmp/flip-site-fa9p7iu5/sourdough-rise/sessions/2026-08-20T1624-hydration-sweep.md\npin a passage: flip transcript excerpt T1 --lines A-B --label <label>\n\nT1\u00a7vessels-not-standardised\n  lines 8-11, 35 words, sha256 55b3c58a9aa5\n  cite it: flip claim add \"\u2026\" --source T1\u00a7vessels-not-standardised\n  \u2026or --about T1\u00a7vessels-not-standardised if the claim is about what was SAID here \u2014 a conversation is the only witness to itself, so that citation is never counted and owes `flip claim test --probe attribution` instead",
-        "path": "stdout"
-      }
-    },
-    {
-      "n": 16,
-      "id": "decide",
-      "say": "Let's not bother testing rye \u2014 white flour only.",
-      "reply": "Recorded the decision, rejected alternative included. The why is the payload; the what is recoverable from git.",
-      "act": "Keep the record",
-      "title": "Record the fork you resolved",
-      "narrative": "The what is recoverable from git; the why is not. Decisions are pages so that nobody relitigates them in six weeks, including the agent that made them.",
-      "spec": "7",
-      "commands": [
-        "flip decide --question 'Report doubling time or final crumb quality?' --decision 'Doubling time only' --why 'It is the one variable both trials measured the same way.' --rejected 'Crumb scoring \u2014 subjective and not recorded by the club'"
-      ],
-      "stdout": "D1 \u00b7 Doubling time only",
-      "exit_code": 0,
-      "refused": false,
-      "tree": [
-        {
-          "path": ".flip/ids",
-          "state": "changed"
-        },
-        {
-          "path": ".flip/viewcache.json",
-          "state": "changed"
-        },
-        {
-          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
-          "state": "same"
-        },
-        {
-          "path": "claims/index.md",
-          "state": "same"
-        },
-        {
-          "path": "decisions/doubling-time-only.md",
-          "state": "added"
-        },
-        {
-          "path": "decisions/index.md",
-          "state": "added"
-        },
-        {
-          "path": "index.md",
-          "state": "changed"
-        },
-        {
-          "path": "log/passed.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "notebook.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/club-call.md",
-          "state": "same"
-        },
-        {
-          "path": "references/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/ridgeway-club-trial.md",
-          "state": "same"
-        },
-        {
-          "path": "references/rise-times.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/_provenance.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F1.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F2.csv",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/T1.md",
-          "state": "same"
-        }
-      ],
-      "record": {
-        "lang": "markdown",
-        "caption": "The rejected alternative is part of the record, not a footnote.",
-        "text": "---\ntype: Decision\nid: D1\naliases:\n- D1\ndescription: Doubling time only\nquestion: Report doubling time or final crumb quality?\nalternatives_rejected:\n- Crumb scoring \u2014 subjective and not recorded by the club\ngenerated:\n  by: human:baker\n  at: '2026-08-20T16:24:25Z'\n---\n\n**Question.** Report doubling time or final crumb quality?\n\n**Decision.** Doubling time only\n\n**Why.** It is the one variable both trials measured the same way.\n\n**Rejected.** Crumb scoring \u2014 subjective and not recorded by the club",
-        "path": "decisions/doubling-time-only.md"
-      }
-    },
-    {
-      "n": 17,
-      "id": "doctor",
-      "say": "Anything left hanging before we wrap up?",
-      "reply": "Doctor is clean apart from the expected-with-use notes. Nothing blocking.",
-      "act": "Audit and render",
-      "title": "Audit the notebook",
-      "narrative": "`flip doctor` validates after the fact instead of gatekeeping before \u2014 which is what lets a human edit the same files freely in a markdown editor. It lints OKF conformance, profile minimums, orphaned custody, under-verified load-bearing claims, and link rot.",
-      "spec": "15",
-      "commands": [
-        "flip doctor"
-      ],
-      "stdout": "ok: nothing wrong; 1 expected-until-use notice below\nexpected until use (these appear with the work, not problems yet \u2014 don't re-run doctor for reassurance):\n  WARN missing-required drafts \u2014 profile 'research-review' requires drafts (it appears with use; required before done/published/archived); create it",
-      "exit_code": 0,
-      "refused": false,
-      "tree": [
-        {
-          "path": ".flip/ids",
-          "state": "same"
-        },
-        {
-          "path": ".flip/viewcache.json",
-          "state": "same"
-        },
-        {
-          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
-          "state": "same"
-        },
-        {
-          "path": "claims/index.md",
-          "state": "same"
-        },
-        {
-          "path": "decisions/doubling-time-only.md",
-          "state": "same"
-        },
-        {
-          "path": "decisions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "index.md",
-          "state": "same"
-        },
-        {
-          "path": "log/passed.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "notebook.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/club-call.md",
-          "state": "same"
-        },
-        {
-          "path": "references/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/ridgeway-club-trial.md",
-          "state": "same"
-        },
-        {
-          "path": "references/rise-times.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/_provenance.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F1.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F2.csv",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/T1.md",
-          "state": "same"
-        }
-      ],
-      "record": {
-        "lang": "text",
-        "caption": "Profile minimums warn while a notebook is active, and only error once it is called done.",
-        "text": "ok: nothing wrong; 1 expected-until-use notice below\nexpected until use (these appear with the work, not problems yet \u2014 don't re-run doctor for reassurance):\n  WARN missing-required drafts \u2014 profile 'research-review' requires drafts (it appears with use; required before done/published/archived); create it",
-        "path": "stdout"
-      }
-    },
-    {
-      "n": 18,
-      "id": "show",
-      "say": "Where do we stand?",
-      "reply": "Here's where we stand: open questions, claims needing work, recent activity. It's a projection \u2014 the files stay canonical.",
-      "act": "Audit and render",
-      "title": "The hot view",
-      "narrative": "Nothing is deleted to keep context small. `flip show` computes what is hot \u2014 open questions, claims needing work, recent log \u2014 from the pages and ledgers, every time. Add `--json` and it is an agent's context primer.",
+      "reply": "Bottom line: OKF is a recent interoperability layer over the agent-maintained-wiki pattern, with a public history that starts at a snapshot rather than at inception. Its permissive core is both the portability win and the source of current pressure around identity, routing, relationships, retrieval, composition, and enforcement. Planning is visible; a public schedule is not.",
+      "act": "The handoff",
+      "title": "Read the hot view",
+      "narrative": "The concise answer is a projection over the durable notebook. A future agent can start from the answered questions and reopen conditions instead of searching the same ground again.",
       "spec": "10",
       "commands": [
-        "flip show"
+        "flip show --claims"
       ],
-      "stdout": "sourdough-rise \u00b7 research-review \u00b7 active \u00b7 2026-08-20\n\nOPEN QUESTIONS\n  Q1 \u00b7 Does higher hydration shorten the time to double?  [unwatched \u2014 no resolves_via surface]\n\nLATEST SESSION\n  sessions/2026-08-20T1624-hydration-sweep.md",
+      "stdout": "VERIFIED\n  C1 \u00b7 [load-bearing] \u00b7 OKF's launch account says v0.1 formalizes the LLM-wiki pattern \u00b7 sources: F1 \u00b7 corroboration: n/a (subject) \u00b7 severely-tested\n  C2 \u00b7 [load-bearing] \u00b7 LLM-wiki predates the OKF launch and names Memex as a deeper precedent \u00b7 sources: F2 \u00b7 corroboration: n/a (subject) \u00b7 severely-tested\n  C3 \u00b7 [load-bearing] \u00b7 The public OKF spec history contains a June snapshot import and two July v0.2 c\u2026 \u00b7 sources: F4 \u00b7 corroboration: 1\n  C4 \u00b7 [load-bearing] \u00b7 The import PR says upstream Git history was not preserved \u00b7 sources: F3 \u00b7 corroboration: n/a (subject) \u00b7 severely-tested\n  C5 \u00b7 [load-bearing] \u00b7 OKF deliberately leaves query infrastructure and runtime packaging outside the\u2026 \u00b7 sources: F5 \u00b7 corroboration: n/a (subject) \u00b7 severely-tested\n  C6 \u00b7 [load-bearing] \u00b7 Visible proposals cluster around identity, routing, relationships, retrieval, a\u2026 \u00b7 sources: F6, F7, F8, F9, F10, F11 \u00b7 corroboration: 6\n  C7 \u00b7 [load-bearing] \u00b7 No formal public roadmap was found on the checked root, okf directory, or miles\u2026 \u00b7 sources: F12 \u00b7 corroboration: 1\n  C8 \u00b7 [load-bearing] \u00b7 There is public planning evidence short of a formal roadmap \u00b7 sources: F12 \u00b7 corroboration: 1",
       "exit_code": 0,
       "refused": false,
       "tree": [
@@ -1405,15 +1099,39 @@
           "state": "same"
         },
         {
-          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
-          "state": "same"
-        },
-        {
           "path": "claims/index.md",
           "state": "same"
         },
         {
-          "path": "decisions/doubling-time-only.md",
+          "path": "claims/llm-wiki-predates-the-okf-launch-and-names.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/no-formal-public-roadmap-was-found-on-the.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/okf-deliberately-leaves-query-infrastructure-and-runtime-packagi.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/okf-s-launch-account-says-v0-1-formalizes.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/the-import-pr-says-upstream-git-history-was.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/the-public-okf-spec-history-contains-a-june.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/there-is-public-planning-evidence-short-of-a.md",
+          "state": "same"
+        },
+        {
+          "path": "claims/visible-proposals-cluster-around-identity-routing-relationships.md",
           "state": "same"
         },
         {
@@ -1421,11 +1139,19 @@
           "state": "same"
         },
         {
+          "path": "decisions/only-the-three-checked-repository-surfaces.md",
+          "state": "same"
+        },
+        {
           "path": "index.md",
           "state": "same"
         },
         {
-          "path": "log/passed.jsonl",
+          "path": "log.md",
+          "state": "same"
+        },
+        {
+          "path": "log/log.jsonl",
           "state": "same"
         },
         {
@@ -1433,15 +1159,31 @@
           "state": "same"
         },
         {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
-          "state": "same"
-        },
-        {
           "path": "questions/index.md",
           "state": "same"
         },
         {
-          "path": "references/club-call.md",
+          "path": "questions/is-there-evidence-of-a-roadmap-or-other.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/what-are-the-traceable-origins-of-okf.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/what-critiques-and-gaps-are-visible-now.md",
+          "state": "same"
+        },
+        {
+          "path": "questions/what-precedents-does-okf-build-on.md",
+          "state": "same"
+        },
+        {
+          "path": "references/conversation.md",
+          "state": "same"
+        },
+        {
+          "path": "references/import-pr.md",
           "state": "same"
         },
         {
@@ -1449,15 +1191,51 @@
           "state": "same"
         },
         {
-          "path": "references/ridgeway-club-trial.md",
+          "path": "references/issue-composition.md",
           "state": "same"
         },
         {
-          "path": "references/rise-times.md",
+          "path": "references/issue-identity.md",
           "state": "same"
         },
         {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
+          "path": "references/issue-links.md",
+          "state": "same"
+        },
+        {
+          "path": "references/issue-orientation.md",
+          "state": "same"
+        },
+        {
+          "path": "references/issue-retrieval.md",
+          "state": "same"
+        },
+        {
+          "path": "references/issue-routing.md",
+          "state": "same"
+        },
+        {
+          "path": "references/llm-wiki.md",
+          "state": "same"
+        },
+        {
+          "path": "references/okf-launch.md",
+          "state": "same"
+        },
+        {
+          "path": "references/okf-spec.md",
+          "state": "same"
+        },
+        {
+          "path": "references/roadmap-check.md",
+          "state": "same"
+        },
+        {
+          "path": "references/spec-commits.md",
+          "state": "same"
+        },
+        {
+          "path": "sessions/2026-08-20T2002-okf-origins.md",
           "state": "same"
         },
         {
@@ -1473,7 +1251,47 @@
           "state": "same"
         },
         {
-          "path": "sources/raw/F2.csv",
+          "path": "sources/raw/F10.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F11.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F12.json",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F2.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F3.json",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F4.json",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F5.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F6.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F7.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F8.md",
+          "state": "same"
+        },
+        {
+          "path": "sources/raw/F9.md",
           "state": "same"
         },
         {
@@ -1483,117 +1301,8 @@
       ],
       "record": {
         "lang": "text",
-        "caption": "A projection, not a stored view. The files remain canonical.",
-        "text": "sourdough-rise \u00b7 research-review \u00b7 active \u00b7 2026-08-20\n\nOPEN QUESTIONS\n  Q1 \u00b7 Does higher hydration shorten the time to double?  [unwatched \u2014 no resolves_via surface]\n\nLATEST SESSION\n  sessions/2026-08-20T1624-hydration-sweep.md",
-        "path": "stdout"
-      }
-    },
-    {
-      "n": 19,
-      "id": "export",
-      "say": "Share it with the group.",
-      "reply": "Rendered the JSON projection: stable ids, policy-filtered, versioned. Anything downstream can build on this and link back.",
-      "act": "Audit and render",
-      "title": "Render it somewhere",
-      "narrative": "`flip export json` emits the versioned flip-render/1 projection for renderers and site generators \u2014 deterministic, diffable, and policy-filtered. This notebook is `visibility: internal`, so the export refuses outright until you either mark it public or say `--include-private` and mean it. It is how the provenance panel on this site is built, from this site's own notebook.",
-      "spec": "17",
-      "commands": [
-        "flip export json --out - --include-private"
-      ],
-      "stdout": "{\n  \"contract\": \"flip-render/1\",\n  \"generated\": \"2026-08-20T16:24:25Z\",\n  \"source_trail_public\": true,\n  \"notebook\": {\n    \"uid\": \"nb-601t56y5\",\n    \"slug\": \"sourdough-rise\",\n    \"title\": \"Does hydration change sourdough rise time?\",\n    \"kind\": \"research-review\",\n    \"status\": \"active\",\n    \"created\": \"2026-08-20\",\n    \"updated\": \"2026-08-20\",\n    \"visibility\": \"internal\"\n  },\n  \"sources\": [\n    {\n      \"id\": \"F1\",\n      \"slug\": \"ridgeway-club-trial\",\n      \"kind\": \"\",\n      \"grade\": \"B\",\n      \"independence\": \"independent\",\n      \"freshness\": \"\",\n      \"title\": \"ridgeway-club-trial.md\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-08-20T16:24:23Z\",\n      \"sha256\": \"23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40\"\n    },\n    {\n      \"id\": \"F2\",\n      \"slug\": \"rise-times\",\n      \"kind\": \"\",\n      \"grade\": \"A\",\n      \"independence\": \"independent\",\n      \"freshness\": \"\",\n      \"title\": \"rise-times.csv\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-08-20T16:24:24Z\",\n      \"sha256\": \"d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c\"\n    },\n    {\n      \"id\": \"T1\",\n      \"slug\": \"club-call\",\n      \"kind\": \"\",\n      \"grade\": \"?\",\n      \"independence\": \"\",\n      \"freshness\": \"\",\n      \"title\": \"Call with the Ridgeway club's trial organiser\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-08-20T16:24:25Z\",\n      \"sha256\": \"fc5c678c9465836e3e894abf6117dcadc8276754fe6192ff3b03108ceccec467\"\n    }\n  ],\n  \"claims\": [\n    {\n      \"id\": \"C1\",\n      \"slug\": \"doubling-time-falls-about-a-quarter-between-65\",\n      \"text\": \"Doubling time falls about a quarter between 65% and 80% hydration\",\n      \"status\": \"verified\",\n      \"load_bearing\": true,\n      \"sources\": [\n        \"F1\",\n        \"F2\"\n      ],\n      \"corroboration\": 2,\n      \"verifications\": []\n    }\n  ],\n  \"questions\": [\n    {\n      \"id\": \"Q1\",\n      \"slug\": \"does-higher-hydration-shorten-the-time-to-double\",\n      \"text\": \"Does higher hydration shorten the time to double?\",\n      \"status\": \"open\",\n      \"formulations\": []\n    }\n  ],\n  \"decisions\": [\n    {\n      \"id\": \"D1\",\n      \"slug\": \"doubling-time-only\",\n      \"text\": \"Doubling time only\",\n      \"question\": \"Report doubling time or final crumb quality?\",\n      \"alternatives_rejected\": [\n        \"Crumb scoring \u2014 subjective and not recorded by the club\"\n      ]\n    }\n  ],\n  \"sessions\": [\n    {\n      \"id\": \"2026-08-20T1624-hydration-sweep\",\n      \"actor\": \"human:baker\",\n      \"model\": \"claude-opus-5\",\n      \"started\": \"2026-08-20T16:24:23Z\",\n      \"ended\": \"\",\n      \"goal\": \"\"\n    }\n  ],\n  \"log_tail\": []\n}",
-      "exit_code": 0,
-      "refused": false,
-      "tree": [
-        {
-          "path": ".flip/ids",
-          "state": "same"
-        },
-        {
-          "path": ".flip/viewcache.json",
-          "state": "same"
-        },
-        {
-          "path": "claims/doubling-time-falls-about-a-quarter-between-65.md",
-          "state": "same"
-        },
-        {
-          "path": "claims/index.md",
-          "state": "same"
-        },
-        {
-          "path": "decisions/doubling-time-only.md",
-          "state": "same"
-        },
-        {
-          "path": "decisions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "index.md",
-          "state": "same"
-        },
-        {
-          "path": "log/passed.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "notebook.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/does-higher-hydration-shorten-the-time-to-double.md",
-          "state": "same"
-        },
-        {
-          "path": "questions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/club-call.md",
-          "state": "same"
-        },
-        {
-          "path": "references/index.md",
-          "state": "same"
-        },
-        {
-          "path": "references/ridgeway-club-trial.md",
-          "state": "same"
-        },
-        {
-          "path": "references/rise-times.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/2026-08-20T1624-hydration-sweep.md",
-          "state": "same"
-        },
-        {
-          "path": "sessions/index.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/_provenance.jsonl",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F1.md",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/F2.csv",
-          "state": "same"
-        },
-        {
-          "path": "sources/raw/T1.md",
-          "state": "same"
-        }
-      ],
-      "record": {
-        "lang": "json",
-        "caption": "flip-render/1 \u2014 a projection, not an API. Stable ids to anchor and link back to.",
-        "truncated": true,
-        "text": "{\n  \"contract\": \"flip-render/1\",\n  \"generated\": \"2026-08-20T16:24:25Z\",\n  \"source_trail_public\": true,\n  \"notebook\": {\n    \"uid\": \"nb-601t56y5\",\n    \"slug\": \"sourdough-rise\",\n    \"title\": \"Does hydration change sourdough rise time?\",\n    \"kind\": \"research-review\",\n    \"status\": \"active\",\n    \"created\": \"2026-08-20\",\n    \"updated\": \"2026-08-20\",\n    \"visibility\": \"internal\"\n  },\n  \"sources\": [\n    {\n      \"id\": \"F1\",\n      \"slug\": \"ridgeway-club-trial\",\n      \"kind\": \"\",\n      \"grade\": \"B\",\n      \"independence\": \"independent\",\n      \"freshness\": \"\",\n      \"title\": \"ridgeway-club-trial.md\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-08-20T16:24:23Z\",\n      \"sha256\": \"23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40\"\n    },\n    {\n      \"id\": \"F2\",\n      \"slug\": \"rise-times\",\n      \"kind\": \"\",\n      \"grade\": \"A\",\n      \"independence\": \"independent\",\n      \"freshness\": \"\",\n      \"title\": \"rise-times.csv\",\n      \"canonical_url\": \"\",\n      \"captured_at\": \"2026-08-20T16:24:24Z\",\n      \"sha256\": \"d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c\"\n    },\n    {",
+        "caption": "The hot view is computed from the notebook; the pages and ledgers remain canonical.",
+        "text": "VERIFIED\n  C1 \u00b7 [load-bearing] \u00b7 OKF's launch account says v0.1 formalizes the LLM-wiki pattern \u00b7 sources: F1 \u00b7 corroboration: n/a (subject) \u00b7 severely-tested\n  C2 \u00b7 [load-bearing] \u00b7 LLM-wiki predates the OKF launch and names Memex as a deeper precedent \u00b7 sources: F2 \u00b7 corroboration: n/a (subject) \u00b7 severely-tested\n  C3 \u00b7 [load-bearing] \u00b7 The public OKF spec history contains a June snapshot import and two July v0.2 c\u2026 \u00b7 sources: F4 \u00b7 corroboration: 1\n  C4 \u00b7 [load-bearing] \u00b7 The import PR says upstream Git history was not preserved \u00b7 sources: F3 \u00b7 corroboration: n/a (subject) \u00b7 severely-tested\n  C5 \u00b7 [load-bearing] \u00b7 OKF deliberately leaves query infrastructure and runtime packaging outside the\u2026 \u00b7 sources: F5 \u00b7 corroboration: n/a (subject) \u00b7 severely-tested\n  C6 \u00b7 [load-bearing] \u00b7 Visible proposals cluster around identity, routing, relationships, retrieval, a\u2026 \u00b7 sources: F6, F7, F8, F9, F10, F11 \u00b7 corroboration: 6\n  C7 \u00b7 [load-bearing] \u00b7 No formal public roadmap was found on the checked root, okf directory, or miles\u2026 \u00b7 sources: F12 \u00b7 corroboration: 1\n  C8 \u00b7 [load-bearing] \u00b7 There is public planning evidence short of a formal roadmap \u00b7 sources: F12 \u00b7 corroboration: 1",
         "path": "stdout"
       }
     }

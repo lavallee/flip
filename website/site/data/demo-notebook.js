@@ -1,141 +1,526 @@
 window.__FLIP_NOTEBOOK__ = {
   "contract": "flip-render/2",
-  "generated": "2026-08-20T16:24:25Z",
+  "generated": "2026-08-20T20:02:43Z",
   "source_trail_public": true,
   "notebook": {
-    "uid": "nb-601t56y5",
-    "slug": "sourdough-rise",
-    "title": "Does hydration change sourdough rise time?",
+    "uid": "nb-ybhj733k",
+    "slug": "okf-origins",
+    "title": "Where OKF came from and where it may go",
     "kind": "research-review",
     "status": "active",
     "created": "2026-08-20",
     "updated": "2026-08-20",
-    "visibility": "internal"
+    "visibility": "public"
   },
   "sources": [
     {
       "id": "F1",
-      "slug": "ridgeway-club-trial",
+      "slug": "okf-launch",
       "kind": "",
-      "grade": "B",
-      "independence": "independent",
+      "grade": "D",
+      "independence": "derivative",
       "freshness": "",
       "support": {
-        "basis": "panel",
-        "method": "blind community trial, 40 bakers, self-reported rise times"
+        "basis": "synthesis",
+        "method": "compact packet from the held launch post"
       },
-      "title": "ridgeway-club-trial.md",
+      "title": "okf-launch.md",
       "canonical_url": "",
-      "captured_at": "2026-08-20T16:24:23Z",
-      "sha256": "23361d2ad8567f738c1061198ca7059207dc31d368f2554f2679ed3a088d7d40"
+      "captured_at": "2026-08-20T20:02:37Z",
+      "sha256": "fcbcf7103ffebb2ed7ebe089da6aba0e61d519998fe741e30d18b39723f9c575"
     },
     {
       "id": "F2",
-      "slug": "rise-times",
+      "slug": "llm-wiki",
+      "kind": "",
+      "grade": "D",
+      "independence": "derivative",
+      "freshness": "",
+      "support": {
+        "basis": "synthesis",
+        "method": "compact packet from the held idea file"
+      },
+      "title": "llm-wiki.md",
+      "canonical_url": "",
+      "captured_at": "2026-08-20T20:02:37Z",
+      "sha256": "62c7f4569b17fcba85c8cce0d68bbaab7994168ae675c8a275c88498ccf50dd2"
+    },
+    {
+      "id": "F3",
+      "slug": "import-pr",
+      "kind": "",
+      "grade": "C",
+      "independence": "self-reported",
+      "freshness": "",
+      "support": {
+        "basis": "official-record",
+        "method": "merged pull-request record"
+      },
+      "title": "import-pr.json",
+      "canonical_url": "",
+      "captured_at": "2026-08-20T20:02:38Z",
+      "sha256": "808fde045ca489451a5efe7546c264be89675aefc27c691dbeadb8c6efef16f4"
+    },
+    {
+      "id": "F4",
+      "slug": "spec-commits",
       "kind": "",
       "grade": "A",
       "independence": "independent",
       "freshness": "",
       "support": {
-        "basis": "measured",
-        "n": "12 bakes at four hydration levels",
+        "basis": "platform-data",
+        "method": "GitHub commits endpoint",
         "base_defined": true
       },
-      "title": "rise-times.csv",
+      "title": "spec-commits.json",
       "canonical_url": "",
-      "captured_at": "2026-08-20T16:24:24Z",
-      "sha256": "d027275eb43b8be21aea527c5f24042e28f55923f5ced12c09175fbbc8120c6c"
+      "captured_at": "2026-08-20T20:02:38Z",
+      "sha256": "d1ab41f5052b641cb435bcc51556ac81e86460410457190b5d883f06aa555867"
+    },
+    {
+      "id": "F5",
+      "slug": "okf-spec",
+      "kind": "",
+      "grade": "C",
+      "independence": "self-reported",
+      "freshness": "",
+      "support": {
+        "basis": "official-record",
+        "method": "current normative spec"
+      },
+      "title": "okf-spec.md",
+      "canonical_url": "",
+      "captured_at": "2026-08-20T20:02:39Z",
+      "sha256": "c7f605d91b157170f3e1ba481ee1c215006a5943f2538d78873b3e116507e5f1"
+    },
+    {
+      "id": "F6",
+      "slug": "issue-identity",
+      "kind": "",
+      "grade": "B",
+      "independence": "independent",
+      "freshness": "",
+      "support": {
+        "basis": "single-operator",
+        "method": "public proposal at its canonical URL"
+      },
+      "title": "issue-identity.md",
+      "canonical_url": "",
+      "captured_at": "2026-08-20T20:02:39Z",
+      "sha256": "d019fc24518bd7d2d4197e2a5fcf7379e6def8c4cd7560f28e7a0e4442998cd6"
+    },
+    {
+      "id": "F7",
+      "slug": "issue-routing",
+      "kind": "",
+      "grade": "B",
+      "independence": "independent",
+      "freshness": "",
+      "support": {
+        "basis": "single-operator",
+        "method": "public proposal at its canonical URL"
+      },
+      "title": "issue-routing.md",
+      "canonical_url": "",
+      "captured_at": "2026-08-20T20:02:40Z",
+      "sha256": "91fe12b53ca6085f383251217f477f6df23702bd75a8260cd6cacda419db5bf5"
+    },
+    {
+      "id": "F8",
+      "slug": "issue-links",
+      "kind": "",
+      "grade": "B",
+      "independence": "independent",
+      "freshness": "",
+      "support": {
+        "basis": "single-operator",
+        "method": "public proposal at its canonical URL"
+      },
+      "title": "issue-links.md",
+      "canonical_url": "",
+      "captured_at": "2026-08-20T20:02:40Z",
+      "sha256": "19297a9e18cd527b9479c620275f7361ff758cd6bb1aa0c96dc43f57c98df7e2"
+    },
+    {
+      "id": "F9",
+      "slug": "issue-retrieval",
+      "kind": "",
+      "grade": "B",
+      "independence": "independent",
+      "freshness": "",
+      "support": {
+        "basis": "single-operator",
+        "method": "public proposal at its canonical URL"
+      },
+      "title": "issue-retrieval.md",
+      "canonical_url": "",
+      "captured_at": "2026-08-20T20:02:40Z",
+      "sha256": "f642d87b2b020b170eb94196df22aebc2f79d9998000cb30a52d694302519c51"
+    },
+    {
+      "id": "F10",
+      "slug": "issue-composition",
+      "kind": "",
+      "grade": "B",
+      "independence": "independent",
+      "freshness": "",
+      "support": {
+        "basis": "single-operator",
+        "method": "public proposal at its canonical URL"
+      },
+      "title": "issue-composition.md",
+      "canonical_url": "",
+      "captured_at": "2026-08-20T20:02:40Z",
+      "sha256": "9982db308cd559ae358d7e9b57b99c95b6a42d66252f3f773e4c1f6c4b93521d"
+    },
+    {
+      "id": "F11",
+      "slug": "issue-orientation",
+      "kind": "",
+      "grade": "B",
+      "independence": "independent",
+      "freshness": "",
+      "support": {
+        "basis": "single-operator",
+        "method": "public proposal at its canonical URL"
+      },
+      "title": "issue-orientation.md",
+      "canonical_url": "",
+      "captured_at": "2026-08-20T20:02:40Z",
+      "sha256": "41b59c9f7a122765878edefbd9ea459382988182b8b5d08d6b486ccf31fac4c6"
+    },
+    {
+      "id": "F12",
+      "slug": "roadmap-check",
+      "kind": "",
+      "grade": "A",
+      "independence": "independent",
+      "freshness": "",
+      "support": {
+        "basis": "platform-data",
+        "method": "repository contents and milestones endpoints",
+        "base_defined": true
+      },
+      "title": "roadmap-check.json",
+      "canonical_url": "",
+      "captured_at": "2026-08-20T20:02:41Z",
+      "sha256": "f421e4b7fc86a11cdd69144a275923e1ac2f666d09feddad9a0f240fbcd28209"
     },
     {
       "id": "T1",
-      "slug": "club-call",
+      "slug": "conversation",
       "kind": "",
       "grade": "?",
       "independence": "",
       "freshness": "",
-      "title": "Call with the Ridgeway club's trial organiser",
+      "title": "conversation.md",
       "canonical_url": "",
-      "captured_at": "2026-08-20T16:24:25Z",
-      "sha256": "fc5c678c9465836e3e894abf6117dcadc8276754fe6192ff3b03108ceccec467"
+      "captured_at": "2026-08-20T20:02:42Z",
+      "sha256": "ad115114964030f5b4d2c9a45f8c3da9f92bb7fda59d16dd6bd33dd2a552610d"
     }
   ],
   "claims": [
     {
       "id": "C1",
-      "slug": "doubling-time-falls-about-a-quarter-between-65",
-      "text": "Doubling time falls about a quarter between 65% and 80% hydration",
+      "slug": "okf-s-launch-account-says-v0-1-formalizes",
+      "text": "OKF's launch account says v0.1 formalizes the LLM-wiki pattern",
       "status": "verified",
       "load_bearing": true,
       "sources": [
-        "F1",
-        "F2"
+        "F1"
       ],
-      "corroboration": 2,
       "verifications": [],
+      "subjects": [
+        "F1"
+      ],
       "exposure": "severely-tested",
       "stances": [],
       "tests": [
         {
           "probe": "attribution",
-          "error": "the club write-up does not report the gap C1 cites it for",
-          "would_detect": "the pooled-result paragraph names a different pair of hydration levels, or no median gap at all",
-          "if_absent": "the write-up states a 61-minute median between the 65% and 80% groups, as cited",
+          "error": "the launch account names no LLM-wiki lineage",
+          "would_detect": "LLM-wiki is absent or described as unrelated",
+          "if_absent": "the account says OKF formalizes LLM-wiki",
           "result": "survived",
           "against": [
             "F1"
           ],
-          "at": "2026-08-20T16:24:24Z",
-          "by": "human:baker",
+          "at": "2026-08-20T20:02:38Z",
+          "by": "agent:harness",
           "severity": "severe"
         }
       ],
       "rivals": []
+    },
+    {
+      "id": "C2",
+      "slug": "llm-wiki-predates-the-okf-launch-and-names",
+      "text": "LLM-wiki predates the OKF launch and names Memex as a deeper precedent",
+      "status": "verified",
+      "load_bearing": true,
+      "sources": [
+        "F2"
+      ],
+      "verifications": [],
+      "subjects": [
+        "F2"
+      ],
+      "exposure": "severely-tested",
+      "stances": [],
+      "tests": [
+        {
+          "probe": "attribution",
+          "error": "the idea file lacks the date or Memex connection",
+          "would_detect": "either element is absent",
+          "if_absent": "both appear in the held file",
+          "result": "survived",
+          "against": [
+            "F2"
+          ],
+          "at": "2026-08-20T20:02:38Z",
+          "by": "agent:harness",
+          "severity": "severe"
+        }
+      ],
+      "rivals": []
+    },
+    {
+      "id": "C3",
+      "slug": "the-public-okf-spec-history-contains-a-june",
+      "text": "The public OKF spec history contains a June snapshot import and two July v0.2 changes",
+      "status": "verified",
+      "load_bearing": true,
+      "sources": [
+        "F4"
+      ],
+      "corroboration": 1,
+      "verifications": []
+    },
+    {
+      "id": "C4",
+      "slug": "the-import-pr-says-upstream-git-history-was",
+      "text": "The import PR says upstream Git history was not preserved",
+      "status": "verified",
+      "load_bearing": true,
+      "sources": [
+        "F3"
+      ],
+      "verifications": [],
+      "subjects": [
+        "F3"
+      ],
+      "exposure": "severely-tested",
+      "stances": [],
+      "tests": [
+        {
+          "probe": "attribution",
+          "error": "the PR preserves or does not discuss upstream history",
+          "would_detect": "a subtree import or silence",
+          "if_absent": "the PR calls it a history-free snapshot",
+          "result": "survived",
+          "against": [
+            "F3"
+          ],
+          "at": "2026-08-20T20:02:39Z",
+          "by": "agent:harness",
+          "severity": "severe"
+        }
+      ],
+      "rivals": []
+    },
+    {
+      "id": "C5",
+      "slug": "okf-deliberately-leaves-query-infrastructure-and-runtime-packagi",
+      "text": "OKF deliberately leaves query infrastructure and runtime packaging outside the format and defers several runtime concerns",
+      "status": "verified",
+      "load_bearing": true,
+      "sources": [
+        "F5"
+      ],
+      "verifications": [],
+      "subjects": [
+        "F5"
+      ],
+      "exposure": "severely-tested",
+      "stances": [],
+      "tests": [
+        {
+          "probe": "attribution",
+          "error": "the spec does not name those boundaries",
+          "would_detect": "the non-goal and deferred lists omit them",
+          "if_absent": "the lists name them directly",
+          "result": "survived",
+          "against": [
+            "F5"
+          ],
+          "at": "2026-08-20T20:02:41Z",
+          "by": "agent:harness",
+          "severity": "severe"
+        }
+      ],
+      "rivals": []
+    },
+    {
+      "id": "C6",
+      "slug": "visible-proposals-cluster-around-identity-routing-relationships",
+      "text": "Visible proposals cluster around identity, routing, relationships, retrieval, and composition",
+      "status": "verified",
+      "load_bearing": true,
+      "sources": [
+        "F6",
+        "F7",
+        "F8",
+        "F9",
+        "F10",
+        "F11"
+      ],
+      "corroboration": 6,
+      "verifications": []
+    },
+    {
+      "id": "C7",
+      "slug": "no-formal-public-roadmap-was-found-on-the",
+      "text": "No formal public roadmap was found on the checked root, okf directory, or milestone surfaces",
+      "status": "verified",
+      "load_bearing": true,
+      "sources": [
+        "F12"
+      ],
+      "corroboration": 1,
+      "verifications": [],
+      "absence": {
+        "scope": "named_surfaces",
+        "surfaces": [
+          "repository root contents",
+          "okf directory contents",
+          "all-state milestones"
+        ]
+      }
+    },
+    {
+      "id": "C8",
+      "slug": "there-is-public-planning-evidence-short-of-a",
+      "text": "There is public planning evidence short of a formal roadmap",
+      "status": "verified",
+      "load_bearing": true,
+      "sources": [
+        "F12"
+      ],
+      "corroboration": 1,
+      "verifications": []
     }
   ],
   "questions": [
     {
       "id": "Q1",
-      "slug": "does-higher-hydration-shorten-the-time-to-double",
-      "text": "Does higher hydration shorten the time to double?",
-      "status": "open",
+      "slug": "what-are-the-traceable-origins-of-okf",
+      "text": "What are the traceable origins of OKF?",
+      "status": "answered",
       "formulations": [],
-      "resolves_via": []
+      "resolves_via": [
+        "launch material and repository history"
+      ]
+    },
+    {
+      "id": "Q2",
+      "slug": "what-precedents-does-okf-build-on",
+      "text": "What precedents does OKF build on?",
+      "status": "answered",
+      "formulations": [],
+      "resolves_via": [
+        "author statements and the named predecessor"
+      ]
+    },
+    {
+      "id": "Q3",
+      "slug": "what-critiques-and-gaps-are-visible-now",
+      "text": "What critiques and gaps are visible now?",
+      "status": "answered",
+      "formulations": [],
+      "resolves_via": [
+        "spec boundaries and public proposals"
+      ]
+    },
+    {
+      "id": "Q4",
+      "slug": "is-there-evidence-of-a-roadmap-or-other",
+      "text": "Is there evidence of a roadmap or other planning?",
+      "status": "answered",
+      "formulations": [],
+      "resolves_via": [
+        "repository files, milestones, spec deferrals, and proposals"
+      ],
+      "reopen_when": [
+        "a roadmap, milestone, dated release plan, or observable project board appears"
+      ]
     }
   ],
   "decisions": [
     {
       "id": "D1",
-      "slug": "doubling-time-only",
-      "text": "Doubling time only",
-      "question": "Report doubling time or final crumb quality?",
+      "slug": "only-the-three-checked-repository-surfaces",
+      "text": "Only the three checked repository surfaces",
+      "question": "How far can the roadmap null reach?",
       "alternatives_rejected": [
-        "Crumb scoring \u2014 subjective and not recorded by the club"
+        "Infer that no planning exists"
       ]
     }
   ],
   "sessions": [
     {
-      "id": "2026-08-20T1624-hydration-sweep",
-      "actor": "human:baker",
-      "model": "claude-opus-5",
-      "started": "2026-08-20T16:24:23Z",
-      "ended": "",
+      "id": "2026-08-20T2002-okf-origins",
+      "actor": "agent:harness",
+      "model": "agent-harness",
+      "started": "2026-08-20T20:02:37Z",
+      "ended": "2026-08-20T20:02:43Z",
       "goal": ""
     }
   ],
-  "log_tail": [],
+  "log_tail": [
+    {
+      "ts": "2026-08-20T20:02:37Z",
+      "text": "started: trace OKF origins, gaps, and planning evidence",
+      "actor": "agent:harness"
+    },
+    {
+      "ts": "2026-08-20T20:02:38Z",
+      "text": "question-answer Q2: \"Direct precedent: LLM-wiki. Familiar substrate: Markdown/YAML/Git and wiki tools. Memex is second-order lineage.\"",
+      "actor": "agent:harness"
+    },
+    {
+      "ts": "2026-08-20T20:02:39Z",
+      "text": "question-answer Q1: \"The traceable chain ends at a history-free June snapshot before the July v0.2 changes.\"",
+      "actor": "agent:harness"
+    },
+    {
+      "ts": "2026-08-20T20:02:41Z",
+      "text": "question-answer Q3: \"Five recurring gap classes, with spec boundaries kept separate from contributor proposals.\"",
+      "actor": "agent:harness"
+    },
+    {
+      "ts": "2026-08-20T20:02:42Z",
+      "text": "question-answer Q4: \"No formal roadmap on checked surfaces; positive planning signals exist without dates or sequence.\"",
+      "actor": "agent:harness"
+    },
+    {
+      "ts": "2026-08-20T20:02:42Z",
+      "text": "handoff: origins bounded; gaps mapped; roadmap null scoped",
+      "actor": "agent:harness"
+    }
+  ],
   "forecasts": [],
   "commissions": [],
   "work": [
     {
       "path": "notebook.md",
       "title": "Working memory",
-      "body": "# Reporter's notebook \u2014 Does hydration change sourdough rise time?\n\n## The tip\n\n> Where the question came from, and what the reader will do with the answer.\n\n## Frame\n\n> Decision the reader should be able to make \u00b7 headline claim (state it before building) \u00b7 counter-narrative to rule out \u00b7 audience and their prior knowledge.\n\n## What the data can and can't say\n\n> Can say / can't say (but readers might assume) / could say with more ingest. Name unresolved tensions so they travel forward explicitly.\n\n## Hypotheses & falsifiers\n\n> Set before looking, each with a named falsifier (H1, H2\u2026). Close the loop with a 'what survived the reporting' audit.\n\n## Sources & provenance\n\n> What fed this. Point at references/ and sources/_provenance.jsonl; for datasets name the generator, inputs, cut date, and rebuild command.\n\n## Priors ledger\n\n> Each shift: claim \u00b7 prior \u2192 posterior \u00b7 shift size \u00b7 confidence \u00b7 source.\n\n## Decisions\n\n> Resolved forks and why (D1, D2\u2026). The why is the payload \u2014 the what is recoverable from git, the why isn't.\n\n## What's not in the piece\n\n> Honest omissions \u2014 what you left out, and why.\n\n## Workflow notes\n\n> What helped, what hurt \u2014 tooling, agent patterns, dead ends. About the process, not the piece.\n\n## Gaps & self-critique\n\n> Where this work is weakest; what a hostile reviewer would attack first."
+      "body": "# Reporter's notebook \u2014 Where OKF came from and where it may go\n\n## The tip\n\n> Where the question came from, and what the reader will do with the answer.\n\n## Frame\n\n> Decision the reader should be able to make \u00b7 headline claim (state it before building) \u00b7 counter-narrative to rule out \u00b7 audience and their prior knowledge.\n\n## What the data can and can't say\n\n> Can say / can't say (but readers might assume) / could say with more ingest. Name unresolved tensions so they travel forward explicitly.\n\n## Hypotheses & falsifiers\n\n> Set before looking, each with a named falsifier (H1, H2\u2026). Close the loop with a 'what survived the reporting' audit.\n\n## Sources & provenance\n\n> What fed this. Point at references/ and sources/_provenance.jsonl; for datasets name the generator, inputs, cut date, and rebuild command.\n\n## Priors ledger\n\n> Each shift: claim \u00b7 prior \u2192 posterior \u00b7 shift size \u00b7 confidence \u00b7 source.\n\n## Decisions\n\n> Resolved forks and why (D1, D2\u2026). The why is the payload \u2014 the what is recoverable from git, the why isn't.\n\n## What's not in the piece\n\n> Honest omissions \u2014 what you left out, and why.\n\n## Workflow notes\n\n> What helped, what hurt \u2014 tooling, agent patterns, dead ends. About the process, not the piece.\n\n## Gaps & self-critique\n\n> Where this work is weakest; what a hostile reviewer would attack first."
     },
     {
       "path": "analysis/findings.md",
-      "title": "What we can actually say about hydration and rise time",
-      "body": "# What we can actually say\n\nHigher hydration shortens rise time [C1] \u2014 now verified: the\ncommunity trial [F1] and our own twelve bakes [F2] agree, and the\ntwo are independent measurements, not echoes of each other. The\ntrial alone couldn't carry it (flip refused, correctly); the\nkitchen log is what earned the verification.\n\nScope honestly: one flour lot, one kitchen, home-oven conditions.\nWhether the effect size transfers to rye is the question we chose\nnot to chase [D1] \u2014 white flour only, this round."
+      "title": "Where OKF came from and where it may go",
+      "body": "# Bottom line\n\nOKF's declared direct precedent is LLM-wiki [C1-C2], but its public\nGoogleCloudPlatform history begins at a snapshot import that omitted\nthe upstream Git history [C3-C4]. The current pressure points cluster\naround stable identity, agent routing, relationship semantics,\nlarge-bundle retrieval, and cross-bundle composition [C5-C6].\n\nNo formal roadmap appeared on the three checked file and milestone\nsurfaces [C7]. Planning is still visible through named deferred work\nand active proposals [C8]: direction of travel, not a public schedule."
     }
   ],
   "drafts": []

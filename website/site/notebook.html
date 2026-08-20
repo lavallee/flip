@@ -212,9 +212,9 @@
     <p>Nothing above was typed by a person for this site. The notebook it renders was
       scaffolded, sourced, graded, claimed, decided, and logged by the real
       <code>flip</code> CLI during the site build — the
-      <a href="flipbook.html">flipbook page</a> steps through the same notebook one
-      command at a time; this page shows where all those commands land once the
-      notebook is whole. The projection itself is versioned: this page reads
+      <a href="flipbook.html">flipbook page</a> shows the reporting conversation
+      that produced the same notebook; this page shows the durable record once the
+      investigation is whole. The projection itself is versioned: this page reads
       <code>flip-render/2</code>, the contract <code>flip export json
       --render-version 2</code> emits, so a future contract bump cannot silently change
       what a reader sees here without the build noticing first.</p>
@@ -232,14 +232,12 @@
     </p>
   </div>
   <p class="demo-note nb__footnote" id="nb-vintage">
-    Generated at build time from a scratch notebook the flip CLI built during this
-    site's own build. The demo subject — a fictional baking club's sourdough hydration
-    trial — is invented on purpose, so nothing on this page could be mistaken for a
-    real finding.
-    <a href="flipbook.html">Watch this notebook get built, frame by frame →</a>
-    For real notebooks, see
-    <a href="https://github.com/lavallee/flip-examples">the flip-examples repository</a>
-    (<a href="https://lavallee.github.io/flip-examples/">rendered</a>).
+    Generated at build time by replaying a compact, offline-safe version of the OKF
+    origin investigation through the real CLI.
+    <a href="flipbook.html">Read the reporting conversation →</a>
+    The complete public notebook retains the original captures and full transcript in
+    <a href="https://github.com/lavallee/flip-examples/tree/main/okf-origins">flip-examples</a>
+    (<a href="https://lavallee.github.io/flip-examples/okf-origins/">rendered</a>).
   </p>
 </footer>
 

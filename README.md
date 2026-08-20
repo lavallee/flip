@@ -1,11 +1,14 @@
 # flip
 
-## Help your agent be a reporter, not a stenographer
+## Give your research a durable structure, not another prose dump
 
-flip's CLI tools and skills help agents judge the sources they build on, trace
-claims to evidence, formulate and refine research questions, and pursue them
-beyond the first plausible answer. You steer the research; the agent maintains
-the record.
+Your agent finishes a research task. The next agent starts from the chat log or from
+scratch. The work doesn't survive.
+
+flip brings rigor. It provides a spec for storing questions, claims, and raw
+materials with provenance, and tools for conducting research like a reporter, not a
+stenographer. flip notebooks can be evolved by humans and agents. The work
+compounds across sessions.
 
 The flip spec defines an agentic reporter's notebook format that works with OKF
 and LLM- and wiki-friendly tools like Obsidian.

@@ -190,7 +190,8 @@ differing in kind.
 Design DNA held constant across all routes: the type roles and spacing
 rhythm from artoo-kit tokens, a single accent, the monospace record voice for
 anything that is literal file content, and the recurring structural motif of
-**command → artifact → record** (the same triad the flipbook animates).
+**assignment → finding → receipt**. The CLI belongs inside the receipt, not in
+the human's conversation.
 
 ## Anti-reference
 
@@ -202,9 +203,10 @@ anything that is literal file content, and the recurring structural motif of
   does not link anywhere.
 - An interactive that is a slideshow of screenshots — clickable but inert,
   with no real data behind it.
-- Any invented notebook content in the flipbook that a reader might mistake
-  for a real research finding. The demo notebook's subject must be obviously,
-  harmlessly synthetic.
+- A toy research subject that makes agent work look like a human-operated CLI
+  tutorial. The flipbook must derive from a real investigation, show the
+  conversation first, and link to the complete public notebook whenever its
+  offline build uses compact source packets.
 - Internal tooling names anywhere. This repository is public-ready and the
   name-leak rule is absolute: the fetchers, retrieval services, and knowledge
   corpora that fill flip's integration roles in the author's own deployment

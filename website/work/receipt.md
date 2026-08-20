@@ -22,7 +22,7 @@ checks:
   functional:
     - "artoo build / status / doctor clean; render vintage fresh against notebook nb-qy38zvcn"
     - "artoo deploy --dry-run stages 29 files through the firewall; flip doctor gate passes"
-    - "flipbook stepper: arrows, Home/End, bounds disable, hash sync, deep link (#verified -> step 12)"
+    - "flipbook conversation: one human assignment, anchored agent updates, native details receipts, and deep links"
     - "spec map: 16 selectable regions, 5 lifecycle stages, 4 ledgers, 6 profiles, 11 CLI groups, 19 sections"
     - "home: 4 rules, 8 coordinates, 8 provenance entries, 2 inline claim refs resolved to anchors"
     - "start: 5 real command outputs including the refusal"
@@ -85,8 +85,10 @@ Three anti-references in the brief did real work:
 2. *No decorative node graph for the spec.* The bundle listing became the organising
    spine because that is how a reader meets a notebook on disk, and it stays readable
    and keyboard-navigable at 390px.
-3. *No invented notebook content that could pass for a finding.* The demo subject is a
-   fictional baking club, labelled as invented on the page itself.
+3. *No demo that misstates the real interaction.* The replacement flipbook starts
+   with one natural-language reporting assignment, keeps CLI operations collapsed as
+   receipts, and links its compact build-time replay to the full OKF-origin notebook
+   and transcript in `flip-examples`.
 
 The brief's rule "if a fact can be derived, it is derived" is what made the build
 fail-loud. Four separate drifts were caught during construction by the build refusing
