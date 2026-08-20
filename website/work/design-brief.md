@@ -22,9 +22,8 @@ site that showed only the CLI would misrepresent the format.
 
 ## Headline claim
 
-**Deep research your next agent can pick up where this one left off.** flip's
-CLI tools and skills help an agent work like a reporter rather than a
-stenographer: judge the sources it builds on, trace claims to evidence,
+**Help your agent be a reporter, not a stenographer.** flip's CLI tools and
+skills help an agent judge the sources it builds on, trace claims to evidence,
 formulate and refine research questions, and pursue them beyond the first
 plausible answer. You steer the research; the agent maintains the record. The
 spec defines a notebook format agent harnesses can operate—a conformant OKF

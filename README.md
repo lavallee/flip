@@ -1,6 +1,6 @@
 # flip
 
-## Deep research your next agent can pick up where this one left off
+## Help your agent be a reporter, not a stenographer
 
 Deep-research agents hand you a fluent report and a list of URLs. flip keeps the
 record underneath: every source captured and judged, every claim at an honest

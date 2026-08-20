@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "flip-notebook"
 version = "0.21.0"
-description = "Deep research your next agent can pick up where this one left off"
+description = "Help your agent be a reporter, not a stenographer"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
