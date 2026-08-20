@@ -4,11 +4,10 @@ Private working document. Artoo keeps this file outside `site/`; it is not deplo
 
 ## Reader decision
 
-A person building or operating research agents — an agent-tool author, a
-fleet operator, a developer wiring retrieval into a product — should be able
-to decide whether **flip is the at-rest format their agents write research
-into**, and should be able to run the first notebook within ten minutes of
-deciding yes.
+A person already doing research through an agent harness should be able to hand
+that agent one orientation guide, get a read-only fit assessment for the existing
+workflow, and—if the answer is yes—install the CLI and harness plugin and start a
+bounded pilot without learning flip's command surface first.
 
 The decision is not "is this a nice note-taking app." It is a substrate
 choice with lock-in consequences: what my agents produce a year from now,
@@ -23,13 +22,11 @@ site that showed only the CLI would misrepresent the format.
 
 ## Headline claim
 
-**A wiki tells an agent what we know; a notebook can prove where it came
-from.** flip is an extension profile of the Open Knowledge Format that adds
-the lineage discipline OKF deliberately leaves open — custody of the bytes
-you rely on, source grading recorded as an explicit act, claims gated by a
-corroboration bar, a record of what each claim was asked and what is done
-with it, and logged generation — while staying plain markdown any
-OKF consumer or markdown editor can already read.
+**Research that can keep going.** flip turns an agent's one-off answer into a
+source-grounded notebook that another human or agent can continue, challenge,
+and publish from. Auditability is the mechanism: custody, separate judgment,
+claim gates, question journeys, tests, actor attribution, and logged generation
+in plain Markdown and append-only ledgers.
 
 ## Supported claims
 
@@ -63,8 +60,15 @@ build fails the site rather than shipping a stale number.
 - Six profiles ship as TOML data — ledger, scout, research-review,
   engagement, data-investigation, pursuit — and profile minimums are
   completion requirements, not creation requirements (SPEC §13).
-- Version 0.17.0, 1119 test functions, MIT, Python 3.12+,
-  `pip install flip-notebook`.
+- Version, test-function count, spec status, Python requirement, and CLI surface
+  are derived at build time rather than copied into prose. The package is MIT
+  licensed and installs as `flip-notebook`.
+- Public example notebooks demonstrate recomputation, prospective review
+  criteria, honest unresolved questions, forecasts, and a 43-session autonomous
+  case study. They are observed uses, not controlled evidence of efficacy.
+- LiveDRBench and DeepTRACE support the bounded category claim that polished
+  deep-research reports can retain incomplete search coverage, one-sided framing,
+  and uneven citation support; the latter's product snapshot is dated 2025.
 - `flip export json` emits the versioned `flip-render/1` projection, which is
   what renders this site's own provenance panel; `--render-version 2` adds the
   support tuple, exposure and stances, and is what the whole-notebook page
@@ -72,10 +76,9 @@ build fails the site rather than shipping a stale number.
 
 ## Unsupported claims and counter-reading
 
-- **No adoption evidence.** There are no users to count, no case studies, no
-  testimonials, no "trusted by." The site must not imply a community that
-  does not exist. Test count is a mechanical sample of the implementation,
-  not evidence that the format works in the field.
+- **No population-level adoption evidence.** Public examples and one case study
+  now exist, but there is no user count, adoption rate, testimonial corpus, or
+  "trusted by" claim. Test count is implementation evidence, not field evidence.
 - **No effectiveness measurement.** Nothing here demonstrates that
   notebook-backed agents produce better research than agents that don't keep
   notebooks. The north-star metric — reusable verified claims picked up in a
@@ -83,7 +86,7 @@ build fails the site rather than shipping a stale number.
 - **OKF profile standing is unresolved.** flip's provenance vocabulary is a
   *draft* proposal that has been submitted nowhere. The site must say
   "draft, not submitted," never imply endorsement by OKF or its maintainers.
-- **Spec status is draft v0.17.** Not 1.0, not frozen. Migration exists
+- **Spec status is draft v0.21.** Not 1.0, not frozen. Migration exists
   (`flip migrate`) precisely because the format has moved and may move again.
 - **Strongest counter-reading:** that this is ceremony — metadata discipline
   that raises the cost of every capture without changing what the agent
@@ -98,9 +101,9 @@ build fails the site rather than shipping a stale number.
 
 ## Data vintages and denominators
 
-- flip: version 0.17.0, spec draft v0.17 dated 2026-08-10, repository
-  revision stamped at build.
-- Test count: 1119 at the built revision. This counts test
+- flip: package version, spec status, and repository revision are stamped at
+  build; authored HTML carries only a fallback value.
+- Test count: derived at the built revision. This counts test
   functions in the repository. It is not a coverage figure and not a quality
   measure.
 - CLI surface: generated from `flip cli --json` at build time, so the site
@@ -152,6 +155,12 @@ differing in kind.
   a way *into* the spec, never a replacement that can drift from it.
 - **The comparison strip** on the home page — categorical, adjacent, no
   ranking, one row per valid axis above.
+- **The orientation handoff** in the hero and start page — one copyable prompt
+  that tells the active agent to inspect the workflow read-only, report fit and
+  costs, and propose the smallest pilot before changing anything.
+- **The harness install path** — CLI and plugin presented as two distinct pieces,
+  followed by a conversational first instruction. Manual CLI use is explicitly
+  under the hood rather than the presumed human interface.
 - **The claim ledger** in the footer — the site's own provenance panel, from
   its own flip notebook, via `flip export json`.
 - Rejected: a chart of any kind. There is no measured distribution here, and
@@ -168,9 +177,10 @@ differing in kind.
 - **Public-data** for the spec map and the flipbook: provenance, exact
   values, overview-to-detail movement, adjacent comparison.
 - **Editorial** for the argument sections and the counter-reading.
-- **Operator** for `start.html`: exact commands, copyable, real state.
+- **Operator** for `start.html`: copyable agent prompts, exact harness install
+  commands, clear authority boundaries, and real CLI output under the hood.
 
-Design DNA held constant across all four routes: the type roles and spacing
+Design DNA held constant across all routes: the type roles and spacing
 rhythm from artoo-kit tokens, a single accent, the monospace record voice for
 anything that is literal file content, and the recurring structural motif of
 **command → artifact → record** (the same triad the flipbook animates).
@@ -202,7 +212,7 @@ anything that is literal file content, and the recurring structural motif of
 - **Visual and editorial proof:** keyboard operation of the flipbook and the
   spec map (they are the only stateful surfaces), visible focus, reduced-
   motion behavior, contrast, responsive recomposition at 1440 / 768 / 390,
-  and an independent seeing pass across all four routes.
+  and an independent seeing pass across all public pages.
 - **Offline and firewall proof:** zero CDN and runtime dependencies; the site
   renders from a `file://` URL; `artoo build`, `artoo status`, and
   `artoo doctor` clean; the private-file firewall keeps `work/` and

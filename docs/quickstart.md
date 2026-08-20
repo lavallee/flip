@@ -8,7 +8,12 @@ knowledge bundle — any markdown tool can browse and edit it.
 
 ## Two ways in
 
-**Conversational (recommended):** install the agent plugin. In Claude Code,
+**Assess fit first:** hand your agent the [orientation
+guide](agent-orientation.md). It inspects the existing workflow read-only,
+recommends the smallest useful pilot, and treats `defer` or `not a fit` as valid
+outcomes. No repository change or installation is part of that assessment.
+
+**Conversational (recommended):** install the CLI and agent plugin. In Claude Code,
 run `/plugin marketplace add lyra-forge/marketplace` and
 `/plugin install flip@lyra-forge`; in Codex, run
 `codex plugin marketplace add lyra-forge/marketplace` and
@@ -18,9 +23,9 @@ every command below happens on your behalf. The
 [Claude Code guide](claude-code.md) covers the skills, the custody hook, and
 what a session leaves behind.
 
-**Direct:** the rest of this page is the CLI walkthrough — the same
-operations by hand, which is also the fastest way to understand what the
-agent is doing.
+**Under the hood:** the rest of this page is the CLI walkthrough. It documents
+the operations the agent performs and is useful for debugging or integration;
+it is not the expected day-to-day human interface.
 
 ## Install
 

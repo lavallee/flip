@@ -115,3 +115,28 @@ have shipped as confident, wrong prose.
 The model and harness fields are a **self-declared attestation**. A screenshot proves a
 render happened; it does not prove the surface works for a reader who is not me. The
 verdict is `candidate` until someone else looks at it.
+
+## 2026-08-20 — continuable-research and harness-first refresh
+
+This pass changed the front door from an at-rest-format argument to a workflow
+handoff: “Research that can keep going.” The home page now gives the active agent
+a copyable, read-only fit check; distinguishes the CLI from the harness plugin;
+puts real notebook use and recent deep-research evidence above the format
+mechanics; and preserves the controlled-efficacy, token-efficiency, rights, and
+draft-spec boundaries. `start.html` now assumes the human directs research while
+the agent operates the CLI, with the exact commands retained as inspectable
+under-the-hood output.
+
+Checks at the working-tree revision:
+
+- `artoo build website`, `artoo status website`, and `artoo doctor website`: clean;
+  render fresh against notebook `nb-qy38zvcn` updated 2026-08-20.
+- `pytest -q tests/test_website.py`: 6 passed; `ruff check .`: clean;
+  `git diff --check`: clean.
+- Chromium at 1440, 768, and 390 px: no body overflow on home or start, no page or
+  console errors, no broken images; copy controls materialized for all four home
+  command/prompt blocks and all eleven start blocks.
+- `uv run pytest -q`: 1355 passed and two unrelated failures: one date-sensitive
+  dormant-view fixture landing exactly on 2026-08-20, and the public-name scrub
+  correctly catching a name in the user's pre-existing untracked
+  `docs/concurrent-writes.md`. Neither was changed by this surface pass.

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Start a notebook — flip</title>
-<meta name="description" content="Install flip, capture your first source, grade it, make a claim, and run doctor. Every command shown with the output it actually produces.">
+<title>Give flip to your agent</title>
+<meta name="description" content="Ask your agent whether flip fits, install the CLI and harness plugin, then direct source-grounded research conversationally.">
 <link rel="icon" href="lib/artoo-kit/favicon.svg">
 <link rel="stylesheet" href="lib/artoo-kit/tokens.css">
 <link rel="stylesheet" href="lib/artoo-kit/base.css">
@@ -20,7 +20,7 @@
   <div class="nav-links">
     <a href="flipbook.html">Flipbook</a>
     <a href="spec.html">Spec</a>
-    <a href="start.html">Start</a>
+    <a href="start.html" aria-current="page">Start</a>
     <a href="https://github.com/lavallee/flip">GitHub</a>
   </div>
   <button data-theme-toggle class="nav-toggle spacer" type="button" aria-label="Toggle light or dark theme">theme</button>
@@ -30,162 +30,164 @@
 
   <header>
     <p class="section-kicker">Start</p>
-    <h1>Your first notebook</h1>
-    <p class="lede">Eight steps. Local files work with no configuration at all; URL
-      capture needs one config file, which flip writes for you. Python
-      <span data-fact="python">3.12+</span>, two libraries, no services.</p>
+    <h1>Give flip to your agent</h1>
+    <p class="lede">Let the agent assess the fit, install the CLI and harness plugin,
+      then direct the research the way you already do. The CLI is the enforcement
+      surface underneath—not the expected human interface.</p>
   </header>
 
-  <ol class="steps">
-
-    <li>
-      <h3>Install it</h3>
-      <p>A tool install keeps flip off your project's dependency list, which is where
-        it belongs — flip is something you run, not something you import.</p>
-      <div class="cmd"><code>uv tool install flip-notebook</code></div>
-      <p>Or <code>pipx install flip-notebook</code>, or
-        <code>pip install flip-notebook</code> inside a virtualenv. From source:
-        <code>git clone https://github.com/lavallee/flip &amp;&amp; cd flip &amp;&amp; uv sync</code>.</p>
-      <div class="cmd"><code>flip --version</code></div>
-    </li>
-
-    <li>
-      <h3>Tell it who you are</h3>
-      <p>Every event and every entity page records an actor. Set it once in your
-        shell profile and stop thinking about it; agents set it per-invocation so
-        their work is distinguishable from yours.</p>
-      <div class="cmd"><code>export FLIP_ACTOR="human:yourname"</code></div>
-      <p>Precedence is <code>--actor</code>, then <code>FLIP_ACTOR</code>, then a
-        detected default.</p>
-    </li>
-
-    <li>
-      <h3>Write a starter config, if you want URL capture</h3>
-      <p>Local files always copy with no config. For URLs, this writes a
-        <code>config.toml</code> whose <code>web</code> lane uses the bundled
-        zero-dependency <code>flip-fetch</code> helper, so capture works immediately
-        and you can swap in curl, wget, a headless browser, or your own fetcher later.</p>
-      <div class="cmd"><code>flip config init</code></div>
-      <p>The same file carries a commented <code>[extractors]</code> stanza — the
-        lane <code>flip extract</code> uses to turn a captured PDF into readable text
-        under <code>sources/text/</code>, keyed by media family. flip ships no
-        extractor and picks no default, because a package that has an opinion about
-        PDF libraries is a package you have to fight.</p>
-      <p>flip's core makes no network calls and no LLM calls. It runs exactly what
-        you configure, and records which tool ran in the provenance ledger.</p>
-    </li>
-
-    <li>
-      <h3>Open a notebook</h3>
-      <p>Pick a profile with <code>--kind</code>. A <code>scout</code> screens an
-        angle fast and needs one judged source per claim; a
-        <code>research-review</code> is headed for publication and demands two. You
-        can change your mind later — <code>flip migrate</code> upgrades in place.</p>
-      <div class="cmd"><code>flip new my-question --kind scout --title "The thing I am trying to find out"</code></div>
-      <p>Kinds answer to what people actually say: <code>--kind "literature
-        review"</code> lands on <code>lit-review</code>, whose doctor knows from day
-        one what a finished review must contain. <code>flip kind list</code> shows
-        them all; open-ended is first-class (<code>scout</code>).</p>
-      <div class="cmd"><code>cd my-question</code></div>
-      <div id="out-new"></div>
-    </li>
-
-    <li>
-      <h3>Capture something, before you cite it</h3>
-      <p>A local file, a URL, or a DOI. flip copies the bytes in, hashes them, appends
-        a provenance line, and opens a source page at grade <code>?</code>. From this
-        point the notebook does not depend on that thing still existing anywhere else.</p>
-      <div class="cmd"><code>flip add-source ./some-report.pdf --note "why I grabbed this"</code></div>
-      <div class="cmd"><code>flip add-source https://example.org/a-page</code></div>
-      <div id="out-capture"></div>
-    </li>
-
-    <li>
-      <h3>Read it, then grade it</h3>
-      <p>Capture is custody; grading is judgment, and they are deliberately separate
-        acts. Grading describes the evidence — how independent, what basis, whether
-        the measured quantity is even defined — and the letter grade is derived from
-        the description, never handed out. Until then the source counts toward
-        nothing at all — which is the point, because a source you have not read
-        should not be able to prop up a claim.</p>
-      <div class="cmd"><code>flip grade F1 --independence independent --basis official-record --base-defined --notes "why this reading"</code></div>
-      <div id="out-grade"></div>
-    </li>
-
-    <li>
-      <h3>Make a claim, and try to promote it</h3>
-      <p>Claims enter as <code>asserted</code>. Mark the ones your work would fall
-        over without as <code>--load-bearing</code>, because those are the ones
-        <code>flip doctor</code> audits. Then find out what your profile demands.</p>
-      <div class="cmd"><code>flip claim add "The assertion, in one sentence" --source F1 --load-bearing</code></div>
-      <div class="cmd"><code>flip claim status C1 verified</code></div>
-      <div id="out-refused"></div>
-      <p>If it refuses, that is the system working. Add an independent source with
-        <code>flip claim source add C1 F2</code>, or record a real check with
-        <code>flip claim verify C1 --method adversarial</code> — a skeptic pass that
-        went looking for disconfirming evidence.</p>
-      <p>Two more moves belong here. A claim that is <em>about</em> a document rather
-        than supported by one cites it with <code>--about</code>, and owes an
-        attribution test instead of a second witness that cannot exist. And
-        <code>flip claim test</code> records a probe that could have come out the other
-        way — the error you hunted, how it would have shown up, and what you would have
-        seen instead — which is the one place a check that <em>found</em> the error can
-        be written down. <code>flip claim exposure C1</code> reads the result back.</p>
-    </li>
-
-    <li>
-      <h3>Audit, and see where you are</h3>
-      <p><code>doctor</code> validates after the fact rather than gatekeeping before,
-        which is what makes it safe for a human to edit the same files in a markdown
-        editor. <code>show</code> computes the hot view every time; add
-        <code>--json</code> and it becomes an agent's context primer.</p>
-      <div class="cmd"><code>flip doctor</code></div>
-      <div class="cmd"><code>flip show</code></div>
-      <div id="out-doctor"></div>
-    </li>
-
-  </ol>
-
-  <section class="prose">
-    <h2>Then what</h2>
-    <ul>
-      <li><strong>Open it in Obsidian.</strong> <code>flip obsidian</code> writes the
-        vault link config and installs a companion plugin that surfaces doctor
-        findings and the hot view in the sidebar. The notebook was already a valid
-        vault; this just finishes the job.</li>
-      <li><strong>Point an agent at it.</strong>
-        <a href="https://github.com/lavallee/flip/blob/main/AGENTS.md">AGENTS.md</a> is
-        the five-minute tour and the lineage rules an agent has to honour. Seven
-        procedural skills ship as plain <code>SKILL.md</code> files that any runtime
-        can read.</li>
-      <li><strong>Put many notebooks under one root.</strong> <code>flip ws init</code>
-        binds each to a short handle you choose, so <code>recipes:A3</code> resolves
-        from anywhere underneath.</li>
-      <li><strong>Keep the conversation.</strong>
-        <code>flip session transcript</code> captures the exchange a position was
-        built in, under the same custody a fetched document gets, and
-        <code>flip transcript excerpt</code> pins the passage so a claim cites
-        <code>T1§label</code> rather than a two-hour file.</li>
-      <li><strong>Render it.</strong> <code>flip export json</code> emits the
-        <code>flip-render/1</code> projection for site generators. This site's
-        provenance panel is built from it.</li>
-    </ul>
-    <p><a href="https://github.com/lavallee/flip/blob/main/docs/quickstart.md">The full
-      quickstart →</a></p>
+  <section id="assess-fit" class="orientation-section">
+    <p class="section-kicker">Before installing</p>
+    <h2>Ask your agent whether flip belongs here</h2>
+    <p>The orientation guide gives an agent a read-only assessment procedure. It must
+      find the current owners of evidence and workflow state, recommend the smallest
+      useful pilot, name the costs, and report before touching the repository.</p>
+    <p class="pane-label">Paste this into the agent already working in the repository</p>
+    <div class="cmd cmd--prompt"><code>Read https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md. Inspect this repository and its current research workflow read-only. Do not install anything or change files yet. Tell me whether flip is a fit, the smallest useful pilot, where it should live, which notebook kind fits, what it would coexist with, and what the costs and failure modes would be.</code></div>
+    <p><a href="https://github.com/lavallee/flip/blob/main/docs/agent-orientation.md">Read the orientation guide yourself →</a></p>
   </section>
 
-  <p class="demo-note" id="start-note">The outputs shown above are real, captured by
-    running these commands against a scratch notebook when this page was built. Ids
-    and timestamps will differ in yours.</p>
+  <section id="install">
+    <p class="section-kicker">Approved pilot</p>
+    <h2>Install for the harness</h2>
+    <p>There are two parts. The CLI writes and validates the portable notebook. The
+      plugin packages the skills that teach the harness when and how to use it.</p>
+
+    <ol class="steps steps--compact">
+      <li>
+        <h3>Put the CLI on the agent's PATH</h3>
+        <div class="cmd"><code>uv tool install flip-notebook</code></div>
+        <p>Or <code>pipx install flip-notebook</code>. This is a tool install, not a
+          project dependency. Python <span data-fact="python">3.12+</span>; two
+          libraries; no service, network call, or model call in the core.</p>
+      </li>
+
+      <li>
+        <h3>Add the plugin</h3>
+        <p class="install-label">Claude Code</p>
+        <div class="cmd cmd--bare"><code>/plugin marketplace add lyra-forge/marketplace
+/plugin install flip@lyra-forge</code></div>
+        <p class="install-label">Codex</p>
+        <div class="cmd"><code>codex plugin marketplace add lyra-forge/marketplace
+codex plugin add flip@lyra-forge</code></div>
+        <p>Both receive the same seven notebook skills. Claude Code also receives a
+          custody hook around <code>WebFetch</code>. Codex's hosted web tools do not
+          traverse that local hook path, so the skills and final doctor pass carry the
+          capture discipline there.</p>
+      </li>
+
+      <li>
+        <h3>Start a new session and state the research boundary</h3>
+        <div class="cmd cmd--prompt"><code>Use flip for this investigation. Start with the smallest suitable notebook kind, keep the material we rely on in custody, treat generated synthesis as a lead until its public sources are captured and judged, pursue logical follow-on questions, and leave a handoff another agent can continue.</code></div>
+        <p>The plugin is loaded at session start. Tell the agent where its authority
+          ends—especially whether it may create a notebook, capture source bytes,
+          modify Git attributes, publish an export, or only assess and report.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section class="prose">
+    <p class="section-kicker">Day-to-day use</p>
+    <h2>Talk about the research, not the bookkeeping</h2>
+    <p>You ask the substantive questions: “Did this result replicate?”, “What would
+      falsify that?”, “Does this answer the question as asked?”, “What should we watch
+      next?”, or “Can another agent pick this up?” The agent translates those requests
+      into source captures, grades, claims, tests, question notes, reopen triggers,
+      commissions, and session handoffs.</p>
+    <p>When you want to inspect the work, ask for <code>flip show</code>, the claims
+      needing support, open questions, source grades, or the latest handoff. The same
+      pages remain readable in GitHub, Obsidian, or any Markdown editor.</p>
+  </section>
+
+  <section>
+    <p class="section-kicker">Other harnesses</p>
+    <h2>The plugin is packaging, not a lock-in</h2>
+    <p>Give another runtime the <a href="https://github.com/lavallee/flip/blob/main/AGENTS.md">runtime-neutral
+      contract</a> and the <a href="https://github.com/lavallee/flip/tree/main/src/flip/skills">plain
+      <code>SKILL.md</code> procedures</a>, or load the spindle package named
+      <code>flip</code>. The CLI and notebook format underneath are the same.</p>
+    <div class="cmd cmd--prompt"><code>Read AGENTS.md completely before working in this notebook. Set FLIP_ACTOR explicitly, preserve append-only history and unknown frontmatter keys, capture before cite, and run flip doctor before handoff.</code></div>
+  </section>
+
+  <section id="under-the-hood">
+    <p class="section-kicker">Under the hood</p>
+    <h2>What the agent is doing for you</h2>
+    <p class="lede">You normally will not type these commands. The real output is
+      shown so the enforcement layer stays inspectable.</p>
+
+    <ol class="steps">
+      <li>
+        <h3>Choose an outcome and open the notebook</h3>
+        <p>A <code>pursuit</code> runs one question to ground; a <code>scout</code>
+          screens an angle; a <code>research-review</code>, <code>lit-review</code>,
+          <code>data-investigation</code>, <code>decision-packet</code>, or
+          <code>forward-set</code> carries a more specific completion contract.</p>
+        <div class="cmd"><code>flip new my-question --kind pursuit --title "The thing I am trying to find out"</code></div>
+        <div id="out-new"></div>
+      </li>
+
+      <li>
+        <h3>Capture what the work relies on</h3>
+        <p>flip preserves the bytes, hashes them, appends provenance, and opens a source
+          page at grade <code>?</code>. URL capture uses the configured web lane; local
+          files always copy directly.</p>
+        <div class="cmd"><code>flip add-source ./some-report.pdf --note "why this matters"</code></div>
+        <div id="out-capture"></div>
+      </li>
+
+      <li>
+        <h3>Read, then judge</h3>
+        <p>Capture is custody, not authority. The source counts toward nothing until a
+          named actor records its independence, evidentiary basis, and whether the
+          measurement base is defined.</p>
+        <div class="cmd"><code>flip grade F1 --independence independent --basis official-record --base-defined --notes "why this reading"</code></div>
+        <div id="out-grade"></div>
+      </li>
+
+      <li>
+        <h3>Assert a claim—and meet the gate</h3>
+        <p>A load-bearing claim enters as asserted. If the profile's corroboration bar
+          is unmet, verified status is refused. The refusal names every legitimate path
+          forward instead of accepting insistence as evidence.</p>
+        <div class="cmd"><code>flip claim add "The assertion, in one sentence" --source F1 --load-bearing
+flip claim status C1 verified</code></div>
+        <div id="out-refused"></div>
+      </li>
+
+      <li>
+        <h3>Expose the frontier and hand it off</h3>
+        <p><code>show</code> computes the hot view; <code>doctor</code> checks the format,
+          lineage, required files, and verification gates. Sessions and handoffs record
+          enough state for a cold agent to continue at the open edge.</p>
+        <div class="cmd"><code>flip show
+flip doctor</code></div>
+        <div id="out-doctor"></div>
+      </li>
+    </ol>
+  </section>
+
+  <section class="prose">
+    <h2>Go deeper</h2>
+    <ul>
+      <li><a href="https://github.com/lavallee/flip/blob/main/docs/claude-code.md">Harness guide</a>—skills, updates, attribution, and hook boundaries.</li>
+      <li><a href="https://github.com/lavallee/flip/blob/main/docs/quickstart.md">CLI quickstart</a>—capture configuration and the full mechanics.</li>
+      <li><a href="flipbook.html">Flipbook</a>—watch a complete human-agent exchange become a notebook.</li>
+      <li><a href="notebook.html">Finished notebook</a>—browse the generated record in full.</li>
+    </ul>
+  </section>
+
+  <p class="demo-note" id="start-note">The outputs above are generated by running
+    the real CLI against a scratch notebook when this site is built. Ids and timestamps
+    will differ in yours.</p>
 
 </main>
 
 <footer class="site-foot">
   <div class="site-foot__inner">
-    <p>flip — format and tooling for reporter's notebooks. MIT licensed.</p>
+    <p>flip—research that can keep going. MIT licensed.</p>
     <p>
       <a href="https://github.com/lavallee/flip">Repository</a> ·
-      <a href="https://github.com/lavallee/flip/blob/main/SPEC.md">Spec</a> ·
+      <a href="https://github.com/lavallee/flip/blob/main/docs/agent-orientation.md">Agent orientation</a> ·
       <a href="https://pypi.org/project/flip-notebook/">PyPI</a>
     </p>
   </div>

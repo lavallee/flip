@@ -1,6 +1,6 @@
 /* flip site — the layer above artoo-kit.
 
-   Design DNA held across all four routes: kit type roles and spacing rhythm,
+   Design DNA held across every route: kit type roles and spacing rhythm,
    one accent, a monospace "record voice" for anything that is literal file
    content, and the recurring command -> artifact -> record triad. */
 
@@ -138,6 +138,29 @@
   white-space: pre;
 }
 
+.cmd--bare::before { display: none; }
+
+.cmd--prompt {
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--accent) 6%, var(--code-bg));
+}
+
+.cmd--prompt::before {
+  content: "prompt";
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  line-height: 1.7;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.cmd--prompt code,
+.cmd--bare code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .copy {
   margin-left: auto;
   flex: none;
@@ -221,10 +244,119 @@
 .btn--quiet { border-color: var(--border-strong); color: var(--text-2); }
 .btn--quiet:hover { border-color: var(--text-2); border-bottom-color: var(--text-2); }
 
+/* -- home: adoption path and value ---------------------------------------- */
+
+.orientation-card { margin-top: 0; }
+.orientation-card .cmd {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: var(--sp-4);
+}
+
+.orientation-card .record__caption strong { color: var(--text-2); }
+
+.harness-band {
+  border-top: 2px solid var(--accent);
+  border-bottom: 1px solid var(--border);
+  padding: var(--sp-8) 0;
+}
+
+.install-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-8);
+  margin-top: var(--sp-8);
+}
+
+.install-grid h3 {
+  margin-top: 0;
+  font-size: var(--text-base);
+}
+
+.install-grid p,
+.install-label {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+.install-label {
+  margin: var(--sp-3) 0 var(--sp-1);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.pillars {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-6);
+  margin: var(--sp-8) 0;
+}
+
+.pillars article {
+  border-top: 2px solid var(--accent);
+  padding-top: var(--sp-3);
+}
+
+.pillars h3,
+.use-cases h3 {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--text-lg);
+}
+
+.pillars p,
+.use-cases p {
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.pillar__number {
+  margin: 0 0 var(--sp-4);
+  font-family: var(--font-numeric);
+  font-size: var(--text-xs) !important;
+  color: var(--accent) !important;
+}
+
+.use-cases {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--sp-8);
+  margin: var(--sp-8) 0;
+  border-top: 1px solid var(--border);
+}
+
+.use-cases article {
+  padding: var(--sp-6) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.use-cases article:nth-child(odd) { padding-right: var(--sp-4); }
+.use-cases article:nth-child(even) { padding-left: var(--sp-4); }
+.use-cases a { font-family: var(--font-ui); font-size: var(--text-sm); }
+
+.job-table { min-width: 38rem; }
+.job-table td:last-child { white-space: nowrap; }
+
+/* Source titles come from custody and may be raw URLs with no natural break. */
+[data-artoo-provenance] .provenance__title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.orientation-section {
+  border-left: 2px solid var(--accent);
+  padding-left: var(--sp-4);
+}
+
+.steps--compact { margin-bottom: var(--sp-12); }
+
 /* -- home: the enforcement strip ------------------------------------------ */
 
-/* Two by two, not three-and-an-orphan: there are exactly four rules and the
-   grid should say so. */
+/* Two columns at wide widths; a fifth rule may occupy the final half-row. */
 .rules {
   display: grid;
   gap: var(--sp-8) var(--sp-6);
@@ -653,6 +785,7 @@
 
 @media (max-width: 1000px) {
   .rules { grid-template-columns: minmax(0, 1fr); }
+  .pillars { grid-template-columns: minmax(0, 1fr); }
   .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .hero { grid-template-columns: minmax(0, 1fr); gap: var(--sp-8); padding-top: var(--sp-12); }
   .hero h1 { font-size: var(--text-3xl); }
@@ -686,6 +819,11 @@
   .fb__nav .hint { display: none; }
   .steps > li { padding-left: var(--sp-8); }
   .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .install-grid, .use-cases { grid-template-columns: minmax(0, 1fr); }
+  .use-cases article:nth-child(odd),
+  .use-cases article:nth-child(even) { padding-left: 0; padding-right: 0; }
+  .cmd--prompt { flex-wrap: wrap; }
+  .cmd--prompt .copy { margin-left: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

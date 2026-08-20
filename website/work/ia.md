@@ -13,14 +13,14 @@ served without being allowed to dilute the front door.
 
 | Reader | Arrives from | The job in their words | What convinces them | What loses them |
 |---|---|---|---|---|
-| **Agent-tool builder** (primary) | A repo link, a post about LLM wikis, a search for provenance in agent output | "My agents produce research I can't trust six weeks later. Is this the thing I write into?" | Seeing the enforcement, not the vocabulary. That grading is a separate act. That the files survive the tool. | Ceremony with no teeth. A format that needs a service. A landing page that won't say what it *makes* you do. |
+| **Agent workflow owner** (primary) | A repo link, an agent recommendation, a search for durable research or provenance | "Could my agent graft this into the way we already work, and is it worth the ceremony?" | A read-only agent fit check, smallest-pilot path, real use cases, harness install, and evidence that the record survives the tool. | Being asked to learn a CLI before deciding; a tool that claims to replace current owners; unsupported efficacy claims. |
 | **Human researcher** (secondary) | Obsidian community, PKM circles, journalism-tools chatter | "Can I actually work in this, or is it an agent thing I'd be babysitting?" | That it is already a valid Obsidian vault, and that re-grading from the properties panel is a legitimate operation. | Being shown only a CLI. Implying the human is a spectator to the agent. |
 | **Format evaluator** (tertiary) | OKF, OpenWiki, archival/provenance standards work | "Is this a credible extension profile, or a fork with opinions?" | Conformance stated precisely; the extension vocabulary listed; honest status on where the profile proposal stands. | Overclaiming standardization. Vagueness about what OKF supplies vs what flip adds. |
 
-**Where the three converge:** all three are deciding about an *artifact at
-rest*, not about a product experience. That is the site's center of gravity,
-and it is why the load-bearing interactive shows files being written rather
-than an app being used.
+**Where the three converge:** all three are deciding about a durable artifact at
+rest. The primary reader reaches that decision through an agent already inside
+the workflow, so the site must support both the human scan and a direct
+orientation handoff to that agent.
 
 **Where they diverge:** the builder wants to know what is enforced; the
 researcher wants to know what it feels like to live in; the evaluator wants
@@ -33,8 +33,8 @@ Per `PRACTICE.md` §1, bottom-up, before touching a surface:
 
 | Layer | State | Note |
 |---|---|---|
-| Observed user behavior and constraints | **weak** | There is no adoption to observe. No analytics, no interviews, no support log. This is the honest floor and it constrains everything above it: the site cannot argue from user experience it does not have. |
-| Domain facts and rules | **strong** | SPEC.md v0.17 is 1777 lines, current, and mechanically checkable against the CLI. |
+| Observed user behavior and constraints | **partial** | Public notebooks and a long-running case study now show concrete use, correction, and continuation patterns. There are still no analytics, interviews, adoption counts, or controlled comparisons. |
+| Domain facts and rules | **strong** | SPEC.md is draft v0.21; its current size, command map, profiles, and package version are mechanically checked at build time. |
 | User need and authority | **partial** | The need is inferred from the author's own multi-project practice, not measured. Stated as a bet on the site, not as a finding. |
 | Product strategy and scope | **strong** | VISION.md names the north star, three strategy bets, and four explicit non-goals. |
 | Concept model and vocabulary | **strong** | Source / claim / decision / question / session, plus beats and workspaces. Stable across four releases. |
@@ -54,14 +54,14 @@ Five routes, flat files so the site renders from `file://` (an artoo
 requirement, and the reason there are no directory-index URLs). Four are in
 the nav; `notebook.html` is reached from the pages that earn it, below.
 
-### `index.html` — the argument
+### `index.html` — the argument and handoff
 
 - **Mode:** marketing, with editorial passages for the argument body.
 - **Dials:** variance high, density relaxed, motion functional, type register
   branded, imagery role evidence-only.
-- **Task anatomy:** proof-led product argument. Position → the problem in
-  the reader's own terms → what a notebook is → the four things that are
-  enforced → the honest limits → where to go next.
+- **Task anatomy:** value-led product argument. Continuable research → copyable
+  read-only agent assessment → harness install → category evidence → three
+  outcomes → real use cases → enforcement → format → honest limits.
 - **Structural fingerprint:** *the widening spiral.* One claim stated flat,
   then re-entered three times at increasing resolution — headline, then the
   four enforcement rules as a scannable strip, then a worked fragment of real
@@ -112,18 +112,19 @@ the nav; `notebook.html` is reached from the pages that earn it, below.
   unreadable at 390px, unnavigable by keyboard, and would imply a topology
   the format does not have.
 
-### `start.html` — first notebook in ten minutes
+### `start.html` — fit check and harness installation
 
 - **Mode:** operator.
 - **Dials:** variance low, density compact, motion none, type register
   interface, imagery role none.
-- **Task anatomy:** a linear task with copyable exact state. Install →
-  configure capture → new notebook → capture → grade → claim → doctor.
-- **Structural fingerprint:** *the numbered path with a visible finish line.*
-  Every step shows the command and the real output, and the page ends at the
-  state the reader should be able to reach.
-- **Deliberately absent:** decorative anything. This is where a person who
-  has already decided goes; it should look like it respects that.
+- **Task anatomy:** agent handoff followed by a linear install. Read-only fit
+  prompt → CLI → harness plugin → new session → conversational direction. The
+  exact CLI lifecycle remains below as inspectable under-the-hood output.
+- **Structural fingerprint:** *orientation → authority → operation.* The page
+  first protects the existing workflow from premature mutation, then names the
+  two install components, then shows what the agent does for the human.
+- **Deliberately absent:** an assumption that the human will operate the CLI or
+  that adoption should begin with a repository-wide migration.
 
 ### `notebook.html` — the finished notebook, whole
 
@@ -144,15 +145,15 @@ the nav; `notebook.html` is reached from the pages that earn it, below.
 ## 4. Navigation model
 
 A persistent five-item nav: `flip` (home), Flipbook, Spec, Start, GitHub.
-Flat, no dropdowns, no mega-menu — four routes do not need hierarchy, and
+Flat, no dropdowns, no mega-menu — four top-level destinations do not need hierarchy, and
 inventing some would misrepresent the site's size. `notebook.html` is
 deliberately out of the nav: it is the payoff of a specific promise ("browse
 the finished notebook"), linked from the home hero and the flipbook's end,
 and a reader who has not made the trip has no use for it. It is listed on the
 404 page and in the sitemap, because it is a real address.
 
-Ordering is the reader's likely path, not alphabetical: understand → see it
-happen → check the details → do it.
+Ordering is the reader's likely path, not alphabetical: understand → hand off
+or see it happen → check the details → install.
 
 Cross-route links are one-directional and specific:
 

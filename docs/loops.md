@@ -131,5 +131,5 @@ are judgment and not mechanism:
 ## Related
 
 - SPEC §14 (beats) and §14.1 (the `auto:` block and `flip beat next`).
-- [quickstart.md](quickstart.md) — the human walkthrough of the core loop.
+- [quickstart.md](quickstart.md) — the CLI mechanics beneath the agent's core loop.
 - [AGENTS.md](../AGENTS.md) — the lineage rules a pass works under.

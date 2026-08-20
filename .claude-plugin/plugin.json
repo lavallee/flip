@@ -2,7 +2,7 @@
   "name": "flip",
   "displayName": "flip — reporter's notebooks",
   "version": "0.21.0",
-  "description": "Teaches your agent custody, grading, and corroboration discipline for research: you direct the work in conversation, flip keeps the durable, auditable notebook. Seven skills covering the notebook lifecycle — create, source capture, session hygiene, claim audit, handoff, lessons, kind authoring — plus a custody hook that, inside a notebook, puts the capture rule at the moment of the fetch and names anything read but never captured before the turn ends.",
+  "description": "Turns one-off agent research into source-grounded notebooks another agent can continue, challenge, and publish from. Seven skills cover creation, source custody, session hygiene, claim audit, handoff, lessons, and outcome kinds; a custody hook puts capture-before-cite at the moment of a web fetch.",
   "author": { "name": "Marc Lavallee" },
   "repository": "https://github.com/lavallee/flip",
   "license": "MIT",

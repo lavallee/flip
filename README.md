@@ -1,252 +1,265 @@
 # flip
 
-Format and tooling for **reporter's notebooks** — source-controlled research
-corpora created and maintained by any mix of humans and agents.
+## Research that can keep going
 
-A flip notebook **is an
-[Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
-(OKF v0.2) knowledge bundle at rest**: a directory of markdown pages with
-YAML frontmatter, an `index.md` root, and a generated `log.md`. Any OKF
-consumer can browse one; any markdown editor can edit one. What flip adds is
-an **extension profile for lineage** — the discipline the LLM-wiki pattern
-(Karpathy's framing, OKF, LangChain's OpenWiki) deliberately leaves open:
-custody of the sources you rely on (local bytes, hashed at capture),
-explicit source grading, claims gated by a corroboration bar, work and
-LLM-session logs, and a timestamped history. A wiki tells an agent what we
-know; a notebook can prove where it came from.
+flip turns an agent's one-off answer into a source-grounded notebook that
+another human or agent can continue, challenge, and publish from.
 
-Humans and agents work **in the same files**. Every source, claim, decision,
-question, and session is one page with a human-slug filename and its
-immutable id in frontmatter — open the notebook as an
-[Obsidian](https://obsidian.md) vault and frontmatter is the properties
-panel, `aliases` make `[[A3]]`-style id links resolve, and relative links
-light up the graph view. Re-grading a source from the properties panel is a
-legitimate flip operation; `flip doctor` validates after the fact instead of
-gatekeeping before.
+You direct the research in Claude Code, Codex, or another agent harness. The
+agent operates flip: it captures the material the work relies on, records how
+each source was judged, keeps claims and questions at honest states, and leaves
+an attributed trail in plain files. Humans rarely need to type the CLI commands.
 
-**[SPEC.md](SPEC.md)** has the full format: directory layout, the manifest
-(root `index.md` frontmatter), source pages and capture provenance, claims
-and the verification bar, logs and sessions, the flip lineage profile
-(SPEC §6), profiles, the beat layer, the CLI, skills, and the integration
-contract.
+**[Ask your agent if flip fits](docs/agent-orientation.md)** ·
+**[Install it in a harness](#install-for-your-harness)** ·
+**[See real notebooks](https://lavallee.github.io/flip-examples/)** ·
+**[Watch one come together](https://lavallee.github.io/flip/flipbook.html)**
 
-Design commitments:
+## Start with your agent
 
-- **Plain files, no services.** Markdown + YAML frontmatter for entities,
-  append-only JSONL for events. Readable with `less`, diffable with `git`,
-  browsable by any OKF consumer or markdown tool. Standards (BagIt, CSL,
-  RO-Crate, Web Annotation) are generated exports, never the canonical
-  format — except OKF, which the notebook natively is.
-- **No proprietary dependencies.** Capture tools, retrieval services, and
-  render targets are all pluggable; a notebook is intelligible from its
-  local files alone. Site-specific implementations live in operator config
-  or private integration repositories, never in public defaults, docs, or
-  packaged skills.
-- **Custody first.** Local archival copies with hashes at capture; processing
-  is logged and re-runnable; LLM output is a lead, not evidence, until
-  promoted through `references/` and graded.
-- **Graceful co-editing.** One entity per file, metadata in frontmatter,
-  prose in the body; tools preserve frontmatter keys they don't own, so
-  human edits and agent edits round-trip through each other.
+### Ask before installing
 
-## Use it from Claude Code or Codex
+If you are considering grafting flip into an existing workflow, hand this to
+your agent:
 
-The fastest way to use flip is conversationally: you direct the research
-the way you already talk to your agent, and flip is the discipline the
-agent works under.
+> Read the [flip agent orientation
+> guide](https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md).
+> Inspect this repository and its current research workflow read-only. Do not
+> install anything or change files yet. Tell me whether flip is a fit, the
+> smallest useful pilot, where it should live, which notebook kind fits, what it
+> would coexist with, and what the costs and failure modes would be.
 
-In [Claude Code](https://claude.com/claude-code):
+The guide gives the agent a bounded assessment procedure and makes `pilot`,
+`defer`, and `not a fit` all legitimate outcomes.
 
+### Install for your harness
+
+There are two pieces: the `flip` CLI enforces the notebook contract; the plugin
+teaches the harness when and how to use it.
+
+Install the CLI once:
+
+```bash
+uv tool install flip-notebook      # or: pipx install flip-notebook
 ```
+
+Then install the plugin in Claude Code:
+
+```text
 /plugin marketplace add lyra-forge/marketplace
 /plugin install flip@lyra-forge
 ```
 
-In Codex:
+Or in Codex:
 
 ```bash
 codex plugin marketplace add lyra-forge/marketplace
 codex plugin add flip@lyra-forge
 ```
 
-and put the CLI the skills drive on your PATH:
+Start a new agent session after installing. The plugin ships seven procedural
+skills covering notebook creation, source custody, session hygiene, claim audit,
+handoff, lessons, and outcome-kind authoring. Claude Code also receives a custody
+hook around web fetches; Codex's hosted web tools do not expose that hook event,
+so its skills and `flip doctor` carry the discipline instead.
 
-```bash
-uv tool install flip-notebook      # or: pipx install flip-notebook
-```
+Other harnesses can read [AGENTS.md](AGENTS.md) as the runtime-neutral contract
+and load the plain [`SKILL.md` files](src/flip/skills/) directly or through the
+[spindle](https://github.com/lavallee/spindle) package named `flip`.
 
-Start a new session after installing. The plugin ships **seven skills**
-covering the notebook lifecycle —
-create, source capture, session hygiene, claim audit, handoff, lessons,
-kind authoring — plus a **custody hook** that, inside a notebook, puts the
-capture rule at the moment of a web fetch and names anything read but
-never captured before the turn ends. Codex installs the same seven skills;
-its hosted web tools do not expose the tool-hook events that the custody hook
-needs, so the skills carry that discipline there. Then research the way you
-normally would:
+### Use it conversationally
 
-> **You:** People keep saying NJ school enrollment dipped in the
-> pandemic. Did it? Did it come back?
+> **You:** People keep saying NJ school enrollment dipped in the pandemic. Did
+> it? Did it come back? Use flip so someone else can audit and continue the work.
 >
-> **Your agent:** *starts a notebook, captures four NJ DOE enrollment
-> files (hashed at capture), grades them, computes totals two independent
-> ways, and answers — leaving behind claims verified by recomputation, an
-> answered question, and a new one it opened along the way.*
+> **Agent:** *starts a notebook, captures four NJ DOE enrollment files, grades
+> them, computes the totals two independent ways, records three verified claims,
+> answers the question, and opens the logical follow-on: what is driving the more
+> recent decline?*
 
-What that conversation leaves behind is not a chat transcript: it is a
-browsable, auditable notebook —
-[real ones to read here](https://github.com/lavallee/flip-examples), or
-[rendered](https://lavallee.github.io/flip-examples/), every page generated
-from the notebook itself.
-No human typed the flip commands in those; that's the point.
+What remains is not a transcript or a final report. It is a browsable notebook
+with the captured workbooks, hashes, derivations, claims, question journey,
+session record, and named actor. [Read the real
+notebook](https://github.com/lavallee/flip-examples/tree/main/nj-schools) or
+[browse its rendered form](https://lavallee.github.io/flip-examples/).
 
-The full guide — what each skill does, how attribution works, what the
-custody hook catches, working across many notebooks — is
-**[docs/claude-code.md](docs/claude-code.md)**. The skills are plain
-`SKILL.md` files ([src/flip/skills/](src/flip/skills/)) usable by any
-agent runtime, not only Claude Code.
+Useful directions include:
 
-## Install the CLI
+- “Start a pursuit notebook for this question.”
+- “Capture that before relying on it, then tell me how strong it is.”
+- “What did this evidence answer: the question as worded, a narrower one, or an
+  adjacent one?”
+- “Try to disprove the load-bearing claims and record the probes that fail too.”
+- “Keep the unresolved branch open and say what would resolve it.”
+- “Hand this off so a cold agent can continue without reconstructing the trail.”
+
+The full harness guide is [docs/claude-code.md](docs/claude-code.md).
+
+## What flip changes
+
+### Work the question, not just the first answer
+
+A polished report is not the research record. In a 2026 benchmark of 100
+deep-research tasks, the best evaluated system achieved 0.55 overall F1 and
+systems covered only about half of the necessary search queries
+([LiveDRBench](https://proceedings.iclr.cc/paper_files/paper/2026/file/114e1dc345fe31b8b9b0c6f7b55a0644-Paper-Conference.pdf)).
+In DeepTRACE's dated August 2025 snapshot of 303 questions and 2,727
+system-query samples, evaluated deep-research configurations were one-sided on
+54.7%–94.8% of debate queries, while citation accuracy ranged from 31.4%–79.1%
+([DeepTRACE](https://proceedings.iclr.cc/paper_files/paper/2026/file/ad08767706825033b99122332293033d-Paper-Conference.pdf)).
+
+flip does not make a model reason better by itself. It makes the route durable:
+follow-on questions, corroboration gaps, closer reads, recomputations, failed
+tests, narrower and adjacent answers, reopen conditions, and bounded continuation
+work remain available to the next session.
+
+### Keep useful signals without promoting them prematurely
+
+Capture and judgment are separate acts. A source can be held but ungraded; a
+promising synthesis can remain a grade-C lead; a claim can be asserted,
+challenged, corroborated, superseded, or rejected; an audience's belief can be
+recorded without becoming the notebook's belief. Ungraded material counts toward
+nothing, but it is not thrown away merely because it needs more work.
+
+Claims record more than truth status. Tests say which error they looked for and
+how it would have appeared. Stances say what someone is doing with a claim.
+Absence claims name the surfaces searched, because a null is only as strong as
+its coverage.
+
+### Let the research outlive the session, agent, or model
+
+Every source, claim, decision, question, and session is a Markdown page with an
+immutable id. Every event names its actor. Raw captures and hashes establish
+custody; append-only JSONL preserves history; generated views provide a bounded
+cold-start surface. Different agents can continue the same notebook without
+silently replacing one another's reasoning or reconstructing the investigation
+from chat logs.
+
+At rest, a notebook is a conformant [Open Knowledge Format
+(OKF v0.2)](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
+knowledge bundle. It works in Git, opens as an Obsidian vault, and remains
+readable with `less` if flip disappears.
+
+## Real notebook outcomes
+
+- **Data investigation:** the NJ schools notebook captured four state
+  workbooks, found file oddities, recomputed totals two ways, corrected the
+  popular pandemic framing, and opened a more consequential follow-on question.
+- **Literature review:** the RAG/hallucination review froze criteria before
+  searching and preserved its denominator—2,600+ records identified, 31
+  examined, seven advanced, four excluded, three included—including a canonical
+  paper excluded on license alone.
+- **Honest non-answer:** the EV-charger pursuit distinguished failed-visit data
+  from measured uptime, answered the narrower question, left the national trend
+  unresolved, and armed conditions that should reopen it.
+- **Long-running work:** an unattended loop ran 43 sessions over nearly 67
+  hours, keeping 380 sources, 82 claims, 47 questions, corrections, bounded
+  nulls, and two deliberately unconfirmed load-bearing claims coherent.
+
+[Browse every example and its receipts](https://github.com/lavallee/flip-examples).
+These are observed uses, not a controlled claim that flip-backed agents produce
+better conclusions than agents without notebooks.
+
+## Start from the outcome
+
+Profiles define the notebook's rigor and operating contract. Outcome kinds add
+a collection contract for a particular deliverable.
+
+| What you need | Start with |
+|---|---|
+| Screen whether an angle is worth pursuing | `scout` |
+| Run one question to ground | `pursuit` |
+| Survey a field or prepare a publishable review | `research-review` or `lit-review` |
+| Recompute, reconcile, or investigate data | `data-investigation` |
+| Prepare an evidence-backed choice | `decision-packet` |
+| Record forecasts and what will resolve them | `forward-set` |
+| Maintain a shared source spine | `ledger` |
+| Work inside confidential boundaries | `engagement` |
+
+A **beat** sits above notebooks when the mission recurs. It keeps coverage memory
+and computes the next bounded item—an unmet load-bearing claim, returned
+commission, due forecast, open question, or ungraduated thread—so each pass does
+not begin by rereading the whole corpus. A **workspace** binds many notebooks
+under stable handles so agents can resolve and audit them together.
+
+## What the agent maintains under the hood
+
+The ordinary loop is capture → judge → assert → test → continue or hand off:
 
 ```bash
-uv tool install flip-notebook      # or: pipx install flip-notebook
-```
-
-From source: `git clone https://github.com/lavallee/flip && cd flip && uv sync`,
-then `uv run flip --help`. Python 3.12+; the core is stdlib + click + PyYAML.
-
-## Quickstart
-
-```bash
-flip new nj-schools --kind scout --title "NJ enrollment dip"
-# ...or name the outcome: --kind "literature review" / "decision memo" resolve to
-# kinds whose collection contract the doctor checks from day one (flip kind list)
+flip new nj-schools --kind pursuit --title "What changed in NJ enrollment?"
 cd nj-schools
+flip session start enrollment-sweep --model <model> --tools <tools>
 flip add-source ./districts.csv --note "district enrollment table"
-# F1 · sources/raw/F1.csv · references/districts.md (grade ?)
 flip grade F1 --independence independent --basis official-record --base-defined
-# F1 · grade A (derived) — the letter is a digest of the evidence description
-flip grade F1 --explain            # why that letter, and what a higher one would take
 flip claim add "Enrollment fell 4.2% since 2021" --source F1 --load-bearing
-# C1 asserted · sources: F1 · corroboration: 1
-flip claim status C1 verified      # gated: refused until the corroboration bar is met
-flip decide --question "Which county first?" --decision "Start with Essex" --why "largest swing"
-flip pass "2019 funding blog post" --reason "republishes state PR verbatim"
-flip question add "What's driving the decline?" --resolves-via "NJ DOE fall snapshot"
-flip question note Q1 "charter transfers explain half of it" --answers narrower --source F1
-# evidence lands on the question's page; it stays open — a narrower answer is not the answer
-flip question answer Q1 --note "aging out + charter transfers" --reopen-when "2026-27 fall file posts"
-# answers carry their un-stop conditions; `flip show` lists armed reopen triggers
-flip show                          # the hot view: open questions, claims needing work, recent log
-flip doctor                        # lint: OKF conformance, profile minimums, verification bar
+flip question add "What is driving the decline?" --resolves-via "NJ DOE fall snapshot"
+flip show
+flip doctor
+flip session end enrollment-sweep --summary "..."
 ```
 
-Filenames are human slugs (`references/districts.md`); the immutable id
-(`F1`) lives in frontmatter. `flip open F1` resolves an id to its page;
-`flip rename F1 district-enrollment-table` renames the file and rewrites
-every link to it. `flip migrate` upgrades an older notebook in place
-(v0.3 ledgers become pages; a 0.4 manifest gains its `uid`) — it reads the
-*pages*, not just the manifest's version, because the two drift apart.
+Humans generally direct those acts rather than typing them. `flip cli` prints an
+always-current command map; [docs/quickstart.md](docs/quickstart.md) explains the
+mechanics and every legitimate path through the verification gates.
 
-Many notebooks can share one vault or repo as a **workspace**: `flip ws
-init` at the shared root binds each notebook to a short handle (yours to
-choose, like a git remote name), and refs qualify as `recipes:A3` —
-`flip resolve recipes:A3` / `flip open recipes:A3` find the page from
-anywhere under the root, and `flip doctor --workspace` audits the shared
-space (duplicate lineages, unbound notebooks, ambiguous ids). Notebooks
-travel: `flip export` output — a directory, an OKF bundle, or a BagIt bag —
-imports into someone else's workspace with `flip import`, keeping every
-entity id and citation valid; a stable `uid` in the manifest makes copies
-of the same notebook recognizable as one lineage, so `flip import --update`
-can refresh your copy safely.
+## The portable artifact
 
-URL and DOI capture route through fetchers you configure — `flip config init`
-writes a starter config whose `web` lane uses the bundled zero-dependency
-`flip-fetch` helper, so `flip add-source <url>` works out of the box (local
-files always copy with no config). Commands can write files into flip's
-destination or emit JSON/text on stdout; either way, flip preserves and hashes
-the artifact, and an optional return envelope lets a tool hand back a title,
-canonical URL, and the strategy it used. Two more configured
-roles take a question rather than a target: `flip find`/`flip ask` (research —
-candidate leads and cited synthesis, a grade-C lead) and `flip recall`
-(knowledge — what you already hold locally). Captured bytes become readable
-through the same kind of lane: `flip extract <id>` writes
-`sources/text/<id>.txt` and logs the **extraction method** that produced it,
-because a quotation recovered by OCR is not the same evidence as one lifted
-from a publisher's own text layer. See [docs/quickstart.md](docs/quickstart.md)
-for the walkthrough, tool-neutral integration config, profiles, and the
-Obsidian setup.
+A notebook is one directory:
 
-A claim carries more than a truth-status. `flip claim test` records what was
-*asked* of it — the specific error a probe looked for, how that error would
-have shown up, and what would have appeared instead had it been absent —
-including a test that **found** the error, which a verification structurally
-cannot. `flip claim stance` records what is *done* with it and by whom, so the
-notebook's `rejecting` and an audience's `holding` sit on one page without
-either overwriting the other. From that record flip derives `exposure` (`bent`
-· `severely-tested` · `misattributed` · `refuted` · `untestable`) and never
-stores it, the same discipline as the grade. And where a claim is *about* a
-document rather than supported by one, `--about` says so: no second witness to
-what a single document says can exist, so the corroboration bar is replaced by
-an attribution test rather than waived. Conversations are keepable too —
-`flip session transcript` puts one under ordinary custody, and
-`flip transcript excerpt` pins the passage a claim actually rests on, so it
-cites `T1§relevance-null` and travels with the words.
+```text
+index.md                 # OKF manifest + generated hot view
+notebook.md              # prose working memory
+references/              # one page per source
+claims/                  # one page per assertion
+questions/               # the question journey
+decisions/               # forks resolved, with reasons
+sessions/                # attributed working episodes
+sources/raw/              # captured bytes, immutable
+sources/_provenance.jsonl # append-only custody history
+derived/                  # extraction and recomputation receipts
+log/                      # append-only work and negative evidence
+```
 
-## For agents
+Human-slug filenames stay readable; immutable ids such as `F1`, `C3`, and `Q2`
+keep citations stable through sanctioned renames. Unknown frontmatter keys and
+page bodies survive round trips, so humans, editors, and other tools can work in
+the same files.
 
-Notebooks are built to be maintained by humans and agents together:
+Notebooks can be exported as BagIt, CSL JSON, render JSON, or a policy-filtered
+OKF copy. The public export can withhold raw custody and private event history;
+rights still have to be established by the workflow's source-selection and
+licensing policy. It is rights-aware publishing infrastructure, not an automatic
+legal-clearance system.
 
-- **Claude Code and Codex plugin** — `/plugin install flip@lyra-forge` or
-  `codex plugin add flip@lyra-forge`: the seven skills, versioned with
-  releases. Claude Code also runs the custody hook. The full Claude guide is
-  [docs/claude-code.md](docs/claude-code.md).
-- **[AGENTS.md](AGENTS.md)** — the five-minute tour, the lineage rules
-  agents must honor (capture before cite, grade-C-until-promoted, the
-  verification bar, the round-trip rule, `flip doctor`, `FLIP_ACTOR`), and
-  task recipes.
-- **[llms.txt](llms.txt)** — doc map for LLM consumption.
-- **[src/flip/skills/](src/flip/skills/)** — the same skills
-  (`notebook-create`, `notebook-source`, `notebook-log`, `notebook-audit`,
-  `notebook-handoff`, `notebook-lessons`, `notebook-kind-author`) as plain
-  `SKILL.md` files usable by
-  any agent runtime. The skills also ship as a
-  [spindle](https://github.com/lavallee/spindle) package named `flip`.
+## Boundaries
 
-### For humans (Obsidian)
+flip is not a retrieval system, vector store, scheduler, agent framework,
+database, or publishing platform. Integrations for capture, extraction,
+research, and local knowledge remain operator-configured. The core makes no LLM
+calls and requires no service; its two third-party libraries are Click and
+PyYAML.
 
-A notebook is already a valid Obsidian vault; `flip obsidian` finishes the
-job — it writes the vault link config to match flip's relative markdown
-links and installs the packaged companion plugin (doctor findings and the
-hot view in the sidebar, a status bar summary, open-by-id navigation, all
-driven by `flip … --json`). A workspace root works as a vault too: the
-plugin reads the handle table, audits the shared space, and open-by-id
-suggests every bound notebook's entities as `recipes:A3`. The walkthrough
-is [docs/obsidian.md](docs/obsidian.md).
+The CLI enforces structural invariants and exposes missing work. It cannot make
+careless source grades honest or guarantee a good conclusion. Generated views
+and `flip beat next` support bounded re-grounding, but the project has not yet
+run a controlled benchmark showing that CLI-backed work always uses fewer
+tokens.
 
-Status: spec draft v0.21 — notebooks are native OKF v0.2 bundles. The CLI
-covers the full surface (`cli`, `new`, `add-source` (incl. `--record` for a
-document that cannot be captured), `extract`, `grade` (incl. `--explain`),
-`log`, `decide`, `pass`, `question` (incl. `note` / `repose` / `close` /
-`dormant` / `reopen` — the question journey), `claim` (incl. `verify`
-/ `test` / `stance` / `exposure` / `rival` / `supersede` / `source add` /
-`derives` / absence claims via `--absent-from`), `commission` (bounded
-follow-up work as a contract),
-`source` (incl. `retitle` / `recheck` / `pipeline` / `provenance`), `session`
-(incl. `transcript`), `transcript`, `forecast`, `kind`, `discipline`, `config`
-(incl. `init` / `show`), `show`, `open`, `resolve`, `rename`, `doctor`,
-`index`, `migrate`, `export bag|csl|okf|json`), plus **beats** — the standing
-layer above notebooks (`flip beat new / thread add / graduate / show`): a
-mission with weighted-triage threads that graduate into notebooks and keep
-cross-notebook coverage memory — and **workspaces** (`flip ws`,
-`flip import`): many notebooks under one root, bound to handles so
-`recipes:A3` resolves and shared notebooks import without rekeying ids.
-`flip migrate` upgrades older notebooks in place. See [docs/wiki-alignment.md](docs/wiki-alignment.md) for how flip
-relates to OKF and OpenWiki, and
-[docs/okf-provenance-profile.md](docs/okf-provenance-profile.md) for flip's
-vocabulary as a draft OKF provenance profile. `flip obsidian` prepares a
-notebook as an Obsidian vault, with a packaged plugin surfacing doctor
-findings inline ([docs/obsidian.md](docs/obsidian.md)).
+## Documentation
 
-Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Changes are
-tracked in [CHANGELOG.md](CHANGELOG.md). [MIT licensed](LICENSE).
+- [Agent orientation](docs/agent-orientation.md) — read-only fit assessment and
+  smallest-pilot procedure
+- [Claude Code and Codex](docs/claude-code.md) — plugin behavior, skills, updates,
+  and custody-hook boundary
+- [Quickstart](docs/quickstart.md) — full CLI mechanics and capture configuration
+- [AGENTS.md](AGENTS.md) — complete runtime-neutral lineage contract and recipes
+- [Specification](SPEC.md) — OKF bundle, entities, profiles, beats, workspaces,
+  exports, and integration contract
+- [Obsidian](docs/obsidian.md) — human editing and the companion plugin
+- [Running a beat on a loop](docs/loops.md) — recurring and unattended passes
+- [llms.txt](llms.txt) — compact documentation map for agents
+
+Status: spec draft v0.21; package 0.21.0; Python 3.12+; MIT licensed. Changes are
+tracked in [CHANGELOG.md](CHANGELOG.md); contributions are welcome through
+[CONTRIBUTING.md](CONTRIBUTING.md).

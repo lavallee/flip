@@ -7,13 +7,22 @@ whole trail in plain files. This guide covers the Claude Code and Codex
 plugins: what they install, what each piece does, and what a working session
 looks like.
 
+If you have not decided whether flip belongs in the workflow, start by handing
+your agent the [orientation guide](agent-orientation.md). It asks for a
+read-only fit assessment and the smallest useful pilot before anything is
+installed or changed.
+
 Nothing here is Claude Code-specific in substance. The skills are plain
 `SKILL.md` files any agent runtime can load, and every behavior described
 below is the CLI underneath. The plugin is packaging: the skills, a custody
 hook where the harness exposes the needed event, and a versioned channel that
 tracks releases.
 
-## Install
+## Install for the harness
+
+The CLI performs and validates notebook operations. The plugin supplies the
+skills that teach the harness when and how to perform them. Install both; humans
+normally direct the work conversationally rather than operating the CLI.
 
 In Claude Code:
 
@@ -29,7 +38,7 @@ codex plugin marketplace add lyra-forge/marketplace
 codex plugin add flip@lyra-forge
 ```
 
-And the CLI the skills drive, on your PATH:
+Put the CLI the skills drive on your PATH:
 
 ```bash
 uv tool install flip-notebook      # or: pipx install flip-notebook

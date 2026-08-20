@@ -1,7 +1,7 @@
 {
   "name": "flip",
   "version": "0.21.0",
-  "description": "Custody, grading, and corroboration discipline for durable, auditable research notebooks.",
+  "description": "Turn one-off agent research into source-grounded notebooks another agent can continue, challenge, and publish from.",
   "author": {
     "name": "Marc Lavallee"
   },
@@ -19,8 +19,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "flip — reporter's notebooks",
-    "shortDescription": "Auditable research notebooks for agents",
-    "longDescription": "Capture sources to local bytes, grade evidence, track claims and sessions, and carry provenance through research handoffs.",
+    "shortDescription": "Research notebooks agents can continue",
+    "longDescription": "Capture the material research relies on, keep evidence and claims at honest states, pursue follow-on questions, and carry an attributed record across agent handoffs.",
     "developerName": "Marc Lavallee",
     "category": "Research",
     "capabilities": [
@@ -30,6 +30,7 @@
     ],
     "websiteURL": "https://github.com/lavallee/flip",
     "defaultPrompt": [
+      "Assess whether Flip fits this repository and propose the smallest useful pilot without changing files.",
       "Create a Flip notebook for this research question.",
       "Capture and grade the sources supporting this claim.",
       "Audit this notebook's claims and prepare a handoff."

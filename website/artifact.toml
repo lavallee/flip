@@ -1,11 +1,11 @@
 [artifact]
 slug = "flip-site"
-title = "flip — the reporter's notebook format"
-description = "A wiki tells an agent what we know. A notebook can prove where it came from."
+title = "flip — research that can keep going"
+description = "Turn an agent's one-off answer into a source-grounded notebook another agent can continue."
 kind = "explainer"
 status = "live"
 created = "2026-07-24"
-updated = "2026-08-18"
+updated = "2026-08-20"
 
 [build]
 commands = ["python3 build.py"]
@@ -13,7 +13,7 @@ commands = ["python3 build.py"]
 [research]
 notebook = "notebook"
 rendered_uid = "nb-qy38zvcn"
-rendered_updated = "2026-08-10"
+rendered_updated = "2026-08-20"
 
 [deploy]
 target = "github-pages"

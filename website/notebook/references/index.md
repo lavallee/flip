@@ -1,5 +1,7 @@
 # References
 
+* [Characterizing Deep Research: A Benchmark and Formal Definition](characterizing-deep-research-livedrbench.md) - ICLR 2026 LiveDRBench paper; evidence on claim coverage and search-query coverage in deep-research systems
+* [DeepTRACE: Auditing Deep Research AI Systems for Tracking Reliability Across Citations and Evidence](deeptrace-deep-research-citation-audit.md) - ICLR 2026 DeepTRACE audit; evidence on one-sidedness, unsupported statements, and citation behavior in public deep-research systems
 * [pyproject.toml](flip-pyproject.md) - flip's package metadata: dependencies and Python floor
 * [SPEC.md](flip-spec.md) - flip's own specification, draft v0.10, at the site's build revision
 * [Open Knowledge Format (OKF) v0.1 specification](okf-spec.md) - Open Knowledge Format v0.1 specification, Apache-2.0
