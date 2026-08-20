@@ -19,7 +19,7 @@
   <button class="nav-toggle" type="button" aria-label="Menu">menu</button>
   <div class="nav-links">
     <a href="flipbook.html">Flipbook</a>
-    <a href="spec.html">Spec</a>
+    <a href="spec.html">Format</a>
     <a href="start.html">Start</a>
     <a href="https://github.com/lavallee/flip">GitHub</a>
   </div>
@@ -31,12 +31,11 @@
   <header class="nb__lede">
     <p class="section-kicker">One notebook, whole</p>
     <h1>What a flip notebook actually looks like</h1>
-    <p class="lede">This notebook was built by the flip CLI while this site was built —
-      the same commands an agent runs while a person directs the work in conversation,
-      never touching the CLI itself. This page shows the work itself first, then
-      everything that work rests on. Every panel below is generated from the
-      notebook's own files through the <code>flip-render/2</code> projection: nothing
-      on this page is hand-authored.</p>
+    <p class="lede">This notebook was built by the real flip CLI while this site was
+      built. A person directed the investigation in conversation; the agent maintained
+      the record. This page shows the work first, then everything it rests on. Every
+      panel is generated from the notebook's own files through the
+      <code>flip-render/2</code> projection.</p>
   </header>
 
   <noscript>
@@ -66,21 +65,22 @@
   <section class="nb__section" id="sec-sources" aria-labelledby="sources-heading">
     <p class="section-kicker">Custody &amp; judgment</p>
     <h2 id="sources-heading">Sources</h2>
-    <p class="nb__section-note">What this notebook holds custody of, and the judgment
-      recorded about each piece — independence and basis are a description, never a
-      score; the grade letter is derived from them.</p>
+    <p class="nb__section-note">What the notebook actually captured and how each
+      source was judged. Grade is derived from independence and basis; freshness says
+      when it was last checked; provenance says how it arrived; custody says whether
+      the captured bytes are held in the notebook.</p>
     <div class="table-wrap">
       <table class="nb__table" id="nb-sources-table">
         <thead>
           <tr>
             <th scope="col">id</th>
             <th scope="col">title</th>
-            <th scope="col">grade</th>
-            <th scope="col">independence</th>
-            <th scope="col">basis</th>
-            <th scope="col">freshness</th>
-            <th scope="col">provenance</th>
-            <th scope="col">custody</th>
+            <th scope="col" title="A letter derived from the recorded source judgment">grade</th>
+            <th scope="col" title="Whether the source supplies an independent witness">independence</th>
+            <th scope="col" title="The kind of evidence the source provides">basis</th>
+            <th scope="col" title="Whether the source is current for this investigation">freshness</th>
+            <th scope="col" title="How and when the source was captured">provenance</th>
+            <th scope="col" title="Whether the notebook holds the captured bytes">custody</th>
           </tr>
         </thead>
         <tbody id="nb-sources"></tbody>
@@ -91,7 +91,9 @@
   <section class="nb__section" id="sec-claims" aria-labelledby="claims-heading">
     <p class="section-kicker">What this notebook asserts</p>
     <h2 id="claims-heading">Claims</h2>
-    <p class="nb__section-note">A claim enters <code>asserted</code>. It cannot call
+    <p class="nb__section-note">A claim enters <code>asserted</code>. Sources name what
+      it rests on; corroboration counts independent witnesses; exposure summarizes
+      the tests it has faced; verifications record successful checks. It cannot call
       itself <code>verified</code> until the corroboration bar is met — mechanically,
       not by anyone insisting — and a severe test that found the error closes that gate
       again whatever the count says. <strong>exposure</strong> is derived from the test
@@ -108,9 +110,9 @@
             <th scope="col">load-bearing</th>
             <th scope="col">value</th>
             <th scope="col">sources</th>
-            <th scope="col">corroboration</th>
-            <th scope="col">exposure</th>
-            <th scope="col">verifications</th>
+            <th scope="col" title="The number of independent sources supporting the claim">corroboration</th>
+            <th scope="col" title="A read-time summary of the tests the claim has faced">exposure</th>
+            <th scope="col" title="Recorded checks that successfully confirmed the claim">verifications</th>
           </tr>
         </thead>
         <tbody id="nb-claims"></tbody>
@@ -224,7 +226,7 @@
 
 <footer class="site-foot">
   <div class="site-foot__inner">
-    <p>flip—research that can keep going. MIT licensed.</p>
+    <p>Built by <a href="https://github.com/lavallee">Marc Lavallee</a>. MIT licensed.</p>
     <p>
       <a href="https://github.com/lavallee/flip">Repository</a> ·
       <a href="https://github.com/lavallee/flip/blob/main/SPEC.md">Spec</a> ·

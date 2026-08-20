@@ -6,8 +6,8 @@ Private working document. Artoo keeps this file outside `site/`; it is not deplo
 
 A person already doing research through an agent harness should quickly grasp the
 benefit, see the workflow operate on a real notebook, and either give the agent an
-orientation guide or install the harness plugin and start a bounded pilot without
-learning flip's command surface first.
+orientation guide or install the harness plugin and start source-backed research
+without learning flip's command surface first.
 
 The decision is not "is this a nice note-taking app." It is a substrate
 choice with lock-in consequences: what my agents produce a year from now,
@@ -22,15 +22,15 @@ site that showed only the CLI would misrepresent the format.
 
 ## Headline claim
 
-**Help your agent be a reporter, not a stenographer.** flip's CLI tools and
-skills help agents judge the sources they build on, trace claims to evidence,
+**Deep research your next agent can pick up where this one left off.** flip's
+CLI tools and skills help an agent work like a reporter rather than a
+stenographer: judge the sources it builds on, trace claims to evidence,
 formulate and refine research questions, and pursue them beyond the first
 plausible answer. You steer the research; the agent maintains the record. The
-flip spec separately defines an agentic reporter's notebook format that works
-with OKF and LLM- and wiki-friendly tools like Obsidian. Auditability is the
-mechanism: custody, separate judgment, claim gates, question journeys, tests,
-actor attribution, and logged generation in plain Markdown and append-only
-ledgers.
+spec defines a notebook format agent harnesses can operate—a conformant OKF
+bundle that also opens as an Obsidian vault. Auditability is the mechanism:
+custody, separate judgment, claim gates, question journeys, tests, actor
+attribution, and logged generation in plain Markdown and append-only ledgers.
 
 ## Supported claims
 
@@ -157,17 +157,24 @@ differing in kind.
   source travels (captured → graded → cited → gating a claim). Backed by the
   same generated data, cross-linked into SPEC.md by section so the visual is
   a way *into* the spec, never a replacement that can drift from it.
-- **The comparison strip** on the home page — categorical, adjacent, no
+- **The hero before/after** — one concrete research failure and the record flip
+  leaves instead, drawn from the EV-charger example. It puts the artifact in the
+  first viewport rather than asking the reader to accept an abstract claim.
+- **The generated proof strip** — the assignment, a real non-zero verification
+  refusal, and the final handoff, all taken from the same CLI replay as the
+  flipbook.
+- **The comparison strip** later on the home page — categorical, adjacent, no
   ranking, one row per valid axis above.
-- **The orientation handoff** in the hero and start page — one plain-language
-  invitation whose action copies the full agent brief without making the person
-  read or understand it first.
-- **The hero action** demonstrates the product in the flipbook. The adjacent
-  orientation handoff owns fit assessment by itself; the action row does not ask
-  the same question twice.
-- **The harness install path** — the plugin is the human-facing install. Its
-  creation skill checks for and guides installation of the CLI when an approved
-  pilot actually needs it. Manual CLI use is explicitly under the hood.
+- **The orientation handoff** on `start.html` — one explicitly copyable prompt
+  that gives the active agent enough context to put flip to work without making
+  the person learn the format first.
+- **The hero actions** are one proof path (the flipbook) and one install path.
+  Examples, orientation, and exact harness commands appear only after the first
+  concrete proof.
+- **The harness install path** lives on `start.html`. The plugin is the
+  human-facing install; its creation skill checks for and guides installation of
+  the CLI when the first notebook needs it. Manual CLI use is explicitly under
+  the hood.
 - **The claim ledger** in the footer — the site's own provenance panel, from
   its own flip notebook, via `flip export json`.
 - Rejected: a chart of any kind. There is no measured distribution here, and

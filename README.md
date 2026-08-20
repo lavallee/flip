@@ -1,17 +1,18 @@
 # flip
 
-## Give your research a durable structure, not another prose dump
+## Deep research your next agent can pick up where this one left off
 
-Your agent finishes a research task. The next agent starts from the chat log or from
-scratch. The work doesn't survive.
+Deep-research agents hand you a fluent report and a list of URLs. flip keeps the
+record underneath: every source captured and judged, every claim at an honest
+status, every open question named, in plain files that outlive the session.
 
-flip brings rigor. It provides a spec for storing questions, claims, and raw
-materials with provenance, and tools for conducting research like a reporter, not a
-stenographer. flip notebooks can be evolved by humans and agents. The work
-compounds across sessions.
+flip's CLI tools and skills help agents assess the quality of the research they
+build on, track the provenance and validity of claims, formulate and refine
+research questions, and pursue complete answers. You steer the research; the
+agent maintains the record.
 
-The flip spec defines an agentic reporter's notebook format that works with OKF
-and LLM- and wiki-friendly tools like Obsidian.
+The spec defines a notebook format agent harnesses can operate: a conformant OKF
+bundle that also opens as an Obsidian vault.
 
 In Claude Code, Codex, or another agent harness, the agent operates flip: it
 captures the material the work relies on, records how each source was judged,
@@ -25,9 +26,9 @@ plain files. Humans rarely need to type the CLI commands.
 
 ## Start with your agent
 
-### Curious about how flip can work for you?
+### Put flip to work in your repository
 
-**[Hand this to your agent.](https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md)**
+**[Hand the orientation guide to your agent.](https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md)**
 
 ### Install for your harness
 
@@ -47,14 +48,14 @@ codex plugin add flip@lyra-forge
 
 Start a new agent session after installing. The plugin ships seven procedural
 skills covering notebook creation, source custody, session hygiene, claim audit,
-handoff, lessons, and outcome-kind authoring. Claude Code also receives a custody
-hook around web fetches; Codex's hosted web tools do not expose that hook event,
-so its skills and `flip doctor` carry the discipline instead.
+handoff, lessons learned, and outcome-kind authoring. The [harness
+guide](docs/claude-code.md) explains the custody-hook difference between Claude
+Code and Codex.
 
-When an approved pilot starts, the creation skill checks whether the `flip` CLI
-is available and guides its one-time installation as a standalone tool if needed.
-The executable enforces the notebook contract; the human does not have to assemble
-the two layers up front.
+When the first flip-backed investigation starts, the creation skill checks
+whether the `flip` CLI is available and guides its one-time installation as a
+standalone tool if needed. The executable enforces the notebook contract; the
+human does not have to assemble the two layers up front.
 
 Other harnesses can read [AGENTS.md](AGENTS.md) as the runtime-neutral contract
 and load the plain [`SKILL.md` files](src/flip/skills/) directly or through the
@@ -101,10 +102,9 @@ system-query samples, evaluated deep-research configurations were one-sided on
 54.7%–94.8% of debate queries, while citation accuracy ranged from 31.4%–79.1%
 ([DeepTRACE](https://proceedings.iclr.cc/paper_files/paper/2026/file/ad08767706825033b99122332293033d-Paper-Conference.pdf)).
 
-flip does not make a model reason better by itself. It makes the route durable:
-follow-on questions, corroboration gaps, closer reads, recomputations, failed
-tests, narrower and adjacent answers, reopen conditions, and bounded continuation
-work remain available to the next session.
+flip makes the route durable: follow-on questions, corroboration gaps, closer
+reads, recomputations, failed tests, narrower and adjacent answers, reopen
+conditions, and bounded continuation work remain available to the next session.
 
 ### Keep useful signals without promoting them prematurely
 
@@ -150,8 +150,9 @@ readable with `less` if flip disappears.
   nulls, and two deliberately unconfirmed load-bearing claims coherent.
 
 [Browse every example and its receipts](https://github.com/lavallee/flip-examples).
-These are observed uses, not a controlled claim that flip-backed agents produce
-better conclusions than agents without notebooks.
+They show the research states, corrections, and continuations flip preserved in
+real work. A controlled comparison of final research quality is a separate
+question.
 
 ## Start from the outcome
 
@@ -225,24 +226,24 @@ rights still have to be established by the workflow's source-selection and
 licensing policy. It is rights-aware publishing infrastructure, not an automatic
 legal-clearance system.
 
-## Boundaries
+## What flip works alongside
 
-flip is not a retrieval system, vector store, scheduler, agent framework,
-database, or publishing platform. Integrations for capture, extraction,
+Retrieval systems, vector stores, schedulers, agent frameworks, databases, and
+publishing platforms keep serving their existing roles. flip connects their
+research outputs through a durable record. Integrations for capture, extraction,
 research, and local knowledge remain operator-configured. The core makes no LLM
 calls and requires no service; its two third-party libraries are Click and
 PyYAML.
 
-The CLI enforces structural invariants and exposes missing work. It cannot make
-careless source grades honest or guarantee a good conclusion. Generated views
-and `flip beat next` support bounded re-grounding, but the project has not yet
-run a controlled benchmark showing that CLI-backed work always uses fewer
-tokens.
+The CLI enforces structural invariants and exposes missing work. Source grades
+and conclusions remain research judgments rather than claims the software can
+make. Generated views and `flip beat next` support bounded re-grounding; the
+expected token-efficiency benefit has not yet been benchmarked.
 
 ## Documentation
 
-- [Agent orientation](docs/agent-orientation.md) — read-only fit assessment and
-  smallest-pilot procedure
+- [Agent orientation](docs/agent-orientation.md) — capabilities, workflow map,
+  and operating contract for agents
 - [Claude Code and Codex](docs/claude-code.md) — plugin behavior, skills, updates,
   and custody-hook boundary
 - [Quickstart](docs/quickstart.md) — full CLI mechanics and capture configuration
@@ -253,6 +254,7 @@ tokens.
 - [Running a beat on a loop](docs/loops.md) — recurring and unattended passes
 - [llms.txt](llms.txt) — compact documentation map for agents
 
-Status: spec draft v0.21; package 0.21.0; Python 3.12+; MIT licensed. Changes are
-tracked in [CHANGELOG.md](CHANGELOG.md); contributions are welcome through
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Status: spec draft v0.21; package 0.21.0; Python 3.12+; MIT licensed. Built and
+maintained by [Marc Lavallee](https://github.com/lavallee). Changes are tracked
+in [CHANGELOG.md](CHANGELOG.md); [issues](https://github.com/lavallee/flip/issues)
+and contributions through [CONTRIBUTING.md](CONTRIBUTING.md) are welcome.

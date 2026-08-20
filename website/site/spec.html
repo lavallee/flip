@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The format, visually — flip</title>
+<title>The notebook format — a visual tour of flip</title>
 <meta name="description" content="A visual map of the flip notebook format: the bundle on disk, the five entity types and their frontmatter, the append-only ledgers, the lifecycle a source travels, and the profiles that set the bar.">
 <link rel="icon" href="lib/artoo-kit/favicon.svg">
 <link rel="stylesheet" href="lib/artoo-kit/tokens.css">
@@ -19,7 +19,7 @@
   <button class="nav-toggle" type="button" aria-label="Menu">menu</button>
   <div class="nav-links">
     <a href="flipbook.html">Flipbook</a>
-    <a href="spec.html">Spec</a>
+    <a href="spec.html" aria-current="page">Format</a>
     <a href="start.html">Start</a>
     <a href="https://github.com/lavallee/flip">GitHub</a>
   </div>
@@ -31,12 +31,10 @@
   <header>
     <p class="section-kicker">The format</p>
     <h1>A notebook, opened</h1>
-    <p class="lede">This is a way into
-      <a href="https://github.com/lavallee/flip/blob/main/SPEC.md">SPEC.md</a>, not a
-      replacement for it. Every region below links to the section that governs it, and
-      the frontmatter keys shown are the keys the implementation actually wrote when
-      this page was built — if they drift apart, the site fails to build rather than
-      quietly misleading you.</p>
+    <p class="lede">This page is the tour.
+      <a href="https://github.com/lavallee/flip/blob/main/SPEC.md">SPEC.md is the
+      law</a>: every region here links to the section that governs it, and the build
+      fails if this page drifts from the implementation.</p>
   </header>
 
   <section>
@@ -60,7 +58,8 @@
     <div class="rail" id="rail"></div>
     <p class="record__caption">The two stages marked in accent are gates: one is
       refused if the source is unjudged, the other is refused if the evidence does not
-      meet the profile's bar. <a href="flipbook.html#refused">Watch the refusal →</a></p>
+      meet the profile's bar.
+      <a class="btn btn--solid proof-link" href="flipbook.html#step-refused">Watch the refusal</a></p>
   </section>
 
   <section>
@@ -89,19 +88,20 @@
       score is exactly the thing that lets a careless grade disappear into an average.</p>
     <div class="card-grid">
       <div class="card">
-        <h3>the support tuple</h3>
+        <h3>The support tuple</h3>
         <p>Judgment describes the evidence; the letter is derived from the
           description, never authored.<br>
           <strong>basis</strong> — official-record, platform-data, measured, survey,
           panel, single-operator, synthesis.<br>
-          <strong>n</strong> — as stated, a string: a sample size must not masquerade
-          as the base.<br>
+          <strong>n</strong> — the sample size or denominator exactly as stated;
+          <code>base_defined</code> separately records whether the whole measurement
+          base is known.<br>
           <strong>base_defined</strong> — the first question to ask of any number.<br>
           <strong>?</strong> still means not yet judged — and counting toward
           nothing.</p>
       </div>
       <div class="card">
-        <h3>independence</h3>
+        <h3>Independence</h3>
         <p><strong>independent</strong> · <strong>corroborated</strong> ·
           <strong>self-reported</strong> · <strong>derivative</strong>.<br>
           Four derivatives of one wire story are one source, and only
@@ -109,7 +109,7 @@
           lets the corroboration count mean something.</p>
       </div>
       <div class="card">
-        <h3>claim status</h3>
+        <h3>Claim status</h3>
         <p><code>asserted</code> → <code>verified</code> · <code>needs-2nd</code> ·
           <code>unconfirmed</code> · <code>false-positive</code> ·
           <code>retracted</code> · <code>superseded</code>.<br>
@@ -119,7 +119,7 @@
           way to record only that the notebook got tired of a claim.</p>
       </div>
       <div class="card">
-        <h3>verification methods</h3>
+        <h3>Verification methods</h3>
         <p><code>adversarial</code> — a skeptic pass that sought disconfirming
           evidence.<br>
           <code>recomputation</code> — the result re-derived independently.<br>
@@ -129,7 +129,7 @@
           belongs in <code>tests:</code> instead.</p>
       </div>
       <div class="card">
-        <h3>tests, stance, exposure</h3>
+        <h3>Tests, stance, exposure</h3>
         <p>What was <strong>asked</strong> of a claim and what is <strong>done</strong>
           with it, orthogonal to status and to each other.<br>
           <strong>probes</strong> — <code>attribution</code> · <code>substance</code> ·
@@ -142,7 +142,7 @@
           <code>untestable</code>, derived from the test record and never stored.</p>
       </div>
       <div class="card">
-        <h3>what a citation is for</h3>
+        <h3>What a citation is for</h3>
         <p><code>evidence</code> (the default) or <code>subject</code> — the role sits
           on the citation, because the same document is what one claim is about and a
           witness for the next.<br>
@@ -156,12 +156,11 @@
 
   <section>
     <h2>The whole CLI</h2>
-    <p>Generated from <code>flip cli --json</code> at build time, so this page cannot
-      describe a command that does not exist. The core is filesystem-only: no network
-      calls and no LLM calls live in the library. Capture, text extraction, research
-      and recall are four pluggable roles that run whatever you configure, and nothing
-      else — flip ships a stdlib web fetcher and no opinion at all about PDF
-      libraries.</p>
+    <p>Every command the CLI exposes, generated live. If it is not listed here, it
+      does not exist; if it is listed, it runs. The core is filesystem-only: no
+      network calls and no LLM calls live in the library. Capture, text extraction,
+      research, and recall are pluggable roles that run what you configure—flip ships
+      a stdlib web fetcher and no opinion about PDF libraries.</p>
     <div id="cli"></div>
   </section>
 
@@ -215,7 +214,7 @@
 
 <footer class="site-foot">
   <div class="site-foot__inner">
-    <p>flip—research that can keep going. MIT licensed.</p>
+    <p>Built by <a href="https://github.com/lavallee">Marc Lavallee</a>. MIT licensed.</p>
     <p>
       <a href="https://github.com/lavallee/flip">Repository</a> ·
       <a href="https://github.com/lavallee/flip/blob/main/SPEC.md">Spec</a> ·

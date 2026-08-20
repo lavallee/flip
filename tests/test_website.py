@@ -96,6 +96,41 @@ def test_generated_data_matches_the_package_version():
     )
 
 
+def test_first_contact_leads_with_proof_not_installation():
+    home = (SITE / "index.html").read_text(encoding="utf-8")
+    hero = re.search(r'<header class="hero">([\s\S]*?)</header>', home)
+    assert hero, "homepage hero is missing"
+    assert "hero__comparison" in hero.group(1), "hero no longer shows the before/after"
+    assert hero.group(1).count('class="btn') == 2, "hero should offer exactly two actions"
+    assert "harness-band" not in home, "install commands moved to start.html"
+    assert home.index("jobs-intro") < home.index("home-proof") < home.index("The gap")
+    assert 'id="proof-refusal"' in home
+
+
+def test_flipbook_demonstrates_a_real_verification_refusal():
+    import json
+
+    payload = json.loads((SITE / "data" / "flipbook.json").read_text(encoding="utf-8"))
+    refusal = next((step for step in payload["steps"] if step["id"] == "refused"), None)
+    assert refusal, "flipbook lost the refusal beat"
+    assert refusal["refused"] is True
+    assert refusal["exit_code"] != 0
+    assert "cannot verify" in refusal["stdout"].lower()
+    assert refusal["command_outputs"], "pages need command-level output for the proof"
+
+
+def test_navigation_distinguishes_the_format_tour_from_the_spec():
+    for name in PAGES:
+        html = (SITE / name).read_text(encoding="utf-8")
+        nav = re.search(r'<nav class="site-nav">([\s\S]*?)</nav>', html)
+        assert nav, f"{name} has no site nav"
+        assert '>Format</a>' in nav.group(1), f"{name} calls the visual tour Spec"
+
+    tour = (SITE / "spec.html").read_text(encoding="utf-8")
+    assert "This page is the tour" in tour
+    assert "SPEC.md is the" in tour and "law" in tour
+
+
 def test_spec_anchors_use_the_github_slug_algorithm():
     """Spec deep-links must land; GitHub deletes punctuation rather than replacing it."""
     data = SITE / "data" / "spec.json"

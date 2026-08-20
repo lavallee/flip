@@ -3,9 +3,9 @@
 Private working document. Not deployed.
 
 ```yaml
-task: "Decide whether flip is the at-rest format my agents write research into,
-       and get a first notebook running."
-surface: "flip documentation site — website/site, four routes"
+task: "Give the research my agents already produce a durable, inspectable
+       reporting layer and get the first notebook running."
+surface: "flip documentation site — website/site, five routes"
 baseline:
   revision: "ce74af1"
   route: "none — no site existed"
@@ -121,25 +121,21 @@ verdict is `candidate` until someone else looks at it.
 ## 2026-08-20 — continuable-research and harness-first refresh
 
 This pass changed the front door from an at-rest-format argument to a workflow
-handoff: “Research that can keep going.” The home page now gives the active agent
-a copyable, read-only fit check; distinguishes the CLI from the harness plugin;
-puts real notebook use and recent deep-research evidence above the format
-mechanics; and preserves the controlled-efficacy, token-efficiency, rights, and
-draft-spec boundaries. `start.html` now assumes the human directs research while
-the agent operates the CLI, with the exact commands retained as inspectable
-under-the-hood output.
+handoff: “Research that can keep going.” The home page gives the active agent a
+copyable orientation, distinguishes the CLI from the harness plugin, puts real
+notebook use and recent deep-research evidence above the format mechanics, and
+preserves the controlled-efficacy, token-efficiency, rights, and draft-spec
+boundaries. `start.html` assumes the human directs research while the agent
+operates the CLI, with exact commands retained as inspectable under-the-hood
+output.
 
-The follow-up pass removed the fit-check instructions from the reader's surface:
-“Curious about how flip can work for you? Hand this to your agent” is now the
-whole call to action, while the button copies the complete read-only brief. It
-also made the plugin the only human-facing install; the notebook creation skill
-now checks for and guides the separate CLI tool install when an approved pilot
-actually needs it.
-
-The next pass removed the duplicated, defensive “Ask your agent if it fits” hero
-action. “See flip in action” now leads with proof; the adjacent “Hand this to your
-agent” invitation is the sole fit-assessment path, and “Get flip” is the direct
-installation path.
+The adoption-confidence pass removed the old fit-check funnel completely. The
+handoff now asks the active agent to use flip as the reporting layer for research
+already happening in the repository; the plugin is the only human-facing
+install; and the notebook creation skill guides the separate CLI tool install
+when the first notebook needs it. “See flip in action” leads with proof, “Hand
+this to your agent” transfers the map, and “Get flip” is a direct installation
+path rather than an invitation to negotiate adoption.
 
 The headline now makes the behavioral change explicit: “Help your agent be a
 reporter, not a stenographer.” The supporting copy names what that means—source
@@ -163,3 +159,42 @@ Checks at the working-tree revision:
   dormant-view fixture landing exactly on 2026-08-20, and the public-name scrub
   correctly catching a name in the user's pre-existing untracked
   `docs/concurrent-writes.md`. Neither was changed by this surface pass.
+
+## 2026-08-20 — first-contact red-pen pass
+
+This pass reordered the argument around first contact. The hero now shows a
+concrete EV-charger before/after and offers exactly two actions: watch the
+flipbook or install. Plain-language research jobs follow immediately. A
+three-moment proof strip then renders the assignment, a real non-zero
+verification refusal, and the final handoff from the same generated CLI replay
+as the flipbook. Harness commands and the copyable agent prompt live on
+`start.html`, after the value has been shown.
+
+The live-site feedback's read-only fit-check prompt was deliberately not
+restored: it conflicts with the later adoption-confidence direction. The one
+copyable prompt instead asks the active agent to use flip as the reporting
+layer, handle setup, and leave a continuable notebook. The button says that it
+copies a prompt.
+
+The flipbook now contains ten reporting turns. One-source evidence opens the
+gap claim, `flip claim status C6 verified` exits 1 at the two-source gate, five
+more independently authored proposals are added, and the same claim then
+verifies. Command-level output from that replay drives the homepage rules,
+homepage proof strip, Start-page examples, and whole-notebook export.
+
+The format route is labeled `Format` in navigation and opens by distinguishing
+the tour from the law in `SPEC.md`. The notebook page explains its specialized
+table columns; every public footer names Marc Lavallee and links to the public
+GitHub identity; the README and package description share the new headline.
+
+Checks at the working-tree revision:
+
+- `python build.py`, `artoo build .`, `artoo status .`, and `artoo doctor .`:
+  clean; 10 generated frames, 65 real commands, 19 spec sections.
+- The focused website/docs/plugin suite: 20 passed. Ruff, JavaScript syntax,
+  skill-copy parity, and `git diff --check`: clean.
+- `uv run pytest -q`: 1359 passed and the same two unrelated failures remain:
+  the pre-existing untracked `docs/concurrent-writes.md` name-scrub finding and
+  the date-sensitive dormant-question fixture whose review date is today.
+- No browser visual pass was part of this editorial implementation; the input
+  explicitly deferred pixel-level and breakpoint review.

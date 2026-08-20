@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>flip — reporter's notebooks for agents</title>
-<meta name="description" content="flip gives agents a spec and tools to judge sources, trace claims to evidence, refine research questions, and pursue them beyond the first plausible answer.">
+<meta name="description" content="Deep research your next agent can pick up where this one left off: captured sources, honest claim states, open questions, and a durable record in plain files.">
 <link rel="icon" href="lib/artoo-kit/favicon.svg">
 <link rel="stylesheet" href="lib/artoo-kit/tokens.css">
 <link rel="stylesheet" href="lib/artoo-kit/base.css">
@@ -19,7 +19,7 @@
   <button class="nav-toggle" type="button" aria-label="Menu">menu</button>
   <div class="nav-links">
     <a href="flipbook.html">Flipbook</a>
-    <a href="spec.html">Spec</a>
+    <a href="spec.html">Format</a>
     <a href="start.html">Start</a>
     <a href="https://github.com/lavallee/flip">GitHub</a>
   </div>
@@ -27,52 +27,90 @@
 </nav>
 
 <header class="hero">
-  <div>
+  <div class="hero__intro">
     <p class="hero__kicker">
       <span>Reporter's notebooks for agents</span>
       <span class="badge badge--accent" data-fact="version">v0.21</span>
       <span data-fact="spec-status">draft spec</span>
     </p>
-    <h1>Give your research a durable structure, not another prose dump.</h1>
-    <p class="hero__dek">Your agent finished the research. Can you build on it?</p>
-    <p class="hero__dek">Frontier agents pull dozens of sources, mash together claims,
-      and hand you a chunk of Markdown you can't unwind.</p>
-    <p class="hero__dek hero__dek--format">flip brings rigor. It provides a spec for
-      storing questions, claims, and raw materials with provenance, and tools for
-      conducting research like a reporter, not a stenographer. flip notebooks can be
-      evolved by humans and agents. The work compounds across sessions.</p>
+    <h1>Deep research your next agent can pick up where this one left off.</h1>
+    <p class="hero__dek">Deep-research agents hand you a fluent report and a list of
+      URLs. flip keeps the record underneath: every source captured and judged, every
+      claim at an honest status, every open question named, in plain files that
+      outlive the session.</p>
     <p class="hero__actions">
-      <a class="btn btn--solid" href="flipbook.html">See flip in action</a>
-      <a class="btn btn--quiet" href="https://lavallee.github.io/flip-examples/">Explore real notebooks</a>
+      <a class="btn btn--solid" href="flipbook.html">See it happen</a>
       <a class="btn btn--quiet" href="start.html#install">Get flip</a>
     </p>
   </div>
-  <div class="orientation-card">
-    <p>Curious about how flip can work for you?</p>
-    <a class="btn btn--solid handoff-cta"
-      href="https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md"
-      data-copy-text="Here's flip, a tool for structured research notebooks. Let's evaluate how it might fit with our system. What's worth adopting?"
-      data-copied-label="Copied — paste it into your agent">Hand this to your agent</a>
+  <div class="hero__comparison" aria-label="Research without and with flip">
+    <article class="hero__state hero__state--without">
+      <p class="hero__state-label">Without flip</p>
+      <h2>A polished answer with no trail</h2>
+      <p>A four-page report says public EV-charger reliability improved. Twelve URLs
+        sit at the bottom. Six weeks later, nobody can tell what was measured, what
+        was inferred, or what was never checked.</p>
+    </article>
+    <article class="hero__state hero__state--with">
+      <p class="hero__state-label">With flip</p>
+      <h2>A record another agent can continue</h2>
+      <p>The narrow claim is verified against two captured sources. The national
+        trend stays unresolved, with the surfaces checked and the evidence that
+        should reopen the question recorded.</p>
+    </article>
   </div>
 </header>
 
 <main class="page" data-claim-anchors>
 
-  <section id="harness" class="harness-band">
-    <div class="install-grid">
-      <div>
-        <h3>Claude Code</h3>
-        <div class="cmd cmd--bare"><code>/plugin marketplace add lyra-forge/marketplace
-/plugin install flip@lyra-forge</code></div>
-      </div>
-      <div>
-        <h3>Codex</h3>
-        <div class="cmd"><code>codex plugin marketplace add lyra-forge/marketplace
-codex plugin add flip@lyra-forge</code></div>
-      </div>
+  <section class="jobs-intro">
+    <p class="section-kicker">What would you use it for?</p>
+    <h2>Give the agent the research job</h2>
+    <p class="lede">flip shapes the record to the work. The agent chooses the matching
+      notebook kind; you keep speaking in questions and outcomes.</p>
+    <div class="table-wrap">
+      <table class="job-table">
+        <thead><tr><th>What the work needs</th><th>Notebook kind</th></tr></thead>
+        <tbody>
+          <tr><td>Screen whether an angle is worth pursuing</td><td><code>scout</code></td></tr>
+          <tr><td>Run one question to ground</td><td><code>pursuit</code></td></tr>
+          <tr><td>Survey a field or prepare a publishable review</td><td><code>research-review</code> or <code>lit-review</code></td></tr>
+          <tr><td>Recompute, reconcile, or investigate data</td><td><code>data-investigation</code></td></tr>
+          <tr><td>Prepare an evidence-backed choice</td><td><code>decision-packet</code></td></tr>
+          <tr><td>Record forecasts and what would settle them</td><td><code>forward-set</code></td></tr>
+          <tr><td>Maintain a shared source record</td><td><code>ledger</code></td></tr>
+          <tr><td>Work inside confidential boundaries</td><td><code>engagement</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="home-proof">
+    <p class="section-kicker">See it happen</p>
+    <h2>One question becomes a notebook</h2>
+    <p class="lede">The flipbook replays a completed investigation. These three
+      moments—and every command underneath them—are regenerated with the real CLI
+      when the site is built.</p>
+    <div class="proof-strip">
+      <article>
+        <p class="proof-strip__label">You ask</p>
+        <blockquote id="proof-ask">Track where OKF came from, its precedents and
+          gaps, and whether there is evidence of a roadmap.</blockquote>
+      </article>
+      <article class="proof-strip__refusal">
+        <p class="proof-strip__label">The evidence gate refuses</p>
+        <pre><code id="proof-refusal">cannot verify: the corroboration bar is not met</code></pre>
+      </article>
+      <article>
+        <p class="proof-strip__label">The next agent inherits</p>
+        <blockquote id="proof-result">The origin is bounded, the gap map is
+          corroborated, and the roadmap finding says exactly where it does and does
+          not reach.</blockquote>
+      </article>
     </div>
     <p class="hero__actions">
-      <a class="btn" href="start.html">Installation, first prompt, and other harnesses →</a>
+      <a class="btn btn--solid" href="flipbook.html">Watch the whole investigation</a>
+      <a class="btn btn--quiet" href="notebook.html">See the whole notebook</a>
     </p>
   </section>
 
@@ -84,18 +122,19 @@ codex plugin add flip@lyra-forge</code></div>
       that only partly support the prose. Six weeks later, a URL list and a polished
       answer cannot tell the next agent what was actually checked, what remained weak,
       or which follow-on question the evidence opened.</p>
-    <p>Recent independent benchmarks make the gap concrete. On 100 open-web tasks,
-      the best system evaluated by
-      <a href="https://proceedings.iclr.cc/paper_files/paper/2026/file/114e1dc345fe31b8b9b0c6f7b55a0644-Paper-Conference.pdf">LiveDRBench</a>
-      reached 0.55 overall F1 and the systems covered only about half of the necessary
-      search queries [C8].
-      <a href="https://proceedings.iclr.cc/paper_files/paper/2026/file/ad08767706825033b99122332293033d-Paper-Conference.pdf">DeepTRACE's</a>
-      dated
-      August 2025 snapshot evaluated 303 questions and 2,727 system-query samples;
-      deep-research configurations were one-sided on 54.7%–94.8% of debate queries,
-      while citation accuracy ranged from 31.4%–79.1% [C9].</p>
-    <p>flip does not make a model reason better by itself. It makes the route taken—and
-      the routes still owed—durable, inspectable, and continuable.</p>
+    <p class="claim-key">Bracketed ids open this site's own flip notebook, where
+      each claim on the page is recorded with its sources and status.</p>
+    <p>On 100 open-web research tasks, the best system in one independent benchmark
+      got about half the job done—0.55 F1, covering only around half the searches the
+      tasks required
+      (<a href="https://proceedings.iclr.cc/paper_files/paper/2026/file/114e1dc345fe31b8b9b0c6f7b55a0644-Paper-Conference.pdf">LiveDRBench</a>)
+      [C8]. In another, deep-research systems argued one side of debate questions
+      55–95% of the time, and their citations fully supported the prose only 31–79%
+      of the time
+      (<a href="https://proceedings.iclr.cc/paper_files/paper/2026/file/ad08767706825033b99122332293033d-Paper-Conference.pdf">DeepTRACE</a>,
+      August 2025 snapshot) [C9].</p>
+    <p>flip makes the route taken—and the routes still owed—durable, inspectable,
+      and continuable.</p>
   </section>
 
   <section>
@@ -105,23 +144,21 @@ codex plugin add flip@lyra-forge</code></div>
       <article>
         <p class="pillar__number">01</p>
         <h3>Work the question</h3>
-        <p>Follow-on questions, corroboration gaps, closer reads, recomputations,
-          failed probes, narrower and adjacent answers, reopen conditions, and
-          bounded continuation work survive the session.</p>
+        <p>Open questions, failed probes, and conditions for revisiting an answer
+          survive the session, so the next run continues instead of starting over.</p>
       </article>
       <article>
         <p class="pillar__number">02</p>
         <h3>Know what can be relied on</h3>
-        <p>Actual source material is kept in custody. Capture and judgment remain
-          separate. Leads, hypotheses, beliefs, assertions, verified claims, bounded
-          nulls, and rejections can coexist without being flattened into one score.</p>
+        <p>Sources are captured and judged as separate acts. A lead can sit next to a
+          verified claim without pretending to be one.</p>
       </article>
       <article>
         <p class="pillar__number">03</p>
         <h3>Outlive the agent</h3>
-        <p>Stable ids, named actors, append-only events, and bounded generated views
-          let another agent or person continue without reconstructing the research
-          from chat history—or silently overwriting how it changed.</p>
+        <p>Stable ids, named contributors, and a preserved history let another agent
+          or person continue without reconstructing the work from chat—or silently
+          overwriting how it changed.</p>
       </article>
     </div>
   </section>
@@ -148,7 +185,7 @@ codex plugin add flip@lyra-forge</code></div>
         <h3>Preserve an honest non-answer</h3>
         <p>An EV-charging pursuit distinguished failed visits from measured uptime,
           answered the narrower question, kept the national trend unresolved, and
-          armed the evidence that should reopen it.</p>
+          recorded exactly what evidence should reopen it.</p>
         <a href="https://github.com/lavallee/flip-examples/tree/main/ev-charger-watch">EV charger pursuit →</a>
       </article>
       <article>
@@ -159,8 +196,6 @@ codex plugin add flip@lyra-forge</code></div>
         <a href="https://github.com/lavallee/flip-examples/tree/main/autonomous-research-loop">Autonomous-loop case study →</a>
       </article>
     </div>
-    <p class="record__caption">These examples show the mechanics and the research
-      states they preserved. They are not a controlled comparison of research quality.</p>
   </section>
 
   <section>
@@ -169,30 +204,6 @@ codex plugin add flip@lyra-forge</code></div>
     <p class="lede">Every fragment below is real output, generated by running the CLI
       when this page was built.</p>
     <div class="rules" id="rules"></div>
-  </section>
-
-  <section>
-    <p class="section-kicker">Start from the outcome</p>
-    <h2>Give the agent a job, not a taxonomy lesson</h2>
-    <div class="table-wrap">
-      <table class="job-table">
-        <thead><tr><th>What the work needs</th><th>Start with</th></tr></thead>
-        <tbody>
-          <tr><td>Screen whether an angle is worth pursuing</td><td><code>scout</code></td></tr>
-          <tr><td>Run one question to ground</td><td><code>pursuit</code></td></tr>
-          <tr><td>Survey a field or prepare a publishable review</td><td><code>research-review</code> or <code>lit-review</code></td></tr>
-          <tr><td>Recompute, reconcile, or investigate data</td><td><code>data-investigation</code></td></tr>
-          <tr><td>Prepare an evidence-backed choice</td><td><code>decision-packet</code></td></tr>
-          <tr><td>Record forecasts and their resolver ladders</td><td><code>forward-set</code></td></tr>
-          <tr><td>Maintain a source spine</td><td><code>ledger</code></td></tr>
-          <tr><td>Work inside confidential boundaries</td><td><code>engagement</code></td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>Profiles set rigor and operating policy; outcome kinds add a collection
-      contract for a deliverable. A <strong>beat</strong> sits above notebooks when
-      the mission recurs, retaining coverage memory and computing the next bounded
-      item instead of making each pass rediscover the frontier.</p>
   </section>
 
   <section class="prose">
@@ -208,12 +219,12 @@ codex plugin add flip@lyra-forge</code></div>
       consumer. Export it as BagIt, CSL JSON, render JSON, or a policy-filtered public
       OKF copy. Public export can withhold private source custody and event history;
       the workflow still owns source rights and licensing decisions.</p>
-    <p><a href="spec.html">Open the format visually →</a></p>
+    <p><a href="spec.html">Tour the notebook format →</a></p>
   </section>
 
   <section>
-    <p class="section-kicker">Choosing a substrate</p>
-    <h2>What it complements—and what it does not replace</h2>
+    <p class="section-kicker">Where it fits</p>
+    <h2>The reporting layer in a larger research system</h2>
     <p class="lede">flip is the durable research record beneath retrieval, orchestration,
       and publishing tools. These differ in kind, not in quality.</p>
     <div class="compare-wrap">
@@ -263,7 +274,7 @@ codex plugin add flip@lyra-forge</code></div>
   </section>
 
   <section class="prose limits">
-    <p class="section-kicker">Before you adopt it</p>
+    <p class="section-kicker">What the evidence supports</p>
     <h2>The honest case against</h2>
     <p><strong>The strongest objection is that this is ceremony.</strong> Source
       grading and claim metadata can raise the cost of every turn without improving
@@ -290,7 +301,11 @@ codex plugin add flip@lyra-forge</code></div>
 
   <section>
     <p class="section-kicker">Where this stands</p>
-    <h2>Coordinates</h2>
+    <h2>Status</h2>
+    <p class="lede">Built and maintained by
+      <a href="https://github.com/lavallee">Marc Lavallee</a>. MIT licensed; the
+      format and software are public, and
+      <a href="https://github.com/lavallee/flip/issues">issues are welcome</a>.</p>
     <dl class="facts" id="facts"></dl>
     <p class="hero__actions">
       <a class="btn" href="start.html#install">Get flip</a>
@@ -312,7 +327,7 @@ codex plugin add flip@lyra-forge</code></div>
 
 <footer class="site-foot">
   <div class="site-foot__inner">
-    <p>flip—research that can keep going. MIT licensed.</p>
+    <p>Built by <a href="https://github.com/lavallee">Marc Lavallee</a>. MIT licensed.</p>
     <p>
       <a href="https://github.com/lavallee/flip">Repository</a> ·
       <a href="https://github.com/lavallee/flip/blob/main/docs/agent-orientation.md">Agent orientation</a> ·

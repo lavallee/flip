@@ -19,7 +19,7 @@
   <button class="nav-toggle" type="button" aria-label="Menu">menu</button>
   <div class="nav-links">
     <a href="flipbook.html">Flipbook</a>
-    <a href="spec.html">Spec</a>
+    <a href="spec.html">Format</a>
     <a href="start.html" aria-current="page">Start</a>
     <a href="https://github.com/lavallee/flip">GitHub</a>
   </div>
@@ -31,25 +31,28 @@
   <header>
     <p class="section-kicker">Start</p>
     <h1>Give flip to your agent</h1>
-    <p class="lede">Let the agent assess the fit, install the plugin, and handle the
-      remaining setup. Then direct the research the way you already do. The CLI is
-      the enforcement surface underneath—not the expected human interface.</p>
+    <p class="lede">Install the plugin in the harness where research already
+      happens, then direct the work the way you already do. The agent handles the
+      CLI and maintains the notebook; you steer the investigation.</p>
   </header>
 
-  <section id="assess-fit" class="orientation-section">
-    <h2>Curious about how flip can work for you?</h2>
+  <section id="orientation" class="orientation-section">
+    <p class="section-kicker">Orientation</p>
+    <h2>Give the agent the map</h2>
+    <p>The guide explains flip's capabilities, contracts, and place alongside
+      the repository's existing research systems.</p>
     <p><a class="btn btn--solid handoff-cta"
       href="https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md"
-      data-copy-text="Read https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md. Inspect this repository and its current research workflow read-only. Do not install or change files yet. Tell me whether flip is a fit, the smallest useful pilot, where it should live, what it would coexist with, and what it would cost."
-      data-copied-label="Copied — paste it into your agent">Hand this to your agent</a></p>
+      data-copy-text="Read https://raw.githubusercontent.com/lavallee/flip/main/docs/agent-orientation.md and use flip as the reporting layer for research in this repository. Work with the sources and systems already here. Handle setup, keep the material and provenance the work relies on, and leave notebooks another agent can inspect and continue."
+      data-copied-label="Copied — paste it into your agent">Copy a prompt for your agent</a></p>
   </section>
 
   <section id="install">
-    <p class="section-kicker">Approved pilot</p>
-    <h2>Install the plugin</h2>
-    <p>It gives the harness the skills that operate flip. When the first approved
-      notebook begins, the creation skill checks for the CLI and guides its one-time
-      installation if it is not already on the agent's PATH.</p>
+    <p class="section-kicker">Install</p>
+    <h2>Add flip to the harness</h2>
+    <p>In Claude Code or Codex, the easy path is two commands, a new session, and a
+      research assignment. When the first notebook begins, the creation skill checks
+      for the standalone CLI and guides that one-time installation if needed.</p>
 
     <ol class="steps steps--compact">
       <li>
@@ -61,24 +64,24 @@
         <div class="cmd"><code>codex plugin marketplace add lyra-forge/marketplace
 codex plugin add flip@lyra-forge</code></div>
         <p>Both receive the same seven notebook skills. Start a new session after
-          installation. Claude Code also receives a
-          custody hook around <code>WebFetch</code>. Codex's hosted web tools do not
-          traverse that local hook path, so the skills and final doctor pass carry the
-          capture discipline there.</p>
+          installation. The <a href="https://github.com/lavallee/flip/blob/main/docs/claude-code.md">harness
+          guide</a> explains the custody-hook difference between them.</p>
       </li>
 
-      <li>
-        <h3>Start a new session and state the research boundary</h3>
-        <div class="cmd cmd--prompt"><code>Use flip for this investigation. Start with the smallest suitable notebook kind, keep the material we rely on in custody, treat generated synthesis as a lead until its public sources are captured and judged, pursue logical follow-on questions, and leave a handoff another agent can continue.</code></div>
-        <p>The plugin is loaded at session start. Tell the agent where its authority
-          ends—especially whether it may create a notebook, capture source bytes,
-          modify Git attributes, publish an export, or only assess and report.</p>
-      </li>
     </ol>
   </section>
 
+  <section id="first-question">
+    <p class="section-kicker">Your first research question</p>
+    <h2>Give it the assignment</h2>
+    <div class="cmd cmd--prompt"><code>Use flip for this investigation: &lt;question&gt;. Leave a notebook another agent can inspect and continue.</code></div>
+    <p>The plugin is loaded at session start. The agent chooses the notebook kind,
+      handles the CLI, and keeps using the repository's existing source, retrieval,
+      and publishing systems.</p>
+  </section>
+
   <section class="prose">
-    <p class="section-kicker">Day-to-day use</p>
+    <p class="section-kicker">Keep going</p>
     <h2>Talk about the research, not the bookkeeping</h2>
     <p>You ask the substantive questions: “Did this result replicate?”, “What would
       falsify that?”, “Does this answer the question as asked?”, “What should we watch
@@ -95,13 +98,15 @@ codex plugin add flip@lyra-forge</code></div>
     <h2>The plugin is packaging, not a lock-in</h2>
     <p>Give another runtime the <a href="https://github.com/lavallee/flip/blob/main/AGENTS.md">runtime-neutral
       contract</a> and the <a href="https://github.com/lavallee/flip/tree/main/src/flip/skills">plain
-      <code>SKILL.md</code> procedures</a>, or load the spindle package named
-      <code>flip</code>. The CLI and notebook format underneath are the same.</p>
+      <code>SKILL.md</code> procedures</a>, or load the
+      <a href="https://github.com/lavallee/spindle">spindle</a> package named
+      <code>flip</code>; spindle distributes the same skill package across agent
+      runtimes. The CLI and notebook format underneath are the same.</p>
     <div class="cmd cmd--prompt"><code>Read AGENTS.md completely before working in this notebook. Set FLIP_ACTOR explicitly, preserve append-only history and unknown frontmatter keys, capture before cite, and run flip doctor before handoff.</code></div>
   </section>
 
   <section id="under-the-hood">
-    <p class="section-kicker">Under the hood</p>
+    <p class="section-kicker">When you want to look underneath</p>
     <h2>What the agent is doing for you</h2>
     <p class="lede">You normally will not type these commands. The real output is
       shown so the enforcement layer stays inspectable.</p>
@@ -113,7 +118,7 @@ codex plugin add flip@lyra-forge</code></div>
           screens an angle; a <code>research-review</code>, <code>lit-review</code>,
           <code>data-investigation</code>, <code>decision-packet</code>, or
           <code>forward-set</code> carries a more specific completion contract.</p>
-        <div class="cmd"><code>flip new my-question --kind pursuit --title "The thing I am trying to find out"</code></div>
+        <div class="cmd"><code>flip new okf-origins --kind research-review --title "Where OKF came from and where it may go" --visibility public</code></div>
         <div id="out-new"></div>
       </li>
 
@@ -122,7 +127,7 @@ codex plugin add flip@lyra-forge</code></div>
         <p>flip preserves the bytes, hashes them, appends provenance, and opens a source
           page at grade <code>?</code>. URL capture uses the configured web lane; local
           files always copy directly.</p>
-        <div class="cmd"><code>flip add-source ./some-report.pdf --note "why this matters"</code></div>
+        <div class="cmd"><code>flip add-source ../okf-launch.md --note "dated public-source packet; full capture in flip-examples"</code></div>
         <div id="out-capture"></div>
       </li>
 
@@ -131,7 +136,8 @@ codex plugin add flip@lyra-forge</code></div>
         <p>Capture is custody, not authority. The source counts toward nothing until a
           named actor records its independence, evidentiary basis, and whether the
           measurement base is defined.</p>
-        <div class="cmd"><code>flip grade F1 --independence independent --basis official-record --base-defined --notes "why this reading"</code></div>
+        <div class="cmd"><code>flip grade F1 --independence derivative --basis synthesis --method "compact packet from the held launch post"
+flip grade F1 --explain</code></div>
         <div id="out-grade"></div>
       </li>
 
@@ -140,8 +146,8 @@ codex plugin add flip@lyra-forge</code></div>
         <p>A load-bearing claim enters as asserted. If the profile's corroboration bar
           is unmet, verified status is refused. The refusal names every legitimate path
           forward instead of accepting insistence as evidence.</p>
-        <div class="cmd"><code>flip claim add "The assertion, in one sentence" --source F1 --load-bearing
-flip claim status C1 verified</code></div>
+        <div class="cmd"><code>flip claim add "Visible proposals cluster around identity, routing, relationships, retrieval, and composition" --source F6 --load-bearing
+flip claim status C6 verified</code></div>
         <div id="out-refused"></div>
       </li>
 
@@ -150,8 +156,9 @@ flip claim status C1 verified</code></div>
         <p><code>show</code> computes the hot view; <code>doctor</code> checks the format,
           lineage, required files, and verification gates. Sessions and handoffs record
           enough state for a cold agent to continue at the open edge.</p>
-        <div class="cmd"><code>flip show
+        <div class="cmd"><code>flip show --claims
 flip doctor</code></div>
+        <div id="out-show"></div>
         <div id="out-doctor"></div>
       </li>
     </ol>
@@ -175,7 +182,7 @@ flip doctor</code></div>
 
 <footer class="site-foot">
   <div class="site-foot__inner">
-    <p>flip—research that can keep going. MIT licensed.</p>
+    <p>Built by <a href="https://github.com/lavallee">Marc Lavallee</a>. MIT licensed.</p>
     <p>
       <a href="https://github.com/lavallee/flip">Repository</a> ·
       <a href="https://github.com/lavallee/flip/blob/main/docs/agent-orientation.md">Agent orientation</a> ·

@@ -26,6 +26,11 @@
     return lines.length > count ? lines.slice(0, count).join("\n") : lines.join("\n");
   }
 
+  function commandOutput(source, index) {
+    var item = source && source.command_outputs && source.command_outputs[index];
+    return item ? item.stdout : "";
+  }
+
   // -- the five enforcement rules -------------------------------------------
   var RULES = [
     {
@@ -33,16 +38,23 @@
       body: "A page may only cite what the bundle holds. add-source copies the bytes "
         + "in, hashes them, and appends one line to an append-only ledger. The claim "
         + "survives the URL going dark.",
-      from: "capture",
-      transform: function (record) { return record.text; }
+      from: "lineage",
+      pick: function (source) {
+        return { path: "output", text: commandOutput(source, 0) };
+      }
     },
     {
       title: "Judgment is a separate act",
       body: "Capture confers nothing. A source page opens at grade ? and stays worth "
         + "nothing to a claim until a named actor grades it, on two axes that are "
         + "never collapsed into one score.",
-      from: "grade",
-      transform: function (record) { return frontmatter(record.text); }
+      from: "lineage",
+      pick: function (source) {
+        return {
+          path: "output",
+          text: commandOutput(source, 1) + "\n\n" + commandOutput(source, 2)
+        };
+      }
     },
     {
       title: "Verified is gated, mechanically",
@@ -50,7 +62,9 @@
         + "refused — with a non-zero exit code — until the profile's corroboration bar "
         + "is met. An agent cannot promote its own claim by insisting.",
       from: "refused",
-      transform: function (record) { return record.text; }
+      pick: function (source) {
+        return { path: "output", text: commandOutput(source, 0), refused: true };
+      }
     },
     {
       title: "A claim records what was asked of it",
@@ -58,16 +72,20 @@
         + "went looking for, how it would have shown up, and what would have appeared "
         + "instead — so a probe that found the error has somewhere to go, and a claim "
         + "nobody has tested cannot read as one that survived.",
-      from: "tested",
-      transform: function (record) { return frontmatter(record.text); }
+      from: "lineage",
+      pick: function (source) {
+        return { path: source.record.path, text: frontmatter(source.record.text) };
+      }
     },
     {
       title: "Generation is logged",
       body: "Every episode that wrote pages gets a session page: actor, model, tools, "
         + "goal, outputs. The reasoning chain is part of the bundle rather than "
         + "something you reconstruct from a chat log later.",
-      from: "session",
-      transform: function (record) { return frontmatter(record.text); }
+      from: "frame",
+      pick: function (source) {
+        return { path: source.record.path, text: frontmatter(source.record.text) };
+      }
     }
   ];
 
@@ -76,6 +94,7 @@
     RULES.forEach(function (rule) {
       var source = step(rule.from);
       if (!source) return;
+      var payload = rule.pick(source);
       var cell = document.createElement("div");
       cell.className = "rule";
 
@@ -88,13 +107,26 @@
       cell.appendChild(copy);
 
       cell.appendChild(kit.record({
-        path: source.record.path,
-        refused: source.refused,
-        text: firstLines(rule.transform(source.record), 16)
+        path: payload.path,
+        refused: payload.refused || false,
+        text: firstLines(payload.text, 16)
       }));
       rulesHost.appendChild(cell);
     });
   }
+
+  // -- the three-moment proof strip ----------------------------------------
+  var assignment = step("assignment");
+  var refusal = step("refused");
+  var answer = step("answer");
+  var proofAsk = document.getElementById("proof-ask");
+  var proofRefusal = document.getElementById("proof-refusal");
+  var proofResult = document.getElementById("proof-result");
+  if (proofAsk && assignment && assignment.say) proofAsk.textContent = assignment.say;
+  if (proofRefusal && refusal) {
+    proofRefusal.textContent = firstLines(commandOutput(refusal, 0), 5);
+  }
+  if (proofResult && answer && answer.reply) proofResult.textContent = answer.reply;
 
   // -- coordinates ----------------------------------------------------------
   if (meta) {
