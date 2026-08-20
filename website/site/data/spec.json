@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-20T16:24:25+00:00",
+  "generated": "2026-08-20T20:02:43+00:00",
   "sections": [
     {
       "number": "1",
@@ -130,7 +130,7 @@
         "lines",
         "local",
         "medium",
-        "notes",
+        "model",
         "participants",
         "status",
         "support",
@@ -159,6 +159,7 @@
         "generated"
       ],
       "observed_keys": [
+        "absence",
         "aliases",
         "description",
         "first_asserted",
@@ -213,9 +214,13 @@
       ],
       "observed_keys": [
         "aliases",
+        "answered",
+        "answered_by",
         "description",
         "generated",
         "id",
+        "reopen_when",
+        "resolves_via",
         "status",
         "type"
       ]
@@ -235,6 +240,7 @@
         "started"
       ],
       "observed_keys": [
+        "ended",
         "generated",
         "model",
         "started",

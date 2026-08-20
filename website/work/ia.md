@@ -76,22 +76,20 @@ the nav; `notebook.html` is reached from the pages that earn it, below.
 - **Mode:** public-data.
 - **Dials:** variance medium, density balanced, motion explanatory, type
   register editorial-data, imagery role evidence-and-explanation.
-- **Task anatomy:** overview-to-detail with a stepper. The reader controls
-  time; nothing auto-plays.
-- **Structural fingerprint:** *command → artifact → record.* Three
-  synchronized panes held constant across every step, so the reader learns
-  one layout and then only the content changes. The left pane is what was
-  run, the center is the file tree with the changed paths marked, the right
-  is the resulting record — a page's frontmatter, a ledger line, a doctor
-  finding.
-- **Why a stepper and not a scroll-driven animation:** the unit of meaning is
-  a *command*, which is discrete. Scroll-linking would make the reader's
-  scroll position a proxy for a state machine it does not map onto, and would
-  break for keyboard and reduced-motion users, who are a meaningful share of
-  this audience.
-- **State:** step index in the URL hash so a step is linkable and the back
-  button works. Keyboard: arrow keys, Home/End, and a visible focus ring on
-  the stepper.
+- **Task anatomy:** one scrolling reporting conversation. Nothing auto-plays;
+  each agent update has a closed receipt that expands to commands, changed
+  files, output, and the resulting page or ledger row.
+- **Structural fingerprint:** *assignment → finding → receipt.* The visible
+  surface stays at the altitude of an ordinary agent conversation. Repeated
+  under-the-hood panels make the implementation auditable without implying
+  that the person directed each CLI operation.
+- **Why a conversation and not a stepper:** the unit a person recognizes is a
+  reporting turn, not a command. Ordinary document scroll preserves that
+  reading model and works without animation, keyboard state, or reduced-motion
+  exceptions.
+- **State:** each exchange has a URL anchor so a finding remains linkable and
+  the back button works. Native summary/details controls keep the receipts
+  keyboard-operable without a custom interaction model.
 - **Deliberately absent:** autoplay, typing animation, fake latency.
 
 ### `spec.html` — the format, visually
