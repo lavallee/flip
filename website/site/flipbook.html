@@ -19,7 +19,7 @@
   <button class="nav-toggle" type="button" aria-label="Menu">menu</button>
   <div class="nav-links">
     <a href="flipbook.html">Flipbook</a>
-    <a href="spec.html">Spec</a>
+    <a href="spec.html">Format</a>
     <a href="start.html">Start</a>
     <a href="https://github.com/lavallee/flip">GitHub</a>
   </div>
@@ -31,19 +31,15 @@
   <header class="fb__lede">
     <p class="section-kicker">The flipbook</p>
     <h1>One prompt becomes a reporting notebook</h1>
-    <p class="lede">The person asks one research question. The agent scopes it,
+    <p class="lede">You ask one research question. The agent scopes it,
       follows the origin trail, runs down gaps and counter-evidence, and returns an
       answer. That is the conversation. flip works underneath: capturing sources,
       testing claims, preserving the missing pieces, and leaving a notebook another
       agent can pick up. Open any <em>Under the hood</em> panel when you want the
       commands and records; ignore them when you only want the reporting.</p>
     <p class="demo-note" id="fb-vintage">
-      This walkthrough is distilled from a real, completed investigation of the
-      Open Knowledge Format. Its compact source packets keep the docs build offline;
-      every command, output, file change, and record shown here is regenerated with
-      the real CLI. The <a href="https://github.com/lavallee/flip-examples/tree/main/okf-origins">full
-      public notebook</a> retains the original captures and the
-      <a href="https://github.com/lavallee/flip-examples/blob/main/okf-origins/TRANSCRIPT.md">conversation-level transcript</a>.
+      Distilled from a real completed investigation; every command shown is
+      regenerated with the real CLI.
     </p>
   </header>
 
@@ -55,7 +51,7 @@
   </section>
 
   <section class="prose">
-    <h2>What this run is meant to show</h2>
+    <h2>What this run shows</h2>
     <p>The agent did more than collect agreeable links. It separated the direct
       LLM-wiki precedent from a deeper, second-order Memex lineage; found that OKF's
       first public repository commit was a snapshot that omitted the upstream
@@ -74,15 +70,24 @@
       <a href="https://lavallee.github.io/flip-examples/okf-origins/">full rendered
       notebook</a> with all original captures, judgments, claims, questions, and the
       transcript.</p>
-    <p><a href="spec.html">See what those files are →</a> ·
-       <a href="start.html">Give flip to your agent →</a></p>
+    <p class="hero__actions">
+      <a class="btn btn--solid" href="notebook.html">See the whole notebook</a>
+      <a class="btn btn--quiet" href="spec.html">Tour the format</a>
+      <a class="btn btn--quiet" href="start.html">Get flip</a>
+    </p>
+    <p class="demo-note">The compact replay uses dated source packets so the site can
+      build offline. The
+      <a href="https://github.com/lavallee/flip-examples/tree/main/okf-origins">full
+      public notebook</a> retains the original captures and the
+      <a href="https://github.com/lavallee/flip-examples/blob/main/okf-origins/TRANSCRIPT.md">conversation-level
+      transcript</a>.</p>
   </section>
 
 </main>
 
 <footer class="site-foot">
   <div class="site-foot__inner">
-    <p>flip—research that can keep going. MIT licensed.</p>
+    <p>Built by <a href="https://github.com/lavallee">Marc Lavallee</a>. MIT licensed.</p>
     <p>
       <a href="https://github.com/lavallee/flip">Repository</a> ·
       <a href="https://github.com/lavallee/flip/blob/main/SPEC.md">Spec</a> ·

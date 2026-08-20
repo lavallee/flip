@@ -23,30 +23,39 @@
     return book.steps.filter(function (s) { return s.id === id; })[0] || null;
   }
 
-  /** Show a step's stdout as the output of the command above it. */
-  function output(hostId, stepId, caption) {
+  /** Show selected command output from a generated reporting step. */
+  function output(hostId, stepId, commandIndexes, caption) {
     var host = document.getElementById(hostId);
     var source = step(stepId);
-    if (!host || !source || !source.stdout) return;
+    if (!host || !source) return;
+    var text = (commandIndexes || []).map(function (index) {
+      var item = source.command_outputs && source.command_outputs[index];
+      return item && item.stdout;
+    }).filter(Boolean).join("\n\n");
+    if (!text) return;
     host.appendChild(kit.record({
       path: "output",
       refused: source.refused,
-      text: source.stdout,
+      text: text,
       caption: caption
     }));
   }
 
-  output("out-new", "new",
+  output("out-new", "assignment", [0],
     "flip tells you what it made and what to do next. Every command that can leave "
     + "you unsure of the next move says so.");
-  output("out-capture", "capture",
+  output("out-capture", "lineage", [0],
     "The id, where the bytes landed, the page it opened — and the grade it did not "
     + "assign, with the command that would.");
-  output("out-grade", "grade",
-    "Both axes, recorded against your actor.");
-  output("out-refused", "refused",
+  output("out-grade", "lineage", [1, 2],
+    "The derived grade and the exact fields that moved it, followed by what could "
+    + "move it next.");
+  output("out-refused", "refused", [0],
     "The refusal names the shortfall, lists the sources it counted, and gives you "
     + "every legitimate route forward. Exit code 1.");
-  output("out-doctor", "show",
+  output("out-show", "answer", [0],
     "The hot view: what is open, what needs work, and where you left off.");
+  output("out-doctor", "handoff", [4],
+    "The completed scratch notebook passes the same structural and lineage check "
+    + "an agent runs before handoff.");
 })();

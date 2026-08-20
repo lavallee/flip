@@ -13,7 +13,7 @@ served without being allowed to dilute the front door.
 
 | Reader | Arrives from | The job in their words | What convinces them | What loses them |
 |---|---|---|---|---|
-| **Agent workflow owner** (primary) | A repo link, an agent recommendation, a search for durable research or provenance | "Could my agent graft this into the way we already work, and is it worth the ceremony?" | A read-only agent fit check, smallest-pilot path, real use cases, harness install, and evidence that the record survives the tool. | Being asked to learn a CLI before deciding; a tool that claims to replace current owners; unsupported efficacy claims. |
+| **Agent workflow owner** (primary) | A repo link, an agent recommendation, a search for durable research or provenance | "How do I give the research my agent already does a record we can trust and continue?" | A direct agent handoff, real use cases, harness install, and evidence that the record survives the tool. | Being asked to learn a CLI or pass an adoption test first; a tool that claims to replace current owners; unsupported efficacy claims. |
 | **Human researcher** (secondary) | Obsidian community, PKM circles, journalism-tools chatter | "Can I actually work in this, or is it an agent thing I'd be babysitting?" | That it is already a valid Obsidian vault, and that re-grading from the properties panel is a legitimate operation. | Being shown only a CLI. Implying the human is a spectator to the agent. |
 | **Format evaluator** (tertiary) | OKF, OpenWiki, archival/provenance standards work | "Is this a credible extension profile, or a fork with opinions?" | Conformance stated precisely; the extension vocabulary listed; honest status on where the profile proposal stands. | Overclaiming standardization. Vagueness about what OKF supplies vs what flip adds. |
 
@@ -54,20 +54,18 @@ Five routes, flat files so the site renders from `file://` (an artoo
 requirement, and the reason there are no directory-index URLs). Four are in
 the nav; `notebook.html` is reached from the pages that earn it, below.
 
-### `index.html` — the argument and handoff
+### `index.html` — show, name, prove
 
 - **Mode:** marketing, with editorial passages for the argument body.
 - **Dials:** variance high, density relaxed, motion functional, type register
   branded, imagery role evidence-only.
-- **Task anatomy:** value-led product argument. Reporting, not stenography →
-  working product demonstration → optional agent handoff → harness install →
-  category evidence → three outcomes → real use cases → enforcement → format →
-  honest limits.
-- **Structural fingerprint:** *the widening spiral.* One claim stated flat,
-  then re-entered three times at increasing resolution — headline, then the
-  four enforcement rules as a scannable strip, then a worked fragment of real
-  notebook content. The reader can leave at any of the three depths with a
-  correct, if coarser, understanding.
+- **Task anatomy:** concrete before/after → plain-language research jobs → a
+  three-moment generated proof → category evidence → real uses → enforcement →
+  format and coexistence → honest limits → status and lineage.
+- **Structural fingerprint:** *show, then name, then prove.* The first viewport
+  shows what changes. The next section lets readers recognize their own job. The
+  generated proof then connects one human assignment, a real refusal, and the
+  durable notebook before the page introduces the deeper vocabulary.
 - **Deliberately absent:** feature cards, logo strip, testimonials, metrics
   the project does not have, animated terminal.
 
@@ -92,7 +90,7 @@ the nav; `notebook.html` is reached from the pages that earn it, below.
   keyboard-operable without a custom interaction model.
 - **Deliberately absent:** autoplay, typing animation, fake latency.
 
-### `spec.html` — the format, visually
+### `spec.html` — the format tour
 
 - **Mode:** public-data.
 - **Dials:** variance medium, density compact, motion functional, type
@@ -111,20 +109,20 @@ the nav; `notebook.html` is reached from the pages that earn it, below.
   unreadable at 390px, unnavigable by keyboard, and would imply a topology
   the format does not have.
 
-### `start.html` — fit check and harness installation
+### `start.html` — agent handoff and harness installation
 
 - **Mode:** operator.
 - **Dials:** variance low, density compact, motion none, type register
   interface, imagery role none.
-- **Task anatomy:** agent handoff followed by a linear install. One simple fit
-  invitation → harness plugin → skill-guided CLI preflight → conversational
-  direction. The exact CLI lifecycle remains below as inspectable
+- **Task anatomy:** agent handoff followed by a linear install. Orientation →
+  harness plugin → skill-guided CLI setup → conversational direction. The exact
+  CLI lifecycle remains below as inspectable
   under-the-hood output.
-- **Structural fingerprint:** *orientation → authority → operation.* The page
-  first protects the existing workflow from premature mutation, then gives the
-  agent responsibility for setup, then shows what it does for the human.
-- **Deliberately absent:** an assumption that the human will operate the CLI or
-  that adoption should begin with a repository-wide migration.
+- **Structural fingerprint:** *orientation → installation → operation.* The page
+  gives the agent the map, gives it responsibility for setup, then shows what it
+  does for the human.
+- **Deliberately absent:** a prerequisite fit assessment, an assumption that the
+  human will operate the CLI, or a repository-wide migration ceremony.
 
 ### `notebook.html` — the finished notebook, whole
 
@@ -138,13 +136,12 @@ the nav; `notebook.html` is reached from the pages that earn it, below.
 - **Structural fingerprint:** *the ledger, in full, with nothing summarised.*
   Sources with their support tuples, claims with corroboration, exposure and
   verifications, questions, decisions, sessions, forecasts, the log tail.
-- **Deliberately absent:** the nav. This page is the payoff of a promise made
-  elsewhere, and a reader who has not been made that promise has no use for
-  it.
+- **Navigation:** the ordinary site nav remains available, while the page is
+  still reached most prominently as the payoff of the flipbook and home proof.
 
 ## 4. Navigation model
 
-A persistent five-item nav: `flip` (home), Flipbook, Spec, Start, GitHub.
+A persistent five-item nav: `flip` (home), Flipbook, Format, Start, GitHub.
 Flat, no dropdowns, no mega-menu — four top-level destinations do not need hierarchy, and
 inventing some would misrepresent the site's size. `notebook.html` is
 deliberately out of the nav: it is the payoff of a specific promise ("browse
@@ -152,15 +149,15 @@ the finished notebook"), linked from the home hero and the flipbook's end,
 and a reader who has not made the trip has no use for it. It is listed on the
 404 page and in the sitemap, because it is a real address.
 
-Ordering is the reader's likely path, not alphabetical: understand → hand off
-or see it happen → check the details → install.
+Ordering is the reader's likely path, not alphabetical: understand → see it
+happen → tour the format → install.
 
 Cross-route links are one-directional and specific:
 
 - Home → flipbook at the moment custody is claimed ("watch this happen").
-- Home → spec at the moment the vocabulary is introduced.
-- Flipbook → spec section per step, so a step's concept has a definition.
-- Spec → SPEC.md anchors, always; the visual never becomes the source of
+- Home → the whole notebook and format tour once the generated proof is shown.
+- Flipbook → the whole notebook, plus a SPEC.md section per step.
+- Format tour → SPEC.md anchors, always; the visual never becomes the source of
   truth.
 - Everything → start, once.
 

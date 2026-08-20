@@ -319,6 +319,7 @@ def step_plan() -> list[dict]:
             "commands": [
                 ["add-source", "../okf-launch.md", "--note", "dated public-source packet; full capture in flip-examples"],
                 ["grade", "F1", "--independence", "derivative", "--basis", "synthesis", "--method", "compact packet from the held launch post"],
+                ["grade", "F1", "--explain"],
                 ["add-source", "../llm-wiki.md", "--note", "dated public-source packet; full capture in flip-examples"],
                 ["grade", "F2", "--independence", "derivative", "--basis", "synthesis", "--method", "compact packet from the held idea file"],
                 ["claim", "add", "OKF's launch account says v0.1 formalizes the LLM-wiki pattern", "--about", "F1", "--load-bearing"],
@@ -373,37 +374,88 @@ def step_plan() -> list[dict]:
             },
         },
         {
-            "id": "gaps",
+            "id": "gap-lead",
             "say": "",
             "reply": (
-                "The gaps cluster rather than scatter: stable identity, agent "
-                "routing, relationship semantics, large-bundle retrieval, and "
-                "cross-bundle composition. I’m treating these as public proposals "
-                "and questions—not as accepted OKF commitments."
+                "The spec names deliberate boundaries, and the first public "
+                "proposal points to a stable-identity gap. That is enough to open "
+                "the line of inquiry—not enough to call it a recurring cluster."
             ),
             "act": "Reporting",
-            "title": "Corroborate the gap map",
+            "title": "Separate a lead from a finding",
             "narrative": (
-                "The synthesis is supported by six separately authored public "
-                "threads. The spec's deliberate boundaries are kept distinct from "
-                "criticisms so non-goals do not get mislabeled as defects."
+                "The spec's deliberate boundaries stay separate from criticism. "
+                "One independently authored proposal can name a lead, but the "
+                "research-review profile will not let it stand in for a cluster."
             ),
             "spec": "7",
             "commands": [
                 ["add-source", "../okf-spec.md", "--note", "current spec packet"],
                 ["grade", "F5", "--independence", "self-reported", "--basis", "official-record", "--method", "current normative spec"],
+                ["claim", "add", "OKF deliberately leaves query infrastructure and runtime packaging outside the format and defers several runtime concerns", "--about", "F5", "--load-bearing"],
+                ["claim", "test", "C5", "--probe", "attribution", "--error", "the spec does not name those boundaries", "--would-detect", "the non-goal and deferred lists omit them", "--if-absent", "the lists name them directly", "--against", "F5", "--result", "survived"],
+                ["claim", "status", "C5", "verified"],
+                ["add-source", "../issue-identity.md", "--note", "public proposal packet"],
+                ["grade", "F6", "--independence", "independent", "--basis", "single-operator", "--method", "public proposal at its canonical URL"],
+                ["claim", "add", "Visible proposals cluster around identity, routing, relationships, retrieval, and composition", "--source", "F6", "--load-bearing"],
+            ],
+            "record": {
+                "kind": "glob",
+                "pattern": "claims/*.md",
+                "lang": "markdown",
+                "caption": "The cluster begins as an asserted lead with one source, not a finished finding.",
+            },
+        },
+        {
+            "id": "refused",
+            "say": "",
+            "reply": (
+                "I tried the promotion at the point where the evidence was still "
+                "thin. flip refused: one independent proposal does not meet this "
+                "notebook’s two-source bar. I need to corroborate the pattern."
+            ),
+            "act": "Reporting",
+            "title": "Let the evidence gate say no",
+            "narrative": (
+                "The failed command is part of the demonstration. The claim stays "
+                "asserted, the process exits non-zero, and the output names every "
+                "legitimate path forward instead of accepting confidence as evidence."
+            ),
+            "spec": "7",
+            "commands": [["claim", "status", "C6", "verified"]],
+            "expect_failure": True,
+            "record": {
+                "kind": "stdout",
+                "lang": "text",
+                "caption": "A real refusal from the CLI; the claim remains asserted.",
+            },
+        },
+        {
+            "id": "gaps",
+            "say": "",
+            "reply": (
+                "After checking five more independently authored proposals, the "
+                "pattern holds: identity, routing, relationships, retrieval, and "
+                "composition. These remain proposals—not accepted OKF commitments."
+            ),
+            "act": "Reporting",
+            "title": "Corroborate the gap map",
+            "narrative": (
+                "The synthesis now rests on six separately authored public threads. "
+                "The agent adds them to the existing claim, then the same gate that "
+                "refused it earlier allows verification."
+            ),
+            "spec": "7",
+            "commands": [
                 *sum((
                     [["add-source", f"../{name}", "--note", "public proposal packet"],
                      ["grade", f"F{number}", "--independence", "independent", "--basis", "single-operator", "--method", "public proposal at its canonical URL"]]
                     for number, name in enumerate((
-                        "issue-identity.md", "issue-routing.md", "issue-links.md",
-                        "issue-retrieval.md", "issue-composition.md", "issue-orientation.md"
-                    ), start=6)
+                        "issue-routing.md", "issue-links.md", "issue-retrieval.md",
+                        "issue-composition.md", "issue-orientation.md"
+                    ), start=7)
                 ), []),
-                ["claim", "add", "OKF deliberately leaves query infrastructure and runtime packaging outside the format and defers several runtime concerns", "--about", "F5", "--load-bearing"],
-                ["claim", "test", "C5", "--probe", "attribution", "--error", "the spec does not name those boundaries", "--would-detect", "the non-goal and deferred lists omit them", "--if-absent", "the lists name them directly", "--against", "F5", "--result", "survived"],
-                ["claim", "status", "C5", "verified"],
-                ["claim", "add", "Visible proposals cluster around identity, routing, relationships, retrieval, and composition", "--source", "F6", "--source", "F7", "--source", "F8", "--source", "F9", "--source", "F10", "--source", "F11", "--load-bearing"],
+                ["claim", "source", "add", "C6", "F7", "F8", "F9", "F10", "F11"],
                 ["claim", "status", "C6", "verified"],
                 ["question", "answer", "Q3", "--note", "Five recurring gap classes, with spec boundaries kept separate from contributor proposals."],
             ],
@@ -617,6 +669,13 @@ def build_flipbook(env_base: dict[str, str]) -> dict:
                     # Shell-quoted: the site shows a copy button beside these, so
                     # what is displayed has to be what you can actually paste.
                     "commands": ["flip " + shlex.join(argv) for argv in plan["commands"]],
+                    "command_outputs": [
+                        {
+                            "command": "flip " + shlex.join(argv),
+                            "stdout": output,
+                        }
+                        for argv, output in zip(plan["commands"], outputs, strict=True)
+                    ],
                     "stdout": "\n\n".join(chunk for chunk in outputs if chunk),
                     "exit_code": code,
                     "refused": bool(plan.get("expect_failure")),

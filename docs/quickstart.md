@@ -6,29 +6,28 @@ claim is linked to sources and gated before it can be called verified, and
 the whole trail is plain files in git. The notebook is a conformant OKF v0.2
 knowledge bundle — any markdown tool can browse and edit it.
 
-## Two ways in
+## Start from your harness
 
-**Assess fit first:** hand your agent the [orientation
-guide](agent-orientation.md). It inspects the existing workflow read-only,
-recommends the smallest useful pilot, and treats `defer` or `not a fit` as valid
-outcomes. No repository change or installation is part of that assessment.
+Hand the [orientation guide](agent-orientation.md) to the agent already doing
+research in the repository. It maps flip's capabilities, operating contract,
+and place alongside the workflow's existing tools.
 
-**Conversational (recommended):** install the agent plugin. In Claude Code, run
+Then install the agent plugin. In Claude Code, run
 `/plugin marketplace add lyra-forge/marketplace` and
 `/plugin install flip@lyra-forge`; in Codex, run
 `codex plugin marketplace add lyra-forge/marketplace` and
 `codex plugin add flip@lyra-forge`. Then direct research the way you already
-talk to your agent. Its creation skill checks for the CLI and, when a pilot is
-approved, guides the one-time tool install if needed. The agent then runs the
-notebook under flip's discipline and every command below happens on your behalf. The
-[Claude Code guide](claude-code.md) covers the skills, the custody hook, and
-what a session leaves behind.
+talk to your agent. Its creation skill checks for the CLI and guides the
+one-time tool install if needed. The agent runs the notebook under flip's
+discipline and every command below happens on your behalf. The [Claude Code
+guide](claude-code.md) covers the skills, the custody hook, and what a session
+leaves behind.
 
 **Under the hood:** the rest of this page is the CLI walkthrough. It documents
 the operations the agent performs and is useful for debugging or integration;
 it is not the expected day-to-day human interface.
 
-## Install
+## Manual CLI install
 
 From PyPI (the package is `flip-notebook`; the command is `flip`):
 

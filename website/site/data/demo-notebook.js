@@ -1,9 +1,9 @@
 window.__FLIP_NOTEBOOK__ = {
   "contract": "flip-render/2",
-  "generated": "2026-08-20T20:02:43Z",
+  "generated": "2026-08-20T21:41:21Z",
   "source_trail_public": true,
   "notebook": {
-    "uid": "nb-ybhj733k",
+    "uid": "nb-0tsv30hd",
     "slug": "okf-origins",
     "title": "Where OKF came from and where it may go",
     "kind": "research-review",
@@ -26,7 +26,7 @@ window.__FLIP_NOTEBOOK__ = {
       },
       "title": "okf-launch.md",
       "canonical_url": "",
-      "captured_at": "2026-08-20T20:02:37Z",
+      "captured_at": "2026-08-20T21:41:15Z",
       "sha256": "fcbcf7103ffebb2ed7ebe089da6aba0e61d519998fe741e30d18b39723f9c575"
     },
     {
@@ -42,7 +42,7 @@ window.__FLIP_NOTEBOOK__ = {
       },
       "title": "llm-wiki.md",
       "canonical_url": "",
-      "captured_at": "2026-08-20T20:02:37Z",
+      "captured_at": "2026-08-20T21:41:15Z",
       "sha256": "62c7f4569b17fcba85c8cce0d68bbaab7994168ae675c8a275c88498ccf50dd2"
     },
     {
@@ -58,7 +58,7 @@ window.__FLIP_NOTEBOOK__ = {
       },
       "title": "import-pr.json",
       "canonical_url": "",
-      "captured_at": "2026-08-20T20:02:38Z",
+      "captured_at": "2026-08-20T21:41:16Z",
       "sha256": "808fde045ca489451a5efe7546c264be89675aefc27c691dbeadb8c6efef16f4"
     },
     {
@@ -75,7 +75,7 @@ window.__FLIP_NOTEBOOK__ = {
       },
       "title": "spec-commits.json",
       "canonical_url": "",
-      "captured_at": "2026-08-20T20:02:38Z",
+      "captured_at": "2026-08-20T21:41:16Z",
       "sha256": "d1ab41f5052b641cb435bcc51556ac81e86460410457190b5d883f06aa555867"
     },
     {
@@ -91,7 +91,7 @@ window.__FLIP_NOTEBOOK__ = {
       },
       "title": "okf-spec.md",
       "canonical_url": "",
-      "captured_at": "2026-08-20T20:02:39Z",
+      "captured_at": "2026-08-20T21:41:17Z",
       "sha256": "c7f605d91b157170f3e1ba481ee1c215006a5943f2538d78873b3e116507e5f1"
     },
     {
@@ -107,7 +107,7 @@ window.__FLIP_NOTEBOOK__ = {
       },
       "title": "issue-identity.md",
       "canonical_url": "",
-      "captured_at": "2026-08-20T20:02:39Z",
+      "captured_at": "2026-08-20T21:41:18Z",
       "sha256": "d019fc24518bd7d2d4197e2a5fcf7379e6def8c4cd7560f28e7a0e4442998cd6"
     },
     {
@@ -123,7 +123,7 @@ window.__FLIP_NOTEBOOK__ = {
       },
       "title": "issue-routing.md",
       "canonical_url": "",
-      "captured_at": "2026-08-20T20:02:40Z",
+      "captured_at": "2026-08-20T21:41:18Z",
       "sha256": "91fe12b53ca6085f383251217f477f6df23702bd75a8260cd6cacda419db5bf5"
     },
     {
@@ -139,7 +139,7 @@ window.__FLIP_NOTEBOOK__ = {
       },
       "title": "issue-links.md",
       "canonical_url": "",
-      "captured_at": "2026-08-20T20:02:40Z",
+      "captured_at": "2026-08-20T21:41:18Z",
       "sha256": "19297a9e18cd527b9479c620275f7361ff758cd6bb1aa0c96dc43f57c98df7e2"
     },
     {
@@ -155,7 +155,7 @@ window.__FLIP_NOTEBOOK__ = {
       },
       "title": "issue-retrieval.md",
       "canonical_url": "",
-      "captured_at": "2026-08-20T20:02:40Z",
+      "captured_at": "2026-08-20T21:41:19Z",
       "sha256": "f642d87b2b020b170eb94196df22aebc2f79d9998000cb30a52d694302519c51"
     },
     {
@@ -171,7 +171,7 @@ window.__FLIP_NOTEBOOK__ = {
       },
       "title": "issue-composition.md",
       "canonical_url": "",
-      "captured_at": "2026-08-20T20:02:40Z",
+      "captured_at": "2026-08-20T21:41:19Z",
       "sha256": "9982db308cd559ae358d7e9b57b99c95b6a42d66252f3f773e4c1f6c4b93521d"
     },
     {
@@ -187,7 +187,7 @@ window.__FLIP_NOTEBOOK__ = {
       },
       "title": "issue-orientation.md",
       "canonical_url": "",
-      "captured_at": "2026-08-20T20:02:40Z",
+      "captured_at": "2026-08-20T21:41:19Z",
       "sha256": "41b59c9f7a122765878edefbd9ea459382988182b8b5d08d6b486ccf31fac4c6"
     },
     {
@@ -204,7 +204,7 @@ window.__FLIP_NOTEBOOK__ = {
       },
       "title": "roadmap-check.json",
       "canonical_url": "",
-      "captured_at": "2026-08-20T20:02:41Z",
+      "captured_at": "2026-08-20T21:41:20Z",
       "sha256": "f421e4b7fc86a11cdd69144a275923e1ac2f666d09feddad9a0f240fbcd28209"
     },
     {
@@ -216,7 +216,7 @@ window.__FLIP_NOTEBOOK__ = {
       "freshness": "",
       "title": "conversation.md",
       "canonical_url": "",
-      "captured_at": "2026-08-20T20:02:42Z",
+      "captured_at": "2026-08-20T21:41:21Z",
       "sha256": "ad115114964030f5b4d2c9a45f8c3da9f92bb7fda59d16dd6bd33dd2a552610d"
     }
   ],
@@ -246,7 +246,7 @@ window.__FLIP_NOTEBOOK__ = {
           "against": [
             "F1"
           ],
-          "at": "2026-08-20T20:02:38Z",
+          "at": "2026-08-20T21:41:16Z",
           "by": "agent:harness",
           "severity": "severe"
         }
@@ -278,7 +278,7 @@ window.__FLIP_NOTEBOOK__ = {
           "against": [
             "F2"
           ],
-          "at": "2026-08-20T20:02:38Z",
+          "at": "2026-08-20T21:41:16Z",
           "by": "agent:harness",
           "severity": "severe"
         }
@@ -322,7 +322,7 @@ window.__FLIP_NOTEBOOK__ = {
           "against": [
             "F3"
           ],
-          "at": "2026-08-20T20:02:39Z",
+          "at": "2026-08-20T21:41:17Z",
           "by": "agent:harness",
           "severity": "severe"
         }
@@ -354,7 +354,7 @@ window.__FLIP_NOTEBOOK__ = {
           "against": [
             "F5"
           ],
-          "at": "2026-08-20T20:02:41Z",
+          "at": "2026-08-20T21:41:18Z",
           "by": "agent:harness",
           "severity": "severe"
         }
@@ -469,42 +469,42 @@ window.__FLIP_NOTEBOOK__ = {
   ],
   "sessions": [
     {
-      "id": "2026-08-20T2002-okf-origins",
+      "id": "2026-08-20T2141-okf-origins",
       "actor": "agent:harness",
       "model": "agent-harness",
-      "started": "2026-08-20T20:02:37Z",
-      "ended": "2026-08-20T20:02:43Z",
+      "started": "2026-08-20T21:41:15Z",
+      "ended": "2026-08-20T21:41:21Z",
       "goal": ""
     }
   ],
   "log_tail": [
     {
-      "ts": "2026-08-20T20:02:37Z",
+      "ts": "2026-08-20T21:41:15Z",
       "text": "started: trace OKF origins, gaps, and planning evidence",
       "actor": "agent:harness"
     },
     {
-      "ts": "2026-08-20T20:02:38Z",
+      "ts": "2026-08-20T21:41:16Z",
       "text": "question-answer Q2: \"Direct precedent: LLM-wiki. Familiar substrate: Markdown/YAML/Git and wiki tools. Memex is second-order lineage.\"",
       "actor": "agent:harness"
     },
     {
-      "ts": "2026-08-20T20:02:39Z",
+      "ts": "2026-08-20T21:41:17Z",
       "text": "question-answer Q1: \"The traceable chain ends at a history-free June snapshot before the July v0.2 changes.\"",
       "actor": "agent:harness"
     },
     {
-      "ts": "2026-08-20T20:02:41Z",
+      "ts": "2026-08-20T21:41:20Z",
       "text": "question-answer Q3: \"Five recurring gap classes, with spec boundaries kept separate from contributor proposals.\"",
       "actor": "agent:harness"
     },
     {
-      "ts": "2026-08-20T20:02:42Z",
+      "ts": "2026-08-20T21:41:20Z",
       "text": "question-answer Q4: \"No formal roadmap on checked surfaces; positive planning signals exist without dates or sequence.\"",
       "actor": "agent:harness"
     },
     {
-      "ts": "2026-08-20T20:02:42Z",
+      "ts": "2026-08-20T21:41:21Z",
       "text": "handoff: origins bounded; gaps mapped; roadmap null scoped",
       "actor": "agent:harness"
     }

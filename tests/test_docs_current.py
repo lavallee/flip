@@ -115,6 +115,44 @@ def test_retired_vocabulary_absent_from_docs():
     )
 
 
+# --- 1b. retired adoption funnel -----------------------------------------------
+
+# These phrases turned installation into a confidence test: inspect first,
+# propose a tiny pilot, and wait for permission to begin. flip's public path is
+# direct now: give the agent the map, install the harness plugin, and use the
+# reporting layer for research already happening.
+RETIRED_ADOPTION_FUNNEL = [
+    "assess fit first",
+    "read-only fit assessment",
+    "smallest useful pilot",
+    "approved pilot",
+    "not a fit",
+    "do not install or change files yet",
+    "evaluate how it might fit",
+    "regret-minimal capture",
+    "lightest rigor profile",
+]
+
+
+def test_retired_adoption_funnel_absent_from_docs():
+    offenders = []
+    for rel in prose_files():
+        text = (ROOT / rel).read_text(encoding="utf-8").lower()
+        for needle in RETIRED_ADOPTION_FUNNEL:
+            if needle not in text:
+                continue
+            line = next(
+                i + 1
+                for i, value in enumerate(text.splitlines())
+                if needle in value
+            )
+            offenders.append(f"{rel}:{line}: {needle!r}")
+    assert not offenders, (
+        "retired adoption-funnel copy in docs — lead with direct use instead:\n"
+        + "\n".join(offenders)
+    )
+
+
 # --- 2. OKF version claims ------------------------------------------------------
 
 # "OKF v0.2", "OKF 0.2", and manifest examples `okf_version: "0.2"`.

@@ -1,45 +1,63 @@
 # Agent orientation to flip
 
-This document exists so you can quickly understand flip's capabilities, boundaries, and contracts — then have a useful conversation with a human about whether and how it might fit their workflow.
+flip is a reporting layer for research done by humans and agents together. Use
+this map to put it to work in an existing repository or research workflow.
 
-## What flip is
+## What flip changes
 
-flip is a CLI and plain-file format for reporter's notebooks. A notebook captures sources with custody receipts, judgments, claims with test results, open questions with conditions, and an append-only session record. It is an OKF v0.2 bundle that lives in Git, opens in Obsidian, and remains readable without flip.
+Agent research often ends as a polished answer whose sources, search path,
+judgments, and unresolved questions disappear with the session. flip leaves a
+reporter's notebook instead: captured source material with custody receipts,
+explicit source judgments, claims linked to evidence, questions that accumulate
+answers and follow-ons, and an attributed session history.
 
-flip does not make LLM calls, replace retrieval systems, or orchestrate agents. It is the durable record layer beneath those tools.
+The result is work another agent can inspect, challenge, continue, and publish
+from without reconstructing the investigation from chat logs.
 
-## Key capabilities
+## What flip provides
 
-- CLI for capture, grading, claiming, questioning, session management, and notebook hygiene
-- Plugin skills for Claude Code and Codex that teach the agent when and how to use the CLI
-- Notebook format that survives the harness, the session, and the model
-- Profiles and outcome kinds that define rigor and collection contracts for different jobs
-- Beats and workspaces for recurring or multi-notebook work
+- A CLI for source capture, grading, claims, tests, questions, sessions,
+  decisions, forecasts, and notebook hygiene.
+- Skills for Claude Code and Codex that let the agent operate that CLI while the
+  human directs the research conversationally.
+- Profiles and outcome kinds for investigations, reviews, decisions, forecasts,
+  recurring beats, and shared source ledgers.
+- A portable notebook format: OKF v0.2 Markdown and YAML in Git, readable in
+  Obsidian and ordinary text tools, with append-only provenance and event logs.
+- Exports for BagIt, CSL JSON, render data, and policy-filtered public OKF
+  bundles.
 
-## Boundaries
+## Put it into the workflow
 
-flip does not:
-- Retrieve or search sources (you configure your own capture tools)
-- Improve model reasoning by itself
-- Guarantee better conclusions (it makes the trail and gaps visible)
-- Replace databases, schedulers, or publishing platforms
+Install the plugin for the active harness. Its notebook-creation skill checks
+for the `flip` CLI and guides the one-time tool installation when needed.
 
-## Where the contracts live
+Then use flip for source-backed research already happening in the repository.
+Choose the notebook kind that matches the job, keep the source systems,
+retrieval tools, databases, and publishing paths that already own their parts
+of the workflow, and use the notebook as the durable research record connecting
+them.
 
-- [AGENTS.md](../AGENTS.md) — lineage rules (capture before cite, grade after reading, preserve unknown frontmatter, run `flip doctor` before handoff)
-- [SPEC.md](../SPEC.md) — notebook format, entities, profiles, beats, workspaces, exports
-- `src/flip/skills/` — seven procedural skills
-- `docs/` — harness guides (claude-code.md, quickstart.md, loops.md, obsidian.md)
+Existing research does not need to be migrated before work begins. Open a
+notebook for the investigation at hand; the record can grow, adopt a more
+specific outcome, join a beat, or connect to other notebooks as the work does.
 
-## How to have the conversation
+## The operating contract
 
-Ask the human about their current research workflow:
+- [AGENTS.md](../AGENTS.md) — capture before cite, judge after reading, preserve
+  lineage and attribution, and run `flip doctor` before handoff.
+- [SPEC.md](../SPEC.md) — the notebook format, entities, profiles, beats,
+  workspaces, exports, and integration contract.
+- [`src/flip/skills/`](../src/flip/skills/) — the seven runtime-neutral
+  procedures agents use to create, source, audit, and hand off notebooks.
+- [Harness guide](claude-code.md) — Claude Code and Codex installation and
+  behavior.
+- [Quickstart](quickstart.md) — the CLI mechanics and integration configuration
+  underneath the conversational workflow.
 
-- What research has to survive beyond a single session or agent?
-- Where does authority currently live (original evidence vs. LLM synthesis vs. editorial judgment)?
-- What systems already handle retrieval, storage, orchestration, or publishing?
-- What would a smallest useful pilot look like?
+flip works alongside search, retrieval, orchestration, databases, and publishing
+systems. It does not call an LLM or replace those systems; it gives their
+research outputs a shared, inspectable record.
 
-Then point to the parts of flip that are relevant or irrelevant to their situation. The goal is a tailored assessment, not a checklist.
-
-Humans steer the research. The agent maintains the record. The notebook compounds across sessions.
+Humans steer the research. The agent maintains the record. The notebook
+compounds across sessions.

@@ -7,10 +7,9 @@ whole trail in plain files. This guide covers the Claude Code and Codex
 plugins: what they install, what each piece does, and what a working session
 looks like.
 
-If you have not decided whether flip belongs in the workflow, start by handing
-your agent the [orientation guide](agent-orientation.md). It asks for a
-read-only fit assessment and the smallest useful pilot before anything is
-installed or changed.
+Hand the [orientation guide](agent-orientation.md) to the agent already working
+in the repository. It maps what flip provides, where its contracts live, and
+how the notebook works alongside existing research systems.
 
 Nothing here is Claude Code-specific in substance. The skills are plain
 `SKILL.md` files any agent runtime can load, and every behavior described
@@ -37,10 +36,11 @@ codex plugin marketplace add lyra-forge/marketplace
 codex plugin add flip@lyra-forge
 ```
 
-Start a new session. When an approved pilot invokes the creation skill, it checks
-whether `flip` is on the agent's PATH. If not, the agent asks to install
-`flip-notebook` once with `uv tool` or `pipx`, as a tool rather than a project
-dependency, and verifies the installed version before creating the notebook.
+Start a new session. When a flip-backed investigation invokes the creation
+skill, it checks whether `flip` is on the agent's PATH. If not, the skill guides
+installation of `flip-notebook` once with `uv tool` or `pipx`, as a tool rather
+than a project dependency, and verifies the installed version before creating
+the notebook.
 
 The marketplace does not pin Flip, so it tracks the default branch. In Claude
 Code, update with `/plugin marketplace update lyra-forge` followed by
