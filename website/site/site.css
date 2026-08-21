@@ -934,6 +934,28 @@
   .use-cases article:nth-child(even) { padding-left: 0; padding-right: 0; }
   .cmd--prompt { flex-wrap: wrap; }
   .cmd--prompt .copy { margin-left: 0; }
+
+  /* On phones the work/kind table reflows into stacked need -> kind pairs
+     instead of scrolling sideways; desktop rendering is untouched. */
+  .jobs-intro .table-wrap { overflow-x: visible; }
+  .jobs-intro .job-table { min-width: 0; }
+  .jobs-intro .job-table thead { display: none; }
+  .jobs-intro .job-table,
+  .jobs-intro .job-table tbody { display: block; width: 100%; }
+  .jobs-intro .job-table tr {
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--sp-3);
+    margin-bottom: var(--sp-3);
+  }
+  .jobs-intro .job-table td {
+    display: block;
+    width: 100%;
+    border-bottom: 0;
+    padding: 0;
+  }
+  .jobs-intro .job-table td:last-child { margin-top: var(--sp-2); white-space: normal; }
 }
 
 @media (prefers-reduced-motion: reduce) {
