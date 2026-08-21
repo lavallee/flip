@@ -545,6 +545,28 @@
     host.appendChild(extra);
   }
 
+  // -- column labels for the phone layout -----------------------------------------
+
+  /* Stamp every body cell with its column header as data-th so the phone
+     layout (.table-wrap--stack in site.css) can print the header above each
+     value once the wider table stacks into one card per row. Runs after all
+     tables render so every renderer shares the behaviour without each row
+     builder repeating it. */
+  function labelStackedTables() {
+    document.querySelectorAll(".table-wrap--stack table > tbody").forEach(function (tbody) {
+      var table = tbody.parentNode; // thead of the same table
+      var heads = [];
+      var headCells = table.querySelectorAll("thead th");
+      for (var i = 0; i < headCells.length; i++) heads.push(headCells[i].textContent);
+      for (var r = 0; r < tbody.rows.length; r++) {
+        var cells = tbody.rows[r].cells;
+        for (var c = 0; c < cells.length && c < heads.length; c++) {
+          cells[c].setAttribute("data-th", heads[c]);
+        }
+      }
+    });
+  }
+
   renderManifest();
   renderToc();
   renderWork();
@@ -556,4 +578,5 @@
   renderForecasts();
   renderLog();
   renderVintage();
+  labelStackedTables();
 })();
