@@ -106,6 +106,13 @@
   background: color-mix(in srgb, var(--danger) 8%, var(--surface));
 }
 
+/* The start page (and the 404) end in the boxed small-print note; the note's
+   margin on top of main's sp-24 bottom padding and the footer's own sp-24
+   margin left a blank half-screen under the note at every width. The note's
+   own margin is rhythm enough; the page keeps a small pad above the footer. */
+.page--narrow { padding-bottom: var(--sp-6); }
+.page--narrow .demo-note:last-child { margin-bottom: 0; }
+
 /* A command line. Not a fake terminal — a labelled instruction you can copy. */
 
 .cmd {
@@ -967,6 +974,58 @@
     padding: 0;
   }
   .jobs-intro .job-table td:last-child { margin-top: var(--sp-2); white-space: normal; }
+
+  /* Shell command lines reflow like the prompt blocks already do: the code
+     wraps instead of clipping mid-token, and the copy button drops onto its
+     own row inside the card rather than parking far past the viewport edge
+     (it sat at x=532-1302 on a 390px phone, unreachable). */
+  .cmd { flex-wrap: wrap; }
+  .cmd .copy { margin-left: 0; }
+  .cmd code { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  /* Inline code chips used to break at their internal hyphen on narrow lines
+     ("lit-" / "review"). An inline chip is one visual token, so make it
+     atomic: line breaking happens between chips, never inside one. */
+  .page--narrow p code { display: inline-block; }
+
+  /* The entity tables on the spec tour and the notebook panels are 560-885px
+     wide and clipped inside .table-wrap on a phone, hiding decisive columns.
+     Follow the homepage jobs-table pattern: at phone widths the wrap stops
+     side-scrolling and each row stacks into one bordered card, with the
+     column header printed above every value (data-th is set by the page's
+     own renderer; cells with no content drop out of the stack). Desktop
+     rendering of these tables is untouched. */
+  .table-wrap--stack { overflow-x: visible; }
+  .table-wrap--stack table { min-width: 0; }
+  .table-wrap--stack thead { display: none; }
+  .table-wrap--stack table,
+  .table-wrap--stack tbody { display: block; width: 100%; }
+  .table-wrap--stack tr {
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--sp-3);
+    margin-bottom: var(--sp-3);
+  }
+  .table-wrap--stack td {
+    display: block;
+    width: 100%;
+    border-bottom: 0;
+    padding: 0;
+    white-space: normal;
+  }
+  .table-wrap--stack td + td { margin-top: var(--sp-2); }
+  .table-wrap--stack td[data-th]::before {
+    content: attr(data-th);
+    display: block;
+    margin-bottom: var(--sp-1);
+    font-family: var(--font-ui);
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .table-wrap--stack td:empty { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

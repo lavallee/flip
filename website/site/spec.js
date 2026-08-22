@@ -266,8 +266,11 @@
     var tbody = document.createElement("tbody");
     rows.forEach(function (cells) {
       var tr = document.createElement("tr");
-      cells.forEach(function (cell) {
+      cells.forEach(function (cell, i) {
         var td = document.createElement("td");
+        // data-th labels the value when the table stacks on a phone
+        // (see .table-wrap--stack in site.css)
+        if (headers[i] != null) td.setAttribute("data-th", headers[i]);
         if (cell && cell.nodeType) td.appendChild(cell);
         else td.textContent = cell;
         tr.appendChild(td);
@@ -330,7 +333,7 @@
       details.appendChild(summary);
 
       var wrap = document.createElement("div");
-      wrap.className = "table-wrap";
+      wrap.className = "table-wrap table-wrap--stack";
       var tableEl = document.createElement("table");
       tableEl.className = "cli-table";
       table(tableEl, ["Command", "Purpose"], groups[key].map(function (command) {
