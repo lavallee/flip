@@ -935,6 +935,17 @@
   .cmd--prompt { flex-wrap: wrap; }
   .cmd--prompt .copy { margin-left: 0; }
 
+  /* SPEC links in the flipbook walkthrough and spec panes are longer than a
+     phone screen is wide; nowrap pushed the whole page sideways. Let them
+     wrap like every other label at this width. */
+  .spec-link { white-space: normal; }
+
+  /* The tree's screen-reader marker sits after a nowrap path, so at its
+     static position it parks past the viewport edge and still pushes the
+     page sideways. It is clipped and invisible, so pinning it to the start
+     of the line changes nothing on screen. */
+  .tree .visually-hidden { left: 0; }
+
   /* On phones the work/kind table reflows into stacked need -> kind pairs
      instead of scrolling sideways; desktop rendering is untouched. */
   .jobs-intro .table-wrap { overflow-x: visible; }
