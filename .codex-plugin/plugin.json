@@ -1,6 +1,6 @@
 {
   "name": "flip",
-  "version": "0.21.0",
+  "version": "0.21.1",
   "description": "Turn one-off agent research into source-grounded notebooks another agent can continue, challenge, and publish from.",
   "author": {
     "name": "Marc Lavallee"
@@ -30,10 +30,10 @@
     ],
     "websiteURL": "https://github.com/lavallee/flip",
     "defaultPrompt": [
-      "Assess whether Flip fits this repository and propose the smallest useful pilot without changing files.",
-      "Create a Flip notebook for this research question.",
-      "Capture and grade the sources supporting this claim.",
-      "Audit this notebook's claims and prepare a handoff."
+      "Use Flip for this investigation and leave a notebook another agent can inspect and continue.",
+      "Create a Flip pursuit notebook for this research question.",
+      "Capture and grade the sources this work relies on.",
+      "Audit this notebook's load-bearing claims and prepare a cold-start handoff."
     ]
   }
 }

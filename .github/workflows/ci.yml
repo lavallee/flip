@@ -10,12 +10,26 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: ${{ matrix.python-version }}
-      - run: uv sync
-      - run: uv run ruff check src tests --output-format=github
+      - run: uv sync --locked
+      - run: uv run ruff check src tests scripts --output-format=github
       - run: uv run pytest -q
+
+  package-smoke:
+    name: Wheel smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "3.12"
+      - run: uv build --wheel
+      - run: uv run --no-project --python 3.12 python scripts/release_smoke.py

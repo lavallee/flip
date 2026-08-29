@@ -9,35 +9,9 @@ A notebook's last act is teaching the next one. lessons.md is prescriptive
 advice for future notebooks — method, not findings (findings live in the
 analysis; this is about how the work went).
 
-## Command map (verbs → leaves)
-
-`flip cli` prints the full, always-current map; the leaves you reach for most:
-
-| to do this | run |
-|---|---|
-| start a notebook | `flip new <slug> --kind <profile>` |
-| capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
-| grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--n … --base-defined\|--base-undefined]` — the letter is derived |
-| assert a claim | `flip claim add "<text>" --source <id> [--about <id>] [--load-bearing]` |
-| link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
-| record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
-| move a claim's status | `flip claim status <C#> <status>` |
-| absence claims / derivation | `flip claim add --absent-from corpus\|named_surfaces\|world --surface …` (a null's weight is its coverage) · `flip claim derives add\|rm <C#> <C#>` (what a claim rests on) |
-| commission contracts | `flip commission add "<deliverable>" --universe … --stop … --does-not-redo … [--for Q#]` · `status <K#> dispatched\|returned\|declined [--consumed …]` · `list` |
-| questions | `flip question add\|note\|repose\|answer\|close\|dormant\|reopen\|list` — evidence accretes via `note` (--answers as-worded\|narrower\|adjacent, --zero-yield <cause>); answers/closes can arm `--reopen-when` triggers |
-| decisions / dead ends | `flip decide …` · `flip pass …` |
-| log / sessions | `flip log "<text>"` · `flip session start\|end` |
-| views | `flip show [--claims\|--stale] [--json]` · `flip ws show [--open\|--claims] [--json]` |
-| resolve an id | `flip open <ref>` · `flip resolve <ref> --json` |
-| lint | `flip doctor [--json]` · `flip doctor --workspace [--fix]` |
-
-**Attribution is the `--actor` flag or the `FLIP_ACTOR` env var — there is no
-other actor flag.** Precedence: `--actor` > `FLIP_ACTOR` > detected default.
-(`--notebook` / `FLIP_NOTEBOOK` pins the notebook root the same way.)
-
-**`flip doctor` prints "expected until use" notes** for profile files that
-appear with the work — they harden into ERRORs only at done/published/
-archived. They are not problems; don't re-run doctor for reassurance.
+Use `flip cli` for current syntax and set `FLIP_ACTOR` before writing. At
+end-of-life statuses, expected-until-use profile files become real doctor
+errors; resolve them before distilling lessons.
 
 ## Checklist
 

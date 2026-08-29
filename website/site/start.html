@@ -68,6 +68,17 @@ codex plugin add flip@lyra-forge</code></div>
           guide</a> explains the custody-hook difference between them.</p>
       </li>
 
+      <li>
+        <h3>Or install the CLI directly</h3>
+        <p>The PyPI package is <code>flip-notebook</code>; the command it installs
+          is <code>flip</code>. Python 3.12 or newer is required.</p>
+        <div class="cmd"><code>uv tool install --python 3.12 flip-notebook
+flip --version</code></div>
+        <p>If the shell cannot find it, run <code>uv tool update-shell</code> and
+          open a new shell. The <a href="https://github.com/lavallee/flip/blob/main/docs/getting-started.md">getting-started
+          guide</a> also covers pipx, URL capture setup, updates, and removal.</p>
+      </li>
+
     </ol>
   </section>
 
@@ -118,7 +129,8 @@ codex plugin add flip@lyra-forge</code></div>
           screens an angle; a <code>research-review</code>, <code>lit-review</code>,
           <code>data-investigation</code>, <code>decision-packet</code>, or
           <code>forward-set</code> carries a more specific completion contract.</p>
-        <div class="cmd"><code>flip new okf-origins --kind research-review --title "Where OKF came from and where it may go" --visibility public</code></div>
+        <div class="cmd"><code>export FLIP_ACTOR="agent:codex"
+flip new okf-origins --kind research-review --title "Where OKF came from and where it may go" --visibility public</code></div>
         <div id="out-new"></div>
       </li>
 
@@ -167,8 +179,11 @@ flip doctor</code></div>
   <section class="prose">
     <h2>Go deeper</h2>
     <ul>
+      <li><a href="https://github.com/lavallee/flip/blob/main/docs/getting-started.md">Getting started</a>—installation, PATH fixes, setup, updates, and removal.</li>
       <li><a href="https://github.com/lavallee/flip/blob/main/docs/claude-code.md">Harness guide</a>—skills, updates, attribution, and hook boundaries.</li>
-      <li><a href="https://github.com/lavallee/flip/blob/main/docs/quickstart.md">CLI quickstart</a>—capture configuration and the full mechanics.</li>
+      <li><a href="https://github.com/lavallee/flip/blob/main/docs/quickstart.md">CLI quickstart</a>—a network-free first notebook.</li>
+      <li><a href="https://github.com/lavallee/flip/blob/main/docs/evidence-workflow.md">Evidence workflow</a>—claims, tests, question journeys, and handoff.</li>
+      <li><a href="https://github.com/lavallee/flip/blob/main/docs/integrations.md">Integrations</a>—URL capture, extraction, research, and local knowledge.</li>
       <li><a href="flipbook.html">Flipbook</a>—watch a complete human-agent exchange become a notebook.</li>
       <li><a href="notebook.html">Finished notebook</a>—browse the generated record in full.</li>
     </ul>

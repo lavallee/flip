@@ -1,7 +1,7 @@
 {
   "name": "flip",
   "displayName": "flip — reporter's notebooks",
-  "version": "0.21.0",
+  "version": "0.21.1",
   "description": "Turns one-off agent research into source-grounded notebooks another agent can continue, challenge, and publish from. Seven skills cover creation, source custody, session hygiene, claim audit, handoff, lessons, and outcome kinds; a custody hook puts capture-before-cite at the moment of a web fetch.",
   "author": { "name": "Marc Lavallee" },
   "repository": "https://github.com/lavallee/flip",

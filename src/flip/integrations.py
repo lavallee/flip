@@ -119,7 +119,7 @@ def config_path() -> Path:
 STARTER_CONFIG = '''\
 # flip integration config — commands flip runs to capture sources and answer
 # research queries. Placeholders: {url} target · {id} doi-stripped · {query}
-# question · {dest} capture directory. See docs/quickstart.md.
+# question · {dest} capture directory. Guide: https://github.com/lavallee/flip/blob/main/docs/integrations.md
 
 [fetchers]
 # Out-of-the-box web capture via the bundled zero-dependency helper. It climbs

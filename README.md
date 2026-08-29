@@ -22,7 +22,7 @@ plain files. Humans rarely need to type the CLI commands.
 **[See flip in action](https://lavallee.github.io/flip/flipbook.html)** ·
 **[Explore real notebooks](https://lavallee.github.io/flip-examples/)** ·
 **[Give flip to your agent](docs/agent-orientation.md)** ·
-**[Get flip](#install-for-your-harness)**
+**[Get started](docs/getting-started.md)**
 
 ## Start with your agent
 
@@ -51,6 +51,18 @@ skills covering notebook creation, source custody, session hygiene, claim audit,
 handoff, lessons learned, and outcome-kind authoring. The [harness
 guide](docs/claude-code.md) explains the custody-hook difference between Claude
 Code and Codex.
+
+To use the CLI directly, install the PyPI package as a standalone Python 3.12+
+tool (the package is `flip-notebook`; the command is `flip`):
+
+```bash
+uv tool install --python 3.12 flip-notebook
+flip --version
+```
+
+If the shell cannot find it, run `uv tool update-shell` and open a new shell.
+The [getting-started guide](docs/getting-started.md) also covers pipx, URL
+capture setup, upgrades, removal, and the first verification.
 
 When the first flip-backed investigation starts, the creation skill checks
 whether the `flip` CLI is available and guides its one-time installation as a
@@ -181,6 +193,7 @@ under stable handles so agents can resolve and audit them together.
 The ordinary loop is capture → judge → assert → test → continue or hand off:
 
 ```bash
+export FLIP_ACTOR="agent:codex" # set before `flip new`; pursuit seeds Q1 immediately
 flip new nj-schools --kind pursuit --title "What changed in NJ enrollment?"
 cd nj-schools
 flip session start enrollment-sweep --model <model> --tools <tools>
@@ -194,8 +207,9 @@ flip session end enrollment-sweep --summary "..."
 ```
 
 Humans generally direct those acts rather than typing them. `flip cli` prints an
-always-current command map; [docs/quickstart.md](docs/quickstart.md) explains the
-mechanics and every legitimate path through the verification gates.
+always-current command map. The [CLI quickstart](docs/quickstart.md) is a local,
+copy-and-run first notebook; the [evidence workflow](docs/evidence-workflow.md)
+explains every legitimate path through the verification gates.
 
 ## The portable artifact
 
@@ -242,19 +256,29 @@ expected token-efficiency benefit has not yet been benchmarked.
 
 ## Documentation
 
+- [Getting started](docs/getting-started.md) — plugin and CLI installation,
+  PATH fixes, URL setup, updates, removal, and first verification
+- [CLI quickstart](docs/quickstart.md) — a network-free first notebook from
+  capture through `flip doctor`
+- [Evidence workflow](docs/evidence-workflow.md) — grades, claims, tests,
+  questions, transcripts, ids, and renames
+- [Integrations](docs/integrations.md) — capture, extraction, research, and
+  local-knowledge lanes
 - [Agent orientation](docs/agent-orientation.md) — capabilities, workflow map,
   and operating contract for agents
 - [Claude Code and Codex](docs/claude-code.md) — plugin behavior, skills, updates,
   and custody-hook boundary
-- [Quickstart](docs/quickstart.md) — full CLI mechanics and capture configuration
-- [AGENTS.md](AGENTS.md) — complete runtime-neutral lineage contract and recipes
+- [AGENTS.md](AGENTS.md) — concise runtime-neutral contract loaded in a repo
+- [Complete agent reference](docs/agent-reference.md) — command tour, lineage
+  contract, and detailed task recipes
 - [Specification](SPEC.md) — OKF bundle, entities, profiles, beats, workspaces,
   exports, and integration contract
+- [Migration](docs/migration.md) — recognize and upgrade older notebooks
 - [Obsidian](docs/obsidian.md) — human editing and the companion plugin
 - [Running a beat on a loop](docs/loops.md) — recurring and unattended passes
 - [llms.txt](llms.txt) — compact documentation map for agents
 
-Status: spec draft v0.21; package 0.21.0; Python 3.12+; MIT licensed. Built and
+Status: spec draft v0.21; package 0.21.1; Python 3.12+; MIT licensed. Built and
 maintained by [Marc Lavallee](https://github.com/lavallee). Changes are tracked
 in [CHANGELOG.md](CHANGELOG.md); [issues](https://github.com/lavallee/flip/issues)
 and contributions through [CONTRIBUTING.md](CONTRIBUTING.md) are welcome.

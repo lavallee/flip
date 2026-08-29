@@ -47,7 +47,10 @@ class BuildError(RuntimeError):
 def flip_bin() -> str:
     binary = os.environ.get("FLIP_BIN") or shutil.which("flip")
     if not binary:
-        raise BuildError("flip is not on PATH; install it (uv tool install flip-notebook)")
+        raise BuildError(
+            "flip is not on PATH; install it "
+            "(uv tool install --python 3.12 flip-notebook)"
+        )
     return binary
 
 

@@ -11,6 +11,9 @@ Hand the [orientation guide](agent-orientation.md) to the agent already working
 in the repository. It maps what flip provides, where its contracts live, and
 how the notebook works alongside existing research systems.
 
+For manual CLI installation, PATH troubleshooting, URL setup, updates, and
+removal, use [Getting started](getting-started.md).
+
 Nothing here is Claude Code-specific in substance. The skills are plain
 `SKILL.md` files any agent runtime can load, and every behavior described
 below is the CLI underneath. The plugin is packaging: the skills, a custody
@@ -38,9 +41,11 @@ codex plugin add flip@lyra-forge
 
 Start a new session. When a flip-backed investigation invokes the creation
 skill, it checks whether `flip` is on the agent's PATH. If not, the skill guides
-installation of `flip-notebook` once with `uv tool` or `pipx`, as a tool rather
-than a project dependency, and verifies the installed version before creating
-the notebook.
+installation of `flip-notebook` once with `uv tool install --python 3.12
+flip-notebook` or pipx, as a tool rather than a project dependency, and verifies
+the installed version before creating the notebook. If installation succeeds
+but the command is missing, `uv tool update-shell` or `pipx ensurepath` repairs
+the usual PATH issue.
 
 The marketplace does not pin Flip, so it tracks the default branch. In Claude
 Code, update with `/plugin marketplace update lyra-forge` followed by
@@ -85,7 +90,7 @@ Code names them `/flip:notebook-*`; Codex names them `$flip:notebook-*`:
 
 | skill | when it engages | what it enforces |
 |---|---|---|
-| `notebook-create` | "start a notebook," a new research thread | the right kind/profile for the outcome; two-file start; the manifest |
+| `notebook-create` | "start a notebook," a new research thread | the right kind/profile for the outcome; manifest and profile-specific seeds |
 | `notebook-source` | capturing anything the work will rely on | capture before cite; grading after reading; the return-envelope lanes |
 | `notebook-log` | every working episode | session open/close around the work; log-as-you-go; promote before the episode ends |
 | `notebook-audit` | before a draft ships or a claim is leaned on | the verification bar; attribution tests on subject claims; doctor findings triaged |
@@ -99,7 +104,8 @@ Two conventions matter more than any skill:
   `agent:codex`, `human:marc`. Every event and page records who did it; OKF consumers
   derive trust tiers from the `human:` prefix. There is no other actor
   mechanism, so an agent that invents flags gets refused rather than
-  misattributed.
+  misattributed. Set it before `flip new`: a `pursuit` notebook creates its
+  attributed Q1 during that command.
 - **LLM output is a lead, not evidence.** Synthesis the agent produces —
   including `flip ask` output — is grade C until the cited public sources
   are captured and judged. The skills repeat this because it is the rule
@@ -165,5 +171,6 @@ The two plugin manifests package [src/flip/skills/](../src/flip/skills/) —
 plain `SKILL.md` files with no harness-specific syntax. Other runtimes can
 load the files directly or via the
 [spindle](https://github.com/lavallee/spindle) package named `flip`.
-[AGENTS.md](../AGENTS.md) is the runtime-neutral contract: the five-minute
-tour, the lineage rules, and task recipes.
+[AGENTS.md](../AGENTS.md) is the concise runtime-neutral contract; the
+[complete agent reference](agent-reference.md) carries the command tour and
+detailed recipes.

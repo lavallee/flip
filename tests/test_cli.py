@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from flip import pages
+from flip import pages, util
 from flip.cli import main
 
 
@@ -49,6 +49,52 @@ def test_new_creates_notebook(tmp_path, monkeypatch):
     assert "# Reporter's notebook — Demo run" in md
     assert "## The tip" in md
     assert str(tmp_path / "demo") in result.output
+    assert "actor: human:test" in result.output
+    assert "flip config init" in result.output
+    assert "flip session start first-pass" in result.output
+
+
+def test_new_pursuit_detects_codex_before_seeding_q1(tmp_path, monkeypatch):
+    """The first attributed write happens inside `flip new --kind pursuit`.
+
+    Codex must therefore be detected before the creation skill has a chance to
+    run a later `export FLIP_ACTOR=...` command.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("FLIP_ACTOR", raising=False)
+    monkeypatch.setenv("CODEX_SESSION_ID", "session-test")
+    result = invoke(["new", "question", "--kind", "pursuit"])
+    assert result.exit_code == 0, result.output
+    q1 = pages.find_by_id(tmp_path / "question", "Q1")
+    assert q1 is not None
+    assert pages.generated_by(q1.fm) == "agent:codex"
+    assert "actor: agent:codex" in result.output
+
+
+@pytest.mark.parametrize(
+    "marker",
+    [
+        "CODEX_SESSION_ID",
+        "CODEX_THREAD_ID",
+        "CODEX_CI",
+        "CODEX_SANDBOX",
+        "CODEX_HOME_ACTIVE",
+    ],
+)
+def test_detect_actor_recognizes_codex_harness_markers(monkeypatch, marker):
+    monkeypatch.delenv("FLIP_ACTOR", raising=False)
+    monkeypatch.delenv("CLAUDECODE", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE", raising=False)
+    for name in (
+        "CODEX_SESSION_ID",
+        "CODEX_THREAD_ID",
+        "CODEX_CI",
+        "CODEX_SANDBOX",
+        "CODEX_HOME_ACTIVE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv(marker, "detected")
+    assert util.detect_actor() == "agent:codex"
 
 
 def test_new_unknown_kind_is_actionable(tmp_path, monkeypatch):

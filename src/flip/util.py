@@ -258,7 +258,19 @@ def detect_actor() -> str:
         return explicit
     if os.environ.get("CLAUDECODE") or os.environ.get("CLAUDE_CODE"):
         return "agent:claude"
-    if os.environ.get("CODEX_SANDBOX") or os.environ.get("CODEX_HOME_ACTIVE"):
+    # Codex has used different markers across the local CLI, hosted runner,
+    # and CI harness.  Session/thread ids are the strongest current signal;
+    # keep the older markers so existing installations do not regress.
+    if any(
+        os.environ.get(name)
+        for name in (
+            "CODEX_SESSION_ID",
+            "CODEX_THREAD_ID",
+            "CODEX_CI",
+            "CODEX_SANDBOX",
+            "CODEX_HOME_ACTIVE",
+        )
+    ):
         return "agent:codex"
     name = ""
     try:

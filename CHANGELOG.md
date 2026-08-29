@@ -6,6 +6,52 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.21.1] — 2026-08-29
+
+The first five minutes now match the product: one install path, one runnable
+notebook, and an attributed trail from the first write.
+
+### Added
+
+- **A layered human and agent onramp.** `docs/getting-started.md` covers plugin
+  and CLI installation, PATH repair, URL setup, updates, and removal;
+  `docs/quickstart.md` is a network-free notebook that runs through capture,
+  grading, verification, and doctor; the deeper mechanics now live in focused
+  evidence, integration, migration, and agent-reference guides.
+- **Release-artifact and distribution gates.** CI installs the built wheel and
+  exercises the complete local-file quickstart on Linux, macOS, and Windows.
+  The smoke also checks both executables and packaged profiles, kinds,
+  disciplines, skills, and Obsidian assets. Plugin manifests, local docs links,
+  and both marketplace catalogs now have mechanical checks; publishing stops
+  before PyPI if either harness catalog cannot install flip.
+
+### Changed
+
+- **The always-loaded agent surface is smaller.** Root `AGENTS.md` is the
+  concise lineage contract; detailed commands and edge cases moved to
+  `docs/agent-reference.md`. Task skills now carry their own procedure and
+  defer current syntax to `flip cli` instead of repeating a full command map
+  seven times.
+- **`flip new` explains the real scaffold and the next useful move.** It names
+  the actor used, distinguishes pursuit's attributed Q1/question-plan seeds
+  from the two-file profile default, points users without integration config
+  at `flip config init` before URL capture, and starts the handoff path with a
+  work session.
+- **Contributor, release, package, and website guidance reflect the shipped
+  CLI.** Supported Python and operating-system metadata is now visible on
+  package indexes, and generated site examples come from the new first-run
+  output.
+
+### Fixed
+
+- **Current Codex sessions are attributed as `agent:codex` before pursuit Q1
+  is seeded.** Detection now recognizes session, thread, CI, sandbox, and
+  active-home markers. The creation procedure also sets `FLIP_ACTOR` before
+  `flip new`, closing the ordering gap even when harness detection changes.
+- **Codex marketplace availability is restored.** The companion marketplace
+  release adds flip to the Codex catalog alongside the existing Claude entry,
+  so the documented install command resolves in both harnesses.
+
 ## [0.21.0] — 2026-08-18
 
 A citation is a reference, and only a reference.

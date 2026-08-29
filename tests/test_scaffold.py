@@ -142,6 +142,7 @@ def test_pursuit_scaffold_seeds_question_and_plan(tmp_path, monkeypatch):
     q = pages.find_by_id(dest, "Q1")
     assert q is not None and q.fm["type"] == "Question"
     assert q.fm["description"] == "What drives orchard yield?"
+    assert pages.generated_by(q.fm) == "agent:test"
     # the plan artifact exists with the settled skeleton
     plan = (dest / "drafts" / "question-plan.md").read_text(encoding="utf-8")
     assert plan.startswith("# Question plan — What drives orchard yield?")

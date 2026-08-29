@@ -216,8 +216,8 @@ def cli_map(ctx: click.Context, as_json: bool) -> None:
 @main.command()
 @click.argument("slug")
 @click.option("--kind", default="ledger", show_default=True,
-              help="Profile id (see `flip profiles`): sets required files, "
-                   "notebook.md sections, and the claim-verification bar.")
+              help="Notebook kind or plain-language outcome (see `flip kind list`): "
+                   "sets the scaffold, completion contract, and verification bar.")
 @click.option("--title", default="", help="Human title; slug is used when omitted.")
 @click.option("--visibility", default=None,
               type=click.Choice(["private", "internal", "client-confidential", "public"]),
@@ -225,10 +225,11 @@ def cli_map(ctx: click.Context, as_json: bool) -> None:
 @click.option("--dest", default=None, type=click.Path(path_type=Path),
               help="Directory to create the notebook in [default: ./<slug>].")
 def new(slug: str, kind: str, title: str, visibility: str | None, dest: Path | None) -> None:
-    """Create a notebook: index.md manifest + notebook.md stubs, nothing else.
+    """Create a notebook scaffold for one piece of research.
 
-    Use once per piece of research; entity directories (references/, claims/,
-    log/, …) appear lazily as commands need them. Then cd in and start logging.
+    Most kinds begin with index.md and notebook.md; pursuit also seeds Q1 and
+    drafts/question-plan.md before retrieval. Other entity directories appear
+    lazily as commands need them. Then cd in and start a work session.
     """
     dest = dest if dest is not None else Path.cwd() / slug
     # Outcome-mode translation: "--kind 'literature review'" lands on
@@ -239,8 +240,13 @@ def new(slug: str, kind: str, title: str, visibility: str | None, dest: Path | N
         kind = canonical
     path = scaffold.create_notebook(dest, slug, kind, title=title, visibility=visibility)
     click.echo(f"created {kind} notebook '{slug}' at {path}")
+    click.echo(f"actor: {util.detect_actor()}")
     _autobind_new_notebook(path, slug)
-    click.echo(f'next: cd {path} && flip log "started" — see `flip --help` for the toolkit')
+    if not integrations.config_path().exists():
+        click.echo("setup: no integration config yet; run `flip config init` before capturing URLs")
+    click.echo(
+        f'next: cd {path} && flip session start first-pass && flip log "started"'
+    )
 
 
 def _autobind_new_notebook(path: Path, slug: str) -> None:

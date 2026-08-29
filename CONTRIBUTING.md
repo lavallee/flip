@@ -1,31 +1,82 @@
 # Contributing to flip
 
-flip is at the **spec stage** — the highest-value contributions right now are
-critiques of the format itself: places where the spec would fight real
-reporting or research practice, gaps in the provenance model, profile shapes
-you'd need that don't fit.
+flip is a working Python CLI and an evolving plain-file format. Contributions
+are welcome across implementation, format design, documentation, plugins, and
+real notebook ergonomics.
 
-## How
+## Set up the repository
 
-- **Open an issue** for design discussion — the smaller and more concrete the
-  scenario, the better ("here's a capture case the provenance record can't
-  express" beats "custody should be more flexible").
-- **PRs against SPEC.md** are welcome for wording, structure, and fixes. For
-  substantive design changes, open an issue first; accepted changes land with
-  a CHANGELOG entry and, when they alter meaning, a version bump.
-- Spec changes that alter the meaning of existing files on disk (ledger
-  fields, status enums, layout) are **breaking** and versioned accordingly —
-  notebooks in the wild must never be silently reinterpreted.
+Python 3.12 or newer and [uv](https://docs.astral.sh/uv/) are the supported
+development path:
 
-## Style
+```bash
+git clone https://github.com/lavallee/flip.git
+cd flip
+uv sync --locked
+uv run flip --version
+```
 
-- Plain text first; examples over abstractions; every normative rule should
-  say what failure it prevents.
-- Keep the core small. New requirements belong in a profile unless every
-  notebook needs them.
+Run the local gates before opening a pull request:
 
-## Code (upcoming)
+```bash
+uv run ruff check src tests scripts
+uv run pytest -q
+```
 
-The `flip` CLI will live in this repo. Once it lands: tests required for
-behavior changes, CI must be green, and the library core stays
-filesystem-only — no network calls, no LLM calls, no required services.
+Tests use temporary notebooks and require no network or service. CI runs the
+suite on supported Python versions and installs the built wheel on Linux,
+macOS, and Windows.
+
+## Make a change
+
+- Start with an issue for format changes, new command families, or anything
+  that changes the meaning of files already on disk. A concrete research case
+  is more useful than an abstract request.
+- Add or update tests for behavior changes. Keep errors actionable: agents and
+  people both need the next legitimate move, not only the failing condition.
+- Update `docs/internals.md` when a module's public contract changes.
+- Update `SPEC.md` and `CHANGELOG.md` when the on-disk contract changes.
+- Keep the core filesystem-only. Network access lives in the bundled
+  `flip-fetch` executable or operator-configured subprocess integrations; the
+  library makes no LLM calls and requires no service.
+
+Entity-page changes must preserve frontmatter keys they do not own and preserve
+the page body. Event ledgers and raw custody are append-only. Tests should use
+`tmp_path` and must not depend on global flip configuration.
+
+## Documentation and skills
+
+The short onramp lives in `docs/getting-started.md` and `docs/quickstart.md`;
+advanced evidence mechanics live in `docs/evidence-workflow.md`. Keep those
+roles distinct when adding material.
+
+The canonical agent skills are under `src/flip/skills/` and ship in the wheel.
+The repository-level `skills/` tree is the plugin copy. After changing a skill,
+copy the same file to both locations; `tests/test_plugin_skills.py` checks the
+trees byte-for-byte and validates both plugin manifests.
+
+`tests/test_docs_current.py` discovers public prose automatically. Retired
+vocabulary, stale OKF/profile claims, and mismatched release versions fail the
+suite. Fix the prose when it fails; exemptions are for genuine historical
+discussion and need a written reason.
+
+## Verify the package path
+
+Changes to packaging, resources, scaffolding, or the first-run workflow should
+also exercise the actual wheel:
+
+```bash
+uv build --wheel
+uv run --no-project --python 3.12 python scripts/release_smoke.py
+```
+
+The smoke test creates an isolated environment, installs the wheel, checks
+packaged profiles/kinds/skills/editor assets, and runs the local-file quickstart
+through `flip doctor`.
+
+## Pull requests
+
+Keep the change focused, explain the research or operator problem it solves,
+and call out any migration or compatibility impact. A pull request is ready
+when Ruff, pytest, and the relevant wheel smoke pass and user-facing behavior
+is documented.

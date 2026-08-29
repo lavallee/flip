@@ -1,63 +1,121 @@
 # Agent orientation to flip
 
-flip is a reporting layer for research done by humans and agents together. Use
-this map to put it to work in an existing repository or research workflow.
+flip is the reporting layer for source-backed work done by humans and agents
+together. Use the repository's existing search, retrieval, data, and publishing
+systems; use flip to keep the durable record connecting them.
 
-## What flip changes
+## What changes
 
-Agent research often ends as a polished answer whose sources, search path,
-judgments, and unresolved questions disappear with the session. flip leaves a
-reporter's notebook instead: captured source material with custody receipts,
-explicit source judgments, claims linked to evidence, questions that accumulate
-answers and follow-ons, and an attributed session history.
+Instead of leaving only a polished answer and URL list, leave a reporter's
+notebook containing:
 
-The result is work another agent can inspect, challenge, continue, and publish
-from without reconstructing the investigation from chat logs.
+- captured source material with hashes and provenance;
+- source judgments recorded separately from capture;
+- claims linked to evidence and held at honest statuses;
+- question reformulations, narrower answers, dead ends, and reopen conditions;
+- attributed work sessions another agent can inspect and continue.
 
-## What flip provides
+The notebook is an OKF v0.2 bundle made of Markdown, YAML, and append-only
+JSONL. It remains readable in GitHub, Obsidian, and ordinary text tools without
+a service.
 
-- A CLI for source capture, grading, claims, tests, questions, sessions,
-  decisions, forecasts, and notebook hygiene.
-- Skills for Claude Code and Codex that let the agent operate that CLI while the
-  human directs the research conversationally.
-- Profiles and outcome kinds for investigations, reviews, decisions, forecasts,
-  recurring beats, and shared source ledgers.
-- A portable notebook format: OKF v0.2 Markdown and YAML in Git, readable in
-  Obsidian and ordinary text tools, with append-only provenance and event logs.
-- Exports for BagIt, CSL JSON, render data, and policy-filtered public OKF
-  bundles.
+## Install the harness plugin
 
-## Put it into the workflow
+Claude Code:
 
-Install the plugin for the active harness. Its notebook-creation skill checks
-for the `flip` CLI and guides the one-time tool installation when needed.
+```text
+/plugin marketplace add lyra-forge/marketplace
+/plugin install flip@lyra-forge
+```
 
-Then use flip for source-backed research already happening in the repository.
-Choose the notebook kind that matches the job, keep the source systems,
-retrieval tools, databases, and publishing paths that already own their parts
-of the workflow, and use the notebook as the durable research record connecting
-them.
+Codex:
 
-Existing research does not need to be migrated before work begins. Open a
-notebook for the investigation at hand; the record can grow, adopt a more
-specific outcome, join a beat, or connect to other notebooks as the work does.
+```bash
+codex plugin marketplace add lyra-forge/marketplace
+codex plugin add flip@lyra-forge
+```
 
-## The operating contract
+Start a new session after installation. If the `flip` executable is absent,
+install it as a standalone Python 3.12+ tool:
 
-- [AGENTS.md](../AGENTS.md) — capture before cite, judge after reading, preserve
-  lineage and attribution, and run `flip doctor` before handoff.
-- [SPEC.md](../SPEC.md) — the notebook format, entities, profiles, beats,
-  workspaces, exports, and integration contract.
-- [`src/flip/skills/`](../src/flip/skills/) — the seven runtime-neutral
-  procedures agents use to create, source, audit, and hand off notebooks.
-- [Harness guide](claude-code.md) — Claude Code and Codex installation and
-  behavior.
-- [Quickstart](quickstart.md) — the CLI mechanics and integration configuration
-  underneath the conversational workflow.
+```bash
+uv tool install --python 3.12 flip-notebook
+uv tool update-shell        # only if the installer says its bin dir is off PATH
+flip --version
+```
 
-flip works alongside search, retrieval, orchestration, databases, and publishing
-systems. It does not call an LLM or replace those systems; it gives their
-research outputs a shared, inspectable record.
+`pipx install flip-notebook` is the alternative when pipx already runs on
+Python 3.12+. Do not add flip to the researched project's application dependencies. Full PATH,
+configuration, update, and removal instructions are in
+[Getting started](https://github.com/lavallee/flip/blob/main/docs/getting-started.md).
 
-Humans steer the research. The agent maintains the record. The notebook
-compounds across sessions.
+## Preflight before any notebook write
+
+Set attribution first. `pursuit` creates Q1 during `flip new`, so a later export
+cannot repair that first record:
+
+```bash
+export FLIP_ACTOR="agent:<name>"
+flip --version
+flip kind list
+flip config show
+```
+
+If no integration config exists, `flip config init` enables directed web
+capture through the bundled `flip-fetch`. Local files require no configuration.
+
+## Put it to work
+
+When the user gives a research question or deliverable:
+
+1. Choose the matching output with `flip kind list`; users do not need to learn
+   flip's vocabulary.
+2. Create the notebook and start a session before retrieval.
+3. Capture a source the moment the work begins relying on it.
+4. Open what landed, then grade it; capture itself never establishes quality.
+5. Add claims as soon as the work leans on them. Honor verification refusals.
+6. Keep questions and negative evidence in the notebook, not only in chat.
+7. End the session with a cold-pickup summary, then run `flip doctor`.
+
+The minimum loop is:
+
+```bash
+flip new <slug> --kind <kind> --title "<human title>"
+cd <slug>
+flip session start first-pass --model <model> --tools <tool>
+flip log "started: <mission>"
+flip add-source <url-or-file> --note "<why it matters>"
+flip grade <id> --independence ... --basis ...
+flip claim add "<assertion>" --source <id> --load-bearing
+flip show
+flip session end first-pass --summary "<cold-pickup line>"
+flip doctor
+```
+
+## The contract you must preserve
+
+- Capture before cite; never paste fetched text in as if it had custody.
+- An ungraded source counts toward nothing.
+- LLM and retrieval synthesis is a grade-C lead until public sources are
+  captured and judged.
+- `--source` means evidence for a claim; `--about` means the document the claim
+  is about and owes an attribution test instead of corroboration.
+- Raw custody and event/derivation JSONL are append-only.
+- Generated index bodies and `log.md` are views; do not hand-edit them.
+- Preserve unknown frontmatter keys and untouched prose on every round trip.
+- Rename entity pages only through `flip rename`; ids are immutable.
+- Status, stance, and tests are separate records.
+- Before handoff, fix every doctor ERROR and account for every WARN.
+
+## Where to read next
+
+- [Short agent contract](https://github.com/lavallee/flip/blob/main/AGENTS.md)
+- [Complete agent reference](https://github.com/lavallee/flip/blob/main/docs/agent-reference.md)
+- [CLI quickstart](https://github.com/lavallee/flip/blob/main/docs/quickstart.md)
+- [Evidence workflow](https://github.com/lavallee/flip/blob/main/docs/evidence-workflow.md)
+- [Integrations](https://github.com/lavallee/flip/blob/main/docs/integrations.md)
+- [Task skills](https://github.com/lavallee/flip/tree/main/src/flip/skills)
+- [Specification](https://github.com/lavallee/flip/blob/main/SPEC.md)
+
+Use `flip cli` rather than reconstructing command syntax from memory. Humans
+steer the research; the agent maintains the inspectable record.

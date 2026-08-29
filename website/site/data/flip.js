@@ -1,7 +1,7 @@
 window.__FLIP_META__ = {
-  "generated": "2026-08-20T21:41:21+00:00",
-  "version": "0.21.0",
-  "revision": "74ed222",
+  "generated": "2026-08-29T19:59:50+00:00",
+  "version": "0.21.1",
+  "revision": "6c3adce",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",
@@ -9,7 +9,7 @@ window.__FLIP_META__ = {
   ],
   "license": "MIT",
   "package": "flip-notebook",
-  "tests": 1297,
+  "tests": 1302,
   "spec_status": "draft v0.21 \u00b7 2026-08-18",
   "spec_lines": 2117,
   "skills": [
@@ -1128,7 +1128,7 @@ window.__FLIP_META__ = {
         "command": "flip new",
         "group": "flip",
         "name": "new",
-        "purpose": "Create a notebook: index.md manifest + notebook.md stubs, nothing else.",
+        "purpose": "Create a notebook scaffold for one piece of research.",
         "arguments": [
           "SLUG"
         ],

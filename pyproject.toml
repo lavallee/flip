@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "flip-notebook"
-version = "0.21.0"
+version = "0.21.1"
 description = "Help your agent be a reporter, not a stenographer"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -12,6 +12,17 @@ license = { text = "MIT" }
 authors = [{ name = "Marc Lavallee" }]
 keywords = [
   "research", "provenance", "journalism", "notebook", "agents", "knowledge",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Documentation",
 ]
 # Core is deliberately small: click for the CLI, PyYAML for reading
 # human/editor-authored frontmatter faithfully; stdlib for everything else.
@@ -23,7 +34,10 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/lavallee/flip"
+Documentation = "https://lavallee.github.io/flip/start.html"
 Repository = "https://github.com/lavallee/flip"
+Issues = "https://github.com/lavallee/flip/issues"
+Changelog = "https://github.com/lavallee/flip/blob/main/CHANGELOG.md"
 
 [project.scripts]
 flip = "flip.cli:main"
@@ -48,7 +62,7 @@ testpaths = ["tests"]
 # the skills are plain markdown under src/flip/skills/ and work standalone.
 [tool.spindle.package]
 name = "flip"
-version = "0.21.0"
+version = "0.21.1"
 skills = [
   "notebook-create",
   "notebook-source",

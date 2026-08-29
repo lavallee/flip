@@ -28,6 +28,10 @@ jobs:
           enable-cache: true
       - name: Build
         run: uv build
+      - name: Smoke-test the built wheel
+        run: uv run --no-project --python 3.12 python scripts/release_smoke.py
+      - name: Verify both plugin marketplace catalogs
+        run: uv run --no-project --python 3.12 python scripts/check_marketplace.py
       - name: Publish to PyPI
         # Pinned to a SHA, not a tag: a moving tag on a publishing action is a
         # supply-chain hole. Bumped 2026-08-12 from cef2210 (twine 6.1.0 /

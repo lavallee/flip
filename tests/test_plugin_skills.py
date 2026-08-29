@@ -1,8 +1,7 @@
-"""The Claude Code and Codex plugins' shared skills/ tree is a synced copy of
-the canonical skills packaged with the CLI (src/flip/skills). RELEASING.md says `cp -r`;
-this test is what makes that instruction load-bearing — any drift between
-the two trees fails the suite byte-for-byte in both directions."""
+"""The plugin manifests and shared skills tree are release-critical surfaces."""
 
+import json
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -29,3 +28,28 @@ def test_plugin_skills_match_canonical():
         f"plugin skills/ out of date for {stale}; "
         "re-sync with: rm -rf skills && cp -r src/flip/skills skills"
     )
+
+
+def test_plugin_manifests_match_package_and_point_at_shared_skills():
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    version = project["project"]["version"]
+    claude = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())
+    codex = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text())
+
+    assert claude["name"] == codex["name"] == "flip"
+    assert claude["version"] == codex["version"] == version
+    assert codex["skills"] == "./skills/"
+    assert (ROOT / codex["skills"]).is_dir()
+    assert codex["interface"]["defaultPrompt"]
+    assert all("smallest useful pilot" not in prompt for prompt in codex["interface"]["defaultPrompt"])
+
+
+def test_claude_hook_manifest_resolves_commands():
+    payload = json.loads((ROOT / "hooks" / "hooks.json").read_text())
+    commands = []
+    for groups in payload["hooks"].values():
+        for group in groups:
+            commands.extend(hook["command"] for hook in group["hooks"])
+    assert commands
+    assert all("${CLAUDE_PLUGIN_ROOT}/hooks/custody_hook.py" in command for command in commands)
+    assert (ROOT / "hooks" / "custody_hook.py").is_file()

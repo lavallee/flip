@@ -1,68 +1,75 @@
 # Releasing flip
 
-Spec-stage checklist (until the CLI lands, a "release" is a spec draft):
+Releases publish three connected surfaces: the `flip-notebook` wheel, the
+Claude/Codex plugin repository, and marketplace entries that make the plugin
+installable. Treat all three as one release path.
 
-1. `SPEC.md` header: bump the draft version and date.
-2. `CHANGELOG.md`: dated entry, Keep-a-Changelog headings (Added/Changed/Fixed);
-   call out anything that changes the meaning of existing on-disk files as
-   **breaking**.
-3. Content scrub: the repo references only public tools and standards — run
-   the maintainer-local scrub checklist over the tree *and* the diff before
-   pushing.
-4. Docs consistency: `.venv/bin/python -m pytest tests/test_docs_current.py`
-   must be green (see the gate below). Fix prose before tagging — a released
-   doc that misstates the format is the expensive kind of wrong.
-5. Commit `chore(release): X.Y.Z`, tag `vX.Y.Z`, push `main` and the tag.
-6. `gh release create vX.Y.Z` with focused notes and a compare link.
+## Prepare the release
 
-Code path (the CLI has landed): ruff + pytest green locally, and the
-six package declarations move **in lockstep** — `pyproject.toml` `[project]`
-and `[tool.spindle.package]`, `src/flip/spindle-package.toml`,
-`src/flip/__init__.py` `__version__`, `.claude-plugin/plugin.json`, and
-`.codex-plugin/plugin.json`. The `**Status:** draft vX.Y` lines in `SPEC.md`
-and `README.md` must match too. All of that is
-now **enforced by tests, not by eye** — see the docs-consistency gate below.
-If any skill changed, re-sync the plugin copy —
-`rm -rf skills && cp -r src/flip/skills skills` —
-(`tests/test_plugin_skills.py` fails on drift). PyPI publish happens via
-the trusted-publishing workflow (`publish.yml`) triggered by the GitHub
-release, or manually with `uv build && uv publish`.
+1. Start from a clean `main` and review the changes since the previous tag.
+2. Add a dated `CHANGELOG.md` entry. Mark any changed interpretation of
+   existing notebook files as breaking and document its migration path.
+3. Move these seven version declarations in lockstep:
 
-Run the suite with the project venv (`.venv/bin/python -m pytest`), not a
-bare `python`: under an interpreter where flip isn't installed, three tests
-fail spuriously (`test_version_flag` and two `test_fetch` subprocess tests)
-and look like a broken baseline.
+   - `pyproject.toml` `[project]` and `[tool.spindle.package]`;
+   - `uv.lock` (regenerate with `uv lock` after changing `pyproject.toml`);
+   - `src/flip/spindle-package.toml`;
+   - `src/flip/__init__.py` `__version__`;
+   - `.claude-plugin/plugin.json`;
+   - `.codex-plugin/plugin.json`.
 
-## The docs-consistency gate
+   Update the `SPEC.md` and `README.md` status lines to the same minor version.
+   `tests/test_docs_current.py` enforces the set mechanically.
+4. If a canonical skill changed, copy the same change from
+   `src/flip/skills/` into `skills/`. The plugin test detects added, removed,
+   and changed files in either direction.
+5. Confirm the `flip` entry exists in both marketplace catalogs before
+   publishing:
 
-`tests/test_docs_current.py` is a release gate, not a style check. It asserts
-prose against the code:
+   ```bash
+   python scripts/check_marketplace.py /path/to/lyra-forge-marketplace
+   ```
 
-1. **Retired vocabulary** stays gone (each needle names the release that
-   retired it; exceptions need an `ALLOW` entry with a reason).
-2. **OKF version claims** match `manifest.OKF_VERSION`. A doc that names a
-   superseded OKF release while flip stamps the current one into every
-   manifest is a factual error about the format, not a style nit.
-3. **Manifest examples** show the current `FLIP_PROFILE_VERSION`. The
-   canonical example in SPEC.md is what a reader copies; it sat one profile
-   behind. Prose discussing older profiles ("a 0.4 notebook gets the profile
-   pass alone") is legitimate and deliberately not matched.
-4. **The announced spec version** in SPEC.md and README matches
-   `flip.__version__`.
-5. **Every version declaration agrees** — the six package declarations and
-   both status lines above.
+   With no argument, the check reads the live `main` branch. The publish
+   workflow runs that live check and will stop before PyPI if either harness
+   catalog is missing flip.
 
-**Prose files are discovered, not listed.** Anything matching `*.md` at the
-root, `docs/*.md`, `src/flip/skills/*/SKILL.md`, `website/site/*.html`,
-`website/work/*.md`, or `llms.txt` is covered the day it is written. That
-matters: `AGENTS.md` — the contract agents read — sat three releases behind,
-still teaching the authored-letter grade flags retired in 0.12, purely because
-nobody had added it to a hand-maintained list.
+## Run the release gates
 
-Exclusions are deliberate and narrow: `CHANGELOG.md` (history describes what
-was true then), `website/notebook/` (a real notebook that models its own
-superseded claims, and whose `sources/raw/` is custody — captured bytes are
-never edited), and `skills/` (a byte-identical synced copy).
+```bash
+uv sync --locked
+uv run ruff check src tests scripts
+uv run pytest -q
+uv build
+uv run --no-project --python 3.12 python scripts/release_smoke.py
+```
 
-When a check fires during a release, fix the prose — reaching for `ALLOW` or
-an exclusion is the exception, and each one carries a written reason.
+The test suite validates docs, version declarations, plugin manifests, and the
+synced skills. The release smoke installs the built wheel in a fresh virtual
+environment, checks both executables and packaged resources, and runs a pursuit
+from creation through a verified local-file claim and `flip doctor`.
+
+CI repeats the wheel smoke on Linux, macOS, and Windows. Do not publish a wheel
+that only passed from the source checkout: missing package data is invisible on
+that path.
+
+## Publish
+
+Commit as `chore(release): X.Y.Z`, tag `vX.Y.Z`, and push `main` plus the tag.
+Create the GitHub release with focused notes and a compare link. The release
+event triggers `.github/workflows/publish.yml`, which rebuilds and smokes the
+artifact, verifies both live marketplace catalogs, and publishes to PyPI via
+trusted publishing.
+
+The publish job is idempotent for a version already present on PyPI. If it
+stops before publishing, fix the failed release surface and rerun the workflow;
+do not replace an immutable PyPI artifact under the same version.
+
+## Why the docs gate is strict
+
+`tests/test_docs_current.py` discovers root Markdown, `docs/`, packaged skills,
+the deployable site, working site docs, and `llms.txt`. It checks retired
+vocabulary, OKF/profile versions, the canonical manifest example, public status
+lines, and all package version declarations. Historical changelog content and
+captured notebook custody are deliberately excluded. When it fires, update the
+prose; add an exemption only when a reader genuinely needs the historical term.

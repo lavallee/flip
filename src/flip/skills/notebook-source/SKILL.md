@@ -8,43 +8,12 @@ description: Capture and grade a source with custody discipline — invoke every
 Custody first: local bytes, hash, provenance, then judgment. A source you
 didn't capture is a source you don't have.
 
-## Command map (verbs → leaves)
+## Preflight
 
-`flip cli` prints the full, always-current map; the leaves you reach for most:
-
-| to do this | run |
-|---|---|
-| start a notebook | `flip new <slug> --kind <profile>` |
-| capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
-| make a captured PDF readable | `flip extract <id> [--via <lane>] [--method text-layer\|ocr\|…]` — writes `sources/text/<id>.txt` and logs how; raw custody untouched |
-| see what tooling you have | `flip config show` — the lanes configured on this machine and the command behind each |
-| recheck the world | `flip source recheck <id>` — re-fetch, hash-compare, receipt; never overwrites custody |
-| a capture was refused | climb the ladder (SPEC §5.1): alt representation → archive replay → publisher API → browser render → save-as. A 403 is not a verdict on the source |
-| the fetcher came back empty-handed | it found nothing — a finding about the document, not a broken config. Climb, ask the tool directly, `--record`, or `flip pass` |
-| you can't get it but must cite it | `flip add-source <target> --record --note "<rungs tried, what each returned>"` — a citable page, honestly thin |
-| grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--n … --base-defined\|--base-undefined]` — the letter is derived |
-| ask why a letter | `flip grade <id> --explain` — the derivation, writes nothing |
-| fix a bad capture title | `flip source retitle <id> "<title>"` — never hand-edit frontmatter |
-| assert a claim | `flip claim add "<text>" --source <id> [--about <id>] [--load-bearing]` |
-| link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
-| record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
-| move a claim's status | `flip claim status <C#> <status>` |
-| absence claims / derivation | `flip claim add --absent-from corpus\|named_surfaces\|world --surface …` (a null's weight is its coverage) · `flip claim derives add\|rm <C#> <C#>` (what a claim rests on) |
-| commission contracts | `flip commission add "<deliverable>" --universe … --stop … --does-not-redo … [--for Q#]` · `status <K#> dispatched\|returned\|declined [--consumed …]` · `list` |
-| questions | `flip question add\|note\|repose\|answer\|close\|dormant\|reopen\|list` — evidence accretes via `note` (--answers as-worded\|narrower\|adjacent, --zero-yield <cause>); answers/closes can arm `--reopen-when` triggers |
-| decisions / dead ends | `flip decide …` · `flip pass …` |
-| log / sessions | `flip log "<text>"` · `flip session start\|end` |
-| views | `flip show [--claims\|--stale] [--json]` · `flip ws show [--open\|--claims] [--json]` |
-| resolve an id | `flip open <ref>` · `flip resolve <ref> --json` |
-| lint | `flip doctor [--json]` · `flip doctor --workspace [--fix]` |
-
-**Attribution is the `--actor` flag or the `FLIP_ACTOR` env var — there is no
-other actor flag.** Precedence: `--actor` > `FLIP_ACTOR` > detected default.
-(`--notebook` / `FLIP_NOTEBOOK` pins the notebook root the same way.)
-
-**`flip doctor` prints "expected until use" notes** for profile files that
-appear with the work — they harden into ERRORs only at done/published/
-archived. They are not problems; don't re-run doctor for reassurance.
+Run `flip config show` before network capture to see which fetch and extraction
+lanes exist on this machine. Use `flip cli` for the current command map and
+set `FLIP_ACTOR` before any write. `flip doctor` separates expected-until-use
+profile notes from findings that need action.
 
 ## Checklist
 

@@ -1,6 +1,6 @@
 """Docs stay current mechanically, not by memory.
 
-Five checks, run on every commit and named as a release gate in RELEASING.md:
+The release checks cover:
 
 1. `test_retired_vocabulary_absent_from_docs` — terms a release retired must
    not reappear in prose. Each entry names the release that retired it.
@@ -12,6 +12,11 @@ Five checks, run on every commit and named as a release gate in RELEASING.md:
    README announce must match `flip.__version__`.
 5. `test_every_version_declaration_agrees` — the places RELEASING.md says to
    bump in lockstep actually agree.
+6. `test_local_markdown_links_resolve` — reorganizing the docs cannot strand
+   local routes.
+
+Companion checks also keep the retired adoption funnel out and catch stale
+current-profile prose.
 
 **Prose files are DISCOVERED, not listed.** A hand-maintained list is what let
 AGENTS.md drift three releases behind (still teaching `--grade A|B|C`, retired
@@ -23,6 +28,7 @@ import json
 import re
 import tomllib
 from pathlib import Path
+from urllib.parse import unquote
 
 from flip import __version__
 from flip.manifest import FLIP_PROFILE_VERSION, OKF_VERSION
@@ -92,9 +98,8 @@ ALLOW = {
     # judgment rather than a weak one — a reader carrying a notebook across the
     # 0.8 change can't recognize their own pages without the old spellings.
     "SPEC.md": {"self-interested`"},
-    "AGENTS.md": {"self-interested`"},
+    "docs/agent-reference.md": {"self-interested`"},
     # The migration section has to name the value it parks, for the same reason.
-    "docs/quickstart.md": {"independence: original"},
     "docs/wiki-alignment.md": {"# Citations"},  # describes the v0.1->v0.2 OKF change
 }
 
@@ -277,10 +282,11 @@ def test_declared_spec_version_matches_the_package():
 
 
 def test_every_version_declaration_agrees():
-    """The lockstep bump, mechanized. RELEASING.md lists six package
+    """The lockstep bump, mechanized. RELEASING.md lists seven package
     declarations and notes that versions have drifted before — a checklist
     item a human verifies by eye is exactly the thing to make a test."""
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
     spindle = tomllib.loads(
         (ROOT / "src" / "flip" / "spindle-package.toml").read_text(encoding="utf-8")
     )
@@ -295,6 +301,11 @@ def test_every_version_declaration_agrees():
         "pyproject [tool.spindle.package]": pyproject["tool"]["spindle"]["package"][
             "version"
         ],
+        "uv.lock flip-notebook": next(
+            package["version"]
+            for package in lock["package"]
+            if package["name"] == "flip-notebook"
+        ),
         "src/flip/spindle-package.toml": spindle["tool"]["spindle"]["package"][
             "version"
         ],
@@ -306,3 +317,27 @@ def test_every_version_declaration_agrees():
     assert len(distinct) == 1, "version declarations disagree:\n" + "\n".join(
         f"  {where}: {value}" for where, value in sorted(declared.items())
     )
+
+
+def test_local_markdown_links_resolve():
+    """A reorganized onramp is only useful if its local routes survive moves."""
+    offenders = []
+    link_pattern = re.compile(r"\[[^]]*\]\(([^)\s]+)(?:\s+['\"][^)]*['\"])?\)")
+    for rel in prose_files():
+        if not rel.endswith(".md") and rel != "llms.txt":
+            continue
+        source = ROOT / rel
+        text = source.read_text(encoding="utf-8")
+        text = re.sub(r"```.*?```|~~~.*?~~~", "", text, flags=re.S)
+        for match in link_pattern.finditer(text):
+            raw = match.group(1).strip("<>")
+            if raw.startswith(("#", "http://", "https://", "mailto:")):
+                continue
+            target_text = unquote(raw.split("#", 1)[0].split("?", 1)[0])
+            if not target_text:
+                continue
+            target = (source.parent / target_text).resolve()
+            if not target.exists():
+                line = text[: match.start()].count("\n") + 1
+                offenders.append(f"{rel}:{line}: {raw}")
+    assert not offenders, "broken local markdown link(s):\n" + "\n".join(offenders)

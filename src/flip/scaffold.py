@@ -1,10 +1,11 @@
-"""Scaffolding for `flip new`: root index.md manifest + notebook.md stubs.
+"""Scaffolding for `flip new`: the notebook root and profile-owned seeds.
 
-Creates exactly two files — index.md (the OKF bundle root carrying the flip
-manifest frontmatter, SPEC §4) and notebook.md (the prose heart, an OKF
-concept page with `type: Notebook`). Everything else (sources/, log/,
-references/, …) appears lazily when first needed (SPEC §3): empty structure
-is worse than absent structure.
+Most profiles create exactly two files — index.md (the OKF bundle root carrying
+the flip manifest frontmatter, SPEC §4) and notebook.md (the prose heart, an
+OKF concept page with `type: Notebook`). The pursuit profile also seeds its
+primary question and question plan because both must exist before retrieval.
+Everything else (sources/, log/, references/, …) appears lazily when first
+needed (SPEC §3): empty structure is worse than absent structure.
 """
 
 from __future__ import annotations
@@ -99,7 +100,7 @@ def create_notebook(
     title: str = "",
     visibility: str | None = None,
 ) -> Path:
-    """Create a notebook at `dest`: index.md + notebook.md, nothing else.
+    """Create a notebook at `dest`, including any profile-owned seed artifacts.
 
     Policy starts at the Manifest defaults, overlaid with the profile's
     forced_policy, then the explicit `visibility` argument if given. All

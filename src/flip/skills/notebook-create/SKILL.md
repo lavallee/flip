@@ -8,44 +8,18 @@ description: Start a new flip notebook — invoke when research begins and there
 Recognize the job, pick a profile, scaffold, and seed the tip. A notebook holds
 one investigation or recurring research responsibility.
 
-**Preflight:** run `flip --version`. If the CLI is not yet on the agent's PATH,
-guide its one-time installation as a standalone tool —
-`uv tool install flip-notebook` (or `pipx install flip-notebook`; Python 3.12+)
-— following the harness's authority rules for system changes, then verify with
-`flip --version`. Do not add it to the repository's project dependencies. One
-tool, no services; everything below is plain files on disk.
+## Preflight
 
-## Command map (verbs → leaves)
+Run `flip --version`. If the CLI is missing, install it as a standalone tool:
+`uv tool install --python 3.12 flip-notebook` or `pipx install
+flip-notebook`. If the shell still cannot find it, run `uv tool update-shell`
+or `pipx ensurepath`, open a new shell, and verify again. Do not add flip to
+the research project's dependencies.
 
-`flip cli` prints the full, always-current map; the leaves you reach for most:
-
-| to do this | run |
-|---|---|
-| start a notebook | `flip new <slug> --kind <kind>` — kinds are outcomes (`lit-review`, `decision-packet`) or rigor profiles (`scout`, …); `flip kind list` shows all |
-| adopt an outcome late | `flip kind adopt <id>` — crystallizes an open notebook; prints the honest gap manifest |
-| capture a source | `flip add-source <url\|doi\|file> [--kind --via --note]` |
-| grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--n … --base-defined\|--base-undefined]` — the letter is derived |
-| assert a claim | `flip claim add "<text>" --source <id> [--about <id>] [--load-bearing]` |
-| link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
-| record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
-| move a claim's status | `flip claim status <C#> <status>` |
-| absence claims / derivation | `flip claim add --absent-from corpus\|named_surfaces\|world --surface …` (a null's weight is its coverage) · `flip claim derives add\|rm <C#> <C#>` (what a claim rests on) |
-| commission contracts | `flip commission add "<deliverable>" --universe … --stop … --does-not-redo … [--for Q#]` · `status <K#> dispatched\|returned\|declined [--consumed …]` · `list` |
-| questions | `flip question add\|note\|repose\|answer\|close\|dormant\|reopen\|list` — evidence accretes via `note` (--answers as-worded\|narrower\|adjacent, --zero-yield <cause>); answers/closes can arm `--reopen-when` triggers |
-| decisions / dead ends | `flip decide …` · `flip pass …` |
-| forecasts | `flip forecast add\|update\|resolve\|due\|list` — probabilities live here, never on claims |
-| log / sessions | `flip log "<text>"` · `flip session start\|end` |
-| views | `flip show [--claims\|--stale] [--json]` · `flip ws show [--open\|--claims] [--json]` |
-| resolve an id | `flip open <ref>` · `flip resolve <ref> --json` |
-| lint | `flip doctor [--json]` · `flip doctor --workspace [--fix]` |
-
-**Attribution is the `--actor` flag or the `FLIP_ACTOR` env var — there is no
-other actor flag.** Precedence: `--actor` > `FLIP_ACTOR` > detected default.
-(`--notebook` / `FLIP_NOTEBOOK` pins the notebook root the same way.)
-
-**`flip doctor` prints "expected until use" notes** for profile files that
-appear with the work — they harden into ERRORs only at done/published/
-archived. They are not problems; don't re-run doctor for reassurance.
+Use `flip kind list` to choose a notebook kind and `flip cli` for current
+syntax. Set `FLIP_ACTOR` before `flip new`; pursuit notebooks make attributed
+seed writes during creation. `--actor` overrides the environment for one
+command, while `--notebook` / `FLIP_NOTEBOOK` pins the notebook root.
 
 ## Checklist
 
@@ -75,13 +49,15 @@ archived. They are not problems; don't re-run doctor for reassurance.
    specific outcome later without migrating its record.
 3. **Scaffold.**
    ```bash
+   export FLIP_ACTOR="agent:<name>"   # or human:<name>; set BEFORE flip new
    flip new <slug> --kind <profile> --title "<human title>"
    cd <slug>
-   export FLIP_ACTOR="agent:<name>"   # or human:<name>
    ```
-   This creates exactly two files: `index.md` (the manifest lives in its
-   frontmatter — the notebook is an OKF bundle and this is its root) and
-   `notebook.md`. Check the policy keys in the `index.md` frontmatter
+   Most kinds create `index.md` (the manifest lives in its frontmatter — the
+   notebook is an OKF bundle and this is its root) and `notebook.md`; `pursuit`
+   also seeds Q1 and `drafts/question-plan.md` before retrieval. Setting the
+   actor first matters because those pursuit seeds are attributed writes.
+   Check the policy keys in the `index.md` frontmatter
    (`visibility`, `citation_rule`, …) — set `--visibility` at creation if
    the profile's default is wrong for this work.
 4. **Seed the tip.** In `notebook.md`, replace the "The tip" stub with the
