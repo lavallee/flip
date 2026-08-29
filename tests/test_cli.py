@@ -8,7 +8,10 @@ against the v0.4 layout (index.md manifest, entity pages, JSONL event ledgers).
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 from click.testing import CliRunner
@@ -1079,6 +1082,31 @@ def test_version_flag():
     result = invoke(["--version"])
     assert result.exit_code == 0
     assert "flip" in result.output
+
+
+def test_unicode_output_survives_narrow_process_encoding(tmp_path):
+    root = make_notebook(tmp_path / "demo")
+    assert invoke(["--notebook", str(root), "claim", "add", "A useful claim"]).exit_code == 0
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "cp1252"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "flip.cli",
+            "--notebook",
+            str(root),
+            "claim",
+            "status",
+            "C1",
+            "needs-2nd",
+        ],
+        capture_output=True,
+        check=False,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
+    assert "C1 → needs-2nd" in result.stdout.decode("utf-8")
 
 
 # --- flip grade --explain -------------------------------------------------------

@@ -15,6 +15,7 @@ import difflib
 import json
 import re
 import shlex
+import sys
 from dataclasses import asdict
 from pathlib import Path
 
@@ -53,6 +54,30 @@ from .util import (
     require_notebook_root,
     set_cli_overrides,
 )
+
+
+def _configure_utf8_output() -> None:
+    """Keep the CLI's Unicode vocabulary usable on narrow host consoles.
+
+    Windows still commonly gives redirected Python processes a CP-1252 text
+    stream.  flip's human output intentionally uses arrows and comparison
+    symbols that encoding cannot represent, so normalize both output streams
+    before Click writes anything through them.  Test runners and embedded
+    callers may replace the streams with objects that cannot be reconfigured;
+    those are left alone.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        encoding = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
+        if encoding == "utf8":
+            continue
+        reconfigure = getattr(stream, "reconfigure", None)
+        if not callable(reconfigure):
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+        except (OSError, ValueError):
+            # Closed or already-written wrappers cannot always be changed.
+            pass
 
 
 class SuggestGroup(click.Group):
@@ -168,6 +193,7 @@ def main(notebook_pin: Path | None, actor: str | None) -> None:
     it with --notebook/FLIP_NOTEBOOK). `flip show` is the hot view, `flip
     doctor` the lint. Read commands accept --json for machine consumption.
     """
+    _configure_utf8_output()
     set_cli_overrides(notebook_pin, actor)
 
 

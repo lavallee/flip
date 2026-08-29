@@ -44,6 +44,10 @@ notebook, and an attributed trail from the first write.
 
 ### Fixed
 
+- **Unicode CLI output works in Windows pipelines and redirected consoles.**
+  flip now normalizes narrow CP-1252 output streams to UTF-8 before emitting
+  arrows and comparison symbols, preventing valid commands from crashing at
+  the final status line.
 - **Current Codex sessions are attributed as `agent:codex` before pursuit Q1
   is seeded.** Detection now recognizes session, thread, CI, sandbox, and
   active-home markers. The creation procedure also sets `FLIP_ACTOR` before
