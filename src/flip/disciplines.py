@@ -61,7 +61,7 @@ VERSION_RE = re.compile(r"^(\d+)\.(\d+)$")
 # A manifest pin: id@MAJOR (any minor) or id@MAJOR.MINOR (exact).
 PIN_RE = re.compile(r"^([a-z][a-z0-9-]*)@(\d+)(?:\.(\d+))?$")
 
-ORIGINS = ("built-in", "user", "notebook")
+ORIGINS = ("built-in", "plugin", "user", "notebook")
 
 
 @dataclass
@@ -257,9 +257,33 @@ def _notebook_dir(root: Path) -> Path:
 def _load_all(root: Path | None) -> dict[str, Discipline]:
     merged: dict[str, Discipline] = {}
     merged.update(_scan_source(_builtin_dir(), "built-in"))
-    merged.update(_scan_source(_user_dir(), "user"))
+    from . import extensions
+    plugin_ids: set[str] = set()
+    for plugin, path in extensions.definition_exports("disciplines"):
+        d = _discipline_from_toml(path.read_text(encoding="utf-8"), path, "plugin")
+        if d.id in merged:
+            raise SystemExit(
+                f"plugin '{plugin.id}' discipline '{d.id}' collides with "
+                f"{merged[d.id].source_path}; rename the plugin export"
+            )
+        merged[d.id] = d
+        plugin_ids.add(d.id)
+    user = _scan_source(_user_dir(), "user")
+    collision = plugin_ids & set(user)
+    if collision:
+        raise SystemExit(
+            "user discipline collides with linked plugin export: " + ", ".join(sorted(collision))
+        )
+    merged.update(user)
     if root is not None:
-        merged.update(_scan_source(_notebook_dir(root), "notebook"))
+        local = _scan_source(_notebook_dir(root), "notebook")
+        collision = plugin_ids & set(local)
+        if collision:
+            raise SystemExit(
+                "notebook discipline collides with linked plugin export: "
+                + ", ".join(sorted(collision))
+            )
+        merged.update(local)
     return merged
 
 

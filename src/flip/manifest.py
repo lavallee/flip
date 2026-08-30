@@ -54,7 +54,7 @@ KNOWN_KEYS = (
     "okf_version", "flip", "slug", "uid", "title", "kind", "status", "created",
     "updated", "host", "origin", "visibility", "renders_public",
     "source_trail_public", "citation_rule", "disciplines", "discipline_resolve",
-    "links", "relations", "consumers", "tools",
+    "workflow", "plugins", "links", "relations", "consumers", "tools",
 )
 
 DEFAULT_POLICY = {
@@ -87,6 +87,11 @@ class Manifest:
     # (+forecasting iff forecasts/ exists), zero new ceremony.
     disciplines: list = field(default_factory=list)
     discipline_resolve: dict = field(default_factory=dict)
+    # A reusable process pin (for example ``weekly-watch@0``), independent of
+    # the notebook kind. Plugins are explicit per-notebook enablement pins;
+    # merely linking a bundle into the user registry never activates code.
+    workflow: str = ""
+    plugins: list = field(default_factory=list)
     links: dict = field(default_factory=dict)
     relations: list = field(default_factory=list)
     consumers: list = field(default_factory=list)
@@ -135,7 +140,7 @@ def load_manifest(root: Path) -> Manifest:
         )
     m = Manifest(slug=fm["slug"])
     for key in ("uid", "title", "kind", "status", "created", "updated", "host",
-                "origin", "visibility", "citation_rule"):
+                "origin", "visibility", "citation_rule", "workflow"):
         if key in fm and fm[key] is not None:
             setattr(m, key, str(fm[key]))
     if fm.get("flip") is not None:
@@ -149,7 +154,8 @@ def load_manifest(root: Path) -> Manifest:
     # default and the hand-authored value rides along in extras, re-emitted
     # verbatim under its own name on save (SPEC §6.6).
     for key, want in (("links", dict), ("tools", dict), ("discipline_resolve", dict),
-                      ("relations", list), ("consumers", list), ("disciplines", list)):
+                      ("relations", list), ("consumers", list), ("disciplines", list),
+                      ("plugins", list)):
         value = fm.get(key)
         if isinstance(value, want):
             setattr(m, key, value)
@@ -178,6 +184,7 @@ def manifest_frontmatter(m: Manifest) -> dict:
     fm["citation_rule"] = m.citation_rule
     for key, value in (("disciplines", m.disciplines),
                        ("discipline_resolve", m.discipline_resolve),
+                       ("workflow", m.workflow), ("plugins", m.plugins),
                        ("links", m.links), ("relations", m.relations),
                        ("consumers", m.consumers), ("tools", m.tools)):
         if value:

@@ -1,0 +1,19 @@
+{
+  "protocol": "flip-filter/1",
+  "items": [
+    {
+      "lane": "local-worklist",
+      "notebook": "",
+      "id": "WL1",
+      "text": "Read the new board filing",
+      "why": "The local editorial worklist marked it ready"
+    },
+    {
+      "lane": "local-worklist",
+      "notebook": "",
+      "id": "WL2",
+      "text": "Recheck the disclosure page",
+      "why": "The public surface changed since the last pass"
+    }
+  ]
+}

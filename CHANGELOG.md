@@ -6,6 +6,52 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **One explicit core lifecycle at notebook, beat, and workspace scope.**
+  `flip next [--json] [--limit N] [--explain]` now performs bounded orient and
+  select over the existing frontier lanes; `flip beat next` delegates to the
+  same path. Work Sessions can record workflow, phase, selected item, enabled
+  extensions, outputs, and checks, and close with a conservative
+  `flip-session-receipt/1` materiality floor. The receipt explicitly does not
+  claim reader relevance, research quality, demand, or external outcome.
+- **A first-class workflow registry.** Built-in, linked-plugin, user, and
+  notebook definitions share one public TOML format and `workflow
+  list/show/new/check/use/next` surface. Phase state is derived from the newest
+  matching session receipt. Existing inline kind phases remain available as
+  compatibility workflows. Batteries included: `question-pursuit` and
+  `weekly-watch`.
+- **A local plugin, extension, hook, and filter registry.** `flip-plugin.toml`
+  bundles may export kinds, disciplines, workflows, skills, docs, examples,
+  and subprocess filters. Link, validate, enable, disable, inventory, inspect,
+  and fixture-test commands keep cataloged, materialized, valid, enabled, and
+  exercised states separate. Scope enablement writes an exact path/version/hash
+  lock; doctor reports resolution, content, provider, and check failures.
+- **Five typed lifecycle hooks.** `context.provide@1`,
+  `frontier.provide@1`, `frontier.filter@1`, `check.provide@1`, and
+  `receipt.filter@1` use bounded `flip-filter/1` JSON subprocesses with stable
+  ordering, timeouts, output caps, declines, validated envelopes, and visible
+  failure traces. Plugins cannot write canonical notebook state through these
+  contracts.
+- **Extension authoring guidance and examples.** Three packaged skills route a
+  reusable request, author a workflow, and package a plugin. Public examples
+  cover a three-pass watch, a definition-only review pack, a local-worklist
+  frontier provider, and a read-only publication check.
+
+### Changed
+
+- The documented agent loop is now orient → select → open → work → check →
+  close → continue/stop. Kinds describe outputs; reusable sequences belong in
+  the workflow registry. `VISION.md` and `ROADMAP.md` now make user-owned,
+  inspectable extension practice a strategy bet with adoption evidence gates.
+
+### Security
+
+- Executable handlers require explicit per-scope enablement and capability
+  declarations, but are local programs running with the current user's
+  operating-system authority. The subprocess boundary is failure containment
+  and protocol validation, not a security sandbox.
+
 ## [0.21.1] — 2026-08-29
 
 The first five minutes now match the product: one install path, one runnable

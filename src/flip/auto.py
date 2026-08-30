@@ -207,6 +207,44 @@ _NOTEBOOK_LANES = {
 }
 
 
+def notebook_frontier(root: Path, selection: tuple[str, ...] | list[str] | None = None) -> dict:
+    """The core frontier for one notebook, without beat threads or policy.
+
+    This is the notebook contribution behind the scope-aware ``flip next``.
+    It remains a read-only computed view and carries the same per-row reasons
+    as the original beat frontier.
+    """
+    from .util import require_notebook_root
+
+    root = require_notebook_root(root)
+    manifest = load_manifest(root)
+    selected = tuple(selection or _NOTEBOOK_LANES)
+    unknown = [lane for lane in selected if lane not in _NOTEBOOK_LANES]
+    if unknown:
+        raise SystemExit(
+            f"unknown notebook frontier lane(s): {', '.join(unknown)} "
+            f"(known: {', '.join(_NOTEBOOK_LANES)})"
+        )
+    items: list[dict] = []
+    unreadable: list[dict] = []
+    for lane in selected:
+        try:
+            items.extend(_NOTEBOOK_LANES[lane](manifest.slug, root))
+        except SystemExit as exc:
+            unreadable.append({"notebook": manifest.slug, "lane": lane, "error": str(exc)})
+    order = {lane: n for n, lane in enumerate(selected)}
+    items.sort(key=lambda row: (
+        order.get(row["lane"], len(order)), row["notebook"], _id_key(row["id"])
+    ))
+    data = {
+        "scope": "notebook", "notebook": manifest.slug,
+        "selection": list(selected), "items": items, "total": len(items),
+    }
+    if unreadable:
+        data["unreadable"] = unreadable
+    return data
+
+
 def frontier(root: Path, limit: int | None = None) -> dict:
     """What this beat should pick up next, ranked, with reasons.
 
@@ -313,4 +351,4 @@ def _trunc(text: object, width: int = 76) -> str:
 
 
 __all__ = ["Auto", "AUTO_KEYS", "LANES", "beat_notebooks", "frontier", "load_auto",
-           "render", "ROOT_FILE"]
+           "notebook_frontier", "render", "ROOT_FILE"]

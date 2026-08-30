@@ -1,0 +1,28 @@
+id = "review-cycle"
+version = "0.1"
+summary = "Declare criteria, screen material, synthesize, then audit the brief."
+applies_to = ["review-brief", "lit-review"]
+entry = "criteria"
+
+[[phase]]
+id = "criteria"
+guide = "Write criteria.md before retrieval so exclusions remain auditable."
+produces = ["criteria.md"]
+next = "screen"
+
+[[phase]]
+id = "screen"
+guide = "Capture, grade, and record passed candidates against the criteria."
+produces = ["judged-sources", "passed-events"]
+next = "synthesize"
+
+[[phase]]
+id = "synthesize"
+guide = "Promote only claims the brief relies on and state unresolved disagreement."
+produces = ["verified-claims", "limitations"]
+next = "audit"
+
+[[phase]]
+id = "audit"
+guide = "Run kind and discipline checks, then close the Work Session receipt."
+produces = ["doctor-run", "session-receipt"]

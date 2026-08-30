@@ -1,0 +1,19 @@
+[plugin]
+id = "example/publication-readiness"
+version = "0.1.0"
+summary = "Report a missing disclosure file without editing the notebook."
+license = "MIT"
+requires_flip = ">=0.21"
+capabilities = ["execute:filter", "read:notebook"]
+
+[exports]
+docs = ["README.md"]
+examples = ["fixtures/"]
+
+[[filters]]
+id = "disclosure"
+hook = "check.provide@1"
+protocol = "flip-filter/1"
+command = ["python3", "bin/check.py"]
+needs = ["execute:filter", "read:notebook"]
+timeout = 3

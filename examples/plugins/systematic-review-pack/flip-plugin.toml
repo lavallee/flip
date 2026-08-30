@@ -1,0 +1,15 @@
+[plugin]
+id = "example/systematic-review-pack"
+version = "0.1.0"
+summary = "A definition-only review outcome, standard, workflow, and agent guide."
+license = "MIT"
+requires_flip = ">=0.21"
+capabilities = ["definitions"]
+
+[exports]
+kinds = ["kinds/review-brief.toml"]
+disciplines = ["disciplines/editorial-disclosure.toml"]
+workflows = ["workflows/review-cycle.toml"]
+skills = ["skills/notebook-review-cycle/SKILL.md"]
+examples = ["fixtures/tiny-review/"]
+docs = ["README.md"]

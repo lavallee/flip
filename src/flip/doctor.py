@@ -155,7 +155,8 @@ CHECK_CODES: frozenset[str] = frozenset({
     # manifest, profile, kind
     "bad-manifest", "bad-status", "bad-visibility", "missing-uid",
     "unknown-kind", "missing-required", "policy-mismatch", "missing-section",
-    "missing-notebook", "kind-gap",
+    "missing-notebook", "kind-gap", "bad-workflow", "bad-plugin", "extension-check",
+    "extension-failure",
     # beat link
     "broken-beat-link", "deprecated-ref-separator",
     # OKF conformance, ids, links, ledgers
@@ -266,8 +267,71 @@ def run_doctor(root: Path) -> list[Finding]:
     _check_workspace_nudge(root, findings)
     _check_kind_contract(root, manifest, findings)
     _check_disciplines(root, manifest, findings)
+    _check_workflow(root, manifest, findings)
+    _check_extensions(root, manifest, findings)
     _lead_with_causes(root, source_pages, claim_pages, findings)
     return findings
+
+
+def _check_extensions(root: Path, manifest: Manifest | None, findings: list[Finding]) -> None:
+    """Validate explicit plugin pins, then collect read-only check providers.
+
+    Extension-specific codes stay inside the message; doctor itself exposes a
+    stable ``extension-check`` code so its registry does not become whatever a
+    local executable happened to print.
+    """
+    if manifest is None or not manifest.plugins:
+        return
+    from . import extensions
+
+    try:
+        extensions.enabled_plugins(root)
+    except SystemExit as exc:
+        findings.append(_error("bad-plugin", str(exc), "index.md"))
+        return
+    for message in extensions.validate_lock(root):
+        findings.append(_error(
+            "bad-plugin", message + "; re-run `flip plugin enable <id>` after review",
+            "index.md",
+        ))
+    try:
+        rows, trace = extensions.run_checks(root)
+    except SystemExit as exc:
+        findings.append(_warn("extension-failure", str(exc), "index.md"))
+        return
+    for row in rows:
+        level = str(row.get("level") or "WARN").upper()
+        if level not in ("WARN", "ERROR"):
+            level = "WARN"
+        local_code = str(row.get("code") or "finding")
+        message = f"{row['handler']} [{local_code}] — {row['message']}"
+        path = str(row.get("path") or "index.md")
+        findings.append(Finding(level, "extension-check", message, path))
+    for step in trace:
+        if step.get("result") == "error":
+            findings.append(_warn(
+                "extension-failure",
+                f"{step['handler']} failed at {step['hook']}: {step.get('error', 'unknown error')}",
+                "index.md",
+            ))
+
+
+def _check_workflow(root: Path, manifest: Manifest | None, findings: list[Finding]) -> None:
+    if manifest is None or not manifest.workflow:
+        return
+    from . import workflows
+    try:
+        workflow = workflows.load_workflow(manifest.workflow, root)
+    except SystemExit as exc:
+        findings.append(_error("bad-workflow", str(exc), "index.md"))
+        return
+    if workflow.applies_to and manifest.kind not in workflow.applies_to:
+        findings.append(_warn(
+            "bad-workflow",
+            f"workflow {workflow.pin} declares applies_to {', '.join(workflow.applies_to)}, "
+            f"but this notebook kind is {manifest.kind}; confirm the exception or choose another",
+            "index.md",
+        ))
 
 
 def _lead_with_causes(

@@ -1,11 +1,13 @@
-# Running a notebook on a loop
+# Running a beat on a loop
 
 Research that keeps going — a beat you sweep weekly, a corpus an agent works
 overnight — eventually gets run on a schedule. This is what flip does and,
 more importantly, what it deliberately leaves to whatever is running the loop.
 
-flip holds no cadence, schedules nothing, and calls nothing. It records the
-policy in one place and computes one view over it. Everything else is yours.
+Flip holds no cadence, schedules nothing, and calls no agent. It records the
+policy, computes the bounded orient/select view, and leaves Work Session
+receipts. The complete lifecycle is in [core-loop.md](core-loop.md); this guide
+covers the beat-specific standing policy.
 
 ## The one measured problem
 
@@ -15,8 +17,8 @@ off. Measured on a real 507-page notebook, orienting cold cost about 40K
 tokens of generated views — paid again on every pass, before anything was
 learned.
 
-`flip beat next` is the answer to that, computed from records the notebook
-already holds.
+`flip next` (or the explicit beat spelling, `flip beat next`) is the answer to
+that, computed from records the notebooks already hold.
 
 ## Write the policy once
 
@@ -46,6 +48,7 @@ failure a pass cannot notice from the inside.
 flip beat next                 # ranked, with the reason for each row
 flip beat next --json          # the same thing for a runtime to read
 flip beat next --limit 1       # just the top item; the total is still reported
+flip beat next --explain       # core and enabled extension contributions
 ```
 
 ```
@@ -91,14 +94,15 @@ so rather than implying an answer it does not have.
 ## Wire it to a harness
 
 The contract is small enough to fit in a paragraph: invoke something, read
-`flip beat next --json`, do the work, let the ledgers be the receipt. Any
-scheduler works, because flip is not in the scheduling business.
+`flip next --json`, open a Work Session around the work, close it with the
+actual outputs and checks, then recompute. Any scheduler works, because Flip is
+not in the scheduling business.
 
 ```bash
 #!/bin/sh
 # one pass: hand the frontier to whatever agent runtime you use
 cd /path/to/the/beat
-flip beat next --json --limit 1 > /tmp/next.json
+flip next --json --limit 1 --explain > /tmp/next.json
 your-agent-runtime --prompt "$(cat prompts/pass.md)" --context /tmp/next.json
 ```
 
@@ -118,18 +122,18 @@ are judgment and not mechanism:
 
 - **Schedule.** No cadence, no daemon, no wake-ups. `cadence:` is a note to
   the humans and harnesses reading the manifest.
-- **Judge whether a pass was worth running.** A pass that edited a status and
-  called it progress ought to be visible as one, and deriving that honestly
-  from the event log needs a session receipt flip does not define yet. A
-  check that guessed would hand you false confidence about exactly the thing
-  it exists to doubt. Until it lands, materiality is prose the agent
-  self-certifies against — read the log.
-- **Parse your other systems.** `surfaces:` lists where the work has to land
-  so the agent can go there; flip does not read them. If you have an external
-  worklist, it stays external.
+- **Judge whether a pass was worth running.** A session receipt now derives a
+  conservative floor from local events and changed entity pages, but it says
+  explicitly that this does not establish reader relevance, quality, demand,
+  or external outcome. `materiality:` remains the human/agent standard.
+- **Magically parse your other systems.** `surfaces:` names where an actor must
+  go. A deliberately enabled provider may contribute local rows through the
+  documented hook; Flip core still owns no integration-specific parser.
 
 ## Related
 
 - SPEC §14 (beats) and §14.1 (the `auto:` block and `flip beat next`).
+- [core-loop.md](core-loop.md) — all seven lifecycle stages and session receipts.
+- [extensions.md](extensions.md) — workflow, plugin, filter, and hook contracts.
 - [evidence-workflow.md](evidence-workflow.md) — the evidence mechanics beneath the agent's core loop.
 - [AGENTS.md](../AGENTS.md) — the lineage rules a pass works under.

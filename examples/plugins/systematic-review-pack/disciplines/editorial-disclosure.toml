@@ -1,0 +1,15 @@
+id = "editorial-disclosure"
+version = "0.1"
+summary = "Keep the review's boundaries visible to its reader."
+kind = "overlay"
+governs = ["notebook"]
+
+[[slot]]
+id = "publication-disclosure"
+owns = true
+
+[[check]]
+id = "limitations-section"
+slot = "publication-disclosure"
+check = "missing-section"
+message = "Read the limitations section before publication."

@@ -33,7 +33,8 @@
       "Use Flip for this investigation and leave a notebook another agent can inspect and continue.",
       "Create a Flip pursuit notebook for this research question.",
       "Capture and grade the sources this work relies on.",
-      "Audit this notebook's load-bearing claims and prepare a cold-start handoff."
+      "Audit this notebook's load-bearing claims and prepare a cold-start handoff.",
+      "Turn this repeated research process into a reusable Flip workflow or plugin."
     ]
   }
 }

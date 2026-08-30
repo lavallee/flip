@@ -1,0 +1,28 @@
+id = "question-pursuit"
+version = "1.0"
+summary = "Pursue one question from formulation through an auditable answer."
+applies_to = ["pursuit"]
+entry = "orient"
+
+[[phase]]
+id = "orient"
+guide = "Read Q1, the question plan, current evidence, and the latest session receipt."
+produces = ["selected-question"]
+next = "retrieve"
+
+[[phase]]
+id = "retrieve"
+guide = "Capture and judge material that can change the answer; record zero-yield paths."
+produces = ["source-capture-or-passed-event"]
+next = "assess"
+
+[[phase]]
+id = "assess"
+guide = "Update the question evidence trail and promote only claims the notebook relies on."
+produces = ["question-note", "claim-or-explicit-uncertainty"]
+next = "audit"
+
+[[phase]]
+id = "audit"
+guide = "Run doctor, state what remains unresolved, and close the session receipt."
+produces = ["doctor-run", "session-receipt"]

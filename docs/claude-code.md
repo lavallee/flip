@@ -83,7 +83,7 @@ editor, or as an Obsidian vault — real ones are at
 [flip-examples](https://github.com/lavallee/flip-examples), none of which
 had a human typing the commands.
 
-## The seven skills
+## The ten skills
 
 Each skill is a procedure the agent loads when the work calls for it. Claude
 Code names them `/flip:notebook-*`; Codex names them `$flip:notebook-*`:
@@ -97,6 +97,9 @@ Code names them `/flip:notebook-*`; Codex names them `$flip:notebook-*`:
 | `notebook-handoff` | passing work to another agent or person | what a cold reader needs; open questions with watching surfaces |
 | `notebook-lessons` | after something went wrong or unusually right | lessons as durable pages, not chat scroll |
 | `notebook-kind-author` | defining a new outcome kind | contract requirements a doctor can check |
+| `notebook-extend` | “make our process reusable/shareable” | routes to kind, discipline, workflow, filter, adapter, skill, or plugin |
+| `notebook-workflow-author` | defining a repeated sequence | plain phases, inspectable outputs, receipt-backed fixture |
+| `notebook-plugin-author` | packaging definitions or typed filters | explicit capabilities, state boundaries, validation, and trust prompt |
 
 Two conventions matter more than any skill:
 
@@ -132,7 +135,7 @@ doctrine; a search returns leads, and a lead is not evidence.
 Claude Code exposes `WebFetch` to the hook, so all three behaviors above run
 there. Codex packages the same hook, but its hosted web tools do not traverse
 the local tool-hook path and therefore cannot trigger these fetch checks. In
-Codex, the seven skills still carry capture-before-cite, and `flip doctor`
+Codex, the ten skills still carry capture-before-cite, and `flip doctor`
 still audits the resulting notebook; do not describe that as equivalent live
 hook coverage.
 

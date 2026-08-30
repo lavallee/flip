@@ -1,0 +1,8 @@
+{
+  "scope": {
+    "kind": "notebook",
+    "root": "/tmp/example-notebook"
+  },
+  "policy": [],
+  "items": []
+}

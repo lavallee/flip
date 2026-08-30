@@ -38,8 +38,9 @@ contract has 3–7 requirements — a kind with 20 is a compliance form.
 4. **"Does this get redone on a schedule, or is it one-and-done?"** →
    `[versioning]` (`mode = "living"` with cadence, or `"one-shot"`).
 5. **"What order does the work happen in, and what does each stage
-   produce?"** → optional `[workflow]` phases with `produces`. Skip if
-   they don't have a real phase structure — absent beats empty.
+   produce?"** → a separate workflow when the sequence is reusable. Use the
+   notebook-workflow-author skill. Existing inline kind phases remain valid
+   compatibility workflows, but new processes should have their own identity.
 
 ## Write, validate, hand over
 

@@ -50,7 +50,7 @@ ENTITY_DIRS = ("references", "claims", "questions", "decisions", "forecasts",
                "commissions", "sessions")
 ENTITY_KINDS = (*ENTITY_DIRS, "files")
 
-ORIGINS = ("built-in", "user", "notebook", "profile")
+ORIGINS = ("built-in", "plugin", "user", "notebook", "profile")
 
 
 @dataclass
@@ -214,9 +214,34 @@ def _notebook_dir(root: Path) -> Path:
 def _load_all(root: Path | None) -> dict[str, Kind]:
     merged: dict[str, Kind] = {}
     merged.update(_scan_kind_source(_builtin_dir(), "built-in"))
-    merged.update(_scan_kind_source(_user_dir(), "user"))
+    # Linked plugins contribute inspectable definitions without activating
+    # executable handlers. Refuse collisions: a bundle must not silently
+    # replace a public or previously linked kind.
+    from . import extensions
+    plugin_ids: set[str] = set()
+    for plugin, path in extensions.definition_exports("kinds"):
+        k = _kind_from_toml(path.read_text(encoding="utf-8"), path, "plugin")
+        if k.id in merged or k.id in profiles_mod.list_profiles():
+            existing = merged[k.id].source_path if k.id in merged else f"profile {k.id}"
+            raise SystemExit(
+                f"plugin '{plugin.id}' kind '{k.id}' collides with {existing}; "
+                "rename the plugin export (kind registry never guesses precedence)"
+            )
+        merged[k.id] = k
+        plugin_ids.add(k.id)
+    user = _scan_kind_source(_user_dir(), "user")
+    collision = plugin_ids & set(user)
+    if collision:
+        raise SystemExit("user kind collides with linked plugin export: " + ", ".join(sorted(collision)))
+    merged.update(user)
     if root is not None:
-        merged.update(_scan_kind_source(_notebook_dir(root), "notebook"))
+        local = _scan_kind_source(_notebook_dir(root), "notebook")
+        collision = plugin_ids & set(local)
+        if collision:
+            raise SystemExit(
+                "notebook kind collides with linked plugin export: " + ", ".join(sorted(collision))
+            )
+        merged.update(local)
     # Today's profiles, surfaced as rigor-shaped kinds with empty contracts —
     # a thin adapter, never overriding an actual kind file of the same id.
     for pid in profiles_mod.list_profiles():

@@ -1,0 +1,19 @@
+[plugin]
+id = "example/local-worklist"
+version = "0.1.0"
+summary = "Contribute checked-in local worklist rows to the Flip frontier."
+license = "MIT"
+requires_flip = ">=0.21"
+capabilities = ["execute:filter", "read:notebook"]
+
+[exports]
+examples = ["fixtures/"]
+docs = ["README.md"]
+
+[[filters]]
+id = "worklist"
+hook = "frontier.provide@1"
+protocol = "flip-filter/1"
+command = ["python3", "bin/provider.py"]
+needs = ["execute:filter", "read:notebook"]
+timeout = 3

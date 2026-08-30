@@ -46,9 +46,8 @@ codex plugin marketplace add lyra-forge/marketplace
 codex plugin add flip@lyra-forge
 ```
 
-Start a new agent session after installing. The plugin ships seven procedural
-skills covering notebook creation, source custody, session hygiene, claim audit,
-handoff, lessons learned, and outcome-kind authoring. The [harness
+Start a new agent session after installing. The plugin ships ten procedural
+skills covering notebook practice plus reusable workflow and plugin authoring. The [harness
 guide](docs/claude-code.md) explains the custody-hook difference between Claude
 Code and Codex.
 
@@ -190,20 +189,23 @@ under stable handles so agents can resolve and audit them together.
 
 ## What the agent maintains under the hood
 
-The ordinary loop is capture → judge → assert → test → continue or hand off:
+The core loop is orient → select → open → work → check → close → continue or stop:
 
 ```bash
 export FLIP_ACTOR="agent:codex" # set before `flip new`; pursuit seeds Q1 immediately
 flip new nj-schools --kind pursuit --title "What changed in NJ enrollment?"
 cd nj-schools
-flip session start enrollment-sweep --model <model> --tools <tools>
+flip next --explain
+flip session start enrollment-sweep --model <model> --tools <tools> \
+  --workflow question-pursuit --phase orient --item Q1
 flip add-source ./districts.csv --note "district enrollment table"
 flip grade F1 --independence independent --basis official-record --base-defined
 flip claim add "Enrollment fell 4.2% since 2021" --source F1 --load-bearing
 flip question add "What is driving the decline?" --resolves-via "NJ DOE fall snapshot"
 flip show
 flip doctor
-flip session end enrollment-sweep --summary "..."
+flip session end enrollment-sweep --summary "..." --output Q1 --check doctor
+flip next
 ```
 
 Humans generally direct those acts rather than typing them. `flip cli` prints an
@@ -251,7 +253,7 @@ PyYAML.
 
 The CLI enforces structural invariants and exposes missing work. Source grades
 and conclusions remain research judgments rather than claims the software can
-make. Generated views and `flip beat next` support bounded re-grounding; the
+make. Generated views and scope-aware `flip next` support bounded re-grounding; the
 expected token-efficiency benefit has not yet been benchmarked.
 
 ## Documentation
@@ -275,7 +277,9 @@ expected token-efficiency benefit has not yet been benchmarked.
   exports, and integration contract
 - [Migration](docs/migration.md) — recognize and upgrade older notebooks
 - [Obsidian](docs/obsidian.md) — human editing and the companion plugin
-- [Running a beat on a loop](docs/loops.md) — recurring and unattended passes
+- [The core loop](docs/core-loop.md) — orient through receipt and stop decision
+- [Workflows and extensions](docs/extensions.md) — registries, hooks, trust, and authoring
+- [Running a beat on a loop](docs/loops.md) — standing policy and unattended passes
 - [llms.txt](llms.txt) — compact documentation map for agents
 
 Status: spec draft v0.21; package 0.21.1; Python 3.12+; MIT licensed. Built and

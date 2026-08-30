@@ -701,7 +701,9 @@ Extension vocabulary summary — flip's frontmatter keys beyond OKF v0.2's
 `independence`, `freshness`, `local`, `sha256` (on export), `date`,
 `authors`, `publisher`, `load_bearing`, `independent_corroboration`,
 `first_asserted`, `question`, `alternatives_rejected`, `model`, `tools`,
-`started`, `ended`, `resolves_via`, `formulations`, `answered`,
+`started`, `ended`, `workflow`, `phase`, `item`, `extensions`,
+`receipt_opened_ns`, `receipt`,
+`plugins`, `resolves_via`, `formulations`, `answered`,
 `answered_by`, `closed`, `closed_by`, `closed_reason`, `review_by`,
 `reopen_when`, `absence`, `derives_from`, `universe`, `stop`,
 `does_not_redo`, `for`, `roi_low`, `roi_high`, `consumed` — plus
@@ -1391,10 +1393,19 @@ flip-render/2.
   false statement about the world.
 - **`sessions/<stamp>-<slug>.md`** — one entity page per working episode
   (`type: Work Session`; frontmatter: `generated: {by, at}`, `model`,
-  `tools`, `started`, `ended`, `transcript: {id, local}`): the goal, the
+  `tools`, `started`, `ended`, `transcript: {id, local}`; optional loop
+  coordinates `workflow`, `phase`, `item`, and `extensions`; an open session's
+  `receipt_opened_ns` is its local materiality baseline): the goal, the
   prompt (or pointer), key outputs, pointer to the
   raw transcript when kept. LLM synthesis recorded here is a **lead**, grade
   `C`, until promoted through `references/`.
+
+  On close, `receipt:` is a `flip-session-receipt/1` object: declared outputs
+  and checks plus a conservative materiality floor derived from append-only
+  events and canonical entity-page mtimes since `started`. Enabled
+  `receipt.filter@1` handlers may enrich it but cannot replace core
+  measurements. It explicitly records that local activity does not establish
+  reader relevance, research quality, demand, or external outcome.
 
 ### Transcripts — the conversation, kept and citable
 
@@ -1705,7 +1716,7 @@ refused rather than ignored — a mission running a policy nobody wrote is the
 one failure an autonomous pass cannot notice from the inside. Unknown keys
 ride along verbatim, like every other manifest.
 
-**`flip beat next`** answers the question a pass opens with: *what should I
+**`flip next`** answers the question a pass opens with: *what should I
 pick up?* It ranks what the beat and its notebooks already record — load-
 bearing claims whose bar is unmet (`in-flight`), commissions dispatched and
 not returned (`commissioned`), forecasts at their date and questions off
@@ -1716,6 +1727,12 @@ choose the same item. A directory under `notebooks/` that cannot be read is
 *reported*, never skipped: to the caller, "skipped it" and "found nothing in
 it" look identical, and only one is a reason to go look.
 
+The same command is scope-aware. At a notebook it computes the four notebook
+lanes; at a beat it adds child notebooks and threads; at a workspace it
+aggregates bound notebooks by handle. `flip beat next` is retained as the
+explicit beat spelling. `--explain` includes the ordered core and enabled
+extension contributions.
+
 This exists because re-grounding was the measured cost of running a corpus on
 a loop — orienting cold in a 507-page notebook ran ~40K tokens of generated
 views before any research happened, and every pass paid it again.
@@ -1724,16 +1741,41 @@ views before any research happened, and every pass paid it again.
 an agent runtime, a person at a terminal — decides when to wake, what budget a
 pass carries, and whether its authority is real; `cadence:` records the
 intent so the harness and the agent read one policy instead of two. The
-contract a harness needs is small: invoke something, read `flip beat next
---json`, do the work, and leave the ledgers as the receipt. Nothing in this
-section names a runtime, and nothing in flip schedules anything.
+contract a harness needs is small: invoke something, read `flip next --json`,
+open a Work Session around one selected item, close it with actual outputs and
+checks, then recompute. Nothing in this section names a runtime, and nothing in
+Flip schedules anything.
 
-Deliberately not here yet: **pass accounting**. A mission's `materiality`
-prose is exactly the kind of anti-gaming rule that ought to be machine-checked
-— a pass that edited a status and called it progress should be visible as one
-— but deriving that honestly from the event log needs a session receipt this
-version does not define, and a check that guessed would give false confidence
-about the thing it exists to doubt. See §19.
+The receipt makes low activity visible but does not machine-judge the mission's
+`materiality` prose. Treating a file count as proof of reader value would give
+false confidence about the thing the policy exists to doubt.
+
+### 14.2 Workflows and extension hooks
+
+The lifecycle is **orient → select → open → work → check → close → continue or
+stop**. Core owns bounded context/frontier views, Work Sessions, doctor, and the
+receipt. A reusable **workflow** supplies advisory phases and expected outputs;
+state is derived from matching Work Session receipts, never a mutable current
+phase file. Definitions load from built-ins, linked plugin exports,
+`$FLIP_HOME/workflows/`, and `.flip/workflows/`. Inline kind phases remain
+available through a `kind:<id>` compatibility adapter.
+
+A **plugin** is a versioned distribution directory described by
+`flip-plugin.toml`; it may export kinds, disciplines, workflows, skills, docs,
+examples, and executable filters. Linking a materialized directory is not
+enablement. Executable code requires explicit scope enablement and an exact
+`.flip/extensions.lock` containing provider, version, path, and content hash.
+Cataloged, materialized, valid, enabled, and fixture-exercised are distinct
+states.
+
+The initial closed hook registry is `context.provide@1`,
+`frontier.provide@1`, `frontier.filter@1`, `check.provide@1`, and
+`receipt.filter@1`. Handlers are subprocesses using `flip-filter/1`: JSON stdin
+and stdout, direct argv, declared timeout, bounded output, deterministic
+`before`/`after` ordering, and typed result validation. Providers and filters
+cannot write canonical notebook state through Flip. They are not a security
+sandbox: an enabled command has the operating-system authority of the current
+user.
 
 ## 15. Tooling — the flip CLI
 
@@ -1752,6 +1794,7 @@ actor flag.
 ```text
 flip cli [--json]                    # compact map of every command (group path,
                                      #   purpose, key flags), generated from the tree
+flip next [--json] [--explain]       # scope-aware orient/select frontier (§14)
 flip config init                     # write a starter config.toml (bundled flip-fetch web lane)
 flip config show [--json]            # the lanes configured on this machine — what flip
                                      #   can actually run, and the command behind each
@@ -1777,7 +1820,14 @@ flip question note|close|dormant|    # the question journey (§7): evidence accr
 flip claim add|status|list …         # claims pages; verification bar enforced
 flip claim derives add|rm …          # derivation edges: what a claim rests on (§7)
 flip commission add|status|list …    # contract pages: universe/stop/does-not-redo (§7.4)
-flip session start|end …             # session pages
+flip session start|end …             # session pages + workflow/item coordinates + receipt
+flip workflow list|show|new|check|   # reusable process registry; suggestions, never execution
+              use|next …
+flip plugin link|list|show|doctor|   # local bundle registry; linking is not enabling
+            enable|disable|unlink …
+flip hook list|show …                # stable hook contracts + enabled handlers
+flip filter list|show|test …         # handler inventory and fixture exercise
+flip extension list …                # typed inventory across plugin exports
 flip show [--hot|--claims|--stale]   # computed views (--json for agents)
 flip open <ref>                      # resolve a ref (A3, recipes:A3) to its page path
 flip resolve <ref> [--json]          # same resolution with provenance: id, handle,

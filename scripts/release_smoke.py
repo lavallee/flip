@@ -62,8 +62,11 @@ required = [
     "profiles/research-review.toml",
     "kinds_builtin/lit-review.toml",
     "disciplines_builtin/lineage.toml",
+    "workflows_builtin/weekly-watch.toml",
     "skills/notebook-create/SKILL.md",
     "skills/notebook-source/SKILL.md",
+    "skills/notebook-workflow-author/SKILL.md",
+    "skills/notebook-plugin-author/SKILL.md",
     "obsidian_plugin/manifest.json",
     "obsidian_plugin/main.js",
     "spindle-package.toml",
@@ -126,7 +129,13 @@ def smoke(wheel: Path) -> None:
         if "actor: agent:release-smoke" not in created:
             raise SystemExit(f"first-write attribution was not reported correctly:\n{created}")
 
-        run([flip, "session", "start", "first-pass", "--tools", "local-files"], cwd=notebook, env=env)
+        run([flip, "workflow", "use", "question-pursuit@1"], cwd=notebook, env=env)
+        run([flip, "next", "--json", "--explain"], cwd=notebook, env=env)
+
+        run([
+            flip, "session", "start", "first-pass", "--tools", "local-files",
+            "--phase", "orient", "--item", "Q1",
+        ], cwd=notebook, env=env)
         run([flip, "log", "started: release smoke"], cwd=notebook, env=env)
         run([flip, "add-source", fixture, "--note", "release smoke fixture"], cwd=notebook, env=env)
         run(
@@ -162,7 +171,10 @@ def smoke(wheel: Path) -> None:
         )
         run([flip, "claim", "status", "C1", "verified"], cwd=notebook, env=env)
         run(
-            [flip, "session", "end", "first-pass", "--summary", "wheel workflow passed"],
+            [
+                flip, "session", "end", "first-pass", "--summary", "wheel workflow passed",
+                "--output", "C1", "--check", "doctor",
+            ],
             cwd=notebook,
             env=env,
         )

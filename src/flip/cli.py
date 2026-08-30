@@ -25,7 +25,9 @@ from . import (
     beat as beat_mod,
     claims,
     commissions as commissions_mod,
+    extensions,
     integrations,
+    loop as loop_mod,
     pages,
     doctor as doctor_mod,
     export as export_mod,
@@ -46,6 +48,7 @@ from . import (
     util,
     views,
     workspace as workspace_mod,
+    workflows,
 )
 from .util import (
     find_notebook_root_pinned,
@@ -209,7 +212,8 @@ def cli_map(ctx: click.Context, as_json: bool) -> None:
 
     The discoverability shortcut for agents: one read instead of walking
     `--help` per group. Attribution is the global `--actor` flag or
-    `FLIP_ACTOR` env — there is no other actor flag.
+    `FLIP_ACTOR` env — there is no other actor flag. `flip next` is the
+    bounded orient/select entry to the shared notebook/beat/workspace loop.
     """
     root = ctx.find_root().command
     leaves = _leaf_commands(root)
@@ -234,6 +238,28 @@ def cli_map(ctx: click.Context, as_json: bool) -> None:
         if flags:
             line += f"  [{' '.join(flags)}]"
         click.echo(line)
+
+
+# ---------------------------------------------------------------- core loop
+
+
+@main.command("next")
+@click.option("--json", "as_json", is_flag=True, help="Emit the bounded orient/select view as JSON.")
+@click.option("--limit", type=int, default=None,
+              help="Show only the top N items; the total is always reported.")
+@click.option("--explain", is_flag=True,
+              help="Show core and extension handlers that contributed, moved, or skipped rows.")
+def next_command(as_json: bool, limit: int | None, explain: bool) -> None:
+    """Orient and select at the nearest notebook, beat, or workspace scope.
+
+    This is the read side of the core lifecycle: orient, select, open a Work
+    Session, work through canonical commands, check, close with a receipt,
+    then let the human or harness apply the recorded stop condition. Flip
+    computes no cadence and never treats an empty frontier as proof of done.
+    """
+    data = loop_mod.next_view(limit=limit, explain=explain)
+    click.echo(json.dumps(data, ensure_ascii=False, indent=2) if as_json
+               else loop_mod.render(data))
 
 
 # ---------------------------------------------------------------- new
@@ -271,7 +297,7 @@ def new(slug: str, kind: str, title: str, visibility: str | None, dest: Path | N
     if not integrations.config_path().exists():
         click.echo("setup: no integration config yet; run `flip config init` before capturing URLs")
     click.echo(
-        f'next: cd {path} && flip session start first-pass && flip log "started"'
+        f'next: cd {path} && flip next && flip session start first-pass && flip log "started"'
     )
 
 
@@ -1831,13 +1857,21 @@ def session() -> None:
 @click.argument("slug")
 @click.option("--model", default=None, help="Model driving the episode, e.g. 'claude-fable-5'.")
 @click.option("--tools", multiple=True, help="Tool available in the episode (repeatable).")
-def session_start(slug: str, model: str | None, tools: tuple[str, ...]) -> None:
+@click.option("--workflow", default=None,
+              help="Workflow id or pin; exact resolved version lands in the receipt.")
+@click.option("--phase", default=None,
+              help="Workflow phase; omitted means `flip workflow next`'s suggestion.")
+@click.option("--item", default=None,
+              help="Selected frontier id, qualified when needed (e.g. beat-notes:Q1).")
+def session_start(slug: str, model: str | None, tools: tuple[str, ...],
+                  workflow: str | None, phase: str | None, item: str | None) -> None:
     """Open sessions/<UTC stamp>-<slug>.md with frontmatter and stubs.
 
     Prints the file path — fill in Goal/Prompt/Key outputs as you work.
     """
     path = sessions.start_session(require_notebook_root(), slug, model=model,
-                                  tools=list(tools) or None)
+                                  tools=list(tools) or None, workflow=workflow,
+                                  phase=phase, item=item)
     click.echo(str(path))
 
 
@@ -1845,13 +1879,19 @@ def session_start(slug: str, model: str | None, tools: tuple[str, ...]) -> None:
 @click.argument("slug_or_path", metavar="SLUG_OR_PATH")
 @click.option("--summary", required=True,
               help="What the session accomplished — the cold-pickup line.")
-def session_end(slug_or_path: str, summary: str) -> None:
+@click.option("--output", "outputs", multiple=True,
+              help="Durable output path or entity id produced (repeatable).")
+@click.option("--check", "checks", multiple=True,
+              help="Check run during the session, e.g. doctor (repeatable).")
+def session_end(slug_or_path: str, summary: str, outputs: tuple[str, ...],
+                checks: tuple[str, ...]) -> None:
     """Close a session: `ended` lands in its frontmatter, the summary in its body.
 
     Pass the path printed by `session start`, or just the slug (newest
     matching session wins).
     """
-    path = sessions.end_session(require_notebook_root(), slug_or_path, summary)
+    path = sessions.end_session(require_notebook_root(), slug_or_path, summary,
+                                outputs=list(outputs), checks=list(checks))
     click.echo(f"ended {path}")
 
 
@@ -2709,7 +2749,8 @@ def beat_show(as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, help="Emit the frontier as JSON.")
 @click.option("--limit", "limit", type=int, default=None,
               help="Show only the top N items (the total is always reported).")
-def beat_next(as_json: bool, limit: int | None) -> None:
+@click.option("--explain", is_flag=True, help="Show extension contributions and filter decisions.")
+def beat_next(as_json: bool, limit: int | None, explain: bool) -> None:
     """What this beat should pick up next, ranked, with the reason for each.
 
     The re-grounding primitive for a standing loop: instead of re-reading a
@@ -2724,13 +2765,10 @@ def beat_next(as_json: bool, limit: int | None) -> None:
     pass carries; the `auto:` block is where that standing policy is written
     so both the harness and the agent read the same one.
     """
-    from . import auto as auto_mod
-
-    if limit is not None and limit < 1:
-        raise SystemExit("--limit takes a positive number of items")
-    data = auto_mod.frontier(beat_mod.require_beat_root(), limit=limit)
+    data = loop_mod.next_view(beat_mod.require_beat_root(), scope="beat",
+                              limit=limit, explain=explain)
     click.echo(json.dumps(data, ensure_ascii=False, indent=2) if as_json
-               else auto_mod.render(data))
+               else loop_mod.render(data))
 
 
 @beat.command("log")
@@ -3223,6 +3261,310 @@ def forecast_list(as_json: bool) -> None:
                    f"{r.get('resolves_by', '?')} · "
                    f"p={r.get('probability', '?')}/c={r.get('confidence', '?')} · "
                    f"{r.get('description', '')}")
+
+
+# ---------------------------------------------------------------- workflows
+
+
+def _optional_notebook_root() -> Path | None:
+    return find_notebook_root_pinned()
+
+
+@main.group(cls=SuggestGroup)
+def workflow() -> None:
+    """Reusable phase sequences, independent of notebook outcome kinds."""
+
+
+@workflow.command("list")
+@click.option("--json", "as_json", is_flag=True, help="Emit workflow definitions as JSON.")
+def workflow_list(as_json: bool) -> None:
+    """List built-in, plugin, user, notebook, and inline-kind workflows."""
+    rows = [workflows.workflow_data(item)
+            for item in workflows.list_workflows(_optional_notebook_root())]
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    for row in rows:
+        click.echo(f"{row['pin']} · {row['origin']} · {row['summary']}")
+
+
+@workflow.command("show")
+@click.argument("workflow_id", metavar="ID")
+@click.option("--json", "as_json", is_flag=True, help="Emit the definition as JSON.")
+def workflow_show(workflow_id: str, as_json: bool) -> None:
+    """Show a workflow's exact pin, source, phases, guides, and outputs."""
+    row = workflows.workflow_data(
+        workflows.load_workflow(workflow_id, _optional_notebook_root())
+    )
+    if as_json:
+        click.echo(json.dumps(row, ensure_ascii=False, indent=2))
+        return
+    click.echo(f"{row['pin']} · {row['origin']}\n{row['summary']}")
+    click.echo(f"entry: {row['entry']} · source: {row['source'] or 'kind adapter'}")
+    for phase in row["phases"]:
+        click.echo(f"  {phase['id']} -> {phase['next'] or 'stop'}")
+        if phase["guide"]:
+            click.echo(f"    {phase['guide']}")
+        if phase["produces"]:
+            click.echo(f"    produces: {', '.join(phase['produces'])}")
+
+
+@workflow.command("new")
+@click.argument("workflow_id", metavar="ID")
+@click.option("--from", "from_id", default=None, help="Fork the nearest existing workflow.")
+@click.option("--user", is_flag=True,
+              help="Write to $FLIP_HOME/workflows instead of this notebook.")
+def workflow_new(workflow_id: str, from_id: str | None, user: bool) -> None:
+    """Scaffold one small TOML workflow, optionally forking an existing one."""
+    root = None if user else require_notebook_root()
+    path = workflows.create_workflow(workflow_id, root, from_id=from_id, user=user)
+    click.echo(str(path))
+    click.echo(f"next: edit it, then `flip workflow check {path}`")
+
+
+@workflow.command("check")
+@click.argument("path_or_id", metavar="PATH_OR_ID")
+def workflow_check(path_or_id: str) -> None:
+    """Parse and structurally validate a workflow file or visible id."""
+    path = Path(path_or_id)
+    if path.is_file():
+        item = workflows._parse(path.read_text(encoding="utf-8"), path, "file")
+    else:
+        item = workflows.load_workflow(path_or_id, _optional_notebook_root())
+    click.echo(f"valid: {item.pin} · {len(item.phases)} phase(s) · entry {item.entry}")
+
+
+@workflow.command("use")
+@click.argument("workflow_id", metavar="ID")
+def workflow_use(workflow_id: str) -> None:
+    """Pin a visible workflow and exact version in this notebook manifest."""
+    item = workflows.use_workflow(require_notebook_root(), workflow_id)
+    click.echo(f"workflow -> {item.pin}")
+
+
+@workflow.command("next")
+@click.option("--workflow", "workflow_id", default=None,
+              help="Suggest from this workflow instead of the manifest pin.")
+@click.option("--json", "as_json", is_flag=True, help="Emit the suggestion as JSON.")
+@click.option("--explain", is_flag=True, help="Include the receipt-derived reason.")
+def workflow_next(workflow_id: str | None, as_json: bool, explain: bool) -> None:
+    """Suggest the phase after the newest matching Work Session receipt."""
+    row = workflows.next_phase(require_notebook_root(), workflow_id)
+    if not explain:
+        row = dict(row)
+        row.pop("reason", None)
+    if as_json:
+        click.echo(json.dumps(row, ensure_ascii=False, indent=2))
+        return
+    phase = row.get("phase") or "complete"
+    click.echo(f"{row['workflow']} -> {phase}")
+    if row.get("guide"):
+        click.echo(row["guide"])
+    if explain and row.get("reason"):
+        click.echo(f"because: {row['reason']}")
+
+
+# ---------------------------------------------------------------- plugins and hooks
+
+
+def _scope_if_any() -> Path | None:
+    try:
+        return loop_mod.resolve_scope()[1]
+    except SystemExit:
+        return None
+
+
+@main.group(cls=SuggestGroup)
+def plugin() -> None:
+    """Local, versioned bundles of Flip definitions and executable filters."""
+
+
+@plugin.command("link")
+@click.argument("path", type=click.Path(exists=True, path_type=Path))
+def plugin_link(path: Path) -> None:
+    """Register an already-materialized local bundle; do not enable it."""
+    item = extensions.link_plugin(path)
+    click.echo(f"linked {item.pin} at {item.root}")
+    click.echo("state: materialized + valid; not enabled, exercised, or cataloged")
+
+
+@plugin.command("list")
+@click.option("--json", "as_json", is_flag=True, help="Emit registry state as JSON.")
+def plugin_list(as_json: bool) -> None:
+    """List linked bundles, keeping materialized/valid/enabled states separate."""
+    scope = _scope_if_any()
+    rows = extensions.registry_rows(scope)
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        click.echo("no linked plugins (`flip plugin link <path>` registers one)")
+        return
+    for row in rows:
+        state = "enabled" if row["enabled"] else "not enabled"
+        validity = "valid" if row["valid"] else f"INVALID: {row['error']}"
+        presence = "materialized" if row["materialized"] else "missing"
+        click.echo(f"{row['pin']} · {presence} · {validity} · {state} · {row['path']}")
+
+
+@plugin.command("show")
+@click.argument("plugin_id", metavar="ID")
+@click.option("--json", "as_json", is_flag=True, help="Emit manifest and state as JSON.")
+def plugin_show(plugin_id: str, as_json: bool) -> None:
+    """Show one bundle's exports, capabilities, handlers, and local state."""
+    row = extensions.plugin_data(extensions.resolve_plugin(plugin_id), _scope_if_any())
+    if as_json:
+        click.echo(json.dumps(row, ensure_ascii=False, indent=2))
+        return
+    click.echo(f"{row['pin']} · {row['summary']}\npath: {row['path']}")
+    click.echo(f"capabilities: {', '.join(row['capabilities']) or 'definitions only'}")
+    for noun, values in row["exports"].items():
+        click.echo(f"  {noun}: {', '.join(values)}")
+    for handler in row["filters"]:
+        click.echo(f"  filter: {handler['id']} -> {handler['hook']}")
+
+
+@plugin.command("doctor")
+@click.argument("path_or_id", metavar="PATH_OR_ID")
+def plugin_doctor(path_or_id: str) -> None:
+    """Validate a materialized bundle without linking or enabling it."""
+    path = Path(path_or_id)
+    item = extensions.load_plugin(path) if path.exists() else extensions.resolve_plugin(path_or_id)
+    extensions.deep_validate_plugin(item)
+    click.echo(f"valid: {item.pin} · {len(item.handlers)} executable handler(s)")
+    if item.handlers:
+        click.echo("trust: executable handlers are local programs, not a security sandbox")
+
+
+@plugin.command("enable")
+@click.argument("plugin_id", metavar="ID[@VERSION]")
+def plugin_enable(plugin_id: str) -> None:
+    """Explicitly enable a linked bundle at the nearest Flip scope and write its lock."""
+    scope_kind, root = loop_mod.resolve_scope()
+    item = extensions.enable_plugin(root, plugin_id)
+    click.echo(f"enabled {item.pin} for {scope_kind} {root}")
+    if item.handlers:
+        click.echo("trust: its declared executable handlers may now run as your local user")
+
+
+@plugin.command("disable")
+@click.argument("plugin_id", metavar="ID")
+def plugin_disable(plugin_id: str) -> None:
+    """Disable a bundle at the nearest scope and refresh the exact lock."""
+    scope_kind, root = loop_mod.resolve_scope()
+    changed = extensions.disable_plugin(root, plugin_id)
+    click.echo(("disabled" if changed else "not enabled") + f" {plugin_id} for {scope_kind} {root}")
+
+
+@plugin.command("unlink")
+@click.argument("plugin_id", metavar="ID")
+def plugin_unlink(plugin_id: str) -> None:
+    """Remove a local registry pointer; scope pins remain visible and unresolved."""
+    changed = extensions.unlink_plugin(plugin_id)
+    click.echo(("unlinked" if changed else "not linked") + f" {plugin_id}")
+
+
+@main.group(cls=SuggestGroup)
+def hook() -> None:
+    """Stable lifecycle seams and their enabled handlers."""
+
+
+@hook.command("list")
+@click.option("--json", "as_json", is_flag=True, help="Emit hook contracts as JSON.")
+def hook_list(as_json: bool) -> None:
+    root = _scope_if_any()
+    rows = []
+    for hook_id, contract in extensions.HOOKS.items():
+        attached = extensions.handlers(root, hook_id) if root is not None else []
+        rows.append({"id": hook_id, **contract,
+                     "handlers": [entry.qualified_id for entry in attached]})
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    for row in rows:
+        click.echo(f"{row['id']} · {row['strategy']} · {len(row['handlers'])} enabled handler(s)")
+
+
+@hook.command("show")
+@click.argument("hook_id", metavar="HOOK")
+@click.option("--handlers", "with_handlers", is_flag=True,
+              help="Include enabled handlers at the nearest scope.")
+@click.option("--json", "as_json", is_flag=True, help="Emit the hook contract as JSON.")
+def hook_show(hook_id: str, with_handlers: bool, as_json: bool) -> None:
+    if "@" not in hook_id:
+        hook_id += "@1"
+    if hook_id not in extensions.HOOKS:
+        raise SystemExit(f"unknown hook '{hook_id}'; known: {', '.join(extensions.HOOKS)}")
+    row = {"id": hook_id, **extensions.HOOKS[hook_id]}
+    if with_handlers:
+        root = loop_mod.resolve_scope()[1]
+        row["handlers"] = [extensions.handler_data(entry)
+                           for entry in extensions.handlers(root, hook_id)]
+    click.echo(json.dumps(row, ensure_ascii=False, indent=2) if as_json else
+               f"{row['id']} · {row['strategy']} · failure: {row['failure']}")
+
+
+@main.group(cls=SuggestGroup)
+def filter() -> None:
+    """Executable providers and pure filters contributed by linked plugins."""
+
+
+@filter.command("list")
+@click.option("--hook", "hook_id", default=None, help="Only handlers on this hook.")
+@click.option("--json", "as_json", is_flag=True, help="Emit handlers as JSON.")
+def filter_list(hook_id: str | None, as_json: bool) -> None:
+    if hook_id and "@" not in hook_id:
+        hook_id += "@1"
+    root = _scope_if_any()
+    enabled_ids = {entry.qualified_id for entry in extensions.handlers(root)} if root else set()
+    found = [handler for plugin_item in extensions.linked_plugins()
+             for handler in plugin_item.handlers if hook_id is None or handler.hook == hook_id]
+    rows = [extensions.handler_data(handler) | {"enabled": handler.qualified_id in enabled_ids}
+            for handler in found]
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    for row in rows:
+        click.echo(f"{row['id']} · {row['hook']} · "
+                   f"{'enabled' if row['enabled'] else 'not enabled'}")
+
+
+@filter.command("show")
+@click.argument("filter_id", metavar="ID")
+@click.option("--json", "as_json", is_flag=True, help="Emit handler metadata as JSON.")
+def filter_show(filter_id: str, as_json: bool) -> None:
+    row = extensions.handler_data(extensions.find_handler(filter_id))
+    click.echo(json.dumps(row, ensure_ascii=False, indent=2) if as_json else
+               f"{row['id']} -> {row['hook']} · command: {' '.join(row['command'])}")
+
+
+@filter.command("test")
+@click.argument("filter_id", metavar="ID")
+@click.option("--fixture", required=True, type=click.Path(exists=True, dir_okay=False,
+                                                           path_type=Path))
+def filter_test(filter_id: str, fixture: Path) -> None:
+    """Exercise one handler against checked-in JSON without enabling it."""
+    handler = extensions.find_handler(filter_id)
+    result = extensions.test_handler(handler, fixture)
+    click.echo(json.dumps({"exercised": True, "handler": handler.qualified_id,
+                           "output": result}, ensure_ascii=False, indent=2))
+
+
+@main.group(cls=SuggestGroup)
+def extension() -> None:
+    """One typed inventory across definitions and executable filter capabilities."""
+
+
+@extension.command("list")
+@click.option("--json", "as_json", is_flag=True, help="Emit the inventory as JSON.")
+def extension_list(as_json: bool) -> None:
+    rows = extensions.inventory(_scope_if_any())
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    for row in rows:
+        click.echo(f"{row['type']} · {row['id']} · "
+                   f"{'enabled' if row['enabled'] else 'linked'}")
 
 
 if __name__ == "__main__":  # pragma: no cover

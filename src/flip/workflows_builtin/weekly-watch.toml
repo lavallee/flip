@@ -1,0 +1,29 @@
+id = "weekly-watch"
+version = "1.0"
+summary = "Refresh one due or open item without re-reading the whole corpus."
+applies_to = ["pursuit", "forward-set", "research-review"]
+entry = "orient"
+
+[[phase]]
+id = "orient"
+guide = "Read flip next, the selected item, loop policy, and latest receipt."
+produces = ["selected-item"]
+next = "refresh"
+
+[[phase]]
+id = "refresh"
+guide = "Check the named surface; capture evidence or record an explicit zero-yield pass."
+produces = ["source-capture-or-zero-yield"]
+next = "assess"
+
+[[phase]]
+id = "assess"
+guide = "Update the selected question, forecast, claim, or thread using canonical commands."
+produces = ["item-update"]
+next = "audit"
+
+[[phase]]
+id = "audit"
+guide = "Run checks, close the session, then recompute the frontier and apply the stop policy."
+produces = ["doctor-run", "session-receipt"]
+next = "orient"

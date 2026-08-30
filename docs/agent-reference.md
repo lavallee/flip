@@ -496,7 +496,8 @@ flip doctor       # audit the result; migration preserves ids and history
 Procedural checklists for these workflows ship in
 [src/flip/skills/](../src/flip/skills/) — `notebook-create`, `notebook-source`,
 `notebook-log`, `notebook-audit`, `notebook-handoff`, `notebook-lessons`,
-`notebook-kind-author` —
+`notebook-kind-author`, `notebook-extend`, `notebook-workflow-author`, and
+`notebook-plugin-author` —
 as plain `SKILL.md` files usable by any agent runtime, and as a
 [spindle](https://github.com/lavallee/spindle) package named `flip`. Claude
 Code and Codex users get the same skills as a plugin:

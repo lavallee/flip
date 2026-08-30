@@ -1,0 +1,12 @@
+[
+  {
+    "id": "WL1",
+    "text": "Read the new board filing",
+    "why": "The local editorial worklist marked it ready"
+  },
+  {
+    "id": "WL2",
+    "text": "Recheck the disclosure page",
+    "why": "The public surface changed since the last pass"
+  }
+]

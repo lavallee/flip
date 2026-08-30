@@ -13,6 +13,9 @@ skills = [
   "notebook-handoff",
   "notebook-lessons",
   "notebook-kind-author",
+  "notebook-extend",
+  "notebook-workflow-author",
+  "notebook-plugin-author",
 ]
 capabilities = [
   "research-notebook-scaffolding",
@@ -21,4 +24,6 @@ capabilities = [
   "session-logging",
   "notebook-handoff",
   "lessons-distillation",
+  "workflow-authoring",
+  "plugin-authoring",
 ]

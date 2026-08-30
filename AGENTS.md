@@ -84,17 +84,25 @@ Read the matching skill completely before acting:
 | Pause or transfer the work | [`notebook-handoff`](src/flip/skills/notebook-handoff/SKILL.md) |
 | Preserve a process lesson | [`notebook-lessons`](src/flip/skills/notebook-lessons/SKILL.md) |
 | Define an outcome kind | [`notebook-kind-author`](src/flip/skills/notebook-kind-author/SKILL.md) |
+| Route a reusable process change | [`notebook-extend`](src/flip/skills/notebook-extend/SKILL.md) |
+| Define a reusable work sequence | [`notebook-workflow-author`](src/flip/skills/notebook-workflow-author/SKILL.md) |
+| Package and share extensions | [`notebook-plugin-author`](src/flip/skills/notebook-plugin-author/SKILL.md) |
 
-The common operating loop is:
+The common operating loop is orient → select → open → work → check → close →
+continue or stop:
 
 ```bash
-flip session start <slug> --model <model> --tools <tool>
+flip next --explain
+flip session start <slug> --model <model> --tools <tool> \
+  --workflow <id> --phase <phase> --item <id>
 flip add-source <url-or-file> --note "<why it matters>"
 flip grade <id> --independence ... --basis ...
 flip claim add "<assertion>" --source <id> --load-bearing
 flip show
-flip session end <slug> --summary "<cold-pickup line>"
 flip doctor
+flip session end <slug> --summary "<cold-pickup line>" \
+  --output <path-or-id> --check doctor
+flip next
 ```
 
 Use `flip show` for the hot state, `flip open <id>` for targeted reading, and
