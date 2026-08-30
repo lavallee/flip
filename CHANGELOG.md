@@ -47,6 +47,12 @@ versioning follows [Semantic Versioning](https://semver.org/).
   the workflow registry. `VISION.md` and `ROADMAP.md` now make user-owned,
   inspectable extension practice a strategy bet with adoption evidence gates.
 
+### Fixed
+
+- **The generated Flipbook's refusal link is valid before JavaScript runs.**
+  Its static anchor is transferred to the generated conversation exchange at
+  runtime, and Pages pins the validator version used for release checks.
+
 ### Security
 
 - Executable handlers require explicit per-scope enablement and capability

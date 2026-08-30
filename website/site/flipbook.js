@@ -18,6 +18,11 @@
   var chat = document.getElementById("fb-chat");
   if (!book || !book.steps || !book.steps.length || !kit || !chat) return;
 
+  // Keep deep links visible to static site validation and no-script readers,
+  // then transfer the id to the generated exchange before rendering it.
+  var refusalAnchor = document.getElementById("step-refused");
+  if (refusalAnchor) refusalAnchor.removeAttribute("id");
+
   var steps = book.steps;
 
   function el(tag, cls, text) {

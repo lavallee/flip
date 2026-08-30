@@ -33,7 +33,7 @@ jobs:
       # test is this checkout — not whatever is on PyPI.
       - run: uv sync --locked
       - run: uv tool install --force .
-      - run: uv tool install artoo-artifacts
+      - run: uv tool install artoo-artifacts==0.5.0
 
       - name: Build the artifact
         run: artoo build website
