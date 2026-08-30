@@ -1,5 +1,5 @@
 window.__FLIP_SPEC__ = {
-  "generated": "2026-08-29T20:07:37+00:00",
+  "generated": "2026-08-30T15:13:59+00:00",
   "sections": [
     {
       "number": "1",
@@ -243,6 +243,7 @@ window.__FLIP_SPEC__ = {
         "ended",
         "generated",
         "model",
+        "receipt",
         "started",
         "tools",
         "transcript",

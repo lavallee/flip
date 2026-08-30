@@ -63,8 +63,9 @@
         <p class="install-label">Codex</p>
         <div class="cmd"><code>codex plugin marketplace add lyra-forge/marketplace
 codex plugin add flip@lyra-forge</code></div>
-        <p>Both receive the same seven notebook skills. Start a new session after
-          installation. The <a href="https://github.com/lavallee/flip/blob/main/docs/claude-code.md">harness
+        <p>Both receive the same ten notebook skills: seven for notebook practice
+          and three for extending flip with reusable workflows and plugins. Start a
+          new session after installation. The <a href="https://github.com/lavallee/flip/blob/main/docs/claude-code.md">harness
           guide</a> explains the custody-hook difference between them.</p>
       </li>
 
@@ -86,9 +87,10 @@ flip --version</code></div>
     <p class="section-kicker">Your first research question</p>
     <h2>Give it the assignment</h2>
     <div class="cmd cmd--prompt"><code>Use flip for this investigation: &lt;question&gt;. Leave a notebook another agent can inspect and continue.</code></div>
-    <p>The plugin is loaded at session start. The agent chooses the notebook kind,
-      handles the CLI, and keeps using the repository's existing source, retrieval,
-      and publishing systems.</p>
+    <p>The plugin is loaded at session start. The agent chooses the notebook kind
+      and workflow, follows flip's visible orient → select → open → work →
+      check → close loop, and keeps using the repository's existing source,
+      retrieval, and publishing systems.</p>
   </section>
 
   <section class="prose">
@@ -102,6 +104,9 @@ flip --version</code></div>
     <p>When you want to inspect the work, ask for <code>flip show</code>, the claims
       needing support, open questions, source grades, or the latest handoff. The same
       pages remain readable in GitHub, Obsidian, or any Markdown editor.</p>
+    <p>If the process repeats, ask the agent to turn it into a shareable workflow or
+      plugin. Definitions stay plain TOML and Markdown; executable filters are
+      explicitly enabled, bounded, and visible to <code>flip doctor</code>.</p>
   </section>
 
   <section>
@@ -184,6 +189,7 @@ flip doctor</code></div>
       <li><a href="https://github.com/lavallee/flip/blob/main/docs/quickstart.md">CLI quickstart</a>—a network-free first notebook.</li>
       <li><a href="https://github.com/lavallee/flip/blob/main/docs/evidence-workflow.md">Evidence workflow</a>—claims, tests, question journeys, and handoff.</li>
       <li><a href="https://github.com/lavallee/flip/blob/main/docs/integrations.md">Integrations</a>—URL capture, extraction, research, and local knowledge.</li>
+      <li><a href="https://github.com/lavallee/flip/blob/main/docs/extensions.md">Workflows and extensions</a>—the core loop, registries, hooks, filters, and authoring.</li>
       <li><a href="flipbook.html">Flipbook</a>—watch a complete human-agent exchange become a notebook.</li>
       <li><a href="notebook.html">Finished notebook</a>—browse the generated record in full.</li>
     </ul>

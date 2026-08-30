@@ -23,7 +23,20 @@ installable. Treat all three as one release path.
 4. If a canonical skill changed, copy the same change from
    `src/flip/skills/` into `skills/`. The plugin test detects added, removed,
    and changed files in either direction.
-5. Confirm the `flip` entry exists in both marketplace catalogs before
+5. Run the public-repository hygiene gate:
+
+   ```bash
+   git grep -niE 'downunder|paperboy|\bfrank\b|\bivy\b|lyra[[:space:]]+forge' -- \
+     ':!CHANGELOG.md' ':!RELEASING.md' \
+     ':!.github/workflows/pages.yml' ':!tests/test_website.py'
+   ```
+
+   It must return nothing. The exclusions are narrow and intentional:
+   `CHANGELOG.md` preserves released history; this file, the workflow, and the
+   test define the denylist they enforce against the deployable site. The
+   public `lyra-forge/marketplace` slug is Flip's distribution address, not
+   private product branding; the gate still rejects the prose name.
+6. Confirm the `flip` entry exists in both marketplace catalogs before
    publishing:
 
    ```bash

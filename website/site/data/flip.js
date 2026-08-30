@@ -1,7 +1,7 @@
 window.__FLIP_META__ = {
-  "generated": "2026-08-29T20:07:37+00:00",
-  "version": "0.21.1",
-  "revision": "fbec71d",
+  "generated": "2026-08-30T15:13:59+00:00",
+  "version": "0.22.0",
+  "revision": "bd8962e",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",
@@ -9,17 +9,20 @@ window.__FLIP_META__ = {
   ],
   "license": "MIT",
   "package": "flip-notebook",
-  "tests": 1303,
-  "spec_status": "draft v0.21 \u00b7 2026-08-18",
-  "spec_lines": 2117,
+  "tests": 1319,
+  "spec_status": "draft v0.22 \u00b7 2026-08-30",
+  "spec_lines": 2167,
   "skills": [
     "notebook-audit",
     "notebook-create",
+    "notebook-extend",
     "notebook-handoff",
     "notebook-kind-author",
     "notebook-lessons",
     "notebook-log",
-    "notebook-source"
+    "notebook-plugin-author",
+    "notebook-source",
+    "notebook-workflow-author"
   ],
   "cli": {
     "global_options": [
@@ -140,6 +143,10 @@ window.__FLIP_META__ = {
           },
           {
             "name": "--limit",
+            "required": false
+          },
+          {
+            "name": "--explain",
             "required": false
           }
         ]
@@ -766,6 +773,19 @@ window.__FLIP_META__ = {
         ]
       },
       {
+        "command": "flip extension list",
+        "group": "flip extension",
+        "name": "list",
+        "purpose": "",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
         "command": "flip extract",
         "group": "flip",
         "name": "extract",
@@ -789,6 +809,53 @@ window.__FLIP_META__ = {
           {
             "name": "--method",
             "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip filter list",
+        "group": "flip filter",
+        "name": "list",
+        "purpose": "",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--hook",
+            "required": false
+          },
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip filter show",
+        "group": "flip filter",
+        "name": "show",
+        "purpose": "",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip filter test",
+        "group": "flip filter",
+        "name": "test",
+        "purpose": "Exercise one handler against checked-in JSON without enabling it.",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--fixture",
+            "required": true
           }
         ]
       },
@@ -1018,6 +1085,38 @@ window.__FLIP_META__ = {
         ]
       },
       {
+        "command": "flip hook list",
+        "group": "flip hook",
+        "name": "list",
+        "purpose": "",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip hook show",
+        "group": "flip hook",
+        "name": "show",
+        "purpose": "",
+        "arguments": [
+          "HOOK"
+        ],
+        "options": [
+          {
+            "name": "--handlers",
+            "required": false
+          },
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
         "command": "flip import",
         "group": "flip",
         "name": "import",
@@ -1152,6 +1251,27 @@ window.__FLIP_META__ = {
         ]
       },
       {
+        "command": "flip next",
+        "group": "flip",
+        "name": "next",
+        "purpose": "Orient and select at the nearest notebook, beat, or workspace scope.",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--json",
+            "required": false
+          },
+          {
+            "name": "--limit",
+            "required": false
+          },
+          {
+            "name": "--explain",
+            "required": false
+          }
+        ]
+      },
+      {
         "command": "flip obsidian",
         "group": "flip",
         "name": "obsidian",
@@ -1200,6 +1320,84 @@ window.__FLIP_META__ = {
             "required": false
           }
         ]
+      },
+      {
+        "command": "flip plugin disable",
+        "group": "flip plugin",
+        "name": "disable",
+        "purpose": "Disable a bundle at the nearest scope and refresh the exact lock.",
+        "arguments": [
+          "ID"
+        ],
+        "options": []
+      },
+      {
+        "command": "flip plugin doctor",
+        "group": "flip plugin",
+        "name": "doctor",
+        "purpose": "Validate a materialized bundle without linking or enabling it.",
+        "arguments": [
+          "PATH_OR_ID"
+        ],
+        "options": []
+      },
+      {
+        "command": "flip plugin enable",
+        "group": "flip plugin",
+        "name": "enable",
+        "purpose": "Explicitly enable a linked bundle at the nearest Flip scope and write its lock.",
+        "arguments": [
+          "ID[@VERSION]"
+        ],
+        "options": []
+      },
+      {
+        "command": "flip plugin link",
+        "group": "flip plugin",
+        "name": "link",
+        "purpose": "Register an already-materialized local bundle; do not enable it.",
+        "arguments": [
+          "PATH"
+        ],
+        "options": []
+      },
+      {
+        "command": "flip plugin list",
+        "group": "flip plugin",
+        "name": "list",
+        "purpose": "List linked bundles, keeping materialized/valid/enabled states separate.",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip plugin show",
+        "group": "flip plugin",
+        "name": "show",
+        "purpose": "Show one bundle's exports, capabilities, handlers, and local state.",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip plugin unlink",
+        "group": "flip plugin",
+        "name": "unlink",
+        "purpose": "Remove a local registry pointer; scope pins remain visible and unresolved.",
+        "arguments": [
+          "ID"
+        ],
+        "options": []
       },
       {
         "command": "flip profiles",
@@ -1426,6 +1624,14 @@ window.__FLIP_META__ = {
           {
             "name": "--summary",
             "required": true
+          },
+          {
+            "name": "--output",
+            "required": false
+          },
+          {
+            "name": "--check",
+            "required": false
           }
         ]
       },
@@ -1444,6 +1650,18 @@ window.__FLIP_META__ = {
           },
           {
             "name": "--tools",
+            "required": false
+          },
+          {
+            "name": "--workflow",
+            "required": false
+          },
+          {
+            "name": "--phase",
+            "required": false
+          },
+          {
+            "name": "--item",
             "required": false
           }
         ]
@@ -1621,6 +1839,94 @@ window.__FLIP_META__ = {
         "arguments": [
           "ID",
           "LABEL"
+        ],
+        "options": []
+      },
+      {
+        "command": "flip workflow check",
+        "group": "flip workflow",
+        "name": "check",
+        "purpose": "Parse and structurally validate a workflow file or visible id.",
+        "arguments": [
+          "PATH_OR_ID"
+        ],
+        "options": []
+      },
+      {
+        "command": "flip workflow list",
+        "group": "flip workflow",
+        "name": "list",
+        "purpose": "List built-in, plugin, user, notebook, and inline-kind workflows.",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip workflow new",
+        "group": "flip workflow",
+        "name": "new",
+        "purpose": "Scaffold one small TOML workflow, optionally forking an existing one.",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--from",
+            "required": false
+          },
+          {
+            "name": "--user",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip workflow next",
+        "group": "flip workflow",
+        "name": "next",
+        "purpose": "Suggest the phase after the newest matching Work Session receipt.",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--workflow",
+            "required": false
+          },
+          {
+            "name": "--json",
+            "required": false
+          },
+          {
+            "name": "--explain",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip workflow show",
+        "group": "flip workflow",
+        "name": "show",
+        "purpose": "Show a workflow's exact pin, source, phases, guides, and outputs.",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip workflow use",
+        "group": "flip workflow",
+        "name": "use",
+        "purpose": "Pin a visible workflow and exact version in this notebook manifest.",
+        "arguments": [
+          "ID"
         ],
         "options": []
       },

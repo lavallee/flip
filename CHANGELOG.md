@@ -6,6 +6,8 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-08-30
+
 ### Added
 
 - **One explicit core lifecycle at notebook, beat, and workspace scope.**
