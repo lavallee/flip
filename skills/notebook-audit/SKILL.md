@@ -15,6 +15,17 @@ claim surface, and `flip doctor` for structural findings. Doctor lists
 expected-until-use profile files separately; they become errors only when a
 notebook is done, published, or archived.
 
+## Editorial handoff
+
+When the task includes handing a researched draft to an editor, use the optional
+[flip-publication](https://github.com/lavallee/flip-publication) bundle for its
+workflow, evidence map and handoff templates. Read its README, get a persistent
+checkout, then `flip plugin doctor <path>` and `flip plugin link <path>`.
+It is definitions only: linking executes no renderer and needs no enable step.
+Use `flip workflow show lavallee/publication-evidence/publication-handoff`
+before selecting it. Review exported citation metadata before sharing; neither
+a successful render nor a completed workflow establishes editorial approval.
+
 ## Checklist
 
 1. **Lint first.** `flip doctor` — fix every ERROR (bad enums, orphan

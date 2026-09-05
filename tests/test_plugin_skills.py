@@ -53,3 +53,9 @@ def test_claude_hook_manifest_resolves_commands():
     assert commands
     assert all("${CLAUDE_PLUGIN_ROOT}/hooks/custody_hook.py" in command for command in commands)
     assert (ROOT / "hooks" / "custody_hook.py").is_file()
+
+
+def test_public_plugin_catalog_matches_packaged_source_reference():
+    assert (ROOT / "docs/plugins.md").read_bytes() == (
+        CANONICAL / "notebook-source/references/plugins.md"
+    ).read_bytes()

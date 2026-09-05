@@ -266,6 +266,8 @@ expected token-efficiency benefit has not yet been benchmarked.
   questions, transcripts, ids, and renames
 - [Integrations](docs/integrations.md) — capture, extraction, research, and
   local-knowledge lanes
+- [Public source plugins](docs/plugins.md) — source adapters, installation,
+  named lanes, and editorial handoffs
 - [Agent orientation](docs/agent-orientation.md) — capabilities, workflow map,
   and operating contract for agents
 - [Claude Code and Codex](docs/claude-code.md) — plugin behavior, skills, updates,

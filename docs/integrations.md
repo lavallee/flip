@@ -4,6 +4,13 @@ flip owns the notebook and provenance protocol, not the tools that search,
 fetch, extract, or recall. Those tools are configured under four roles in
 `$FLIP_HOME/config.toml` (default `~/.flip/config.toml`).
 
+## Optional public adapters
+
+See [Public source plugins](plugins.md) for GitHub, documents, Reddit, YouTube,
+papers and editorial handoffs, including how to install a tool, link its
+definitions and configure a named lane. Start there when ordinary URL capture
+cannot preserve the source you need.
+
 ## Start with web capture
 
 ```bash

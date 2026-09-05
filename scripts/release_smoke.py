@@ -65,6 +65,7 @@ required = [
     "workflows_builtin/weekly-watch.toml",
     "skills/notebook-create/SKILL.md",
     "skills/notebook-source/SKILL.md",
+    "skills/notebook-source/references/plugins.md",
     "skills/notebook-workflow-author/SKILL.md",
     "skills/notebook-plugin-author/SKILL.md",
     "obsidian_plugin/manifest.json",

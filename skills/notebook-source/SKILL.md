@@ -15,6 +15,18 @@ lanes exist on this machine. Use `flip cli` for the current command map and
 set `FLIP_ACTOR` before any write. `flip doctor` separates expected-until-use
 profile notes from findings that need action.
 
+## Choose an adapter when the source needs one
+
+Check `flip config show` and the installed command's `--help` first. For GitHub
+threads, Reddit conversations, YouTube transcripts, Office/PDF documents, or
+exact DOI/arXiv records, read [Public source plugins](references/plugins.md).
+It maps source jobs to maintained optional adapters and explains installation,
+plugin linking, named lanes, and an actual capture check. Get the relevant tool
+when the task needs it; do not stop at a missing lane if an adapter fits.
+Install tools separately from the researched project's dependencies, preserve
+existing configuration, and use an isolated `FLIP_HOME` for trials. Credentials
+come from the operator's authorized setup, never from guessed values.
+
 ## Checklist
 
 1. **Capture the moment you rely on it.**
@@ -29,10 +41,10 @@ profile notes from findings that need action.
    <id>` finds it again. URL/DOI capture runs the fetcher configured in
    `$FLIP_HOME/config.toml` — if flip errors, adapt the schematic stanza it
    prints; never work around the fetcher by saving text yourself.
-   Fetcher implementations are operator configuration, not part of flip's
-   public contract. Keep site-specific commands in `$FLIP_HOME/config.toml`
-   or a separate private integration repository; portable instructions
-   should name source kinds and placeholders, not a deployment's tools.
+   Fetcher bindings are operator configuration. Published optional adapters
+   are described in the linked plugin guide; private deployment commands and
+   credentials belong in `$FLIP_HOME/config.toml` or a private integration
+   repository, never in portable instructions.
 2. **A refusal is where the work starts, not where it ends.** The single
    most common way an acquisition fails is that the agent stopped at the
    first 403. It is a decision about *this request*, not a verdict on the

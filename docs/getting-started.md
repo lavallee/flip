@@ -81,7 +81,7 @@ flip config show
 
 This writes `~/.flip/config.toml` with a `web` lane using `flip-fetch`. It will
 not overwrite an existing config unless asked. PDF/OCR extraction, research,
-and local-knowledge lanes remain operator choices; see [Integrations](integrations.md).
+and local-knowledge lanes remain operator choices; see [Integrations](integrations.md) and the [public plugin catalog](plugins.md).
 
 ## 4. Verify the first notebook
 

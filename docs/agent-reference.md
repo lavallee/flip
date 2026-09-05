@@ -324,7 +324,7 @@ flip source list --json    # same rows for machine consumption
 Each capture opens a `references/<slug>.md` page — custody and judgment in
 frontmatter, your capture notes in the body. URL/DOI capture needs a
 `[fetchers]` entry in `$FLIP_HOME/config.toml` (default `~/.flip/config.toml`)
-— see [Integrations](integrations.md). If the fetcher isn't
+— see [Integrations](integrations.md) and [Public source plugins](plugins.md). If the fetcher isn't
 configured, flip's error prints a schematic stanza to adapt; `flip config show`
 lists the lanes that *are* configured, and the command behind each.
 
