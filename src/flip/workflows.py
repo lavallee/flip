@@ -12,6 +12,7 @@ import json
 import re
 import tomllib
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from importlib import resources
 from pathlib import Path
 
@@ -267,6 +268,35 @@ def use_workflow(root: Path, value: str) -> Workflow:
     return workflow
 
 
+def _session_order(page: pages.Page) -> tuple[int, str]:
+    """Order sessions by their opening time, with a stable legacy fallback.
+
+    Filenames have minute precision and their slugs are not chronological.
+    The opening nanoseconds move into the receipt when a session closes.
+    """
+    receipt = page.fm.get("receipt")
+    receipt = receipt if isinstance(receipt, dict) else {}
+    for value in (page.fm.get("receipt_opened_ns"), receipt.get("observed_since_ns")):
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int) or (isinstance(value, str) and value.isdecimal()):
+            if int(value) > 0:
+                return int(value), page.path.name
+    for value in (page.fm.get("started"), receipt.get("observed_since"),
+                  page.fm.get("ended"), page.path.name[:15]):
+        try:
+            stamp = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        elapsed = stamp - datetime(1970, 1, 1, tzinfo=timezone.utc)
+        ns = ((elapsed.days * 86400 + elapsed.seconds) * 1_000_000_000
+              + elapsed.microseconds * 1000)
+        return ns, page.path.name
+    return 0, page.path.name
+
+
 def next_phase(root: Path, value: str | None = None) -> dict:
     manifest = load_manifest(root)
     selected = value or manifest.workflow
@@ -283,15 +313,15 @@ def next_phase(root: Path, value: str | None = None) -> dict:
     last = None
     sessions_dir = root / "sessions"
     if sessions_dir.is_dir():
-        for path in sorted(sessions_dir.glob("*.md"), reverse=True):
+        for path in sessions_dir.glob("*.md"):
             try:
                 page = pages.read_page(path)
             except Exception:
                 continue
             session_workflow, _ = _split_pin(str(page.fm.get("workflow") or ""))
             if session_workflow in (workflow.qualified_id, workflow.id):
-                last = page
-                break
+                if last is None or _session_order(page) > _session_order(last):
+                    last = page
     phase_id = workflow.entry
     reason = "entry phase; no earlier session receipt for this workflow"
     if last is not None:

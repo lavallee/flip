@@ -6,6 +6,12 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Workflow continuation now chooses the latest session by its recorded opening
+  time instead of filename order. Sessions created within the same minute resume
+  and advance correctly even when their slugs sort in reverse chronological order.
+
 ## [0.22.0] — 2026-08-30
 
 ### Added

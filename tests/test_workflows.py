@@ -51,6 +51,62 @@ def test_notebook_local_workflow_is_authored_checked_and_visible(root: Path):
     assert item.phases[-1].next == "orient"
 
 
+def test_next_uses_receipt_time_for_reverse_lexical_slugs_in_same_minute(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+):
+    workflows.use_workflow(root, "weekly-watch")
+    monkeypatch.setattr(sessions.util, "stamp_slug", lambda: "2026-09-05T0315")
+    monkeypatch.setattr(sessions.util, "utc_now", lambda: "2026-09-05T03:15:00Z")
+    now = [1_788_578_100_000_000_001]
+    monkeypatch.setattr(sessions.time, "time_ns", lambda: now[0])
+    older = sessions.start_session(root, "z-orient", workflow="weekly-watch", phase="orient")
+    sessions.end_session(root, older, "oriented")
+    now[0] += 1
+    newer = sessions.start_session(root, "a-refresh", workflow="weekly-watch", phase="refresh")
+    assert newer.name < older.name
+    state = workflows.next_phase(root)
+    assert state["phase"] == "refresh"
+    assert newer.name in state["reason"]
+    assert "resume open session" in state["reason"]
+    sessions.end_session(root, newer, "refreshed")
+    state = workflows.next_phase(root)
+    definition = workflows.load_workflow("weekly-watch", root)
+    assert state["phase"] == next(p.next for p in definition.phases if p.id == "refresh")
+    assert newer.name in state["reason"]
+
+
+@pytest.mark.parametrize("field", ["started", "ended"])
+def test_next_uses_legacy_iso_timestamps_before_filename(root: Path, field: str):
+    workflows.use_workflow(root, "weekly-watch")
+    directory = root / "sessions"
+    directory.mkdir(exist_ok=True)
+    for filename, stamp, phase in (
+        ("2026-09-05T0315-z-older.md", "2026-09-05T03:15:01Z", "orient"),
+        ("2026-09-05T0315-a-newer.md", "2026-09-04T23:15:02-04:00", "refresh"),
+    ):
+        fm = {"workflow": "weekly-watch@1.0", "phase": phase, field: stamp}
+        pages.write_page(directory / filename, fm, "Legacy session")
+    state = workflows.next_phase(root)
+    assert "a-newer.md" in state["reason"]
+
+
+def test_next_uses_deterministic_filename_fallback_for_undated_sessions(root: Path):
+    workflows.use_workflow(root, "weekly-watch")
+    directory = root / "sessions"
+    directory.mkdir(exist_ok=True)
+    for filename, phase in (
+        ("2026-09-05T0314-z-older.md", "orient"),
+        ("2026-09-05T0315-a-newer.md", "refresh"),
+        ("2026-09-05T0315-z-tiebreak.md", "refresh"),
+    ):
+        pages.write_page(directory / filename, {
+            "workflow": "weekly-watch", "phase": phase, "started": "unknown",
+            "receipt": {"observed_since_ns": "invalid"},
+        }, "Legacy session")
+    state = workflows.next_phase(root)
+    assert "z-tiebreak.md" in state["reason"]
+
+
 def test_collision_is_refused_instead_of_last_wins(root: Path):
     directory = root / ".flip/workflows"
     directory.mkdir(parents=True)
