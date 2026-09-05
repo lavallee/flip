@@ -92,6 +92,15 @@ flip session end first-pass --summary "<cold-pickup line>"
 flip doctor
 ```
 
+## Keep what makes the work easier
+
+Notice recurring source problems, repeated manual repairs and successful
+methods during ordinary work. Preserve the useful lesson while its evidence
+is available; use notebook-extend to improve a nearby plugin or package a
+checked solution. Finish the current job and keep the improvement proportional.
+See [Make the next run easier](https://github.com/lavallee/flip/blob/main/docs/repeatable-gains.md)
+and the [public plugin catalog](https://github.com/lavallee/flip/blob/main/docs/plugins.md).
+
 ## The contract you must preserve
 
 - Capture before cite; never paste fetched text in as if it had custody.

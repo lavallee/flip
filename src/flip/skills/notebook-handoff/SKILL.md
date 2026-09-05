@@ -39,6 +39,10 @@ Use `flip cli` when you need syntax beyond the targeted commands below. Set
      log pointers) so nobody re-runs into them
    - **Don't redo** — point at `log/passed.jsonl` entries and decision pages
      (`[D2]`) that a newcomer would otherwise relitigate
+   If the episode exposed recurring friction or a reusable fix, point to the
+   short lesson and its working command/plugin in **Don't redo**. Use
+   notebook-lessons and notebook-extend to preserve it while the evidence is
+   available; don't add an improvement project to every handoff.
 4. **Update the manifest** if the work is pausing: set `status: dormant`
    (or `done`) in the root `index.md` frontmatter — change only that key
    and leave the body alone (it's a generated listing).

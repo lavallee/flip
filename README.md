@@ -281,6 +281,8 @@ expected token-efficiency benefit has not yet been benchmarked.
 - [Obsidian](docs/obsidian.md) — human editing and the companion plugin
 - [The core loop](docs/core-loop.md) — orient through receipt and stop decision
 - [Workflows and extensions](docs/extensions.md) — registries, hooks, trust, and authoring
+- [Make the next run easier](docs/repeatable-gains.md) — preserve fixes and build
+  useful plugins from recurring problems
 - [Running a beat on a loop](docs/loops.md) — standing policy and unattended passes
 - [llms.txt](llms.txt) — compact documentation map for agents
 

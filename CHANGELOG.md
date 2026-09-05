@@ -6,6 +6,14 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Built-in `repeatable-gain` workflow for turning recurring notebook problems
+  into checked improvements, reusable extensions or evidenced lessons.
+- Active-work lessons and plugin-building guidance across extension, handoff,
+  lessons and plugin-author skills, with a public guide and packaged examples.
+
+
 ### Fixed
 
 - Workflow continuation now chooses the latest session by its recorded opening

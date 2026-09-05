@@ -106,6 +106,14 @@ There is no mutable current-phase file to race or repair. A recurring workflow
 may point its audit phase back to orient; the recorded stop condition still
 decides whether another pass runs.
 
+## Keep a useful improvement
+
+When an episode exposes recurring friction or a reusable fix, preserve a short
+lesson with its evidence and working method before closing. Use notebook-extend
+to improve an existing plugin or shape the smallest useful extension. The
+optional `repeatable-gain` workflow supports a deliberate improvement pass;
+it does not start one automatically. See [Make the next run easier](repeatable-gains.md).
+
 ## Safe loop harness
 
 A harness needs only a local read, one explicitly authorized work episode, and

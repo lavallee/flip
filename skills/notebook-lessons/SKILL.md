@@ -1,11 +1,11 @@
 ---
 name: notebook-lessons
-description: End-of-life distillation to lessons.md — invoke when a notebook is done, published, killed, or archived, so its method survives it.
+description: Preserve useful method lessons during work and at notebook closure; turn recurring problems or proven fixes into reusable guidance and extensions.
 ---
 
 # notebook-lessons
 
-A notebook's last act is teaching the next one. lessons.md is prescriptive
+Teach the next notebook while the useful change is still clear. lessons.md is prescriptive
 advice for future notebooks — method, not findings (findings live in the
 analysis; this is about how the work went).
 
@@ -13,7 +13,17 @@ Use `flip cli` for current syntax and set `FLIP_ACTOR` before writing. At
 end-of-life statuses, expected-until-use profile files become real doctor
 errors; resolve them before distilling lessons.
 
-## Checklist
+## During active work
+
+After a recurring problem or useful fix, append a short evidenced lesson to
+`lessons.md` now: when it applies, what to do, what was checked, and its limits.
+Keep existing lessons and notebook status intact. Read notebook-extend when
+another user or notebook could reuse the method; improve an existing plugin
+or prepare the smallest useful extension. A single successful run is a
+candidate, not proof of a repeatable gain. This does not require closing the
+notebook or doing an end-of-life audit. Continue the user's current work.
+
+## At notebook closure
 
 1. **Confirm end-of-life.** The notebook's `status` (root `index.md`
    frontmatter) is moving to `done`, `published`, or `archived`. Run the

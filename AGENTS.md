@@ -108,6 +108,14 @@ flip next
 Use `flip show` for the hot state, `flip open <id>` for targeted reading, and
 `flip cli --json` when a machine-readable command inventory is useful.
 
+## Keep repeatable gains
+
+When work exposes recurring friction or a reusable fix, preserve its trigger,
+working method, evidence and limits in an author-owned lesson or decision page.
+Use notebook-extend to improve an existing plugin or keep the smallest useful
+extension; try another relevant case before claiming repeatability. Do this
+while the evidence is fresh, without turning every handoff into a new project.
+
 ## Handoff
 
 Before stopping, promote anything the work will rely on, close the active

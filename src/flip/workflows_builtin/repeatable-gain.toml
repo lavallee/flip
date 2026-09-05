@@ -1,0 +1,27 @@
+id = "repeatable-gain"
+version = "1.0"
+summary = "Turn a recurring notebook problem into a checked improvement others can reuse."
+entry = "select"
+
+[[phase]]
+id = "select"
+guide = "Name one user problem, its trigger and evidence of avoidable work. Inspect existing plugins and choose a concrete before/after check. Keep the current deliverable in scope."
+produces = ["problem-and-baseline"]
+next = "solve"
+
+[[phase]]
+id = "solve"
+guide = "Solve the selected case with existing tools where possible. Preserve the input, working method, observed result and limits. Use canonical Flip commands for notebook writes."
+produces = ["working-example-or-recorded-limit"]
+next = "replay"
+
+[[phase]]
+id = "replay"
+guide = "Try a relevant different case and compare the old/new method on the same inputs. Record the observed gain or narrow the proposal if it fails. Fixtures do not establish live access or user benefit."
+produces = ["comparison-and-reuse-check"]
+next = "keep"
+
+[[phase]]
+id = "keep"
+guide = "Keep the useful result: improve an existing plugin, package the smallest extension, or retain a lesson if reuse is unproven. Add discovery/setup guidance and a runnable example when sharing. Record the actual validation and release state, then stop."
+produces = ["reusable-change-or-evidenced-lesson", "handoff-and-limits"]

@@ -8,6 +8,19 @@ description: Package Flip kinds, disciplines, workflows, skills, examples, and t
 Start definition-only. A plugin is the folder that transports capabilities;
 it is not another research concept.
 
+Before packaging, name the user problem, its trigger, and the result the
+plugin helps produce. Inspect nearby plugins and prefer extending one that
+already owns the job. Use notebook-extend's repeatable-gain guide to retain a
+working example, a relevant second case and honest limits. A request to share
+a new process can start a prototype; label it as such until tried.
+
+The README should let a new user answer: Is this my problem? How do I get it?
+What do I run? What should land? What can fail? What was actually verified?
+Teach the applicable agent skill when to select this plugin. Include the
+upstream tool/dependency boundary and preserve private evidence outside the
+shared bundle. A package that only passes manifest checks is not yet a usable
+solution to the user's problem.
+
 1. Create a directory with `flip-plugin.toml`, README, license, and only the
    needed noun folders. Use a qualified id such as `team/review-pack`, a
    semantic version, `requires_flip`, and an honest capability list.

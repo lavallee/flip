@@ -9,7 +9,7 @@ Flip's extension surface keeps the nouns separate:
 | workflow | What reusable sequence helps make or maintain it? |
 | hook | At what stable lifecycle point may something contribute? |
 | provider/filter | What contribution or transformation attaches there? |
-| adapter | Which private external capability fills capture, extraction, research, or recall? |
+| adapter | Which external tool fills capture, extraction, research, or recall? |
 | skill | What behavior and judgment should an agent learn? |
 | plugin | Which versioned directory transports one or more of the above? |
 
@@ -159,6 +159,11 @@ definition-only bundles and checked-in, dependency-free filters. Keep private
 capture/extract/research/recall bindings in the existing integration config.
 
 ## Authoring and sharing
+
+Start with [a recurring user problem and a repeatable gain](repeatable-gains.md).
+The built-in `repeatable-gain` workflow helps select one problem, solve it,
+try another case, and keep the useful result. Improve an existing plugin when
+it fits; a lesson or small definition can be enough.
 
 Agents should use the packaged `notebook-extend` skill to route a reusable
 request, `notebook-workflow-author` to interview and exercise a phase sequence,

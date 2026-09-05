@@ -127,3 +127,19 @@ def test_inline_kind_phases_remain_a_sequential_compatibility_workflow(
     assert item.phases[0].id == "search"
     assert item.phases[0].next == "screen"
     assert item.phases[0].produces == ["search-log.md — surfaces queried, dates, hit counts"]
+
+
+def test_repeatable_gain_can_resume_each_phase_and_stops(root: Path):
+    chosen = workflows.use_workflow(root, "repeatable-gain")
+    assert chosen.origin == "built-in"
+    assert load_manifest(root).workflow == "repeatable-gain@1.0"
+    for number, phase in enumerate(chosen.phases, 1):
+        assert workflows.next_phase(root)["phase"] == phase.id
+        path = sessions.start_session(root, f"gain-{number:02d}-{phase.id}",
+                                      workflow=chosen.pin, phase=phase.id)
+        assert "resume open session" in workflows.next_phase(root)["reason"]
+        output = root / f"gain-{number:02d}.md"
+        output.write_text("Synthetic phase receipt; no user benefit established.\n")
+        sessions.end_session(root, path, "Fixture phase finished", outputs=[output.name])
+    state = workflows.next_phase(root)
+    assert state["complete"] is True

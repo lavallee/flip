@@ -1,6 +1,6 @@
 ---
 name: notebook-extend
-description: Route requests to make a Flip process reusable, team-local, or shareable to the smallest correct extension type: kind, discipline, workflow, filter, adapter, skill, or plugin.
+description: Notice recurring notebook friction or useful fixes, preserve repeatable gains, and choose the smallest useful extension or plugin.
 ---
 
 # notebook-extend
@@ -10,6 +10,22 @@ Use this when a person says “our process,” “every time,” “make this re
 `flip workflow list`, `flip kind list`, and `flip discipline list`; adapting a
 nearby definition is cheaper and more legible than inventing another noun.
 
+## Notice the opportunity during work
+
+Use this after a repeated capture/extraction failure, a recurring judgment
+mistake, a manual repair repeated across sources, or a successful sequence
+another notebook could reuse. Do not wait for the notebook to close or for the
+user to say "plugin." Help finish the current job first. A small repair and a
+useful lesson can be kept in the same episode; larger product work should have
+an explicit place in the user's work, not silently replace their deliverable.
+
+Read [Keep a repeatable gain](references/repeatable-gains.md) for the practical
+loop and examples. `flip workflow show repeatable-gain` exposes an optional
+sequence for working on the improvement itself. Check the existing
+[public adapters](https://github.com/lavallee/flip/blob/main/docs/plugins.md)
+and local definitions before creating another package. Improving a nearby
+plugin is often the useful result.
+
 Map what they are changing:
 
 | Their change | Author |
@@ -18,7 +34,7 @@ Map what they are changing:
 | the standard or verification bar | discipline |
 | the sequence of work | workflow |
 | a computed list, transformation, or domain check | filter/provider |
-| a private external tool binding | adapter in Flip integration config |
+| source acquisition, extraction, search or recall | adapter around an existing tool; bind it in Flip integration config |
 | agent behavior and judgment | skill |
 | a shareable combination | plugin bundle |
 
