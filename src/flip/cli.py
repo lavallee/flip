@@ -602,6 +602,8 @@ def config_show(as_json: bool) -> None:
             f"{path} does not exist — `flip config init` writes a starter config whose "
             "web lane runs the bundled flip-fetch, so capture works with no external tool"
         )
+    if not lanes and (broken := integrations.config_error()):
+        raise SystemExit(broken)
     if not lanes:
         raise SystemExit(
             f"{path} exists but configures no lanes — add a [fetchers]/[extractors]/"

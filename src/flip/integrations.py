@@ -152,7 +152,11 @@ web = "flip-fetch {url} {dest}"
 # live URL is a decision about that request, not a verdict on the source —
 # these are the methods that get past it.
 #
+# A kind is either one command or a table of named lanes, never both: to use
+# these, DELETE the `web = "…"` line above and keep its command as `default`.
+#
 # [fetchers.web]
+# default  = "flip-fetch {url} {dest}"                           # the lane with no --via
 # archive  = "flip-fetch --method archive-replay {url} {dest}"   # bundled: a web
 #                                                 #   archive's copy, raw bytes
 # render   = "your-render-fetcher {url} {dest}"   # headless browser, executes JS
@@ -348,6 +352,27 @@ def resolve(role: str, key: str, via: str | None = None) -> Resolved:
             f"stanza like:\n{_guidance(role, key)}"
         )
     return _normalize_entry(role, key, entry, via)
+
+
+def config_error() -> str | None:
+    """Why `$FLIP_HOME/config.toml` cannot be read, or None when it parses (or is absent).
+
+    `configured_lanes` never raises, so a reporter that finds no lanes asks this
+    before telling the operator to add some: a file that does not parse has to be
+    named as such, or the advice sends them to add lanes they already wrote."""
+    config = config_path()
+    if not config.is_file():
+        return None
+    try:
+        tomllib.loads(config.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as e:
+        hint = ""
+        if "already" in str(e) or "redefin" in str(e).lower() or "overwrite" in str(e).lower():
+            hint = (" A key cannot be both one command and a table of named lanes: to add"
+                    " variants, replace `web = \"…\"` under [fetchers] with a [fetchers.web]"
+                    " table whose `default` is that command.")
+        return f"{config} is not valid TOML: {e}.{hint}"
+    return None
 
 
 def configured_lanes() -> list[dict]:

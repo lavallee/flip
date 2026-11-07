@@ -6,6 +6,8 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-11-07
+
 ### Added
 
 - Built-in `repeatable-gain` workflow for turning recurring notebook problems
@@ -19,6 +21,15 @@ versioning follows [Semantic Versioning](https://semver.org/).
 - Workflow continuation now chooses the latest session by its recorded opening
   time instead of filename order. Sessions created within the same minute resume
   and advance correctly even when their slugs sort in reverse chronological order.
+- `flip config show` names a config that does not parse ("… is not valid TOML: …")
+  instead of reporting that it "configures no lanes". The common cause is now named
+  too: a capture kind written both as one command (`web = "…"`) and as a
+  `[fetchers.web]` table of named lanes.
+- The starter config's named-lane example now includes the `default` lane and says
+  to delete the single-command `web = "…"` line it replaces. Uncommenting the old
+  example as written produced exactly that duplicate key.
+- The Codex actor-detection test clears Claude Code's environment, so the suite
+  passes when run from inside either harness.
 
 ## [0.22.0] — 2026-08-30
 

@@ -65,6 +65,8 @@ def test_new_pursuit_detects_codex_before_seeding_q1(tmp_path, monkeypatch):
     """
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("FLIP_ACTOR", raising=False)
+    for harness in ("CLAUDECODE", "CLAUDE_CODE"):  # running the suite inside Claude Code
+        monkeypatch.delenv(harness, raising=False)
     monkeypatch.setenv("CODEX_SESSION_ID", "session-test")
     result = invoke(["new", "question", "--kind", "pursuit"])
     assert result.exit_code == 0, result.output
@@ -1315,6 +1317,29 @@ def test_config_show_without_a_config_says_how_to_get_one(tmp_path):
     result = invoke(["config", "show"])
     assert result.exit_code == 1
     assert "flip config init" in result.output
+
+
+def test_config_show_names_a_config_that_does_not_parse(tmp_path):
+    """Uncommenting the starter's named-lane example under a live `web = "…"` line
+    is a TOML duplicate key; `config show` reported it as "configures no lanes",
+    which sends the operator to add lanes they already wrote."""
+    _config(
+        tmp_path,
+        '[fetchers]\nweb = "webtool {url} {dest}"\n\n'
+        '[fetchers.web]\nrender = "rendertool {url} {dest}"\n',
+    )
+    result = invoke(["config", "show"])
+    assert result.exit_code == 1
+    assert "not valid TOML" in result.output
+    assert "configures no lanes" not in result.output
+    assert "[fetchers.web]" in result.output and "default" in result.output
+
+
+def test_starter_config_shows_named_lanes_with_their_default():
+    from flip.integrations import STARTER_CONFIG
+    block = STARTER_CONFIG.split("# [fetchers.web]", 1)[1].split("\n#\n", 1)[0]
+    assert '# default  = "flip-fetch {url} {dest}"' in block
+    assert "DELETE the `web" in STARTER_CONFIG
 
 
 def test_claim_about_cites_the_source_the_claim_is_about(tmp_path, monkeypatch):
