@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import integrations, ledgers, pages, util
+from . import integrations, leads, ledgers, pages, util
 
 RAW = Path("sessions") / "raw"
 
@@ -90,6 +90,7 @@ class FindResult:
     candidates: list[dict] = field(default_factory=list)
     tool: str = ""
     raw: str = ""
+    new: int = 0  # candidates this run added to the leads ledger
 
 
 @dataclass
@@ -118,12 +119,20 @@ def _land_raw(root: Path, verb: str, query: str, raw: str) -> Path:
 
 
 def research_find(root: Path, query: str, via: str | None = None) -> FindResult:
-    """Run [research].find; return normalized candidate leads (captures nothing)."""
+    """Run [research].find; return normalized candidate leads (captures nothing).
+
+    Every candidate is kept as a lead in log/leads.jsonl (SPEC §8), one row
+    per URL however many searches return it, so what a search surfaced is
+    still there to triage after the terminal has scrolled away. `new` on the
+    result counts the candidates this run added.
+    """
     root = util.require_notebook_root(root)
     resolved = integrations.resolve("research", "find", via=via)
     run = integrations.run_query(resolved, root, query)
     candidates = [c for c in (_candidate(i) for i in _as_items(run.data)) if c["url"]]
-    return FindResult(query=query, candidates=candidates, tool=run.tool, raw=run.raw)
+    added = leads.record_candidates(root, query, candidates)
+    return FindResult(query=query, candidates=candidates, tool=run.tool, raw=run.raw,
+                      new=len(added))
 
 
 def research_ask(root: Path, query: str, via: str | None = None) -> AskResult:

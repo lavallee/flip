@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from importlib import resources
 from pathlib import Path
 
-from . import pages
+from . import events, pages
 from .manifest import load_manifest, save_manifest
 from .registry import flip_home
 
@@ -265,6 +265,7 @@ def use_workflow(root: Path, value: str) -> Workflow:
     from .manifest import touch_updated
     touch_updated(root)
     views.regenerate(root)
+    events.emit(root, "workflow.use", workflow=workflow.pin)
     return workflow
 
 

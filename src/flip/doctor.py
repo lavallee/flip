@@ -80,7 +80,10 @@ from .util import (
 PROVENANCE = "sources/_provenance.jsonl"
 DERIVATIONS = sources_mod.DERIVATIONS.as_posix()
 # Every JSONL ledger the format defines; each must at least parse.
-LEDGERS = (PROVENANCE, DERIVATIONS, "log/log.jsonl", "log/passed.jsonl")
+LEDGERS = (
+    PROVENANCE, DERIVATIONS, "log/log.jsonl", "log/passed.jsonl",
+    "log/events.jsonl", "log/leads.jsonl", "log/directives.jsonl",
+)
 
 # Entity directories whose pages must carry a compact id; sessions are entity
 # pages too but have no id scheme (SPEC §8), so they are exempt here.

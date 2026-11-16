@@ -208,6 +208,13 @@ flip session end enrollment-sweep --summary "..." --output Q1 --check doctor
 flip next
 ```
 
+A person steers a notebook between sessions with `flip directive add "<how the
+work is to be done>"`: active directives print first in `flip next` and `flip
+show`, in every harness, until withdrawn. `flip find` keeps its candidates as
+leads (`flip lead list`). For another tool reading along — a live interface, a
+second agent — `flip events` lists every write from `log/events.jsonl`, and
+`flip snapshot` prints the whole notebook as one JSON document.
+
 Humans generally direct those acts rather than typing them. `flip cli` prints an
 always-current command map. The [CLI quickstart](docs/quickstart.md) is a local,
 copy-and-run first notebook; the [evidence workflow](docs/evidence-workflow.md)
@@ -286,7 +293,7 @@ expected token-efficiency benefit has not yet been benchmarked.
 - [Running a beat on a loop](docs/loops.md) — standing policy and unattended passes
 - [llms.txt](llms.txt) — compact documentation map for agents
 
-Status: spec draft v0.23; package 0.23.0; Python 3.12+; MIT licensed. Built and
+Status: spec draft v0.24; package 0.24.0; Python 3.12+; MIT licensed. Built and
 maintained by [Marc Lavallee](https://github.com/lavallee). Changes are tracked
 in [CHANGELOG.md](CHANGELOG.md); [issues](https://github.com/lavallee/flip/issues)
 and contributions through [CONTRIBUTING.md](CONTRIBUTING.md) are welcome.

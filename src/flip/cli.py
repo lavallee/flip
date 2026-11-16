@@ -25,8 +25,11 @@ from . import (
     beat as beat_mod,
     claims,
     commissions as commissions_mod,
+    directives as directives_mod,
+    events as events_mod,
     extensions,
     integrations,
+    leads as leads_mod,
     loop as loop_mod,
     pages,
     doctor as doctor_mod,
@@ -42,6 +45,7 @@ from . import (
     resolve as resolve_mod,
     scaffold,
     sessions,
+    snapshot as snapshot_mod,
     sources,
     stance as stance_mod,
     transcripts as transcripts_mod,
@@ -663,6 +667,8 @@ def find(query: str, via: str | None, capture_n: int | None, as_json: bool) -> N
 
     Runs your configured research tool and lists what it surfaces; nothing is
     captured until you pick one (`--capture <n>`, or `flip add-source <url>`).
+    Every candidate is kept as a lead in log/leads.jsonl, once per URL, so the
+    list survives the terminal: `flip lead list` shows what is still open.
     """
     root = require_notebook_root()
     result = query_mod.research_find(root, query, via=via)
@@ -680,7 +686,8 @@ def find(query: str, via: str | None, capture_n: int | None, as_json: bool) -> N
         return
     if as_json:
         click.echo(json.dumps(
-            {"query": result.query, "candidates": result.candidates},
+            {"query": result.query, "candidates": result.candidates,
+             "new_leads": result.new},
             ensure_ascii=False, indent=2,
         ))
         return
@@ -694,6 +701,8 @@ def find(query: str, via: str | None, capture_n: int | None, as_json: bool) -> N
         click.echo(line)
     click.echo('leads only — capture one with `flip find --capture <n> "<query>"` or '
                "`flip add-source <url>`, then grade it")
+    click.echo(f"{result.new} new lead(s) kept in log/leads.jsonl — `flip lead list` shows "
+               "the open ones; `flip lead dismiss <url>` drops one")
 
 
 @main.command()
@@ -951,6 +960,192 @@ def source_provenance(source_id: str, state: str, note: str | None) -> None:
     page = sources.set_provenance_state(require_notebook_root(), source_id, state, note=note)
     click.echo(f"{page.id} · {page.fm['provenance_state']}"
                + (f" · {note}" if note else ""))
+
+
+@source.command("read")
+@click.argument("source_id", metavar="SOURCE_ID")
+@click.option("--note", default=None,
+              help="What was read, or how far (e.g. \"sections 2-4\", \"abstract only\").")
+def source_read(source_id: str, note: str | None) -> None:
+    """Record that you opened and read a source.
+
+    Capture puts bytes in custody and `flip grade` records a judgment; neither
+    says anyone read the thing. Run this after actually reading it — not after
+    fetching it, and not after skimming a search snippet. It appends one
+    `source.read` event and changes no page.
+    """
+    row = sources.mark_read(require_notebook_root(), source_id, note=note)
+    click.echo(f"{row['id']} · read {row['ts']} · {row['actor']}")
+
+
+# ---------------------------------------------------------------- events / snapshot
+
+
+@main.command("events")
+@click.option("--since", default=None, metavar="TS",
+              help="Only events at or after this ISO-8601 UTC time (a date alone works).")
+@click.option("--op", "op_prefix", default=None, metavar="PREFIX",
+              help="Only ops starting with this (`claim`, `claim.status`, `source.`).")
+@click.option("--id", "entity_id", default=None, metavar="ID",
+              help="Only events on this entity id.")
+@click.option("--limit", type=int, default=None, metavar="N",
+              help="Only the newest N of the matching events.")
+@click.option("--json", "as_json", is_flag=True, help="Emit the events as JSON.")
+def events_cmd(since: str | None, op_prefix: str | None, entity_id: str | None,
+               limit: int | None, as_json: bool) -> None:
+    """List what changed: one row per write, oldest first (log/events.jsonl).
+
+    Every command that changes the notebook appends a row here — who, when,
+    which op (`<entity>.<verb>`), which id. The work log is what someone chose
+    to say; this is what the commands did. There is no follow mode: to track a
+    notebook live, watch the file and read from where you left off.
+    """
+    data = events_mod.events_view(require_notebook_root(), since=since, op=op_prefix,
+                                  entity_id=entity_id, limit=limit)
+    if as_json:
+        click.echo(json.dumps(data, ensure_ascii=False, indent=2))
+        return
+    if not data["events"]:
+        click.echo("no events" + (" match" if (since or op_prefix or entity_id) else
+                                  " yet — the ledger starts at this notebook's next write"))
+        return
+    for row in data["events"]:
+        click.echo(events_mod.render_row(row))
+
+
+@main.command("snapshot")
+@click.option("--log-limit", type=int, default=snapshot_mod.DEFAULT_LOG_LIMIT,
+              show_default=True, metavar="N",
+              help="How many of the newest work-log rows to include.")
+def snapshot_cmd(log_limit: int) -> None:
+    """Print the whole notebook as one JSON document (schema flip-snapshot/1).
+
+    One process and one consistent read of everything: sources with custody
+    and who read them, claims with their whole text, questions, decisions,
+    sessions, forecasts, commissions, the passed ledger, leads, directives and
+    the tail of the work log. Local by design: it ignores visibility policy
+    and withholds nothing, so it is not something to publish — `flip export
+    json` is the surface that applies policy.
+    """
+    data = snapshot_mod.snapshot(require_notebook_root(), log_limit=log_limit)
+    click.echo(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+# ---------------------------------------------------------------- leads
+
+
+@main.group(cls=SuggestGroup)
+def lead() -> None:
+    """Track candidate sources not yet dealt with (log/leads.jsonl).
+
+    `flip find` keeps every candidate it lists here. A lead is open until its
+    URL is captured as a source, named in `flip pass`, or dismissed; the state
+    is derived from those records, never stored.
+    """
+
+
+@lead.command("add")
+@click.argument("url", metavar="URL")
+@click.option("--title", default=None, help="What the candidate is.")
+@click.option("--note", default=None, help="Why it might matter, or where it came from.")
+def lead_add(url: str, title: str | None, note: str | None) -> None:
+    """Record a candidate source found outside `flip find`."""
+    row = leads_mod.add_lead(require_notebook_root(), url, title=title, note=note)
+    click.echo(f"lead · {row['url']}" + (f" · {row['title']}" if row.get("title") else ""))
+
+
+@lead.command("dismiss")
+@click.argument("url", metavar="URL")
+@click.option("--reason", default=None, help="Why it is not worth capturing.")
+def lead_dismiss(url: str, reason: str | None) -> None:
+    """Drop an open lead without capturing it.
+
+    For a candidate that is simply not worth the capture. When ruling it out is
+    itself a finding the next pass should not rediscover, use `flip pass --url`
+    instead: that also closes the lead, and says why in the passed ledger.
+    """
+    row = leads_mod.dismiss_lead(require_notebook_root(), url, reason=reason)
+    click.echo(f"dismissed · {row['url']}" + (f" · {row['reason']}" if row.get("reason") else ""))
+
+
+@lead.command("list")
+@click.option("--all", "show_all", is_flag=True,
+              help="Every lead in every state, not only the open ones.")
+@click.option("--json", "as_json", is_flag=True, help="Emit the leads as JSON.")
+def lead_list(show_all: bool, as_json: bool) -> None:
+    """List open leads; --all adds captured, passed and dismissed ones."""
+    rows = leads_mod.list_leads(require_notebook_root(), include_all=show_all)
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        click.echo("no leads" if show_all else "no open leads (`flip lead list --all` "
+                   "shows captured, passed and dismissed ones)")
+        return
+    for r in rows:
+        state = r["state"] + (f" {r['source_id']}" if r.get("source_id") else "")
+        line = f"{state} · {r.get('title') or r['url']}\n   {r['url']}"
+        if r.get("query"):
+            line += f"\n   from: {r['query']}"
+        if r.get("reason"):
+            line += f"\n   reason: {r['reason']}"
+        click.echo(line)
+
+
+# ---------------------------------------------------------------- directives
+
+
+@main.group(cls=SuggestGroup)
+def directive() -> None:
+    """Standing instructions for whoever works this notebook (log/directives.jsonl).
+
+    A directive constrains how the work is done until it is withdrawn. Active
+    ones print first in `flip next` and `flip show`. Follow every active one;
+    do not withdraw one a person set.
+    """
+
+
+@directive.command("add")
+@click.argument("text")
+def directive_add(text: str) -> None:
+    """Set a directive, allocating the next DR#."""
+    row = directives_mod.add_directive(require_notebook_root(), text)
+    click.echo(f"{row['id']} · {row['actor']} · {row['text']}")
+
+
+@directive.command("withdraw")
+@click.argument("directive_id", metavar="DR_ID")
+@click.option("--because", default=None, help="Why it no longer applies.")
+def directive_withdraw(directive_id: str, because: str | None) -> None:
+    """Withdraw a directive: it stops applying and stays on record.
+
+    Withdrawing is for the person who set it, or someone acting on their say.
+    An agent does not withdraw a person's directive to get past it.
+    """
+    row = directives_mod.withdraw_directive(require_notebook_root(), directive_id,
+                                            because=because)
+    click.echo(f"{row['id']} withdrawn · {row['actor']}"
+               + (f" · {row['because']}" if row.get("because") else ""))
+
+
+@directive.command("list")
+@click.option("--all", "show_all", is_flag=True, help="Include withdrawn directives.")
+@click.option("--json", "as_json", is_flag=True, help="Emit the directives as JSON.")
+def directive_list(show_all: bool, as_json: bool) -> None:
+    """List active directives; --all adds withdrawn ones."""
+    rows = directives_mod.list_directives(require_notebook_root(), include_all=show_all)
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        click.echo("no directives" if show_all else "no active directives")
+        return
+    for r in rows:
+        line = f"{r['id']} · {r['state']} · {r['actor']} · {str(r['ts'])[:10]} · {r['text']}"
+        if r["state"] == "withdrawn":
+            line += (f"\n   withdrawn {str(r['withdrawn_ts'])[:10]} · {r['withdrawn_actor']}"
+                     + (f" · {r['because']}" if r.get("because") else ""))
+        click.echo(line)
 
 
 # ---------------------------------------------------------------- log ledgers

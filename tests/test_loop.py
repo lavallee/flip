@@ -53,3 +53,18 @@ def test_scope_resolution_prefers_child_notebook_over_enclosing_beat(tmp_path: P
     kind, found = loop.resolve_scope(notebook / "questions")
     assert kind == "notebook"
     assert found == notebook
+
+
+def test_latest_session_skips_the_generated_index(tmp_path: Path):
+    # sessions/index.md sorts after every dated session, so it used to be reported
+    # as the latest one, with every field empty.
+    root = scaffold.create_notebook(tmp_path / "one", "one", "ledger")
+    sessions = root / "sessions"
+    sessions.mkdir(exist_ok=True)
+    (sessions / "2026-07-09T0900-work.md").write_text(
+        "---\ntype: Work Session\nstarted: '2026-07-09T09:00:00Z'\n---\n\nbody\n", encoding="utf-8"
+    )
+    (sessions / "index.md").write_text("# Sessions\n", encoding="utf-8")
+    latest = loop.next_view(root, scope="notebook")["context"]["latest_session"]
+    assert latest["path"] == "sessions/2026-07-09T0900-work.md"
+    assert latest["started"] == "2026-07-09T09:00:00Z"

@@ -72,7 +72,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from . import manifest, pages, profiles, stance, transcripts, util
+from . import events, manifest, pages, profiles, stance, transcripts, util
 from . import sources as sources_mod
 
 STATUSES = (
@@ -680,6 +680,8 @@ def add_claim(
     path = pages.write_page(claims_dir / f"{slug}.md", fm, body)
     manifest.touch_updated(root)
     _regenerate_views(root)
+    events.emit(root, "claim.add", claim_id, text=text, sources=cited_ids,
+                load_bearing=bool(load_bearing))
     return pages.Page(path=path, fm=fm, body=body)
 
 
@@ -917,6 +919,7 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
             )
             raise SystemExit(msg)
     entries, defs = _attribution(src_by_id, cited_refs)
+    old_status = str(page.fm.get("status") or "")
     page.fm["status"] = status
     page.fm["sources"] = entries
     _set_corroboration(page.fm, source_fms)
@@ -925,6 +928,7 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
     pages.write_page(page.path, page.fm, body)
     manifest.touch_updated(root)
     _regenerate_views(root)
+    events.emit(root, "claim.status", claim_id, to=status, **{"from": old_status})
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
@@ -1029,6 +1033,7 @@ def add_claim_sources(
     roles = dict(wanted)
     keep = [(ref, roles.get(ref, role)) for ref, role in current]
     updated = _write_sources(root, page, keep + [(ref, roles[ref]) for ref in added])
+    events.emit(root, "claim.cite", claim_id, sources=added, rerolled=rerolled)
     # Only evidence earns the grading warning. "It won't count toward the bar"
     # is not news about a citation whose whole declaration is that the bar
     # does not apply to it, and a warning that fires where its advice is
@@ -1064,7 +1069,9 @@ def remove_claim_source(root: Path, claim_id: str, source_id: str) -> pages.Page
     if len(keep) == len(current):
         cites = ", ".join(s for s, _ in current) or "none"
         raise SystemExit(f"claim {claim_id} does not cite {ref} (cites: {cites})")
-    return _write_sources(root, page, keep)
+    updated = _write_sources(root, page, keep)
+    events.emit(root, "claim.uncite", claim_id, source=ref)
+    return updated
 
 
 def derivation_ids(fm: dict) -> list[str]:
@@ -1151,6 +1158,7 @@ def add_claim_derivation(
     pages.write_page(page.path, page.fm, page.body)
     manifest.touch_updated(root)
     _regenerate_views(root)
+    events.emit(root, "claim.derive", claim_id, derives_from=added)
     return pages.Page(path=page.path, fm=page.fm, body=page.body), added
 
 
@@ -1174,6 +1182,7 @@ def remove_claim_derivation(root: Path, claim_id: str, ancestor_id: str) -> page
     pages.write_page(page.path, page.fm, page.body)
     manifest.touch_updated(root)
     _regenerate_views(root)
+    events.emit(root, "claim.underive", claim_id, ancestor=ancestor_id)
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 
@@ -1213,6 +1222,7 @@ def verify_claim(
     pages.write_page(page.path, page.fm, page.body)
     manifest.touch_updated(root)
     _regenerate_views(root)
+    events.emit(root, "claim.verify", claim_id, method=method, against=refs, note=note)
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 
@@ -1311,6 +1321,8 @@ def set_stance(
     pages.write_page(page.path, page.fm, page.body)
     manifest.touch_updated(root)
     _regenerate_views(root)
+    events.emit(root, "claim.stance", claim_id, stance=stance_value, holder=holder,
+                because=because, falsifier=falsifier)
     updated = pages.Page(path=page.path, fm=page.fm, body=page.body)
     return updated, stance.unsourced_holders(page.fm)
 
@@ -1397,6 +1409,7 @@ def record_test(
     pages.write_page(page.path, page.fm, page.body)
     manifest.touch_updated(root)
     _regenerate_views(root)
+    events.emit(root, "claim.test", claim_id, probe=probe, error=error, result=result)
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 
@@ -1468,6 +1481,7 @@ def declare_rivals(root: Path, claim_id: str, other_id: str, because: str) -> li
         pages.write_page(p.path, p.fm, p.body)
     manifest.touch_updated(root)
     _regenerate_views(root)
+    events.emit(root, "claim.rival", claim_id, rival=other_id, because=because)
     return [pages.Page(path=p.path, fm=p.fm, body=p.body) for p in (page, other)]
 
 
@@ -1517,6 +1531,7 @@ def supersede_claim(
     page.fm["superseded_by"] = successor_id
     pages.write_page(page.path, page.fm, page.body)
     updated = set_claim_status(root, claim_id, "superseded")
+    events.emit(root, "claim.supersede", claim_id, successor=successor_id, because=because)
 
     mine = stance.derive_exposure(page.fm)
     theirs = stance.derive_exposure(successor.fm)

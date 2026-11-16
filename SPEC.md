@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.23 · 2026-11-07
+**Status:** draft v0.24 · 2026-11-16
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -119,6 +119,9 @@ from its local files alone.
   log/
     log.jsonl              # append-only work log (one event per line)
     passed.jsonl           # negative evidence: considered and rejected
+    events.jsonl           # append-only write events: one row per change (§8)
+    leads.jsonl            # candidate sources seen, not yet dealt with (§8)
+    directives.jsonl       # a person's standing instructions, DR# (§8)
   drafts/                  # versioned drafts: v0/, v1/, current -> vN
   renders/                 # generated downstream artifacts (gitignored by default)
   HANDOFF.md               # cold-start resume view (graduates from notebook.md)
@@ -1391,6 +1394,62 @@ flip-render/2.
   only `corpus` may be asserted without naming the surfaces checked
   (`surfaces: [...]`): a true statement about a corpus must not travel as a
   false statement about the world.
+- **`log/events.jsonl`** (append-only) — write events. Every command that
+  changes a notebook appends at least one row:
+  `{"ts": "2026-11-16T21:00:00Z", "actor": "human:jane", "op":
+  "claim.status", "id": "C3", "from": "asserted", "to": "verified"}`.
+  `op` is `<entity>.<verb>`; `id` is the entity id when the entity has one;
+  further keys are op-specific, flat, and optional, and text payloads
+  (`text`, `reason`, `url`, `title`) are carried whole. The work log is what
+  someone chose to say about the work; this ledger is what the commands did,
+  so another tool — a live interface, a second agent — can follow a notebook
+  by watching one file. A row is written by the library function that made
+  the change, after the change and its generated views are on disk, and
+  writing it reads nothing: following a notebook costs its writers nothing
+  that grows with its size. There is no backfill; an older notebook's event
+  history starts at its next write. `flip events [--since TS] [--op PREFIX]
+  [--id ID] [--limit N] [--json]` reads it, oldest first; the JSON form is
+  `{"schema": "flip-events/1", "events": [...]}`. There is no follow mode:
+  watch the file. Ops: `source.add|extract|grade|retitle|recheck|provenance|
+  pipeline|read`, `claim.add|status|stance|verify|test|rival|cite|uncite|
+  derive|underive|supersede`, `question.add|note|answer|close|dormant|
+  reopen|repose`, `decision.add`, `pass.add`, `lead.add|dismiss`,
+  `directive.add|withdraw`, `session.start|end|transcript`,
+  `forecast.add|update|resolve|decline|cluster`, `commission.add|status`,
+  `kind.adopt`, `workflow.use`, `rename`, `log.add`,
+  `transcript.excerpt|unpin`. Beat- and workspace-level commands, and
+  whole-notebook maintenance (`flip migrate`, `flip doctor --fix`), emit
+  nothing in this version; `flip new` emits only the rows of whatever its
+  kind seeds (a pursuit's `Q1` is a `question.add`).
+  `source.read` is the one op that is its own record: `flip source read <id>
+  [--note …]` says the actor opened and read the source, which neither a
+  capture nor a grade establishes, and it changes no page.
+- **`log/leads.jsonl`** (append-only) — candidate sources seen and not yet
+  dealt with. `flip find` appends each candidate it lists, `{ts, query, url,
+  title?, snippet?, actor}`, and `flip lead add <url>` records one found
+  another way (`note?` in place of `query`); a URL already in the ledger is
+  never added again. `flip lead dismiss <url> [--reason …]` appends `{ts,
+  event: "dismiss", url, reason?, actor}`. A lead's **state is derived, never
+  stored**: `captured` when a source holds that URL (the row then reports its
+  `source_id`), `passed` when `log/passed.jsonl` names it, `dismissed` when a
+  dismiss row exists, else `open` — in that order of precedence. URLs are
+  compared with scheme and host lowercased and the fragment and trailing
+  slash dropped, and stored as given. `flip lead list` shows open leads;
+  `--all` shows every state.
+- **`log/directives.jsonl`** (append-only) — directives: standing guidance
+  from a person to whoever works the notebook next, in any harness. `flip
+  directive add "<text>"` appends `{ts, id, text, actor}` with the next
+  `DR#`; `flip directive withdraw <DR#> [--because …]` appends `{ts, event:
+  "withdraw", id, because?, actor}`. Nothing is rewritten, so a withdrawn
+  directive stays on record. A directive constrains how the work is done
+  until it is withdrawn: whoever works the notebook follows every active
+  one, and an agent does not withdraw one a person set. Active directives
+  print first in `flip next` and `flip show` and ride in their JSON
+  (`context.directives` and `directives`), which are the two commands every
+  session already orients with. A decision (§7.2) resolves a fork in the
+  work and stays resolved; a directive constrains the manner of the work and
+  is meant to be withdrawn, which is why it is a ledger row and not a
+  decision page.
 - **`sessions/<stamp>-<slug>.md`** — one entity page per working episode
   (`type: Work Session`; frontmatter: `generated: {by, at}`, `model`,
   `tools`, `started`, `ended`, `transcript: {id, local}`; optional loop
@@ -1455,7 +1514,10 @@ quietly widens from one exchange to the whole conversation).
   sources (papers / articles / files-datasets / talks / unkinded) · `C#`
   claims · `D#` decisions · `Q#` questions · `H#` hypotheses. Prefixes are
   disjoint, so a bare `[A3]` or `[D2]` cite is unambiguous. Ids are never
-  reused, even after retraction.
+  reused, even after retraction. `DR#` (directives, §8) is the one series
+  whose id lives in a ledger row instead of a page: it is allocated and
+  never reused like the rest, and `flip open DR1` names the directive
+  instead of printing a path, because there is no page to open.
 - **Filenames are slugs; ids resolve through frontmatter.** Prose cites ids
   in brackets (`[A3]`, `[C7]`) — greppable both directions; `flip open A3`
   and any frontmatter scan resolve them. **Honest aliases:** `aliases:
@@ -1506,6 +1568,22 @@ Views are computed, never canonical: `flip show` assembles the hot view
 latest session) from pages and ledgers; `index.md` bodies and `log.md` are
 their at-rest equivalents, regenerated by flip on every mutating command.
 Nothing is deleted to keep context small — hot vs cold is a projection.
+Active directives (§8) open the hot view and `flip next`, printed whole.
+
+**`flip snapshot` is the whole-notebook read.** One process, one consistent,
+unfiltered read, emitted as one JSON document with `schema:
+"flip-snapshot/1"`: `generated`, `root`, a `notebook` block (slug, uid,
+title, kind, status, created, updated, visibility, workflow, idle_days), and
+`sources`, `claims`, `questions`, `decisions`, `sessions`, `forecasts`,
+`commissions`, `passed`, `leads`, `directives`, and `log` (the newest
+`--log-limit` rows, default 200). A source carries its derived grade, its
+primary custody row, the path of its extracted text, the claims citing it
+(`cited_by`) and who recorded reading it (`read_by`); a claim carries its
+whole sentence as `text` (footnote markers stripped) beside the clipped
+`summary`. It is a **local read surface**: it ignores visibility policy and
+withholds nothing, so it is for tools on the machine that holds the
+notebook and is not a publication surface. `flip export json` (§17) is the
+projection that applies policy.
 
 **Generated listings are bounded.** A directory listing is a sign, not the
 roster. Past `INDEX_LIST_CAP` (50) entries, a generated `index.md` lists the
@@ -1807,7 +1885,14 @@ flip add-source <target> --record    # the ladder's terminus: a citable page for
 flip extract <id> [--via <lane>]     # derive sources/text/<id>.txt from custody via
             [--method <m>] [--force] #   an [extractors] lane; one derivation row per
                                      #   run, raw/ untouched (§5.5)
-flip find "<question>"               # research: list candidate leads (--capture <n>)
+flip find "<question>"               # research: list candidate leads (--capture <n>);
+                                     #   each is kept in log/leads.jsonl (§8)
+flip lead add|dismiss|list …         # leads ledger; state derived, never stored (§8)
+flip directive add|withdraw|list …   # a person's standing instructions, DR# (§8)
+flip source read <id> [--note …]     # record that the actor read the source (§8)
+flip events [--since --op --id       # write events, oldest first (§8)
+            --limit --json]
+flip snapshot [--log-limit N]        # the whole notebook as one JSON document (§10)
 flip ask "<question>"                # research: cited synthesis → sessions/raw/ (a grade-C lead)
 flip recall "<question>"             # knowledge: read what we already hold locally
 flip grade <id> …                    # record judgment on a source page
@@ -2048,7 +2133,10 @@ Identity travels with the bundle; local state does not. `uid` and `origin`
 ride in the root `index.md` frontmatter, so every export and bag carries
 them; `.flip/` (id reservations, the workspace table, the derived view
 cache — §10) and workspace handles never ship — the receiving side chooses
-its own handle.
+its own handle. Everything under `log/` travels or is withheld together:
+the event, lead and directive ledgers (§8) ship in a bag and in a
+full-trail OKF export exactly as `log.jsonl` and `passed.jsonl` do, and are
+withheld with them otherwise.
 
 **`flip import <src>`** is the reverse projection: bring a shared notebook
 into the enclosing workspace (§18) from a notebook directory, an OKF export

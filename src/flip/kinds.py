@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 
+from . import events
 from . import pages as pages_mod
 from . import profiles as profiles_mod
 from .manifest import load_manifest, save_manifest
@@ -416,6 +417,7 @@ def adopt_kind(root: Path, kind_id: str) -> tuple[Kind, list[GapRow]]:
     manifest. Refuses (via load_kind) if `kind_id` is unknown."""
     kind = load_kind(kind_id, root)
     manifest = load_manifest(root)
+    old_kind = manifest.kind
     manifest.kind = kind.id
     for key, value in kind.defaults.items():
         if hasattr(manifest, key):
@@ -426,6 +428,7 @@ def adopt_kind(root: Path, kind_id: str) -> tuple[Kind, list[GapRow]]:
         root / "log" / "log.jsonl",
         {"ts": utc_now(), "text": f"kind-adopt {kind.id}", "actor": detect_actor()},
     )
+    events.emit(root, "kind.adopt", kind=kind.id, **{"from": old_kind})
     return kind, gap_manifest(root, kind)
 
 

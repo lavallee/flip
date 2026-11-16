@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import auto, beat, extensions, pages, workspace
+from . import auto, beat, directives, extensions, pages, workspace
 from .manifest import load_manifest
 from .util import find_notebook_root_pinned, find_workspace_root
 
@@ -36,6 +36,8 @@ def _latest_session(root: Path) -> dict | None:
     if not directory.is_dir():
         return None
     for path in sorted(directory.glob("*.md"), reverse=True):
+        if path.name == "index.md":  # generated listing, not a session
+            continue
         try:
             page = pages.read_page(path)
         except Exception:
@@ -57,6 +59,7 @@ def _notebook_context(root: Path) -> dict:
         "workflow": manifest.workflow or None,
         "plugins": list(manifest.plugins),
         "latest_session": _latest_session(root),
+        "directives": directives.active_directives(root),
     }
     if manifest.workflow:
         from . import workflows
@@ -138,7 +141,8 @@ def next_view(root: Path | None = None, scope: str | None = None,
 
 def render(data: dict) -> str:
     label = data.get("beat") or data.get("notebook") or data.get("workspace") or data["scope"]
-    lines = [f"{label} · {data['scope']} · next {len(data['items'])} of {data['total']}"]
+    lines = directives.render_block((data.get("context") or {}).get("directives") or [])
+    lines.append(f"{label} · {data['scope']} · next {len(data['items'])} of {data['total']}")
     if data.get("mission"):
         lines.append(f"  mission: {data['mission']}")
     for key in ("stop", "authority", "materiality"):

@@ -6,6 +6,55 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-11-16
+
+### Added
+
+- **Write events.** Every command that changes a notebook now appends a row to
+  `log/events.jsonl`: who, when, which op (`claim.status`, `source.add`, …),
+  which id, and a few flat details, with text carried whole. Another tool — a
+  live interface, a second agent — can follow a notebook by watching one file.
+  `flip events [--since TS] [--op PREFIX] [--id ID] [--limit N] [--json]`
+  reads it. The work log (`log/log.jsonl`) is unchanged. Older notebooks are
+  not backfilled; their event history starts at their next write.
+- **`flip source read <ID> [--note …]`** records that you opened and read a
+  source. Capturing and grading never said that.
+- **`flip snapshot`** prints the whole notebook as one JSON document (schema
+  `flip-snapshot/1`): sources with custody, citing claims and readers; claims
+  with their whole sentence; questions, decisions, sessions, forecasts,
+  commissions, the passed ledger, leads, directives and the tail of the work
+  log. It is a local read: it ignores visibility policy, so it is not
+  something to publish.
+- **Leads.** `flip find` now keeps every candidate it lists in
+  `log/leads.jsonl`, once per URL, instead of forgetting them when the
+  terminal scrolls. `flip lead list` shows the ones still open, `flip lead add
+  <URL>` records one found another way, and `flip lead dismiss <URL>` drops
+  one. A lead's state (`open`, `captured`, `passed`, `dismissed`) is derived
+  from the sources and ledgers, never stored.
+- **Directives.** `flip directive add "<text>"` sets a standing instruction
+  for whoever works the notebook next (`DR1`, `DR2`, …); `flip directive
+  withdraw DR1 [--because …]` ends it and keeps it on record. Active
+  directives print first in `flip next` and `flip show` and appear in their
+  JSON (`context.directives` and `directives`), so any session that orients
+  the usual way sees them. The skills tell agents to follow every active
+  directive and never withdraw one a person set.
+
+### Changed
+
+- `flip find --json` gains `new_leads`, the number of candidates the run
+  added to the leads ledger.
+- `flip show --json` gains `directives`, and `flip next --json` gains
+  `context.directives`; both are empty lists when none are active.
+
+### Fixed
+
+- Two commands allocating an id in the same notebook at the same moment can no
+  longer be granted the same id. Allocation now takes a short exclusive lock
+  (`.flip/ids.lock`), so a person's tool and an agent can write one notebook
+  together. A lock left by a writer that died is cleared after 30 seconds.
+- `flip next --json` reported the generated `sessions/index.md` as the latest
+  session, with every field empty. It now reports the newest real session.
+
 ## [0.23.0] — 2026-11-07
 
 ### Added

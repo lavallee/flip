@@ -18,6 +18,12 @@ read: `flip question list --status open`, `flip claim list --status
 needs-2nd`, `flip source list` — then open only the pages this episode
 touches.
 
+**Directives come first.** When `flip next` or `flip show` opens with a
+`DIRECTIVES` block, those lines are standing instructions from a person about
+how this notebook is to be worked. Follow every one for the whole episode. Never
+withdraw one a person set; if a directive blocks the work, say so in the log and
+stop there. `flip directive list` shows them again.
+
 Use `flip cli` for current syntax. Set `FLIP_ACTOR` before opening the session;
 the explicit `--actor` flag overrides it for one command.
 
@@ -35,7 +41,8 @@ the explicit `--actor` flag overrides it for one command.
    retrace: `flip log "fetched X"`, `flip log "hit wall: Y requires auth"`.
    Walls and pivots are the payload — git can't recover the why.
    Research sweeps belong inside this session: `flip find "<q>"` for candidate
-   leads, `flip ask "<q>"` for cited synthesis (it saves its raw output under
+   leads (kept in `log/leads.jsonl`, so `flip lead list` shows the ones still
+   open after the sweep), `flip ask "<q>"` for cited synthesis (it saves its raw output under
    `sessions/raw/` and logs a breadcrumb automatically), `flip recall "<q>"` for
    what you already hold. `ask` synthesis remains a grade-C lead until the cited
    public sources are captured and judged.
@@ -47,6 +54,9 @@ the explicit `--actor` flag overrides it for one command.
    - follow-ups → `flip question add "<q>"`
    - forks resolved → `flip decide --question ... --decision ... --why ...`
    - roads not taken → `flip pass "<thing>" --reason "<why rejected>"`
+   - leads still open (`flip lead list`) → capture, `flip pass --url`, or
+     `flip lead dismiss <url> --reason "<why>"`; leave open only what the next
+     episode should pick up
 4. **Record key outputs** in the session file's **Key outputs** section —
    pointers and ids (`[A3]`, `[C2]`, `[Q1]`), not re-pasted content. Keep or
    point to the raw transcript when it exists.

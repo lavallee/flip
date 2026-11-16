@@ -31,7 +31,7 @@ import re
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from . import manifest, pages, util
+from . import events, manifest, pages, util
 
 FORECAST_STATUSES = ("open", "resolved-yes", "resolved-no", "void", "superseded")
 PREDICTABILITY = ("white", "gray-light", "gray-dark", "black")
@@ -251,6 +251,8 @@ def add_forecast(
     )
     path = pages.write_page(directory / f"{slug}.md", fm, body)
     _finish(root, changed=("forecasts",))
+    events.emit(root, "forecast.add", fid, text=question, resolves_by=fm.get("resolves_by"),
+                probability=fm.get("probability"))
     return pages.Page(path=path, fm=fm, body=body)
 
 
@@ -298,6 +300,8 @@ def update_forecast(
     page.fm["updates"] = updates
     pages.write_page(page.path, page.fm, page.body)
     _finish(root, changed=("forecasts",))
+    events.emit(root, "forecast.update", fid, probability=record.get("probability"),
+                confidence=record.get("confidence"), note=record.get("note"))
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 
@@ -365,6 +369,8 @@ def resolve_forecast(
         {"ts": ts, "text": f"forecast-resolve {fid}: {outcome}", "actor": actor},
     )
     _finish(root, changed=("forecasts",))
+    events.emit(root, "forecast.resolve", fid, outcome=outcome, status=new_status,
+                note=note)
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 
@@ -392,6 +398,8 @@ def decline_forecast(
     util.append_jsonl(root / DECLINED, row)
     # The decline lands in its ledger, never on a forecasts/ page — nothing to recount.
     _finish(root, changed=())
+    events.emit(root, "forecast.decline", text=text, reason=reason,
+                fold_into=row.get("fold_into"))
     return row
 
 
@@ -539,6 +547,7 @@ def add_cluster(
     )
     path = pages.write_page(directory / f"{slug}.md", fm, body)
     _finish(root, changed=("forecasts",))
+    events.emit(root, "forecast.cluster", cid, text=decision_question)
     return pages.Page(path=path, fm=fm, body=body)
 
 

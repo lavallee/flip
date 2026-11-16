@@ -203,6 +203,11 @@ group. The leaves you reach for most:
 | absence claims / derivation | `flip claim add --absent-from corpus\|named_surfaces\|world --surface …` (a null's weight is its coverage) · `flip claim derives add\|rm <C#> <C#>` (what a claim rests on; doctor walks the chain) |
 | commission contracts | `flip commission add "<deliverable>" --universe … --stop … --does-not-redo … [--for Q#] [--roi-low …]` · `flip commission status <K#> dispatched\|returned\|declined [--consumed …]` · `flip commission list [--status]` |
 | decisions / dead ends | `flip decide …` · `flip pass …` |
+| leads | `flip find` keeps every candidate in `log/leads.jsonl` · `flip lead add <url> [--title --note]` · `flip lead dismiss <url> [--reason]` · `flip lead list [--all] [--json]` — state (`open`, `captured`, `passed`, `dismissed`) is derived |
+| directives | `flip directive add "<text>"` (allocates `DR#`) · `flip directive withdraw <DR#> [--because …]` · `flip directive list [--all] [--json]` — a person's standing instructions; active ones print first in `flip next` and `flip show`. Follow every one; never withdraw one a person set |
+| record a reading | `flip source read <id> [--note …]` — after actually reading the source |
+| what changed | `flip events [--since TS] [--op PREFIX] [--id ID] [--limit N] [--json]` — one row per write, from `log/events.jsonl` |
+| whole-notebook read | `flip snapshot [--log-limit N]` — one JSON document (`flip-snapshot/1`); local, ignores visibility policy |
 | log / sessions | `flip log "<text>"` · `flip session start\|end` |
 | views | `flip show [--claims\|--stale] [--json]` · `flip ws show [--open\|--claims] [--json]` |
 | resolve an id | `flip open <ref>` · `flip resolve <ref> --json` |
@@ -364,7 +369,8 @@ deployment's tools.
 raw synthesis under `sessions/raw/` and logs it, but you must capture and grade
 its cited public URLs separately before a load-bearing claim relies on it.
 `flip recall` reads local holdings and captures nothing. (`--kind lookup` is a
-deprecated alias for `flip ask`.)
+deprecated alias for `flip ask`.) `flip find` also keeps each candidate as a
+lead, once per URL: `flip lead list` shows the ones still open.
 
 ### Assert and verify a claim
 

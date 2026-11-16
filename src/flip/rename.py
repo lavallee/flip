@@ -20,7 +20,7 @@ import os
 import re
 from pathlib import Path
 
-from . import manifest, pages, util, views
+from . import events, manifest, pages, util, views
 
 # Entity slugs (SPEC §3 naming rules): lowercase, digits, dashes.
 ENTITY_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -69,6 +69,8 @@ def rename_entity(root: Path, entity_id: str, new_slug: str) -> tuple[Path, Path
     changed = _rewrite_links(root, old_path, new_path)
     manifest.touch_updated(root)
     views.regenerate(root)  # listings and the root body pick up the new slug
+    events.emit(root, "rename", entity_id, to=new_path.relative_to(root).as_posix(),
+                **{"from": old_path.relative_to(root).as_posix()})
     return old_path, new_path, changed
 
 

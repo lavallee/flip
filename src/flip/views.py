@@ -25,7 +25,7 @@ from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import claims, pages, stance
+from . import claims, directives, pages, stance
 from . import sources as sources_mod
 from .manifest import Manifest, load_manifest, save_manifest
 from .profiles import Profile, load_profile
@@ -344,6 +344,7 @@ def hot_view(root: Path, as_data: bool = False) -> str | dict:
     session = _latest_session(root)
     dated = _stale_sources(_source_rows(root), profile.freshness_months)
     idle = idle_days(m.updated)
+    standing = directives.active_directives(root)
     if as_data:
         return {
             "slug": m.slug,
@@ -351,6 +352,7 @@ def hot_view(root: Path, as_data: bool = False) -> str | dict:
             "status": m.status,
             "updated": m.updated,
             "idle_days": idle,
+            "directives": standing,
             "open_questions": questions,
             "reopen_armed": armed,
             "claims_needing_work": claims,
@@ -358,7 +360,10 @@ def hot_view(root: Path, as_data: bool = False) -> str | dict:
             "latest_session": session,
             "dated_sources": len(dated),
         }
-    lines = [" · ".join([m.slug, m.kind, m.status + _idle_suffix(idle), m.updated])]
+    # Directives open the view, uncapped and unclipped: they are instructions
+    # from a person about how to do everything listed below them.
+    lines = directives.render_block(standing)
+    lines.append(" · ".join([m.slug, m.kind, m.status + _idle_suffix(idle), m.updated]))
     # Each roster is capped: the hot view is the resume-here screen, and a
     # screen has a size by definition. Measured failure mode: a notebook whose
     # steady state was "everything answered, everything watched" rendered a

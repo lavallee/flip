@@ -20,7 +20,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import manifest, pages, util, views
+from . import events, manifest, pages, util, views
 
 SESSIONS = Path("sessions")
 
@@ -100,6 +100,9 @@ def start_session(
     pages.write_page(path, fm, _SECTION_STUBS)
     manifest.touch_updated(root)
     views.regenerate(root, changed=("sessions",))
+    events.emit(root, "session.start", path=path.relative_to(root).as_posix(),
+                model=fm.get("model"), workflow=fm.get("workflow"),
+                phase=fm.get("phase"), item=fm.get("item"))
     return path
 
 
@@ -173,6 +176,8 @@ def attach_transcript(
     pages.write_page(path, page.fm, body)
     manifest.touch_updated(root)
     views.regenerate(root, changed=("sessions",))
+    events.emit(root, "session.transcript", path=path.relative_to(root).as_posix(),
+                source=source_id, local=local)
     return path
 
 
@@ -292,4 +297,5 @@ def end_session(root: Path, path_or_slug: Path | str, summary: str,
     pages.write_page(path, page.fm, body)
     manifest.touch_updated(root)
     views.regenerate(root, changed=("sessions",))
+    events.emit(root, "session.end", path=path.relative_to(root).as_posix(), text=summary)
     return path

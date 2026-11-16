@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from flip import pages
 from flip.pages import (
     all_ids,
@@ -228,3 +230,51 @@ def test_unique_slug_never_doubles_an_id_already_in_the_slug(tmp_path):
     assert pages.unique_slug(tmp_path, "s1", entity_id="S1") == "s1-2"
     (tmp_path / "s1-report.md").write_text("", encoding="utf-8")
     assert pages.unique_slug(tmp_path, "s1-report", entity_id="S1") == "s1-report-2"
+
+
+# --- concurrent allocation ------------------------------------------------------------
+
+
+def test_allocate_id_is_safe_across_processes(tmp_path):
+    # A person's tool and an agent writing the same notebook at once must never be
+    # granted the same id.
+    import subprocess
+    import sys
+
+    root = make_root(tmp_path)
+    code = (
+        "import sys; from pathlib import Path; from flip.pages import allocate_id; "
+        "print('\\n'.join(allocate_id(Path(sys.argv[1]), 'C') for _ in range(15)))"
+    )
+    procs = [
+        subprocess.Popen([sys.executable, "-c", code, str(root)], stdout=subprocess.PIPE, text=True)
+        for _ in range(6)
+    ]
+    granted = [line for p in procs for line in p.communicate()[0].split()]
+    assert all(p.returncode == 0 for p in procs)
+    assert len(granted) == 90
+    assert len(set(granted)) == 90
+    assert not (root / ".flip" / "ids.lock").exists()
+
+
+def test_allocate_id_clears_a_lock_left_by_a_dead_writer(tmp_path, monkeypatch):
+    import os
+
+    root = make_root(tmp_path)
+    lock = root / ".flip" / "ids.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text("", encoding="utf-8")
+    old = lock.stat().st_mtime - pages.IDS_LOCK_STALE - 5
+    os.utime(lock, (old, old))
+    assert allocate_id(root, "C") == "C1"
+    assert not lock.exists()
+
+
+def test_allocate_id_says_what_to_do_when_the_lock_is_held(tmp_path, monkeypatch):
+    root = make_root(tmp_path)
+    lock = root / ".flip" / "ids.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text("", encoding="utf-8")
+    monkeypatch.setattr(pages, "IDS_LOCK_WAIT", 0.1)
+    with pytest.raises(SystemExit, match="ids.lock"):
+        allocate_id(root, "C")

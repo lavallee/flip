@@ -27,7 +27,11 @@ Use `flip cli` when you need syntax beyond the targeted commands below. Set
 1. **Lint before handing off.** `flip doctor` — never hand off with ERROR
    findings; note any WARNs you're deliberately leaving in the log.
 2. **Read what the next actor will see.** `flip show` (the hot view) and
-   `flip show --stale` — these plus HANDOFF.md are the pickup surface.
+   `flip show --stale` — these plus HANDOFF.md are the pickup surface. Active
+   directives print at the top of `flip show`: they are a person's standing
+   instructions, they carry over to the next actor as they are, and you do not
+   withdraw one to tidy up. `flip lead list` shows candidate sources still
+   untriaged.
 3. **Write/refresh `HANDOFF.md`** at the notebook root, current-state only:
    - **State of play** — where the work stands in 3–5 sentences; the working
      thesis and its version (v1, v2…)

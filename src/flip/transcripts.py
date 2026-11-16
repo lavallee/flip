@@ -36,7 +36,7 @@ import hashlib
 import re
 from pathlib import Path
 
-from . import manifest, pages, util
+from . import events, manifest, pages, util
 from . import sources as sources_mod
 
 # flip owns this section of a transcript page and regenerates it wholly; the
@@ -212,6 +212,8 @@ def add_excerpt(
         record["note"] = str(note)
     page.fm["excerpts"] = existing + [record]
     _write_transcript(root, page, quotes={label: quoted})
+    events.emit(root, "transcript.excerpt", source_id, label=label, lines=[start, end],
+                note=note)
     return record
 
 
@@ -236,6 +238,7 @@ def remove_excerpt(root: Path, source_id: str, label: str) -> dict:
         )
     page.fm["excerpts"] = [e for e in existing if str(e.get("label")) != label]
     _write_transcript(root, page)
+    events.emit(root, "transcript.unpin", source_id, label=label)
     return record
 
 

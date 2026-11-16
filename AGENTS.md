@@ -70,6 +70,11 @@ it to the researched project's runtime dependencies. See
 12. **Finish with an audit.** Run `flip doctor`; fix every ERROR and read every
     WARN. Expected-until-use notices are completion reminders, not current
     failures.
+13. **Directives are standing instructions from a person.** `flip next` and
+    `flip show` print active ones first. Follow every one until it is withdrawn,
+    and never withdraw one a person set.
+14. **Say what you read.** After actually reading a source, record it with
+    `flip source read <id>`. Capturing or grading is not reading.
 
 ## Task procedures
 
@@ -107,6 +112,11 @@ flip next
 
 Use `flip show` for the hot state, `flip open <id>` for targeted reading, and
 `flip cli --json` when a machine-readable command inventory is useful.
+
+`flip find` keeps its candidates as leads (`flip lead list`, `flip lead
+dismiss`). `flip directive add|withdraw|list` manages a person's standing
+instructions. `flip events` lists every write, and `flip snapshot` prints the
+whole notebook as one JSON document for another tool to read.
 
 ## Keep repeatable gains
 

@@ -33,7 +33,7 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from . import integrations, manifest, pages
+from . import events, integrations, manifest, pages
 from .util import (
     append_jsonl,
     detect_actor,
@@ -1072,6 +1072,8 @@ def add_source(
     path = pages.write_page(ref_dir / f"{slug}.md", fm, body)
     manifest.touch_updated(root)
     _regenerate_views(root, changed=("references",))
+    events.emit(root, "source.add", source_id, url=fm.get("resource") or url, kind=kind,
+                status=fm["status"], title=title)
     return pages.Page(path=path, fm=fm, body=body)
 
 
@@ -1418,6 +1420,8 @@ def extract_text(
     # to identical content on every run. The notebook did change, so `updated`
     # moves.
     manifest.touch_updated(root)
+    events.emit(root, "source.extract", source_id, path=row["outputs"][0]["path"],
+                words=run.words, method=row.get("method"), tool=row["tool"])
     return row
 
 
@@ -1469,6 +1473,7 @@ def set_pipeline(root: Path, source_id: str, pipeline: str, evidence: str) -> pa
     pages.write_page(page.path, page.fm, page.body)
     manifest.touch_updated(root)
     _regenerate_views(root)
+    events.emit(root, "source.pipeline", source_id, pipeline=pipeline, evidence=evidence)
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 
@@ -1495,6 +1500,7 @@ def retitle_source(root: Path, source_id: str, title: str) -> pages.Page:
     pages.write_page(page.path, page.fm, body)
     manifest.touch_updated(root)
     _regenerate_views(root)
+    events.emit(root, "source.retitle", source_id, title=title, **{"from": old})
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
@@ -1564,6 +1570,7 @@ def recheck_source(root: Path, source_id: str, via: str | None = None) -> dict:
     pages.write_page(page.path, page.fm, page.body)
     manifest.touch_updated(root)
     _regenerate_views(root)
+    events.emit(root, "source.recheck", source_id, result=result, url=url)
     return {"result": result, "url": url, "sha256_now": sha_now, "baseline": baseline}
 
 
@@ -1585,6 +1592,7 @@ def set_provenance_state(
     pages.write_page(page.path, page.fm, page.body)
     manifest.touch_updated(root)
     _regenerate_views(root)
+    events.emit(root, "source.provenance", source_id, state=state, note=note)
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 
@@ -1640,6 +1648,7 @@ def grade_source(
             f"{source_id} is unjudged and no --independence given; independence is the "
             f"judgment's spine (one of: {', '.join(INDEPENDENCE)})"
         )
+    old_grade = str(page.fm.get("grade") or "?")
     support = dict(_support(page.fm))
     support.pop("seeded", None)  # a real grading replaces any migration seed
     for key, value in (
@@ -1660,4 +1669,20 @@ def grade_source(
     pages.write_page(page.path, page.fm, page.body)
     manifest.touch_updated(root)
     _regenerate_views(root)
+    events.emit(root, "source.grade", source_id, grade=page.fm["grade"],
+                independence=page.fm.get("independence"), **{"from": old_grade})
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
+
+
+def mark_read(root: Path, source_id: str, note: str | None = None) -> dict:
+    """Record that the acting person or agent opened and read a source.
+
+    Capture puts bytes in custody and grading records a judgment; neither says
+    anyone read the thing. This does, as one `source.read` row in the event
+    ledger ({ts, actor, op, id, note?}) and nothing else: no page changes, so
+    reading a source twice is two rows and never a rewrite. Returns the row.
+    """
+    root = require_notebook_root(root)
+    page = _find_source_page(root, source_id)
+    manifest.touch_updated(root)
+    return events.emit(root, "source.read", page.id, note=(note or "").strip())

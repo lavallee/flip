@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import pages
+from . import directives, pages
 from .manifest import load_manifest
 from .util import (
     find_notebook_root,
@@ -60,6 +60,16 @@ def _resolved(ref: str, entity_id: str, handle: str | None,
 
 def _find_in_notebook(ref: str, entity_id: str, handle: str | None, nb_root: Path) -> Resolved:
     page = pages.find_by_id(nb_root, entity_id)
+    if page is None and directives.ID_RE.match(entity_id):
+        # A directive is a ledger row, not a page, so there is no path to
+        # print — and printing its text where a path is expected would hand
+        # prose to whatever was composed around `flip open`.
+        found = directives.describe(nb_root, entity_id)
+        if found is not None:
+            raise SystemExit(
+                f"{found} — a directive is a row in log/directives.jsonl, not a page, "
+                "so it has no path to open; `flip directive list --all` shows every one"
+            )
     if page is None:
         where = f" in notebook '{handle}'" if handle else ""
         raise SystemExit(f"no page with id '{entity_id}'{where} ({known_ids_hint(nb_root)})")

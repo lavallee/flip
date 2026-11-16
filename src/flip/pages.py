@@ -15,7 +15,10 @@ consumer:
 from __future__ import annotations
 
 import datetime as _dt
+import os
 import re
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -45,6 +48,10 @@ PREFIX_DIR = {
     "FC": "forecasts", "CL": "forecasts", "K": "commissions",
     "H": "analysis", "TH": "threads",
 }
+# DR# (directives) is the one id series with no page: a directive is a row in
+# log/directives.jsonl (SPEC §8). It is absent from PREFIX_DIR on purpose and
+# still allocated here, so a DR# is never reused either.
+DIRECTIVES_LEDGER = Path("log") / "directives.jsonl"
 
 # Notebook-local, append-only id reservation file (one id per line): every
 # successful allocation is recorded here, so deleting an entity page never
@@ -267,6 +274,13 @@ def all_ids(root: Path) -> list[str]:
         for ev in read_jsonl(root / "sources" / "_provenance.jsonl")
         if ev.get("source_id")
     ]
+    # Directive ids live in their ledger, and .flip/ never travels with an
+    # export, so an imported notebook must still count the ones it holds.
+    ids += [
+        str(row["id"])
+        for row in read_jsonl(root / DIRECTIVES_LEDGER)
+        if row.get("id")
+    ]
     ids += reserved_ids(root)
     return ids
 
@@ -295,9 +309,51 @@ def allocate_id(root: Path, prefix: str) -> str:
     all_ids (pages + provenance + reservations) and every granted id is
     recorded, so deleting a page later never frees its id (SPEC §9).
     """
-    entity_id = next_id(prefix, all_ids(root))
-    reserve_id(root, entity_id)
+    with _ids_lock(root):
+        entity_id = next_id(prefix, all_ids(root))
+        reserve_id(root, entity_id)
     return entity_id
+
+
+IDS_LOCK_WAIT = 10.0  # seconds a writer waits for another to finish allocating
+IDS_LOCK_STALE = 30.0  # a lock older than this was left by a writer that died
+
+
+@contextmanager
+def _ids_lock(root: Path):
+    """Hold the notebook's id allocation for one read-then-reserve.
+
+    Two writers (a person's tool and an agent, say) that allocate at the same
+    moment would otherwise both read the same highest id and both be granted
+    the next one. The lock is a file created exclusively, which works the same
+    on every platform; it covers only the allocation, not the page write that
+    follows, because the reservation in .flip/ids is what makes the id taken.
+    """
+    path = (root / IDS_FILE).with_name("ids.lock")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + IDS_LOCK_WAIT
+    while True:
+        try:
+            os.close(os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+            break
+        except FileExistsError:
+            try:
+                if time.time() - path.stat().st_mtime > IDS_LOCK_STALE:
+                    path.unlink(missing_ok=True)
+                    continue
+            except OSError:
+                continue  # released between the two calls: try again
+            if time.monotonic() > deadline:
+                raise SystemExit(
+                    f"another flip command is allocating an id in this notebook "
+                    f"and has not finished after {IDS_LOCK_WAIT:.0f}s; if nothing "
+                    f"else is running, delete {path.relative_to(root)} and retry"
+                ) from None
+            time.sleep(0.02)
+    try:
+        yield
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def _safe_pages(root: Path, dirname: str) -> list[Page]:

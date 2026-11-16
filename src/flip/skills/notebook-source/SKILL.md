@@ -183,7 +183,9 @@ come from the operator's authorized setup, never from guessed values.
    and grade the republisher accordingly — republishers and derivatives do
    not count toward claim corroboration.
 6. **Read it, then grade it** (grading is a judgment made after reading, not
-   a formality at capture):
+   a formality at capture). Once you have actually read the source, record
+   that: `flip source read <id> [--note "sections 2-4"]`. Not after fetching
+   it, and not after a search snippet — the row says someone read it.
    ```bash
    flip grade <id> --independence independent|corroborated|self-reported|derivative \
      --basis official-record|platform-data|measured|survey|panel|single-operator|synthesis|spoken-management-remarks \
@@ -243,7 +245,10 @@ come from the operator's authorized setup, never from guessed values.
 For discovery, use the research and knowledge roles (configured in
 `$FLIP_HOME/config.toml`) — they never mint a source by themselves:
 - `flip find "<question>"` lists candidate sources; capture one with
-  `flip find --capture <n> "<question>"` or `flip add-source <url>`.
+  `flip find --capture <n> "<question>"` or `flip add-source <url>`. Every
+  candidate is kept as a lead: `flip lead list` shows the ones not yet
+  captured, passed, or dismissed, and `flip lead add <url>` records one you
+  found another way.
 - `flip ask "<question>"` returns cited synthesis. It is a **lead, not
   corroboration**: its raw output is saved under `sessions/raw/` and logged, but
   you must separately `flip add-source` and grade the public URLs it cites

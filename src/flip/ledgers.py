@@ -21,7 +21,7 @@ import re
 from datetime import date
 from pathlib import Path
 
-from . import manifest, pages, util, views
+from . import events, manifest, pages, util, views
 
 LOG = Path("log") / "log.jsonl"
 PASSED = Path("log") / "passed.jsonl"
@@ -67,6 +67,7 @@ def log_event(root: Path, text: str) -> dict:
     # call was O(every page in the notebook) purely by default (measured:
     # 19.8 s for one line at 10,300 sources).
     _finish(root, changed=())
+    events.emit(root, "log.add", text=text)
     return row
 
 
@@ -141,6 +142,8 @@ def add_passed(
     util.append_jsonl(root / PASSED, row)
     # passed.jsonl feeds no generated view; like a log event, nothing to recount.
     _finish(root, changed=())
+    events.emit(root, "pass.add", text=text, reason=reason, url=url,
+                absent_from=absent_from, surfaces=named)
     return row
 
 
@@ -189,6 +192,8 @@ def add_decision(
     slug = pages.unique_slug(directory, pages.slugify(decision, fallback="decision"), entity_id=did)
     path = pages.write_page(directory / f"{slug}.md", fm, body)
     _finish(root, changed=("decisions",))
+    events.emit(root, "decision.add", did, question=question, decision=decision, why=why,
+                rejected=[str(a) for a in alternatives_rejected or []])
     return pages.Page(path=path, fm=fm, body=body)
 
 
@@ -223,6 +228,7 @@ def add_question(root: Path, text: str, resolves_via: list[str] | None = None) -
     slug = pages.unique_slug(directory, pages.slugify(text, fallback="question"), entity_id=qid)
     path = pages.write_page(directory / f"{slug}.md", fm, text + "\n")
     _finish(root, changed=("questions",))
+    events.emit(root, "question.add", qid, text=text, resolves_via=vias)
     return pages.Page(path=path, fm=fm, body=text + "\n")
 
 
@@ -316,6 +322,7 @@ def answer_question(
     _log_question_event(root, "question-answer", qid,
                         _description(note) if note else "answered")
     _finish(root, changed=("questions",))
+    events.emit(root, "question.answer", qid, text=note, **{"from": status})
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
@@ -373,6 +380,8 @@ def note_question(
     pages.write_page(page.path, page.fm, body)
     _log_question_event(root, "question-evidence", qid, _description(text))
     _finish(root, changed=("questions",))
+    events.emit(root, "question.note", qid, text=text, answers=answers,
+                zero_yield=zero_yield, sources=cited)
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
@@ -416,6 +425,8 @@ def close_question(
     pages.write_page(page.path, page.fm, body)
     _log_question_event(root, "question-close", qid, reason)
     _finish(root, changed=("questions",))
+    events.emit(root, "question.close", qid, reason=reason, text=(note or "").strip(),
+                **{"from": status})
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
@@ -451,6 +462,7 @@ def dormant_question(
     pages.write_page(page.path, page.fm, body)
     _log_question_event(root, "question-dormant", qid, f"review by {until}")
     _finish(root, changed=("questions",))
+    events.emit(root, "question.dormant", qid, review_by=until, text=(note or "").strip())
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
@@ -477,6 +489,7 @@ def reopen_question(root: Path, qid: str, because: str) -> pages.Page:
     pages.write_page(page.path, page.fm, body)
     _log_question_event(root, "question-reopen", qid, _description(because))
     _finish(root, changed=("questions",))
+    events.emit(root, "question.reopen", qid, reason=because, **{"from": status})
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
@@ -546,6 +559,8 @@ def repose_question(
         },
     )
     _finish(root, changed=("questions",))
+    events.emit(root, "question.repose", qid, text=new_text.strip(), sharpened=axes,
+                **{"from": old_text})
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 

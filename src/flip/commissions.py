@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import manifest, pages, util, views
+from . import events, manifest, pages, util, views
 
 STATUSES = ("proposed", "dispatched", "returned", "declined")
 
@@ -135,6 +135,7 @@ def add_commission(
     path = pages.write_page(directory / f"{slug}.md", fm, deliverable + "\n")
     _log_event(root, "commission-add", kid, _describe(deliverable))
     _finish(root)
+    events.emit(root, "commission.add", kid, text=deliverable, status=fm.get("status"))
     return pages.Page(path=path, fm=fm, body=deliverable + "\n")
 
 
@@ -179,6 +180,8 @@ def set_commission_status(
     pages.write_page(page.path, page.fm, body)
     _log_event(root, "commission-status", kid, status)
     _finish(root)
+    events.emit(root, "commission.status", kid, to=status, note=(note or "").strip(),
+                **{"from": current})
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
