@@ -769,12 +769,11 @@ def _explain_grade(source_id: str) -> None:
     click.echo("  moves the letter:")
     for key in sources.GRADE_INPUTS:
         value = x["inputs"][key]
-        gates = " (alone gates B)" if key == "method" else ""
         # booleans render as the flag spelling the user typed, not Python's
         shown = "—" if value is None else (
             str(value).lower() if isinstance(value, bool) else value
         )
-        click.echo(f"    {key}: {shown}{gates}")
+        click.echo(f"    {key}: {shown}")
     doc = ", ".join(
         f"{k}={'—' if x['documentation'][k] is None else x['documentation'][k]}"
         for k in sources.GRADE_DOCUMENTATION
@@ -808,20 +807,25 @@ def _explain_grade(source_id: str) -> None:
               help="Explain the source's current letter instead of writing: which "
                    "tuple fields moved it, which are documentation, and what a "
                    "higher letter would take. Read-only.")
+@click.option("--from-assessment", help="Save only against this reviewed assessment digest.")
+@click.option("--authority-role", type=click.Choice(["issuer", "custodian"]))
+@click.option("--authority-for", "authority_scope", help="The fact this held official record establishes.")
+@click.option("--authority-limit", help="What needs a different record or independent evidence.")
+@click.option("--clear-authority", is_flag=True, help="Withdraw the existing scoped assessment.")
 @click.option("--grade", "legacy_grade", default=None, hidden=True)
 def grade(source_id: str, independence: str | None, basis: str | None, n: str | None,
           method: str | None, vintage: str | None, base_defined: bool | None,
           freshness: str | None, notes: str | None, explain: bool,
-          legacy_grade: str | None) -> None:
+          legacy_grade: str | None, authority_role: str | None, authority_scope: str | None,
+          authority_limit: str | None, clear_authority: bool, from_assessment: str | None) -> None:
     """Record the support tuple on a source's page (SPEC §5.4).
 
     Use after actually reading a source; the tuple gates claim verification
     and the letter grade is DERIVED from it, never authored. Only the
     judgment keys change — the rest of the page round-trips.
 
-    `--explain` writes nothing and shows the derivation instead: only
-    independence, basis and base_defined move the letter (plus method, which
-    alone gates B) — n, vintage and freshness are documentation.
+    `--explain` shows the grade rule, including any scope and limit on an
+    official record. Sample size, vintage and freshness describe the evidence.
     """
     if explain:
         _explain_grade(source_id)
@@ -833,7 +837,7 @@ def grade(source_id: str, independence: str | None, basis: str | None, n: str | 
             "letter follows; `flip source list` shows the derived digest"
         )
     if all(v is None for v in (independence, basis, n, method, vintage,
-                               base_defined, freshness, notes)):
+                               base_defined, freshness, notes, authority_role, authority_scope, authority_limit)) and not clear_authority:
         raise SystemExit(
             "nothing to record; describe the evidence — at least one of "
             "--independence/--basis/--n/--method/--vintage/--base-defined"
@@ -843,7 +847,9 @@ def grade(source_id: str, independence: str | None, basis: str | None, n: str | 
                                 independence=independence, basis=basis, n=n,
                                 method=method, vintage=vintage,
                                 base_defined=base_defined,
-                                freshness=freshness, notes=notes)
+                                freshness=freshness, notes=notes, authority_role=authority_role,
+                                authority_scope=authority_scope, authority_limit=authority_limit,
+                                clear_authority=clear_authority, expected_assessment=from_assessment)
     support = page.fm.get("support") or {}
     bits = [f"{page.id} · grade {page.fm.get('grade', '?')} (derived)",
             str(page.fm.get("independence", "?"))]
@@ -1205,6 +1211,24 @@ def pass_(text: str, reason: str, url: str | None, absent_from: str | None,
 
 
 @main.group(cls=SuggestGroup)
+def draft():
+    """Save versioned notebook manuscripts."""
+
+
+@draft.command("save")
+@click.option("--file", "manuscript", type=click.File("r", encoding="utf-8"), required=True,
+              help="Completed manuscript, or - for stdin.")
+@click.option("--because", required=True, help="What changed and what prompted it.")
+@click.option("--from-version", help="Expected latest draft v-number, or none for the first.")
+@click.option("--from-sha", help="Check the working manuscript read by the editor.")
+def draft_save(manuscript, because, from_version, from_sha):
+    """Save the next manuscript version and point drafts/current at it."""
+    from . import manuscripts
+    version = manuscripts.save(require_notebook_root(), manuscript.read(), because, from_version, from_sha)
+    click.echo(f"Saved draft {version}")
+
+
+@main.group(cls=SuggestGroup)
 def question() -> None:
     """Track questions as pages (questions/<slug>.md, ids Q#).
 
@@ -1254,6 +1278,23 @@ def question_answer(qid: str, note: str | None, reopen_when: tuple[str, ...]) ->
     click.echo(f"{qid} answered{tail}")
 
 
+@question.command("revise")
+@click.argument("qid", metavar="ID")
+@click.option("--note", help="Complete revised answer.")
+@click.option("--file", "answer_file", type=click.File("r", encoding="utf-8"), help="Read the revised answer from a file, or - for stdin.")
+@click.option("--because", help="Why the answer changed.")
+@click.option("--from-version", help="Refuse if another revision has since been recorded.")
+@click.option("--from-sha", help="Refuse if the current answer text changed outside the editor.")
+def question_revise(qid, note, answer_file, because, from_version, from_sha):
+    """Save a new version of an answered question, retaining earlier answers."""
+    if (note is None) == (answer_file is None):
+        raise click.UsageError("supply one of --note or --file")
+    if answer_file is not None:
+        note = answer_file.read()
+    rev = ledgers.revise_answer(require_notebook_root(), _require_qid(qid), note, because, from_version, from_sha)
+    click.echo(f"{qid} answer {rev['version']}")
+
+
 @question.command("note")
 @click.argument("qid", metavar="ID")
 @click.argument("text")
@@ -1284,6 +1325,34 @@ def question_note(qid: str, text: str, answers: str | None,
     scope = f" · answers: {answers}" if answers else ""
     zero = f" · zero yield: {zero_yield}" if zero_yield else ""
     click.echo(f"{qid} evidence noted ({page.fm.get('status', 'open')}){scope}{zero}")
+
+
+@question.command("assign")
+@click.argument("qid")
+@click.option("--route", type=click.Choice(ledgers.REPORTING_ROUTES), required=True)
+@click.option("--holder", required=True, help="Who saw it or keeps the record?")
+@click.option("--ask", required=True, help="Your question in the words you would use.")
+@click.option("--test", required=True, help="Record or observation that could test the reply.")
+@click.option("--terms", help="Attribution, timing or response arrangements.")
+def question_assign(qid, route, holder, ask, test, terms):
+    """Plan one reporting assignment on a question."""
+    rid = ledgers.assign_reporting(require_notebook_root(), qid, route, holder, ask, test, terms)
+    click.echo(f"{qid} · {rid} planned")
+
+
+@question.command("report")
+@click.argument("qid")
+@click.argument("rid")
+@click.argument("kind", type=click.Choice(ledgers.REPORTING_STEPS))
+@click.argument("text")
+@click.option("--source", help="Held record for this step.")
+@click.option("--from-step", type=click.IntRange(min=0), help="Number of steps already reviewed.")
+@click.option("--asked", help="Save the question and this observed reply together.")
+@click.option("--attribution", help="Agreed attribution for this paired exchange.")
+def question_report(qid, rid, kind, text, source, from_step, asked, attribution):
+    """Record an actual question, response, nonresponse or check on an assignment."""
+    ledgers.report_step(require_notebook_root(), qid, rid, kind, text, source, from_step, asked, attribution)
+    click.echo(f"{qid} · {rid} · {kind}")
 
 
 @question.command("close")
@@ -1602,14 +1671,15 @@ def claim_add(text: str, source_ids: tuple[str, ...], subject_ids: tuple[str, ..
 @claim.command("status")
 @click.argument("claim_id", metavar="CLAIM_ID")
 @click.argument("status", type=click.Choice(claims.STATUSES))
-def claim_status(claim_id: str, status: str) -> None:
+@click.option("--because", help="Reason for the ruling, retained with the status event.")
+def claim_status(claim_id: str, status: str, because: str | None) -> None:
     """Move a claim to a new status, recomputing its corroboration count.
 
     "verified" is refused until the profile's bar is met (independent
     original sources, or a grade-A source where the profile allows it) —
     counting judged sources only.
     """
-    page = claims.set_claim_status(require_notebook_root(), claim_id, status)
+    page = claims.set_claim_status(require_notebook_root(), claim_id, status, because=because)
     click.echo(f"{page.id} → {page.fm.get('status', '?')} · "
                f"corroboration: {_corroboration_label(page.fm)}")
     own = stance_mod.notebook_stance(page.fm)
@@ -2196,6 +2266,16 @@ def transcript_list(source_id: str, as_json: bool) -> None:
         if record.get("note"):
             line += f"  — {record['note']}"
         click.echo(line)
+
+
+@transcript.command("read")
+@click.argument("source_id", metavar="ID")
+@click.argument("label")
+@click.option("--json", "as_json", is_flag=True, help="Include the reference, lines and passage digest.")
+def transcript_read(source_id: str, label: str, as_json: bool) -> None:
+    """Read the pinned passage from the held transcript and check its digest."""
+    record = transcripts_mod.read_passage(require_notebook_root(), source_id, label)
+    click.echo(json.dumps(record, ensure_ascii=False) if as_json else record["text"])
 
 
 @transcript.command("unpin")

@@ -159,6 +159,13 @@ page disagrees it says so),
 `flip question repose Q1 "<sharper wording>"` (append-only; the journey survives),
 `flip question note|close|dormant|reopen` (the rest of the journey — evidence
 accretion with scope verdicts, honest ends, parking, un-stop triggers),
+`flip question revise Q1 --note "..." --because "..."` (a new version of an
+answer; earlier versions are kept),
+`flip question assign Q1 --route records|interview|response|replicate|rival --holder "..." --ask "..." --test "..."`
+then `flip question report Q1 R1 asked|reply|declined|no-reply|finding "..."`
+(a planned piece of reporting and what actually happened; a reply is not yet
+evidence), `flip draft save --file FILE --because "..."` (the next numbered
+manuscript under `drafts/`),
 `flip commission add|status|list` (bounded follow-up work as a contract),
 `flip claim verify C7 --method adversarial|recomputation` (a recorded check
 that also clears the `verified` gate), `flip session start|end`

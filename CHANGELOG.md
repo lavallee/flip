@@ -6,6 +6,50 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.25.0] — 2026-11-22
+
+### Added
+
+- **Answer revisions.** `flip question revise Q1 --note "…"` (or `--file`)
+  saves a new version of an answered question and keeps the earlier ones.
+  Each version records its text, SHA-256, time, actor, the question's wording
+  and the rulings then in force on the claims and sources it names.
+  `--because` gives the reason; `--from-version` and `--from-sha` refuse a
+  save made against an answer that has since changed.
+- **Manuscript versions.** `flip draft save --file FILE --because "…"` writes
+  the next `drafts/vN/` with its changelog and a revision receipt, then moves
+  `drafts/current` to it in one step. `--from-version` and `--from-sha` refuse
+  a stale editor. Earlier drafts are never overwritten.
+- **Reporting assignments.** `flip question assign Q1 --route … --holder …
+  --ask … --test …` plans one piece of reporting on a question. Routes are
+  `records`, `interview`, `response`, `replicate` and `rival`. `flip question
+  report Q1 R1 asked|reply|declined|no-reply|finding "…"` records what
+  actually happened, step by step, with who and when. A planned question, an
+  attributed reply and checked evidence stay distinct: recording a reply
+  changes no claim or answer.
+- **Scoped authority for official records.** `flip grade F1 --authority-role
+  issuer|custodian --authority-for "…" --authority-limit "…"` records what a
+  held official record can establish and where that stops. A self-reported
+  source with an assessed official record and a recorded method can now reach
+  grade B. It still counts as self-reported for corroboration, and an
+  undefined base still caps the letter at C. `--clear-authority` withdraws the
+  assessment.
+- **`flip transcript read <ID> <LABEL> [--json]`** prints a pinned transcript
+  passage from the held copy after checking its digest.
+- **`flip claim status … --because "…"`** keeps the reason for a ruling with
+  its status event.
+
+### Changed
+
+- `flip snapshot` carries more of the notebook, under the same schema name
+  (`flip-snapshot/1`; every addition is a new key). Questions gain `evidence`
+  (each note with a stable anchor, date, scope verdict, empty-probe cause and
+  cited sources), `answer`, `answer_revisions`, `reporting`, `status_note`,
+  `closed_reason` and `answered_at`. Claims gain ordered `citations` with
+  their roles. The notebook gains `question_plan` and `draft_versions`.
+- `flip grade --explain` describes the grade rule in full, including any
+  scope and limit on an official record, instead of singling out `method`.
+
 ## [0.24.0] — 2026-11-16
 
 ### Added

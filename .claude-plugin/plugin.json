@@ -1,7 +1,7 @@
 {
   "name": "flip",
   "displayName": "flip — reporter's notebooks",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "description": "Turns one-off agent research into source-grounded notebooks another agent can continue, challenge, extend, and publish from. Ten skills cover notebook practice plus workflow and plugin authoring; a custody hook puts capture-before-cite at the moment of a web fetch.",
   "author": { "name": "Marc Lavallee" },
   "repository": "https://github.com/lavallee/flip",

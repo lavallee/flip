@@ -25,6 +25,7 @@ page note only — grading stays a judgment made after reading, never auto-set.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shlex
@@ -382,13 +383,33 @@ def judged(fm: dict) -> bool:
     return _support(fm).get("seeded") == "legacy-grade"
 
 
+def assessment_key(fm: dict) -> str:
+    """Identify the grading inputs a reviewer actually saw."""
+    values = [fm.get(k) for k in ("independence", "grade", "support", "notes", "freshness")]
+    raw = json.dumps(values, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def record_authority(fm: dict) -> dict | None:
+    """An assessed issuer or custodian, scoped to a proposition in a held record."""
+    support = _support(fm)
+    value = support.get("record_authority")
+    if (support.get("basis") != "official-record" or not support.get("method")
+            or not isinstance(value, dict) or value.get("role") not in ("issuer", "custodian")):
+        return None
+    if not all(isinstance(value.get(k), str) and value[k].strip() for k in ("scope", "limit", "sha256")):
+        return None
+    return value
+
+
 def derive_grade(fm: dict) -> str:
     """The letter digest of a source's support tuple — a summary, never a
     store (design D-A). Deterministic and recomputable; doctor flags drift.
 
     A: independent + strong basis (official-record/platform-data/measured),
        with `base_defined` not recorded false.
-    B: independent/corroborated with basis and method recorded.
+    B: independent/corroborated with basis and method, or a self-reported
+       official record with a held, scoped issuer/custodian assessment.
     C: every other recorded judgment (self-reported, synthesis-grade bases,
        undefined base on a quantitative source).
     D: derivative — a lead, never provenance.
@@ -411,16 +432,16 @@ def derive_grade(fm: dict) -> str:
     basis = str(support.get("basis") or "")
     if independence == "independent" and basis in _STRONG_BASES:
         return "A"
+    if independence == "self-reported" and record_authority(fm):
+        return "B"
     if independence in ("independent", "corroborated") and basis and support.get("method"):
         return "B"
     return "C"
 
 
 # Which support-tuple fields move the letter and which are documentation.
-# Only three fields decide the grade, plus `method` which alone gates B;
-# `n`/`vintage`/`freshness` never move it. That was discoverable only by
-# reading derive_grade, so `flip grade --explain` prints it.
-GRADE_INPUTS = ("independence", "basis", "base_defined", "method")
+# `flip grade --explain` prints these separately from the descriptive fields.
+GRADE_INPUTS = ("independence", "basis", "base_defined", "method", "record_authority")
 GRADE_DOCUMENTATION = ("n", "vintage", "freshness")
 
 
@@ -428,7 +449,7 @@ def explain_grade(fm: dict) -> dict:
     """Why this source derives the letter it does (`flip grade --explain`).
 
     Returns {grade, reason, next, inputs, documentation}: `inputs` are the
-    four tuple fields that move the letter, `documentation` the three that
+    tuple fields that move the letter, `documentation` the three that
     never do, `reason` the rule that fired, and `next` the shortest honest
     path to a higher letter.
     """
@@ -442,6 +463,7 @@ def explain_grade(fm: dict) -> dict:
         "basis": basis or None,
         "base_defined": support.get("base_defined"),
         "method": support.get("method") or None,
+        "record_authority": record_authority(fm),
     }
     documentation = {
         "n": support.get("n") or None,
@@ -477,9 +499,16 @@ def explain_grade(fm: dict) -> dict:
             "which caps the digest at C whatever else the tuple says"
         )
         nxt = "define what is being measured, then re-grade with --base-defined"
+    elif (grade == "C" and independence == "self-reported"
+          and basis == "official-record" and support.get("method")):
+        reason = "This official record is classified as self-reported. The notebook has no assessment of which specific fact its issuer or custodian can establish."
+        nxt = "Inspect the held copy and record its scope. For an outcome beyond that scope, corroborate it with an independent source."
     elif grade == "A":
         reason = f"independence 'independent' + strong basis '{basis}', base not undefined"
         nxt = "A is the ceiling"
+    elif grade == "B" and independence == "self-reported" and (authority := record_authority(fm)):
+        reason = f"Held official record from its {authority['role']}. Establishes: {authority['scope'].rstrip('.')}. Limit: {authority['limit']}"
+        nxt = "Seek independently collected evidence for claims beyond this scope."
     elif grade == "B":
         reason = (
             f"independence '{independence}' with basis '{basis}' and a recorded method "
@@ -503,7 +532,7 @@ def explain_grade(fm: dict) -> dict:
             nxt = f"A needs a strong basis ({strong})"
         else:
             nxt = (
-                "C is the honest ceiling for self-reported evidence; corroborate it with "
+                "For a held official record, assess its issuer or custodian and scope. For an outcome claim, corroborate it with "
                 "an independent source rather than upgrading this one"
             )
     return {
@@ -1618,6 +1647,11 @@ def grade_source(
     base_defined: bool | None = None,
     freshness: str | None = None,
     notes: str | None = None,
+    authority_role: str | None = None,
+    authority_scope: str | None = None,
+    authority_limit: str | None = None,
+    clear_authority: bool = False,
+    expected_assessment: str | None = None,
 ) -> pages.Page:
     """Record the support tuple on an existing page; returns the page.
 
@@ -1636,42 +1670,70 @@ def grade_source(
     ):
         if value is not None and value not in allowed:
             raise SystemExit(f"invalid {name} '{value}' (one of: {', '.join(allowed)})")
-    page = next((p for p in source_pages(root) if p.id == source_id), None)
-    if page is None:
-        known = ", ".join(p.id for p in source_pages(root) if p.id) or "none yet"
-        raise SystemExit(
-            f"unknown source id '{source_id}' in references/ (have: {known}) — "
-            "run `flip add-source` first"
-        )
-    if independence is None and not page.fm.get("independence"):
-        raise SystemExit(
-            f"{source_id} is unjudged and no --independence given; independence is the "
-            f"judgment's spine (one of: {', '.join(INDEPENDENCE)})"
-        )
-    old_grade = str(page.fm.get("grade") or "?")
-    support = dict(_support(page.fm))
-    support.pop("seeded", None)  # a real grading replaces any migration seed
-    for key, value in (
-        ("basis", basis), ("n", n), ("method", method),
-        ("vintage", vintage), ("base_defined", base_defined),
-    ):
-        if value is not None:
-            support[key] = value
-    if support:
-        page.fm["support"] = support
-    if independence is not None:
-        page.fm["independence"] = independence
-    if freshness is not None:
-        page.fm["freshness"] = freshness
-    if notes is not None:
-        page.fm["notes"] = notes
-    page.fm["grade"] = derive_grade(page.fm)
-    pages.write_page(page.path, page.fm, page.body)
-    manifest.touch_updated(root)
-    _regenerate_views(root)
-    events.emit(root, "source.grade", source_id, grade=page.fm["grade"],
-                independence=page.fm.get("independence"), **{"from": old_grade})
-    return pages.Page(path=page.path, fm=page.fm, body=page.body)
+    with pages._ids_lock(root, filename="grading.lock", operation="grading a source"):
+        page = next((p for p in source_pages(root) if p.id == source_id), None)
+        if page is None:
+            known = ", ".join(p.id for p in source_pages(root) if p.id) or "none yet"
+            raise SystemExit(
+                f"unknown source id '{source_id}' in references/ (have: {known}) — "
+                "run `flip add-source` first"
+            )
+        if independence is None and not page.fm.get("independence"):
+            raise SystemExit(
+                f"{source_id} is unjudged and no --independence given; independence is the "
+                f"judgment's spine (one of: {', '.join(INDEPENDENCE)})"
+            )
+        if expected_assessment is not None and assessment_key(page.fm) != expected_assessment:
+            raise SystemExit("The source assessment changed. Review the current ruling before saving.")
+        old_grade = str(page.fm.get("grade") or "?")
+        support = dict(_support(page.fm))
+        previous_method = support.get("method")
+        previous_authority = support.get("record_authority")
+        support.pop("seeded", None)  # a real grading replaces any migration seed
+        for key, value in (
+            ("basis", basis), ("n", n), ("method", method),
+            ("vintage", vintage), ("base_defined", base_defined),
+        ):
+            if value is not None:
+                support[key] = value
+        assessment = (authority_role, authority_scope, authority_limit)
+        if clear_authority and any(v is not None for v in assessment):
+            raise SystemExit("Choose either a new assessment or --clear-authority.")
+        changed_relationship = independence is not None and independence != page.fm.get("independence")
+        if (clear_authority or support.get("basis") != "official-record"
+                or changed_relationship or previous_method != support.get("method")):
+            support.pop("record_authority", None)
+        if any(v is not None for v in assessment):
+            if (independence or page.fm.get("independence")) == "derivative":
+                raise SystemExit("Assess the original issuer or custodian copy. A derivative is a lead.")
+            if authority_role not in ("issuer", "custodian") or not all(v and v.strip() for v in assessment):
+                raise SystemExit("Supply --authority-role, --authority-for and --authority-limit together.")
+            if support.get("basis") != "official-record" or not str(support.get("method") or "").strip():
+                raise SystemExit("Record authority needs an official-record basis and a production method.")
+            event = latest_capture_event(root, source_id) or {}
+            if capture_fidelity(event) == "thin" or not event.get("sha256"):
+                raise SystemExit("A substantive held record is required to assess authority.")
+            if sha256_file(primary_raw(root, source_id)) != event["sha256"]:
+                raise SystemExit("Held record does not match its custody digest.")
+            support["record_authority"] = {"role": authority_role, "scope": authority_scope.strip(),
+                                           "limit": authority_limit.strip(), "sha256": event["sha256"]}
+        if support:
+            page.fm["support"] = support
+        if independence is not None:
+            page.fm["independence"] = independence
+        if freshness is not None:
+            page.fm["freshness"] = freshness
+        if notes is not None:
+            page.fm["notes"] = notes
+        page.fm["grade"] = derive_grade(page.fm)
+        pages.write_page(page.path, page.fm, page.body)
+        manifest.touch_updated(root)
+        _regenerate_views(root)
+        events.emit(root, "source.grade", source_id, grade=page.fm["grade"],
+                    independence=page.fm.get("independence"), **{"from": old_grade},
+                    **({"record_authority": support["record_authority"]} if support.get("record_authority") else {}),
+                    **({"authority_withdrawn": True} if previous_authority and not support.get("record_authority") else {}))
+        return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 
 def mark_read(root: Path, source_id: str, note: str | None = None) -> dict:

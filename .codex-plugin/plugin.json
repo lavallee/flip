@@ -1,6 +1,6 @@
 {
   "name": "flip",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "description": "Turn one-off agent research into source-grounded notebooks another agent can continue, challenge, and publish from.",
   "author": {
     "name": "Marc Lavallee"

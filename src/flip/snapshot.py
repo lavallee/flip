@@ -17,6 +17,7 @@ Two properties the callers rely on:
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 
@@ -28,7 +29,9 @@ from . import (
     forecast,
     leads,
     ledgers,
+    manuscripts,
     pages,
+    revisions,
     sources,
     stance,
     util,
@@ -107,7 +110,7 @@ def _custody_by_source(root: Path) -> dict[str, dict]:
     return best
 
 
-def _sources(root: Path, claim_pages: list[pages.Page], event_rows: list[dict]) -> list[dict]:
+def _sources(root: Path, source_pages: list[pages.Page], claim_pages: list[pages.Page], event_rows: list[dict]) -> list[dict]:
     custody = _custody_by_source(root)
     cited_by: dict[str, list[str]] = {}
     for page in claim_pages:
@@ -125,11 +128,12 @@ def _sources(root: Path, claim_pages: list[pages.Page], event_rows: list[dict]) 
         elif row.get("op") == "source.add" and sid and row.get("kind"):
             kinds[sid] = str(row["kind"])
     out = []
-    for page in _pages(root, "references", "Source"):
+    for page in source_pages:
         fm, sid = page.fm, page.id
         event = custody.get(sid)
         text_path = root / "sources" / "text" / f"{sid}.txt"
         support = fm.get("support")
+        judgment = sources.explain_grade(fm)
         out.append({
             "id": sid,
             "title": fm.get("title"),
@@ -140,7 +144,10 @@ def _sources(root: Path, claim_pages: list[pages.Page], event_rows: list[dict]) 
             "url": fm.get("resource") or fm.get("url") or (event or {}).get("url"),
             "local": fm.get("local"),
             "status": fm.get("status"),
-            "grade": sources.derive_grade(fm),
+            "grade": judgment["grade"],
+            "grade_reason": judgment["reason"],
+            "assessment_key": sources.assessment_key(fm),
+            "capture_fidelity": sources.capture_fidelity(event or {}),
             "independence": fm.get("independence"),
             "freshness": fm.get("freshness"),
             "support": support if isinstance(support, dict) else None,
@@ -157,7 +164,7 @@ def _sources(root: Path, claim_pages: list[pages.Page], event_rows: list[dict]) 
     return out
 
 
-def _claims(root: Path, claim_pages: list[pages.Page]) -> list[dict]:
+def _claims(root: Path, claim_pages: list[pages.Page], source_fms: dict[str, dict]) -> list[dict]:
     out = []
     for page in claim_pages:
         fm = page.fm
@@ -169,7 +176,10 @@ def _claims(root: Path, claim_pages: list[pages.Page]) -> list[dict]:
             "load_bearing": bool(fm.get("load_bearing", False)),
             "sources": claims.evidence_ids(fm),
             "about": claims.subject_ids(fm),
-            "corroboration": fm.get("independent_corroboration"),
+            "citations": [{"ref": ref, "role": role} for ref, role in claims.source_citations(fm)],
+            "corroboration": claims.claim_corroboration(
+                [source_fms[sid] for sid in claims.evidence_ids(fm) if sid in source_fms], fm
+            ),
             "exposure": stance.derive_exposure(fm),
             "value": fm.get("value"),
             "unit": fm.get("unit"),
@@ -187,14 +197,60 @@ def _claims(root: Path, claim_pages: list[pages.Page]) -> list[dict]:
     return out
 
 
-def _questions(root: Path) -> list[dict]:
+_EVIDENCE_HEADING = re.compile(
+    r"Evidence (\d{4}-\d{2}-\d{2})(?: — (answers|zero yield): ([\w-]+))?"
+)
+_SOURCE_TRAILER = re.compile(r"(?:^|\n\n)Sources: (\[[A-Z]+\d+\](?:, \[[A-Z]+\d+\])*)$")
+
+
+def question_evidence(sections: list[tuple[str, str]]) -> list[dict]:
+    """Read dated notes from the question page, including pre-event notebooks."""
+    notes = []
+    occurrences: dict[str, int] = {}
+    for heading, text in sections:
+        match = _EVIDENCE_HEADING.fullmatch(heading.rstrip())
+        if not match:
+            continue
+        date, verdict, value = match.groups()
+        text = text.strip()
+        digest = hashlib.sha256(f"{heading}\n{text}".encode()).hexdigest()[:24]
+        occurrences[digest] = occurrences.get(digest, 0) + 1
+        anchor = digest if occurrences[digest] == 1 else f"{digest}-{occurrences[digest]}"
+        trailer = _SOURCE_TRAILER.search(text)
+        notes.append({
+            "anchor": anchor,
+            "date": date,
+            "text": text[:trailer.start()].rstrip() if trailer else text,
+            "answers": value if verdict == "answers" else None,
+            "zero_yield": value if verdict == "zero yield" else None,
+            "sources": re.findall(r"\[([A-Z]+\d+)\]", trailer[1]) if trailer else [],
+        })
+    return notes
+
+
+def _questions(root: Path, event_rows: list[dict]) -> list[dict]:
     out = []
+    answer_events = {}
+    for event in event_rows:
+        if event.get("op") == "question.answer":
+            answer_events.setdefault(event.get("id"), []).append(event)
     for page in _pages(root, "questions", "Question"):
         fm = page.fm
+        sections = revisions.sections(page.body)
+        status = str(fm.get("status", "open"))
+        status_heading = {"closed": "Closed ", "dormant": "Dormant ", "open": "Reopened "}.get(status)
+        status_note = next((text.strip() or None for heading, text in reversed(sections)
+                            if status_heading and heading.startswith(status_heading)), None)
+        versions = revisions.history(page, event_rows=answer_events.get(page.id, []))
+        answer = revisions.current(page, versions)
         out.append({
             "id": page.id,
             "text": ledgers._question_text(page),
-            "status": str(fm.get("status", "open")),
+            "reporting": fm.get("reporting", []),
+            "status": status,
+            "status_note": status_note,
+            "closed_reason": fm.get("closed_reason") if status == "closed" else None,
+            "answered_at": fm.get("answered") if status == "answered" else None,
             "path": _rel(root, page.path),
             "by": pages.generated_by(fm) or None,
             "at": pages.generated_at(fm) or None,
@@ -202,6 +258,9 @@ def _questions(root: Path) -> list[dict]:
             "reopen_when": _strs(fm.get("reopen_when")),
             "resolves_via": _strs(fm.get("resolves_via")),
             "formulations": _dicts(fm.get("formulations")),
+            "evidence": question_evidence(sections),
+            "answer": answer,
+            "answer_revisions": versions,
         })
     out.sort(key=lambda r: _id_key(r["id"]))
     return out
@@ -268,6 +327,7 @@ def snapshot(root: Path, log_limit: int = DEFAULT_LOG_LIMIT) -> dict:
     if log_limit < 0:
         raise SystemExit("--log-limit takes zero or a positive number of rows")
     m = load_manifest(root)
+    source_pages = _pages(root, "references", "Source")
     claim_pages = _pages(root, "claims", "Claim")
     event_rows = _ledger(root, events.EVENTS)
     log_rows = _ledger(root, ledgers.LOG)
@@ -286,10 +346,12 @@ def snapshot(root: Path, log_limit: int = DEFAULT_LOG_LIMIT) -> dict:
             "visibility": m.visibility,
             "workflow": m.workflow or None,
             "idle_days": util.idle_days(m.updated),
+            "draft_versions": manuscripts.versions(root),
+            "question_plan": "drafts/question-plan.md" if (root / "drafts/question-plan.md").is_file() else None,
         },
-        "sources": _sources(root, claim_pages, event_rows),
-        "claims": _claims(root, claim_pages),
-        "questions": _questions(root),
+        "sources": _sources(root, source_pages, claim_pages, event_rows),
+        "claims": _claims(root, claim_pages, {p.id: p.fm for p in source_pages}),
+        "questions": _questions(root, event_rows),
         "decisions": _decisions(root),
         "sessions": _sessions(root),
         "forecasts": forecast.list_forecasts(root),

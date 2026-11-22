@@ -806,7 +806,7 @@ def _refuse_verified_subject_claim(claim_id: str, fm: dict) -> None:
     )
 
 
-def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
+def set_claim_status(root: Path, claim_id: str, status: str, *, because: str | None = None) -> pages.Page:
     """Move a claim to a new status, recomputing independent_corroboration and
     refreshing the `sources` entries + footnote attribution against current
     source slugs.
@@ -928,7 +928,8 @@ def set_claim_status(root: Path, claim_id: str, status: str) -> pages.Page:
     pages.write_page(page.path, page.fm, body)
     manifest.touch_updated(root)
     _regenerate_views(root)
-    events.emit(root, "claim.status", claim_id, to=status, **{"from": old_status})
+    events.emit(root, "claim.status", claim_id, to=status, **{"from": old_status},
+                **({"because": because} if because else {}))
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 

@@ -18,10 +18,13 @@ Two kinds of record live here, per the v0.4 split:
 from __future__ import annotations
 
 import re
+import os
+import tempfile
+from functools import wraps
 from datetime import date
 from pathlib import Path
 
-from . import events, manifest, pages, util, views
+from . import events, manifest, pages, revisions, util, views
 
 LOG = Path("log") / "log.jsonl"
 PASSED = Path("log") / "passed.jsonl"
@@ -279,6 +282,37 @@ def _set_reopen_when(fm: dict, reopen_when: list[str] | None) -> None:
         fm["reopen_when"] = triggers
 
 
+def _question_write(operation):
+    @wraps(operation)
+    def locked(root, *args, **kwargs):
+        root = util.require_notebook_root(root)
+        with pages._ids_lock(root, filename="questions.lock", operation="updating a question"):
+            return operation(root, *args, **kwargs)
+    return locked
+
+
+def _save_answer_page(page, body):
+    # Readers of a live notebook get either the previous version or the new one.
+    fd, name = tempfile.mkstemp(dir=page.path.parent, prefix="." + page.path.name + ".")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as output:
+            output.write(pages.dump_frontmatter(page.fm) + "\n" + body)
+        os.chmod(name, page.path.stat().st_mode)
+        os.replace(name, page.path)
+    finally:
+        Path(name).unlink(missing_ok=True)
+
+
+def _save_revision(root, page, history, text, because=None):
+    revision = revisions.record(text, len(history) + 1, at=util.utc_now(), by=util.detect_actor(),
+                                because=because, question=_question_text(page))
+    revision["evidence"] = revisions.evidence_at_save(root, text)
+    page.fm["answer_revisions"] = [*history, revision]
+    page.fm["current_answer_version"] = revision["version"]
+    return revision
+
+
+@_question_write
 def answer_question(
     root: Path,
     qid: str,
@@ -308,6 +342,7 @@ def answer_question(
             f"answering would bury the close — `flip question reopen {qid} "
             f"--because …` first"
         )
+    history = revisions.history(page, root=root)
     page.fm["status"] = "answered"
     page.fm["answered"] = util.utc_now()
     page.fm["answered_by"] = util.detect_actor()
@@ -316,9 +351,11 @@ def answer_question(
     body = page.body
     note = (note or "").strip()
     if note:
-        base = body.rstrip("\n")
-        body = (base + "\n\n" if base else "") + f"## Answer\n{note}\n"
-    pages.write_page(page.path, page.fm, body)
+        _save_revision(root, page, history, note)
+        body = _append_section(body, "Answer", note)
+    else:
+        page.fm.pop("current_answer_version", None)
+    _save_answer_page(page, body)
     _log_question_event(root, "question-answer", qid,
                         _description(note) if note else "answered")
     _finish(root, changed=("questions",))
@@ -326,6 +363,36 @@ def answer_question(
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
+@_question_write
+def revise_answer(root, qid, note, because=None, from_version=None, from_sha=None):
+    root = util.require_notebook_root(root)
+    page = _find_question(root, qid)
+    if page.fm.get("status") != "answered":
+        raise SystemExit(f"{qid} needs a recorded answer before it can be revised")
+    text = note.strip()
+    if not text:
+        raise SystemExit("revision text is required")
+    history = revisions.history(page, root=root)
+    previous = history[-1]["version"] if history else "v0"
+    if from_version and from_version != previous:
+        raise SystemExit(f"{qid} is at {previous}; review it before revising from {from_version}")
+    working = revisions.current(page, history)
+    if from_sha and revisions.record(working or "", 0)["sha256"] != from_sha:
+        raise SystemExit(f"{qid} answer text changed; review the working answer before saving")
+    if working and (not history or history[-1]["text"] != working):
+        history.append(revisions.record(working, len(history) + 1))
+    if working == text:
+        raise SystemExit("the revised answer has the same text")
+    rev = _save_revision(root, page, history, text, (because or "").strip() or None)
+    body = _append_section(page.body, "Answer", text)
+    _save_answer_page(page, body)
+    _log_question_event(root, "question-revise", qid, rev["version"])
+    _finish(root, changed=("questions",))
+    events.emit(root, "question.revise", qid, version=rev["version"], because=rev["because"])
+    return rev
+
+
+@_question_write
 def note_question(
     root: Path,
     qid: str,
@@ -385,6 +452,66 @@ def note_question(
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
+REPORTING_ROUTES = ("records", "interview", "response", "replicate", "rival")
+REPORTING_STEPS = ("asked", "reply", "declined", "no-reply", "finding")
+
+
+@_question_write
+def assign_reporting(root, qid, route, holder, prompt, test, terms=None):
+    """Plan a reporting move without implying contact, evidence or a resolved question."""
+    page = _find_question(root, qid)
+    if route not in REPORTING_ROUTES:
+        raise SystemExit("Choose a known reporting approach.")
+    tasks = page.fm.setdefault("reporting", [])
+    rid = "R" + str(1 + max((int(row["id"][1:]) for row in tasks), default=0))
+    task = {"id": rid, "route": route, "holder": _require_text(holder, "holder"),
+            "prompt": _require_text(prompt, "question"), "test": _require_text(test, "test"),
+            "at": util.utc_now(), "by": util.detect_actor(), "steps": []}
+    if terms:
+        task["terms"] = terms.strip()
+    tasks.append(task)
+    _save_answer_page(page, page.body)
+    _finish(root, changed=("questions",))
+    events.emit(root, "question.assign", qid, assignment=rid, route=route)
+    return rid
+
+
+@_question_write
+def report_step(root, qid, rid, kind, text, source=None, expected=None, asked=None, attribution=None):
+    """Append what happened. An account, a nonresponse and a finding stay distinct."""
+    page = _find_question(root, qid)
+    task = next((r for r in page.fm.get("reporting", []) if r["id"] == rid), None)
+    if task is None or kind not in REPORTING_STEPS:
+        raise SystemExit("Unknown reporting assignment or step.")
+    steps = task["steps"]
+    if expected is not None and len(steps) != expected:
+        raise SystemExit("Another reporting step arrived. Read it before appending.")
+    question = None
+    if asked is not None:
+        if kind not in ("reply", "declined") or task["route"] not in ("interview", "response"):
+            raise SystemExit("A paired exchange needs an interview or response assignment and its reply or decline.")
+        question = {"kind": "asked", "text": _require_text(asked, "question asked"),
+                    "at": util.utc_now(), "by": util.detect_actor()}
+        attribution = _require_text(attribution, "agreed attribution")
+    if kind in ("reply", "declined", "no-reply") and not question and not any(r["kind"] == "asked" for r in steps):
+        raise SystemExit("Record the actual question asked before logging its disposition.")
+    entry = {"kind": kind, "text": _require_text(text, "reporting step"),
+             "at": util.utc_now(), "by": util.detect_actor()}
+    if source:
+        record = pages.find_by_id(root, source)
+        if record is None or record.fm.get("type") != "Source":
+            raise SystemExit("Cite a captured source from this notebook.")
+        entry["source"] = source
+    if question:
+        entry["attribution"] = attribution
+        steps.append(question)
+    steps.append(entry)
+    _save_answer_page(page, page.body)
+    _finish(root, changed=("questions",))
+    events.emit(root, "question.report", qid, assignment=rid, step=kind, source=source)
+
+
+@_question_write
 def close_question(
     root: Path,
     qid: str,
@@ -430,6 +557,7 @@ def close_question(
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
+@_question_write
 def dormant_question(
     root: Path, qid: str, until: str, note: str | None = None
 ) -> pages.Page:
@@ -466,6 +594,7 @@ def dormant_question(
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
+@_question_write
 def reopen_question(root: Path, qid: str, because: str) -> pages.Page:
     """Reopen a settled question (answered/closed/dormant → open).
 
@@ -493,6 +622,7 @@ def reopen_question(root: Path, qid: str, because: str) -> pages.Page:
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
+@_question_write
 def repose_question(
     root: Path,
     qid: str,

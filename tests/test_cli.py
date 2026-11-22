@@ -1134,9 +1134,32 @@ def test_grade_explain_names_what_moves_the_letter(tmp_path):
     assert "grade A (derived)" in result.output
     assert "because:" in result.output
     assert "to move it: A is the ceiling" in result.output
-    assert "method: — (alone gates B)" in result.output
+    assert "method: —" in result.output
+    assert "record_authority: —" in result.output
     assert "documentation only (never moves the letter):" in result.output
     assert "n=12 districts" in result.output
+
+
+def test_official_record_authority_is_scoped_and_reversible(tmp_path):
+    root = _graded(tmp_path, "--independence", "self-reported", "--basis", "official-record",
+                   "--method", "Issued proposed budget table")
+    grade = ["--notebook", str(root), "grade", "F1"]
+    assert "grade C" in invoke([*grade, "--explain"]).output
+    args = ["--authority-role", "issuer", "--authority-for", "The proposed allocation",
+            "--authority-limit", "Adoption and actual spending need separate records"]
+    assert "grade B" in invoke([*grade, *args]).output
+    explained = invoke([*grade, "--explain"]).output
+    assert "proposed allocation" in explained and "actual spending" in explained
+    assert "self-reported" in explained
+    assert "grade C" in invoke([*grade, "--base-undefined"]).output
+    assert "grade B" in invoke([*grade, "--base-defined"]).output
+    assert "grade C" in invoke([*grade, "--clear-authority"]).output
+    assert invoke([*grade, "--authority-for", "Everything"]).exit_code != 0
+    assert "grade B" in invoke([*grade, *args]).output
+    assert "grade C" in invoke([*grade, "--method", "Revised reading of the production process"]).output
+    assert "grade B" in invoke([*grade, *args]).output
+    assert "grade D" in invoke([*grade, "--independence", "derivative"]).output
+    assert invoke([*grade, *args]).exit_code != 0
 
 
 def test_grade_explain_writes_nothing(tmp_path):

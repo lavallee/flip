@@ -320,7 +320,7 @@ IDS_LOCK_STALE = 30.0  # a lock older than this was left by a writer that died
 
 
 @contextmanager
-def _ids_lock(root: Path):
+def _ids_lock(root: Path, *, filename: str = "ids.lock", operation: str = "allocating an id"):
     """Hold the notebook's id allocation for one read-then-reserve.
 
     Two writers (a person's tool and an agent, say) that allocate at the same
@@ -329,7 +329,7 @@ def _ids_lock(root: Path):
     on every platform; it covers only the allocation, not the page write that
     follows, because the reservation in .flip/ids is what makes the id taken.
     """
-    path = (root / IDS_FILE).with_name("ids.lock")
+    path = (root / IDS_FILE).with_name(filename)
     path.parent.mkdir(parents=True, exist_ok=True)
     deadline = time.monotonic() + IDS_LOCK_WAIT
     while True:
@@ -345,7 +345,7 @@ def _ids_lock(root: Path):
                 continue  # released between the two calls: try again
             if time.monotonic() > deadline:
                 raise SystemExit(
-                    f"another flip command is allocating an id in this notebook "
+                    f"another flip command is {operation} in this notebook "
                     f"and has not finished after {IDS_LOCK_WAIT:.0f}s; if nothing "
                     f"else is running, delete {path.relative_to(root)} and retry"
                 ) from None

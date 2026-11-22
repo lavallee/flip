@@ -945,6 +945,7 @@ def test_explain_grade_does_not_promise_an_upgrade_for_self_reported(tmp_path):
         "support": {"basis": "official-record", "method": "read it"},
     })
     assert x["grade"] == "C"
+    assert "specific fact" in x["reason"]
     assert "corroborate it with an independent source" in x["next"]
 
 
