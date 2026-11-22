@@ -6,6 +6,23 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-11-22
+
+### Changed
+
+- **Breaking for readers of recheck results: a failed fetch is no longer
+  reported as a source that has gone.** `flip source recheck` used to record
+  `result: gone` and set `drifted: gone` whenever the fetch failed, including
+  for a network error or a broken capture lane. It now records `result:
+  failed` with the error, stamps `last_attempted` on the page, and leaves
+  `last_checked` and any existing drift flag untouched. `last_checked` is
+  stamped only when the source was actually reached.
+
+  Migration: nothing is rewritten. A page already marked `drifted: gone`
+  keeps the flag and its doctor warning until a recheck reaches the source,
+  at which point `unchanged` clears it and `changed` replaces it. Tools that
+  matched the `gone` result should match `failed` and read `error`.
+
 ## [0.25.0] — 2026-11-22
 
 ### Added

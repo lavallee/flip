@@ -1,9 +1,9 @@
 """`flip source recheck` — the refresh receipt (SPEC §5.4).
 
 A stub fetcher writes whatever /tmp payload the test points it at, so
-unchanged/changed/gone are exercised against real capture machinery:
-custody is never overwritten, the ledger gains a recheck event, the page
-gains last_checked, and drift flags drive the source-drift /
+unchanged/changed/failed are exercised against real capture machinery:
+custody is never overwritten, the ledger gains a recheck event, successful
+checks stamp last_checked, and drift flags drive the source-drift /
 drifted-evidence doctor warns.
 """
 
@@ -74,15 +74,16 @@ def test_changed_sets_drift_and_custody_survives(notebook):
     assert ev["result"] == "changed" and ev["sha256_now"] != ev["sha256_captured"]
 
 
-def test_gone_when_fetch_fails(notebook, tmp_path, monkeypatch):
+def test_failed_fetch_does_not_claim_the_source_is_gone(notebook, monkeypatch):
     root, page, _, home = notebook
     (home / "config.toml").write_text(FAILING_FETCHER, encoding="utf-8")
     out = sources.recheck_source(root, page.id)
-    assert out["result"] == "gone"
+    assert out["result"] == "failed"
     fm = pages.read_page(page.path).fm
-    assert fm["drifted"] == "gone"
+    assert "drifted" not in fm and "last_checked" not in fm
+    assert fm["last_attempted"]
     ev = _events(root)[-1]
-    assert ev["result"] == "gone" and "error" in ev and "sha256_now" not in ev
+    assert ev["result"] == "failed" and "error" in ev and "sha256_now" not in ev
 
 
 def test_recheck_after_drift_resolves_clears_flag(notebook):

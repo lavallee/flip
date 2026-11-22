@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.25 · 2026-11-22
+**Status:** draft v0.26 · 2026-11-22
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -522,11 +522,14 @@ prompts a look.
 says the page changed; `last_checked` says the world was checked.
 Recheck re-fetches the canonical coordinate into a temp area (custody is
 never overwritten), hash-compares against the capture ledger, appends a
-`recheck` event ({result: unchanged|changed|gone, sha256_now,
+`recheck` event ({result: unchanged|changed|failed, sha256_now,
 sha256_captured}), and on drift sets `drifted:` — doctor warns on the
 source (`source-drift`) and on load-bearing claims resting on it
 (`drifted-evidence`). A drift worth keeping is a fresh capture; an
-unchanged recheck clears the flag. Cached synthesis without a checked-at
+unchanged recheck clears the flag. A fetch that fails says nothing about
+the source: the event records `failed` with the error, the page gains
+`last_attempted`, and `last_checked` and any existing drift flag are left
+as they were. Cached synthesis without a checked-at
 receipt is a claim about the past wearing present tense.
 
 **Claim credibility** lives on the claim (§7). LLM and retrieval-service

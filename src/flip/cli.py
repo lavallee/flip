@@ -937,16 +937,17 @@ def source_recheck(source_id: str, via: str | None) -> None:
 
     The refresh receipt: `last_checked` says the world was checked, not
     just that the page changed. Custody is never overwritten — unchanged
-    clears any drift flag; changed/gone set `drifted:` and doctor warns on
-    load-bearing claims resting on the source.
+    clears any drift flag; changed sets `drifted:` and doctor warns on
+    load-bearing claims resting on the source. A failed fetch is recorded as
+    an attempt, not mistaken for evidence that the source disappeared.
     """
     out = sources.recheck_source(require_notebook_root(), source_id, via=via)
     line = f"{source_id} · {out['result']} · {out['url']}"
     if out["result"] == "changed":
         line += (f"\n  captured {out['baseline'][:12]}… now {out['sha256_now'][:12]}… — "
                  "custody holds the cited bytes; re-add the source if the new version matters")
-    elif out["result"] == "gone":
-        line += "\n  fetch failed — the coordinate no longer serves; consider pipeline/provenance updates"
+    elif out["result"] == "failed":
+        line += f"\n  fetch failed — source state is unknown; {out['error']}"
     click.echo(line)
 
 
