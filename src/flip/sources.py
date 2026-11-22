@@ -1541,11 +1541,15 @@ def recheck_source(root: Path, source_id: str, via: str | None = None) -> dict:
     was checked. The fetch lands in a temp directory — custody is never
     overwritten (a drift worth keeping is a fresh `flip add-source`
     capture). Appends a `recheck` event to the capture ledger
-    ({ts, source_id, url, event, result: unchanged|changed|gone,
+    ({ts, source_id, url, event, result: unchanged|changed|failed,
     sha256_now?, sha256_captured, actor}), stamps `last_checked`, and on
-    changed/gone sets `drifted:` — doctor warns on the source and on
+    changed sets `drifted:` — doctor warns on the source and on
     load-bearing claims resting on it. Returns {result, url, sha256_now,
-    baseline}.
+    baseline, error}.
+
+    A failed fetch is not evidence that the coordinate is gone. It records
+    `last_attempted` and the error without changing `last_checked` or the
+    source's existing drift state.
     """
     root = require_notebook_root(root)
     page = _find_source_page(root, source_id)
@@ -1568,7 +1572,7 @@ def recheck_source(root: Path, source_id: str, via: str | None = None) -> dict:
         )
     kind = str(page.fm.get("kind") or "web")
     resolved = integrations.resolve("fetchers", "web" if kind == "file" else kind, via=via)
-    result, sha_now, error = "gone", None, None
+    result, sha_now, error = "failed", None, None
     with tempfile.TemporaryDirectory() as td:
         try:
             run = integrations.run_capture(resolved, Path(td), source_id, url)
@@ -1591,16 +1595,24 @@ def recheck_source(root: Path, source_id: str, via: str | None = None) -> dict:
         event["error"] = error
     event["actor"] = detect_actor()
     append_jsonl(root / "sources" / "_provenance.jsonl", event)
-    page.fm["last_checked"] = ts
-    if result in ("changed", "gone"):
-        page.fm["drifted"] = result
-    else:
-        page.fm.pop("drifted", None)
+    page.fm["last_attempted"] = ts
+    if result != "failed":
+        page.fm["last_checked"] = ts
+        if result == "changed":
+            page.fm["drifted"] = result
+        else:
+            page.fm.pop("drifted", None)
     pages.write_page(page.path, page.fm, page.body)
     manifest.touch_updated(root)
     _regenerate_views(root)
     events.emit(root, "source.recheck", source_id, result=result, url=url)
-    return {"result": result, "url": url, "sha256_now": sha_now, "baseline": baseline}
+    return {
+        "result": result,
+        "url": url,
+        "sha256_now": sha_now,
+        "baseline": baseline,
+        "error": error,
+    }
 
 
 def set_provenance_state(
