@@ -1,6 +1,6 @@
 # flip — the reporter's notebook format
 
-**Status:** draft v0.24 · 2026-11-16
+**Status:** draft v0.25 · 2026-11-22
 **What this is:** a spec for a consistent, pluggable, git-friendly format for
 reporter's-notebook-style research corpora created and maintained by any mix of
 humans and agents — plus the tooling and skills that encourage proper use.
@@ -467,6 +467,7 @@ the **support tuple** on its page:
 |---|---|
 | `independence` | the tuple's spine, required to be judged: `independent` (third party, own collection) · `corroborated` (matches other independent evidence) · `self-reported` (the subject on itself) · `derivative` (republishes another source — a lead, never provenance) |
 | `support.basis` | what kind of evidence: `official-record` · `platform-data` · `measured` · `survey` · `panel` · `single-operator` · `synthesis` (incl. LLM output) · `spoken-management-remarks` (exists only in speech — cross-verify ≥2 independent transcript hosts) |
+| `support.record_authority` | An assessment of the issuer or custodian, the proposition the held record establishes, its limit, and the digest of the copy assessed. |
 | `support.n` | sample/coverage **as stated, a string** — `"5 respondents (85–100 of 110–125)"`. A string because an integer n silently masquerades as the base. |
 | `support.method` | how the evidence was produced, one line |
 | `support.base_defined` | **the first question to ask of any number**: is the measured quantity itself specified (population, metric definition, cuts)? Explicit `false` caps the digest at C. |
@@ -476,14 +477,16 @@ the **support tuple** on its page:
 **`grade` is derived, never authored** — a letter digest recomputed from the
 tuple (doctor flags drift): `A` = independent + strong basis
 (official-record/platform-data/measured), base not recorded undefined ·
-`B` = independent/corroborated with basis and method recorded · `C` = every
+`B` = independent/corroborated with basis and method recorded, or self-reported with an assessed official record and recorded method · `C` = every
 other recorded judgment · `D` = derivative · `?` = unjudged. A pre-0.8
 authored letter survives migration as `support.seeded: legacy-grade` — the
 digest returns it until a real grading replaces the seed (doctor lists
 seeds as expected-until-touched). `flip grade --explain` prints the
 derivation: only `independence`, `support.basis` and `support.base_defined`
-move the letter (plus `support.method`, which alone gates B); `support.n`,
+move the letter together with `support.method` and scoped record authority. `support.n`,
 `support.vintage` and `freshness` are documentation.
+
+For example, a proposed budget can establish the figures its issuer published. Adoption and actual expenditure require different records. Use `flip grade F1 --authority-role issuer --authority-for "Proposed figures in the dated table" --authority-limit "Adoption and actual spending require separate records"` after reading a captured official record with a production method. `--clear-authority` withdraws the judgment. A scoped grade B confers no independent corroboration. An undefined measurement base still caps the letter at C.
 
 **Pre-0.8 `independence` is a missing judgment, not a weak one** (v0.16). The
 key changed *axis*, not spelling: pre-0.8 it recorded **custody** ("we hold
@@ -1302,6 +1305,26 @@ it; `flip show` lists armed pages under **REOPEN TRIGGERS ARMED**, and
 the whole journey — the old answer included — stays on the page.
 
 
+#### Saved answer revisions
+
+An answered question can be revised with `flip question revise Q1 --note TEXT`.
+`--because` records the reason and `--from-version vN` rejects a stale edit.
+Revising keeps the question answered and preserves its reopening conditions.
+Each new answer text gets an ordered v-number, literal text, SHA-256, UTC time,
+actor, question wording and the recorded rulings on cited claims and sources.
+The records live in `answer_revisions` on the question page. The answer text
+also appears under its usual Markdown heading. Snapshot readers see saved
+versions even after reopening. Legacy Answer sections remain in page order
+with unknown historical attribution and evidence judgments. Reading a legacy
+notebook does not migrate its files. The snapshot lists existing
+`drafts/vN/` manuscripts separately under `notebook.draft_versions`.
+
+#### Reporting assignments on a question
+
+`flip question assign Q1 --route interview --holder "Gauge operator" --ask "Which gauge did you read?" --test "Check the dated gauge log"` creates a numbered assignment on that question. Routes cover records, witness interviews, subject response, replication and rival explanations. Record attribution terms or a reply deadline with `--terms`.
+
+`flip question report Q1 R1 asked "Which gauge did you read?" --from-step 0` records what was actually asked. Append a reply, decline, no reply as of a specified time, another question or a finding. A finding may cite a held source. The assignment and each step retain the reporter and time. Reporters decide separately whether a reply warrants an evidence note, a changed claim or a revised answer.
+
 ### 7.3 Forecasts — `forecasts/<slug>.md` (FC#) and clusters (CL#)
 
 A backward notebook fights staleness; a forward notebook **accrues
@@ -1583,7 +1606,19 @@ whole sentence as `text` (footnote markers stripped) beside the clipped
 `summary`. It is a **local read surface**: it ignores visibility policy and
 withholds nothing, so it is for tools on the machine that holds the
 notebook and is not a publication surface. `flip export json` (§17) is the
-projection that applies policy.
+projection that applies policy. A notebook with a question plan supplies its relative
+path as `question_plan`. Questions expose their current disposition note, closure
+reason and answer timestamp as `status_note`, `closed_reason` and `answered_at`.
+Missing values are null. Each question includes an `evidence` array in page order. Each
+entry has a question-local content anchor. Its value survives unrelated note insertions
+and changes if the note is edited. Identical notes have occurrence suffixes. Each
+entry gives the recorded date, full note text, scope verdict (`answers`),
+empty-probe cause (`zero_yield`), and explicitly cited source IDs (`sources`).
+An answered question also carries the full latest recorded answer as `answer`.
+Claims also carry ordered `citations` with each full reference and its
+evidence or subject role. For a transcript pin, `flip transcript read T1 LABEL --json`
+returns the cited lines, text, reference and SHA-256 after checking the held passage.
+Other statuses and missing answers yield null. Absent verdicts and causes are null. Older pages without notes return an empty array.
 
 **Generated listings are bounded.** A directory listing is a sign, not the
 roster. Past `INDEX_LIST_CAP` (50) entries, a generated `index.md` lists the
@@ -1630,6 +1665,11 @@ stale entry through the fingerprint.
 - Drafts are versioned explicitly: `drafts/v0/`, `drafts/v1/`, `current`
   symlink; each version carries a `changelog.md` naming what changed and
   which finding/decision drove it.
+- `flip draft save --file FILE --because REASON` saves the next available
+  numbered manuscript, its changelog and a revision receipt, then promotes
+  `current` with an atomic symlink replacement. Use `--file -` for stdin
+  and `--from-version vN` to reject a stale editor. Existing v0 and later
+  drafts remain available in comparisons.
 - Renderers are pure: same notebook in, same render out; they write only to
   `renders/<target>/` and never mutate the notebook.
 - Whether `renders/` is committed is a policy decision; default gitignored.

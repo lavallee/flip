@@ -334,3 +334,13 @@ def test_split_ref_refuses_malformed(ref: str):
 def test_format_excerpt_ref():
     assert util.format_excerpt_ref("T1", "x") == "T1§x"
     assert util.format_excerpt_ref("T1", None) == "T1"
+
+def test_read_pinned_passage_rechecks_custody(root: Path, chat: Path):
+    page = _capture(root, chat)
+    record = transcripts.add_excerpt(root, "T1", "exchange", 3, 4)
+    result = transcripts.read_passage(root, "T1", "exchange")
+    assert result == {"ref": "T1§exchange", "lines": [3, 4], "sha256": record["sha256"],
+                      "text": "\n".join(CHAT.splitlines()[2:4])}
+    (root / page.fm["local"]).write_text(CHAT.replace("line 3:", "edited:"))
+    with pytest.raises(SystemExit, match="pinned digest"):
+        transcripts.read_passage(root, "T1", "exchange")

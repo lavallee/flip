@@ -269,6 +269,26 @@ def find_excerpt(root: Path, source_id: str, label: str) -> dict | None:
     )
 
 
+def read_passage(root: Path, source_id: str, label: str) -> dict:
+    """Return the cited lines only when they still match the recorded pin."""
+    page = _find_transcript(root, source_id)
+    record = next((e for e in _excerpt_list(page.fm) if e.get("label") == label), None)
+    if not record:
+        raise SystemExit(f"{source_id} has no pinned passage '{label}'")
+    raw = _raw_path(root, page).resolve()
+    if not raw.is_relative_to((root / "sources/raw").resolve()):
+        raise SystemExit(f"{source_id} capture is outside notebook custody")
+    span = record.get("lines")
+    if not isinstance(span, list) or len(span) != 2 or not all(type(n) is int for n in span):
+        raise SystemExit(f"{source_id} has an invalid line range for '{label}'")
+    text = "\n".join(_quote_lines(raw, span[0], span[1], source_id))
+    digest = hashlib.sha256(text.encode()).hexdigest()
+    if digest != record.get("sha256"):
+        raise SystemExit(f"{source_id} passage '{label}' no longer matches the pinned digest")
+    return {"ref": util.format_excerpt_ref(source_id, label), "lines": span,
+            "sha256": digest, "text": text}
+
+
 def _render_excerpts(root: Path, page: pages.Page, quotes: dict[str, list[str]]) -> str:
     """The generated `## Excerpts` section: one anchored subsection per pin.
 
