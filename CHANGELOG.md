@@ -6,6 +6,67 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Passage pins on any held source.** `flip source passage pin <ID> --label
+  <slug> --quote "…"` (or `--lines A-B`) pins the exact words a claim rests on
+  in a captured web page's extraction, a PDF's extracted text, a local
+  document — any source with held text. The pin records a line range (and, for
+  a quote, the character span), the SHA-256 of the pinned words and of the
+  copy they were read from, and which copy that was: `held: raw` or `held:
+  text`, the second with the extraction that produced it (tool, version,
+  method, when, the raw input's digest). A quote must occur in the held copy;
+  a miss names the nearest match, and a repeated quote needs `--occurrence N`
+  or `--context "…"`. `flip source passage read <ID>§<label> [--json]`
+  re-derives the words and checks them against the digest; `list` shows each
+  pin's state; `unpin` is refused while a claim cites the pin; `--relocate`
+  re-anchors a label after a re-extraction moved the same words. Claims cite
+  pins as `--source A3§label` or `--about F2§label`, and doctor's
+  `excerpt-drift`, `unbacked-excerpt` and `dangling-excerpt` now cover every
+  source. Events `source.pin` and `source.unpin`. Transcript excerpts share
+  the core; `flip transcript …` and its record shape are unchanged.
+- **A recorded basis.** `--basis <kind>:<id>@<version>#<digest-prefix>` and
+  `--basis-against <ref>` on `flip claim verify`, `flip claim test` and `flip
+  claim status` name the written rule a record was made under and what it ran
+  against. Stored on the record as `basis: {rule, against?}` and carried in the
+  event (`basis`, `basis_against`). flip validates the shape and never reads
+  it at a gate: a record with a basis is accepted, refused and reversed
+  exactly as one without.
+- **Who set a claim's status.** Each status change now writes `status_set:
+  {by, at, from, because?, basis?}` on the claim page. Re-running a claim's
+  current status with no reason or basis is a refresh and writes nothing new.
+- **Source origins.** `flip source origin <ID> --republishes <ID> | --ref
+  <url-or-identifier> --because "…"` records what a source's content comes
+  from (`--clear` withdraws it); unknown ids, self-reference and cycles are
+  refused. `flip grade --explain` shows the chain and what the source shares an
+  origin with. Event `source.origin`.
+- **Snapshot fields** (schema still `flip-snapshot/1`, every addition a new
+  key): sources carry `passages`, `origin` and `origin_key`; claims carry
+  `status_set` (from the page, else the newest status event, else the claim's
+  creation, else null), `corroboration_collapsed`, and each citation's resolved
+  `passage`. Verification and test records carry their `basis`.
+- **Doctor:** `possible-shared-origin` (WARN, a hint) when two evidence
+  citations of one claim hold identical bytes or one canonical address with no
+  origin recorded; `bad-origin` and `bad-basis` (WARN) for hand-broken records.
+
+### Changed
+
+- **Changed interpretation: corroboration counts origins, not sources.** A
+  claim's `independent_corroboration`, the `verified` gate, doctor's
+  `under-verified` and `corroboration-drift`, `flip show`, the exports and the
+  snapshot now count distinct origins among the judged, independent evidence
+  sources a claim cites: sources whose recorded origins lead to the same place
+  count once, and every surface names which were collapsed and why. This
+  changes the number only for a notebook that records an origin with `flip
+  source origin`; a notebook that records none — every notebook written before
+  this version — gets exactly the count it always got.
+
+  Migration: none needed, and nothing is rewritten. After you record an
+  origin, claims citing that source keep their stored count until their next
+  `flip claim status`, and `flip doctor` reports `corroboration-drift` on them
+  meanwhile; a claim already `verified` stays verified, and doctor reports
+  `under-verified` if the collapsed count no longer meets the bar.
+
 ## [0.26.0] — 2026-11-22
 
 ### Changed

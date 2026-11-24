@@ -181,7 +181,18 @@ come from the operator's authorized setup, never from guessed values.
    independent or derivative. If it republishes another source, capture that
    original too
    and grade the republisher accordingly — republishers and derivatives do
-   not count toward claim corroboration.
+   not count toward claim corroboration. **Then record what it republishes**,
+   so the count can see it:
+   ```bash
+   flip source origin <id> --republishes <original-id> --because "<what shows it>"
+   flip source origin <id> --ref <url-or-doi> --because "…"   # original not held
+   ```
+   Two captures of one wire story, or a report quoting another report's
+   figure, otherwise count as two independent paths to the fact. Sources that
+   share an origin count once, and `flip claim status` names the collapse. If
+   `flip doctor` says `possible-shared-origin` (identical bytes, or one
+   address), decide: record the origin, or leave them if they really are two
+   witnesses.
 6. **Read it, then grade it** (grading is a judgment made after reading, not
    a formality at capture). Once you have actually read the source, record
    that: `flip source read <id> [--note "sections 2-4"]`. Not after fetching
@@ -222,9 +233,23 @@ come from the operator's authorized setup, never from guessed values.
    `public-terminus`, confirm any load-bearing chain this source joins ends
    at a public, independently verifiable source — a grade-C intermediary
    can't be the terminus.
-8. **Wire it in.** Link the source to the claims it backs
-   (`flip claim add ... --source <id>` or update existing claims), and cite
-   it in prose as `[A3]`.
+8. **Wire it in — to the passage, not just the document.** Pin the exact
+   words each claim rests on, then cite the pin:
+   ```bash
+   flip source passage pin <id> --label <slug> --quote "<the words, exactly as held>"
+   flip claim add "<assertion>" --source <id>§<slug>     # a witness
+   flip claim add "<assertion>" --about <id>§<slug>      # the claim is ABOUT this text
+   ```
+   The quote must occur in the held copy (a whitespace run may stand for a
+   line break; nothing else is loosened); a miss prints the nearest match, and
+   a repeated quote needs `--occurrence N` or `--context "…"`. The default
+   copy is the text derivative when there is one — **a pin on the derivative
+   is a pin on a derivative**: if the words aren't there (a dropped column, a
+   lost footnote), check the raw capture with `--held raw` or re-extract
+   before concluding the document doesn't say it. Pin the words that carry the
+   claim's *predicate*, not just its figure. `flip source passage read
+   <id>§<slug>` re-checks the words against their digest; cite it in prose as
+   `[A3]`.
 
    **Ask what the citation is FOR before you write it.** `--source` says the
    source is a *witness* to what the claim asserts, and only witnesses

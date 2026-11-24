@@ -293,6 +293,38 @@ while a claim still cites it, since labels are load-bearing once cited.
 A claim about what was *said* in the conversation is `--about` it: a
 conversation is the only witness to itself.
 
+## The passage, not just the document
+
+Any held source can carry pins the way a transcript does. Pin the words a claim
+rests on, by quote or by line range, and cite the pin:
+
+```bash
+flip source passage pin F2 --label surplus --quote "setting aside \$5,585,576"
+# F2§surplus
+#   line 41, 3 words, sha256 9f2c…
+#   pinned on the text derivative (…, text-layer) — a derivative: …
+flip claim add "The audit sets aside \$5,585,576." --about F2§surplus
+flip source passage read F2§surplus --json
+```
+
+The quote must occur in the held copy, and a miss names the nearest match. The
+pin records which copy it read — the raw capture, or the text derivative and
+the extraction that made it — because extraction can drop content, and the
+SHA-256 of the words and of that copy. Every read re-derives the words and
+checks them; doctor reports a pin whose copy is gone (`unbacked-excerpt`) or
+whose words moved (`excerpt-drift`, repaired with `--relocate` when the same
+words are still there).
+
+When one source republishes another, record it, and the two count once:
+
+```bash
+flip source origin A15 --republishes A14 --because "same wire story, byline and text"
+```
+
+A check made by applying a written rule names it with `--basis
+<kind>:<id>@<version>#<digest>` on `flip claim verify|test|status`. The basis is
+stored and evented; it never moves a gate.
+
 ## IDs, filenames, renames
 
 Filenames are human slugs; the immutable id lives in the page's frontmatter

@@ -157,7 +157,7 @@ def passages_ref(ref: str) -> tuple[str, str] | None:
 def status_record(fm: dict) -> dict | None:
     """Who set a claim's current status, when, and under what basis — as the
     page records it (`status_set:`), or None on a page whose status was last
-    set before 0.27 recorded it."""
+    set before pages kept the record."""
     record = fm.get("status_set")
     return record if isinstance(record, dict) else None
 
