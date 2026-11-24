@@ -1,0 +1,3 @@
+Tide tables for the harbour.
+High water 4.2 m at spring tides.
+Low water 0.3 m.

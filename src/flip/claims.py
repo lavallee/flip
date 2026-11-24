@@ -72,7 +72,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from . import events, manifest, pages, profiles, stance, transcripts, util
+from . import events, manifest, origins, pages, passages, profiles, stance, util
 from . import sources as sources_mod
 
 STATUSES = (
@@ -92,6 +92,74 @@ STATUSES = (
 # — the two below — clear the gate on their own.
 VERIFICATION_METHODS = ("adversarial", "independent-sources", "recomputation")
 GATING_VERIFICATION_METHODS = ("adversarial", "recomputation")
+
+# A recorded basis (SPEC §7, "Basis"): the written rule a check or a ruling was
+# made under, as `<kind>:<id>@<version>#<digest-prefix>` — e.g.
+# `standard:document@1#2008960`. flip validates the shape and stores it; it
+# never interprets it. The digest prefix pins the rule's text, so two records
+# made under different texts of "the same" rule never read alike.
+BASIS_RULE_RE = re.compile(
+    r"^[a-z][a-z0-9-]*:[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*#[0-9a-f]{7,64}$"
+)
+_BASIS_RULE_MAX = 200
+
+
+def make_basis(
+    root: Path, rule: str | None, against: list[str] | None = None
+) -> dict | None:
+    """The `basis` mapping a verification, test or status record carries — or
+    None when no rule was named. Refuses a malformed rule, and refuses a
+    passage ref the notebook does not pin: a basis naming words nothing holds
+    would be a label on nothing.
+
+    A basis is a LABEL. It never widens what a record may do: the record it
+    rides on is accepted or refused exactly as it would be without it.
+    """
+    refs = [str(a).strip() for a in pages.as_list(against) if str(a).strip()]
+    if rule is None or not str(rule).strip():
+        if refs:
+            raise SystemExit("--basis-against names what a rule ran against; give the rule "
+                             "with --basis too")
+        return None
+    rule = str(rule).strip()
+    if len(rule) > _BASIS_RULE_MAX or not BASIS_RULE_RE.match(rule):
+        raise SystemExit(
+            f"invalid --basis '{rule}': expected <kind>:<id>@<version>#<digest-prefix>, "
+            "e.g. standard:document@1#2008960 (kind lowercase; id and version letters, "
+            "digits, '.', '_' or '-'; the digest prefix 7-64 lowercase hex characters of "
+            "the rule's text)"
+        )
+    for ref in refs:
+        if passages_ref(ref) is None:
+            continue
+        sid, label = passages_ref(ref)  # type: ignore[misc]
+        source = pages.find_by_id(root, sid)
+        if source is not None and str(source.fm.get("type", "")) == "Source":
+            if label not in {str(e.get("label")) for e in passages.records(source.fm)}:
+                raise SystemExit(
+                    f"--basis-against {ref}: {sid} pins no passage '{label}'; pin the words "
+                    f"the rule ran against first (`{passages.pin_command(sid, source.fm, label)}`)"
+                )
+    basis: dict = {"rule": rule}
+    if refs:
+        basis["against"] = refs
+    return basis
+
+
+def passages_ref(ref: str) -> tuple[str, str] | None:
+    """(source id, label) when `ref` is a local passage ref like `A3§label`."""
+    m = util.EXCERPT_REF_RE.match(ref or "")
+    if not m or not m.group("label") or ":" in m.group("base"):
+        return None
+    return m.group("base"), m.group("label")
+
+
+def status_record(fm: dict) -> dict | None:
+    """Who set a claim's current status, when, and under what basis — as the
+    page records it (`status_set:`), or None on a page whose status was last
+    set before 0.27 recorded it."""
+    record = fm.get("status_set")
+    return record if isinstance(record, dict) else None
 
 # What a citation DOES for the claim that makes it (SPEC §7). The role lives
 # on the ENTRY, not on the claim and not on the source page, because the same
@@ -287,12 +355,46 @@ def corroboration_count(source_fms: list[dict], source_ids: list[str]) -> int:
     witnesses" and nothing else. Callers holding a claim's frontmatter want
     `claim_corroboration` instead, which asks the roles whether the question
     applies before it asks this one how many.
+
+    It counts ORIGINS, not pages (SPEC §5.4, "Origin"): counted sources that
+    share a recorded origin — one republishes another, or both carry the same
+    content from one place — count once. Pass every source page the notebook
+    has, not only the cited ones, so an origin chain can be followed through a
+    source the claim does not cite. A notebook that records no origin gets the
+    same number this always returned.
     """
-    return sum(
-        1
+    return len(corroboration_detail(source_fms, source_ids)["counted_origins"])
+
+
+def corroboration_detail(source_fms: list[dict], source_ids: list[str]) -> dict:
+    """The count and its reasons: `{count, counted, counted_origins, collapsed}`.
+
+    `counted` are the cited ids that pass (judged, independent), `collapsed`
+    names every group of them that shares one origin and why
+    (`origins.collapsed`), and `count` is the number of distinct origins
+    among `counted`.
+    """
+    counted = [
+        str(fm.get("id"))
         for fm in _linked_fms(source_fms, source_ids)
         if sources_mod.judged(fm) and fm.get("independence") == "independent"
-    )
+    ]
+    keys = origins.Keys(source_fms)
+    distinct = list(dict.fromkeys(keys.key(sid) for sid in counted))
+    return {
+        "count": len(distinct),
+        "counted": counted,
+        "counted_origins": [origins.display(k) for k in distinct],
+        "collapsed": origins.collapsed(keys, counted) if keys.any else [],
+    }
+
+
+def claim_corroboration_detail(source_fms: list[dict], fm: dict) -> dict | None:
+    """`corroboration_detail` for a claim's evidence citations — or None when
+    the axis does not apply (every citation a subject)."""
+    if not corroboration_applies(fm):
+        return None
+    return corroboration_detail(source_fms, evidence_ids(fm))
 
 
 def claim_corroboration(source_fms: list[dict], fm: dict) -> int | None:
@@ -459,14 +561,14 @@ def _attribution(
         if page is None:
             defs.append(f"[^{sid}]: {sid} (not captured)")
         else:
-            anchor = f"#{transcripts.anchor_for(labels[0])}" if len(labels) == 1 else ""
+            anchor = f"#{passages.anchor_for(labels[0])}" if len(labels) == 1 else ""
             entry["resource"] = f"/references/{page.slug}.md{anchor}"
             title = str(page.fm.get("title") or "")
             if title:
                 entry["title"] = title
             link = f"[{title or sid}](../references/{page.slug}.md{anchor})"
-            passages = f" — {', '.join(labels)}" if labels else ""
-            defs.append(f"[^{sid}]: {link}{passages}")
+            pinned = f" — {', '.join(labels)}" if labels else ""
+            defs.append(f"[^{sid}]: {link}{pinned}")
         entries.append(entry)
     return entries, defs
 
@@ -806,7 +908,15 @@ def _refuse_verified_subject_claim(claim_id: str, fm: dict) -> None:
     )
 
 
-def set_claim_status(root: Path, claim_id: str, status: str, *, because: str | None = None) -> pages.Page:
+def set_claim_status(
+    root: Path,
+    claim_id: str,
+    status: str,
+    *,
+    because: str | None = None,
+    basis: str | None = None,
+    basis_against: list[str] | None = None,
+) -> pages.Page:
     """Move a claim to a new status, recomputing independent_corroboration and
     refreshing the `sources` entries + footnote attribution against current
     source slugs.
@@ -834,11 +944,22 @@ def set_claim_status(root: Path, claim_id: str, status: str, *, because: str | N
     custody. Nothing else is loosened: the substitution is offered only where
     the count itself has no meaning.
 
+    Every change records who made it on the page (`status_set: {by, at, from,
+    because?, basis?}`), so a reader can tell a person's ruling from an
+    agent's or a tool's without the event ledger. Re-setting the status a
+    claim already has, with no reason and no basis, is a refresh of the
+    stored count and leaves that record alone. `basis` names the written
+    rule the ruling was made under; it is a label on a change the gates above
+    would accept anyway, and it cannot pass one.
+
     Refusal writes nothing. Returns the updated page.
     """
     root = util.require_notebook_root(root)
     if status not in STATUSES:
         raise SystemExit(f"invalid claim status '{status}' (one of: {', '.join(STATUSES)})")
+    # Validated before any gate so a malformed basis is named as itself, and
+    # never consulted BY a gate: a basis is not evidence.
+    basis_record = make_basis(root, basis, basis_against)
     page = _find_claim(root, claim_id)
     if status == "verified":
         _refuse_verified_against_tests(claim_id, page.fm)
@@ -880,6 +1001,13 @@ def set_claim_status(root: Path, claim_id: str, status: str, *, because: str | N
             )
             if profile.claim_grade_a_suffices:
                 msg += " or upgrade one to grade A via `flip grade`"
+            # A shared origin is not missing from the count by accident either.
+            shared = corroboration_detail(source_fms, counted)["collapsed"]
+            for group in shared:
+                msg += (
+                    f"; {', '.join(group['sources'])} count as one origin "
+                    f"({group['origin']}: {'; '.join(group['why'])})"
+                )
             # A subject citation is not missing from the count by accident, so
             # say so where the count is being read as a verdict: the operator
             # who cited it deliberately should not spend an afternoon
@@ -924,12 +1052,24 @@ def set_claim_status(root: Path, claim_id: str, status: str, *, because: str | N
     page.fm["sources"] = entries
     _set_corroboration(page.fm, source_fms)
     page.fm.pop("supports", None)  # pre-0.7 key; the entries carry the paths now
+    # A re-run of the current status with no reason and no basis is the
+    # documented way to refresh the stored count, not a ruling: it leaves the
+    # record of who ruled (and the page's bytes) alone.
+    if old_status != status or because or basis_record:
+        record: dict = {"by": util.detect_actor(), "at": util.utc_now(), "from": old_status}
+        if because:
+            record["because"] = because
+        if basis_record:
+            record["basis"] = basis_record
+        page.fm["status_set"] = record
     body = _apply_attribution(page.body, cited_refs, defs)
     pages.write_page(page.path, page.fm, body)
     manifest.touch_updated(root)
     _regenerate_views(root)
     events.emit(root, "claim.status", claim_id, to=status, **{"from": old_status},
-                **({"because": because} if because else {}))
+                **({"because": because} if because else {}),
+                basis=(basis_record or {}).get("rule"),
+                basis_against=(basis_record or {}).get("against"))
     return pages.Page(path=page.path, fm=page.fm, body=body)
 
 
@@ -1006,17 +1146,17 @@ def add_claim_sources(
         )
     # An unpinned label is refused here for the same reason an unknown id is:
     # this is the post-hoc linker, and a ref that resolves to nothing would
-    # read as a passage citation while resting on the whole conversation.
+    # read as a passage citation while resting on the whole source.
     for sid, (labels, _role) in grouped.items():
+        pinned_labels = {str(e.get("label")) for e in passages.records(src_by_id[sid].fm)}
         for label in labels:
-            if transcripts.find_excerpt(root, sid, label) is None:
+            if label not in pinned_labels:
                 pinned = ", ".join(
-                    str(e.get("label")) for e in pages.as_list(src_by_id[sid].fm.get("excerpts"))
-                    if isinstance(e, dict)
+                    str(e.get("label")) for e in passages.records(src_by_id[sid].fm)
                 ) or "none pinned"
                 raise SystemExit(
-                    f"{sid} pins no excerpt '{label}' (pinned: {pinned}); "
-                    f"pin it with `flip transcript excerpt {sid} --label {label} --lines A-B`"
+                    f"{sid} pins no excerpt '{label}' (pinned: {pinned}); pin it with "
+                    f"`{passages.pin_command(sid, src_by_id[sid].fm, label)}`"
                 )
     current = source_citations(page.fm)
     known_roles = dict(current)
@@ -1193,6 +1333,8 @@ def verify_claim(
     method: str,
     against: list[str] | None = None,
     note: str | None = None,
+    basis: str | None = None,
+    basis_against: list[str] | None = None,
 ) -> pages.Page:
     """Record a verification on a claim (A2): append a {by, at, method,
     against, note} event to the `verified:` frontmatter list — OKF v0.2 §5.2
@@ -1203,6 +1345,10 @@ def verify_claim(
     `adversarial` and `recomputation` clear the `verified` gate on their own
     (see set_claim_status); `independent-sources` records the corroboration
     reasoning but never substitutes for the recomputed source count.
+
+    `basis` names the written rule the check was run under (`make_basis`). It
+    changes nothing about what the record does at the gate: the method does
+    that, with or without a basis.
     """
     root = util.require_notebook_root(root)
     if method not in VERIFICATION_METHODS:
@@ -1210,6 +1356,7 @@ def verify_claim(
             f"invalid verification method '{method}' "
             f"(one of: {', '.join(VERIFICATION_METHODS)})"
         )
+    basis_record = make_basis(root, basis, basis_against)
     page = _find_claim(root, claim_id)
     record: dict = {"by": util.detect_actor(), "at": util.utc_now(), "method": method}
     refs = [str(a) for a in pages.as_list(against)]
@@ -1217,13 +1364,17 @@ def verify_claim(
         record["against"] = refs
     if note:
         record["note"] = note
+    if basis_record:
+        record["basis"] = basis_record
     records = pages.as_list(page.fm.get("verified"))
     records.append(record)
     page.fm["verified"] = records
     pages.write_page(page.path, page.fm, page.body)
     manifest.touch_updated(root)
     _regenerate_views(root)
-    events.emit(root, "claim.verify", claim_id, method=method, against=refs, note=note)
+    events.emit(root, "claim.verify", claim_id, method=method, against=refs, note=note,
+                basis=(basis_record or {}).get("rule"),
+                basis_against=(basis_record or {}).get("against"))
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 
@@ -1338,6 +1489,8 @@ def record_test(
     if_absent: str | None = None,
     against: list[str] | None = None,
     note: str | None = None,
+    basis: str | None = None,
+    basis_against: list[str] | None = None,
 ) -> pages.Page:
     """Record a test against a claim (SPEC §7.1): append a {probe, error,
     would_detect?, if_absent?, result, against?, note?, at, by} record to
@@ -1388,6 +1541,7 @@ def record_test(
             "error is not a test — it is a reading, and it cannot be severe, because "
             "severity is always severity FOR a particular way of being wrong"
         )
+    basis_record = make_basis(root, basis, basis_against)
     page = _find_claim(root, claim_id)
     record: dict = {"probe": probe, "error": error}
     detect = (would_detect or "").strip()
@@ -1402,6 +1556,11 @@ def record_test(
         record["against"] = refs
     if note:
         record["note"] = note
+    if basis_record:
+        # Severity is derived from the four authored fields alone
+        # (stance.test_severity); a basis is not one of them and cannot make a
+        # bent test severe.
+        record["basis"] = basis_record
     record["at"] = util.utc_now()
     record["by"] = util.detect_actor()
     records = pages.as_list(page.fm.get("tests"))
@@ -1410,7 +1569,9 @@ def record_test(
     pages.write_page(page.path, page.fm, page.body)
     manifest.touch_updated(root)
     _regenerate_views(root)
-    events.emit(root, "claim.test", claim_id, probe=probe, error=error, result=result)
+    events.emit(root, "claim.test", claim_id, probe=probe, error=error, result=result,
+                basis=(basis_record or {}).get("rule"),
+                basis_against=(basis_record or {}).get("against"))
     return pages.Page(path=page.path, fm=page.fm, body=page.body)
 
 

@@ -38,6 +38,8 @@ from . import (
     ledgers,
     migrate as migrate_mod,
     obsidian as obsidian_mod,
+    origins as origins_mod,
+    passages as passages_mod,
     profiles as profiles_mod,
     query as query_mod,
     registry,
@@ -779,6 +781,20 @@ def _explain_grade(source_id: str) -> None:
         for k in sources.GRADE_DOCUMENTATION
     )
     click.echo(f"  documentation only (never moves the letter): {doc}")
+    origin = origins_mod.record(row)
+    if origin is not None:
+        all_rows = sources.list_sources(root)
+        keys = origins_mod.Keys(all_rows)
+        mine = keys.key(source_id)
+        shares = [str(r.get("id")) for r in all_rows
+                  if r.get("id") != source_id and keys.key(str(r.get("id"))) == mine]
+        click.echo("  origin (never moves the letter; collapses the corroboration count):")
+        for step in keys.chain(source_id):
+            click.echo(f"    {step}")
+        if shares:
+            click.echo(f"    counts as one origin ({origins_mod.display(mine)}) with: "
+                       f"{', '.join(shares)} — wherever a claim cites them together, "
+                       "they corroborate once")
 
 
 @main.command()
@@ -983,6 +999,165 @@ def source_read(source_id: str, note: str | None) -> None:
     """
     row = sources.mark_read(require_notebook_root(), source_id, note=note)
     click.echo(f"{row['id']} · read {row['ts']} · {row['actor']}")
+
+
+@source.command("origin")
+@click.argument("source_id", metavar="SOURCE_ID")
+@click.option("--republishes", default=None, metavar="SOURCE_ID",
+              help="The source in this notebook whose content SOURCE_ID carries (a wire "
+                   "story's copy, a report quoting another's figure).")
+@click.option("--ref", default=None, metavar="URL_OR_ID",
+              help="An origin the notebook does not hold: a URL, DOI or other identifier. "
+                   "May be given with --republishes.")
+@click.option("--because", default=None,
+              help="What shows it (same byline and text, the citation of the figure …). "
+                   "Required.")
+@click.option("--clear", is_flag=True, help="Withdraw the recorded origin (still needs --because).")
+def source_origin(source_id: str, republishes: str | None, ref: str | None,
+                  because: str | None, clear: bool) -> None:
+    """Record where a source's content comes from (SPEC §5.4, "Origin").
+
+    `independence: derivative` says a source republishes something; this says
+    WHAT. Sources that share an origin count once toward a claim's
+    corroboration, and the count names which were collapsed and why.
+    """
+    root = require_notebook_root()
+    page = origins_mod.set_origin(root, source_id, republishes=republishes, ref=ref,
+                                  because=because, clear=clear)
+    if clear:
+        click.echo(f"{page.id} · origin cleared")
+    else:
+        origin = origins_mod.record(page.fm) or {}
+        named = " · ".join(f"{k} {origin[k]}" for k in ("republishes", "ref") if origin.get(k))
+        click.echo(f"{page.id} · {named}")
+    citing = [p.id for p in pages.iter_pages(root, "claims")
+              if p.id and page.id in claims.source_ids(p.fm)]
+    if citing:
+        click.echo(f"  cited by {', '.join(citing)}: their stored corroboration refreshes on "
+                   "the next `flip claim status`; `flip doctor` names any that drifted")
+
+
+@source.group("passage", cls=SuggestGroup)
+def source_passage() -> None:
+    """Pin the exact passage of a held source a claim rests on (SPEC §5.7).
+
+    A pin records where the words are (a line range, and for a quote the exact
+    span), the SHA-256 of the pinned words and of the copy they were read from,
+    and — when that copy is the text derivative — the extraction that made it.
+    Cite it as `A3§label` with `flip claim add --source` (a witness) or
+    `--about` (the document the claim is about). The words are re-read and
+    re-checked against the digest every time; they are never stored as text
+    anyone could edit.
+    """
+
+
+@source_passage.command("pin")
+@click.argument("source_id", metavar="SOURCE_ID")
+@click.option("--label", required=True,
+              help="Slug naming the passage; becomes the ref suffix (A3§label) and the "
+                   "page anchor. Stable once claims cite it.")
+@click.option("--quote", default=None, metavar="TEXT",
+              help="The exact words, as held. They must occur in the held copy; a run "
+                   "of whitespace matches any run of whitespace (so a quote may cross the "
+                   "line breaks of an extraction), nothing else is loosened.")
+@click.option("--lines", "lines", default=None, metavar="A-B",
+              help="A line range in the held copy instead of a quote, 1-indexed, inclusive.")
+@click.option("--held", default=None, type=click.Choice(passages_mod.HELD_COPIES),
+              help="Which copy to pin: `text` (the logged text derivative — a derivative, "
+                   "and extraction can drop content) or `raw` (the capture itself, when "
+                   "it is plain text). Default: text when a derivative exists, else raw. "
+                   "Recorded on the pin either way.")
+@click.option("--occurrence", type=int, default=None, metavar="N",
+              help="Which occurrence of a quote that occurs more than once (1 = first, "
+                   "in reading order).")
+@click.option("--context", default=None, metavar="TEXT",
+              help="Surrounding words that occur once and contain the quote — another "
+                   "way to say which occurrence.")
+@click.option("--relocate", is_flag=True,
+              help="Re-anchor an existing label on the same words after a re-extraction "
+                   "moved them. Refused unless the words found hash exactly as pinned.")
+@click.option("--note", default=None, help="One line on why this passage is worth pinning.")
+def source_passage_pin(source_id: str, label: str, quote: str | None, lines: str | None,
+                       held: str | None, occurrence: int | None, context: str | None,
+                       relocate: bool, note: str | None) -> None:
+    """Pin a passage of SOURCE_ID under LABEL, and print the ref to cite."""
+    span = _parse_lines(lines) if lines is not None else None
+    record = passages_mod.pin(
+        require_notebook_root(), source_id, label, quote=quote, lines=span, held=held,
+        occurrence=occurrence, context=context, relocate=relocate, note=note,
+    )
+    ref = format_excerpt_ref(source_id, label)
+    first, last = record["lines"]
+    click.echo(ref)
+    where = f"line {first}" if first == last else f"lines {first}-{last}"
+    click.echo(f"  {where}, {record['words']} words, sha256 {record['sha256'][:12]}"
+               + (" (relocated)" if relocate else ""))
+    if record["held"] == "text":
+        ex = record.get("extraction") or {}
+        how = ", ".join(str(ex[k]) for k in ("tool", "method") if ex.get(k)) or "unknown tool"
+        click.echo(f"  pinned on the text derivative ({how}) — a derivative: extraction can "
+                   "drop content, so read the raw capture where the words matter")
+    else:
+        click.echo("  pinned on the raw capture")
+    if record.get("match") == "whitespace":
+        click.echo("  matched with whitespace runs treated as one gap; the pin holds the "
+                   "words exactly as held")
+    click.echo(f"  cite it: flip claim add \"…\" --source {ref}   (a witness)")
+    click.echo(f"       or: flip claim add \"…\" --about {ref}    (the claim is ABOUT "
+               "what this passage says; owes `flip claim test --probe attribution`)")
+
+
+@source_passage.command("list")
+@click.argument("source_id", metavar="SOURCE_ID")
+@click.option("--json", "as_json", is_flag=True,
+              help="Emit the pins, re-read and checked, as JSON.")
+def source_passage_list(source_id: str, as_json: bool) -> None:
+    """Every passage pinned on a source, in the order pinned, with its state."""
+    root = require_notebook_root()
+    page = passages_mod.find_source(root, source_id)
+    rows = [passages_mod.describe(source_id, r, passages_mod.read_record(root, page, r))
+            for r in passages_mod.records(page.fm)]
+    if as_json:
+        click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        click.echo(f"{source_id} pins no passages yet — see `flip source passage pin --help`")
+        return
+    for row in rows:
+        span = row.get("lines") or []
+        where = f"{span[0]}-{span[1]}" if len(span) == 2 else "?"
+        line = f"{row['ref']}  lines {where}  {row['held']}  {row['state']}"
+        if row.get("note"):
+            line += f"  — {row['note']}"
+        click.echo(line)
+
+
+@source_passage.command("read")
+@click.argument("source_id", metavar="SOURCE_ID")
+@click.argument("label", required=False)
+@click.option("--json", "as_json", is_flag=True,
+              help="Include the reference, lines, digests, held copy and extraction.")
+def source_passage_read(source_id: str, label: str | None, as_json: bool) -> None:
+    """Read a pinned passage from its held copy, re-checking its digest.
+
+    Takes `A3 label` or the ref `A3§label`. Refuses when the held copy no
+    longer carries exactly the pinned words.
+    """
+    if label is None:
+        source_id, label = util.split_ref(source_id)
+        if label is None:
+            raise SystemExit("name the passage: `flip source passage read A3 <label>` or A3§<label>")
+    record = passages_mod.read_pin(require_notebook_root(), source_id, label)
+    click.echo(json.dumps(record, ensure_ascii=False) if as_json else record["text"])
+
+
+@source_passage.command("unpin")
+@click.argument("source_id", metavar="SOURCE_ID")
+@click.argument("label")
+def source_passage_unpin(source_id: str, label: str) -> None:
+    """Drop a pinned passage. Refuses while a claim still cites it."""
+    passages_mod.unpin(require_notebook_root(), source_id, label)
+    click.echo(f"unpinned {format_excerpt_ref(source_id, label)}")
 
 
 # ---------------------------------------------------------------- events / snapshot
@@ -1595,6 +1770,16 @@ def _corroboration_label(fm: dict) -> str:
     return str(fm.get("independent_corroboration", 0))
 
 
+def _echo_collapsed(root: Path, fm: dict) -> None:
+    """Name sources the count took as one origin (SPEC §5.4), so a number
+    smaller than the citation list is never left unexplained."""
+    detail = claims.claim_corroboration_detail(
+        [p.fm for p in pages.iter_pages(root, "references")], fm)
+    for group in (detail or {}).get("collapsed", []):
+        click.echo(f"note: {', '.join(group['sources'])} count as one origin "
+                   f"({group['origin']}) — {'; '.join(group['why'])}")
+
+
 @main.group(cls=SuggestGroup)
 def claim() -> None:
     """Claims as pages (claims/<slug>.md, ids C#): assertions the work relies on.
@@ -1660,6 +1845,7 @@ def claim_add(text: str, source_ids: tuple[str, ...], subject_ids: tuple[str, ..
         absence = f" · absence: {absent_from}{count}"
     click.echo(f"{page.id} asserted · sources: {srcs} · "
                f"corroboration: {_corroboration_label(page.fm)}{absence}")
+    _echo_collapsed(root, page.fm)
     # Dangling cites are legal (§6.1) — doctor counts them — but say so now
     # rather than let a typo'd id ride silently until the next doctor run.
     known = {str(p.fm.get("id")) for p in pages.iter_pages(root, "references")}
@@ -1672,17 +1858,31 @@ def claim_add(text: str, source_ids: tuple[str, ...], subject_ids: tuple[str, ..
 @claim.command("status")
 @click.argument("claim_id", metavar="CLAIM_ID")
 @click.argument("status", type=click.Choice(claims.STATUSES))
-@click.option("--because", help="Reason for the ruling, retained with the status event.")
-def claim_status(claim_id: str, status: str, because: str | None) -> None:
+@click.option("--because", help="Reason for the ruling, retained on the page and in the "
+                                "status event.")
+@click.option("--basis", default=None, metavar="KIND:ID@VERSION#DIGEST",
+              help="The written rule this was settled under, e.g. "
+                   "standard:document@1#2008960 (the digest prefix pins the rule's text). "
+                   "Stored on the record and in the event. A label, never a pass: the "
+                   "record is accepted or refused exactly as it would be without it.")
+@click.option("--basis-against", "basis_against", multiple=True, metavar="REF",
+              help="What the rule ran against — a pinned passage (A3§label), a "
+                   "derivation, a script path. Repeatable; needs --basis.")
+def claim_status(claim_id: str, status: str, because: str | None, basis: str | None,
+                 basis_against: tuple[str, ...]) -> None:
     """Move a claim to a new status, recomputing its corroboration count.
 
     "verified" is refused until the profile's bar is met (independent
     original sources, or a grade-A source where the profile allows it) —
     counting judged sources only.
     """
-    page = claims.set_claim_status(require_notebook_root(), claim_id, status, because=because)
+    root = require_notebook_root()
+    page = claims.set_claim_status(root, claim_id, status, because=because,
+                                   basis=basis, basis_against=list(basis_against))
     click.echo(f"{page.id} → {page.fm.get('status', '?')} · "
-               f"corroboration: {_corroboration_label(page.fm)}")
+               f"corroboration: {_corroboration_label(page.fm)}"
+               + (f" · basis {basis}" if basis else ""))
+    _echo_collapsed(root, page.fm)
     own = stance_mod.notebook_stance(page.fm)
     if status == "verified" and own and str(own.get("stance")) == "pursuing":
         click.echo(f"note: the notebook's stance on {page.id} is still 'pursuing' — the "
@@ -1814,8 +2014,16 @@ def claim_source_rm(claim_id: str, source_id: str) -> None:
                    "Required in practice for --method recomputation: doctor warns on a "
                    "recomputation nobody can locate.")
 @click.option("--note", default=None, help="What the check found (recorded on the page).")
+@click.option("--basis", default=None, metavar="KIND:ID@VERSION#DIGEST",
+              help="The written rule this was settled under, e.g. "
+                   "standard:document@1#2008960 (the digest prefix pins the rule's text). "
+                   "Stored on the record and in the event. A label, never a pass: the "
+                   "record is accepted or refused exactly as it would be without it.")
+@click.option("--basis-against", "basis_against", multiple=True, metavar="REF",
+              help="What the rule ran against — a pinned passage (A3§label), a "
+                   "derivation, a script path. Repeatable; needs --basis.")
 def claim_verify(claim_id: str, method: str, against: tuple[str, ...],
-                 note: str | None) -> None:
+                 note: str | None, basis: str | None, basis_against: tuple[str, ...]) -> None:
     """Record a verification on a claim (append-only frontmatter record).
 
     An adversarial or recomputation record lets `flip claim status <C#>
@@ -1823,7 +2031,8 @@ def claim_verify(claim_id: str, method: str, against: tuple[str, ...],
     documents the corroboration reasoning and never satisfies the gate alone.
     """
     page = claims.verify_claim(require_notebook_root(), claim_id, method,
-                               against=list(against), note=note)
+                               against=list(against), note=note, basis=basis,
+                               basis_against=list(basis_against))
     click.echo(f"{page.id} · verified via {method} · "
                f"{len(page.fm.get('verified') or [])} verification(s) on record")
     if method == "independent-sources":
@@ -1942,9 +2151,18 @@ def claim_stance(claim_id: str, stance_value: str, because: str, falsifier: str 
               help="What did the testing — repeatable, and not only source ids: a session "
                    "id, a script path, or a dataset all belong here.")
 @click.option("--note", default=None, help="What the test found, in the tester's words.")
+@click.option("--basis", default=None, metavar="KIND:ID@VERSION#DIGEST",
+              help="The written rule this was settled under, e.g. "
+                   "standard:document@1#2008960 (the digest prefix pins the rule's text). "
+                   "Stored on the record and in the event. A label, never a pass: the "
+                   "record is accepted or refused exactly as it would be without it.")
+@click.option("--basis-against", "basis_against", multiple=True, metavar="REF",
+              help="What the rule ran against — a pinned passage (A3§label), a "
+                   "derivation, a script path. Repeatable; needs --basis.")
 def claim_test(claim_id: str, probe: str, error: str, result: str,
                would_detect: str | None, if_absent: str | None,
-               against: tuple[str, ...], note: str | None) -> None:
+               against: tuple[str, ...], note: str | None, basis: str | None,
+               basis_against: tuple[str, ...]) -> None:
     """Record a test run against a claim — including one that found the error.
 
     The evidential axis (SPEC §7.1). `flip claim verify` records that
@@ -1965,7 +2183,8 @@ def claim_test(claim_id: str, probe: str, error: str, result: str,
     """
     page = claims.record_test(require_notebook_root(), claim_id, probe, error, result,
                               would_detect=would_detect, if_absent=if_absent,
-                              against=list(against), note=note)
+                              against=list(against), note=note, basis=basis,
+                              basis_against=list(basis_against))
     record = stance_mod.test_records(page.fm)[-1]
     severity = stance_mod.test_severity(record)
     click.echo(f"{page.id} · {probe} test {result} ({severity}) · exposure: "

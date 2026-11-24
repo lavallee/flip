@@ -122,6 +122,9 @@ COMMAND_OPS: dict[str, tuple[str, ...]] = {
     "source provenance": ("source.provenance",),
     "source pipeline": ("source.pipeline",),
     "source read": ("source.read",),
+    "source origin": ("source.origin",),
+    "source passage pin": ("source.pin",),
+    "source passage unpin": ("source.unpin",),
     "claim add": ("claim.add",),
     "claim status": ("claim.status",),
     "claim stance": ("claim.stance",),
@@ -176,7 +179,7 @@ COMMAND_OPS: dict[str, tuple[str, ...]] = {
 # Commands that only read.
 READ_ONLY: frozenset[str] = frozenset({
     "cli", "next", "show", "open", "resolve", "events", "snapshot",
-    "source list", "claim list", "claim exposure", "question list",
+    "source list", "source passage list", "source passage read", "claim list", "claim exposure", "question list",
     "commission list", "forecast list", "forecast due", "transcript list", "transcript read",
     "lead list", "directive list", "kind list", "kind show", "profiles",
     "discipline list", "discipline show", "workflow list", "workflow show",

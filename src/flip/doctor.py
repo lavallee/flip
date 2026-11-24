@@ -26,7 +26,6 @@ mode. doctor imports workspace; workspace never imports doctor.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import subprocess
@@ -190,8 +189,10 @@ CHECK_CODES: frozenset[str] = frozenset({
     "unpriced-stance", "unsourced-holder", "stored-exposure",
     "misattributed-citation", "unexamined-position",
     "losing-to-a-rival", "no-declared-rival",
-    # transcripts: pinned passages
+    # pinned passages (transcripts and every held source)
     "dangling-excerpt", "excerpt-drift", "unbacked-excerpt",
+    # recorded bases and origins
+    "bad-basis", "bad-origin", "possible-shared-origin",
     # shared causes — one line that explains many symptoms
     "vocabulary-drift",
     # forecasts & clusters
@@ -263,6 +264,8 @@ def run_doctor(root: Path) -> list[Finding]:
     _check_ungraded_cited(root, claim_pages, source_pages, findings)
     _check_stance(root, manifest, claim_pages, findings)
     _check_transcripts(root, source_pages, claim_pages, findings)
+    _check_origins(root, source_pages, claim_pages, findings)
+    _check_bases(root, claim_pages, findings)
     _check_forecasts(root, by_dir, findings)
     _check_questions(root, by_dir, findings)
     _check_commissions(root, by_dir, findings)
@@ -2419,6 +2422,15 @@ def _check_claims(
                         f"{'is' if len(subjects) == 1 else 'are'} cited as what the claim "
                         "is ABOUT and is deliberately not in that count"
                     )
+                # A shared origin is the other way a cited source leaves the
+                # count on purpose; say which, or the number reads as a mistake.
+                from .claims import corroboration_detail
+
+                for group in corroboration_detail(source_fms, counted)["collapsed"]:
+                    msg += (
+                        f". NOTE {', '.join(group['sources'])} count as one origin "
+                        f"({group['origin']}: {'; '.join(group['why'])})"
+                    )
                 # Never let the count stand alone as a verdict on the evidence:
                 # an uncountable source drops out silently and the claim then
                 # fails for a reason that has nothing to do with what it rests on.
@@ -2727,7 +2739,7 @@ def _check_stance(
             )
 
 
-# --- transcripts: pinned passages (SPEC §8) --------------------------------------
+# --- pinned passages: transcripts (SPEC §8) and every held source (SPEC §5.7) ---
 
 
 def _check_transcripts(
@@ -2736,62 +2748,85 @@ def _check_transcripts(
     claim_pages: list[pages.Page],
     findings: list[Finding],
 ) -> None:
-    """Excerpt integrity on transcript sources (SPEC §8).
+    """Pin integrity on every source that carries pins (SPEC §5.7, §8).
 
-    Three ways a pinned passage stops meaning what it said:
+    The name is historical: transcripts had pins first, and the codes keep the
+    words they shipped with. Three ways a pinned passage stops meaning what it
+    said:
 
-    `unbacked-excerpt` — the transcript's raw capture is gone, so no pin on it
-    can be checked at all (ERROR: custody is the whole basis of the quote).
-    `excerpt-drift` — the quote stored on the page no longer hashes to the
-    recorded sha256, which on an immutable capture means the page was
-    hand-edited (ERROR: a quotation flip vouches for must be one it can check).
-    `dangling-excerpt` — a claim cites `T1§label` that the transcript does not
-    pin (WARN, consistent with the dangling-citation policy). The citation
-    still resolves to the source, which is the danger: it reads as one exchange
-    and rests on the whole conversation.
+    `unbacked-excerpt` — the copy the pin was read from is gone (the raw
+    capture, or for a pin on the text derivative, `sources/text/<id>.txt`), so
+    no pin on it can be checked at all (ERROR: custody is the whole basis of
+    the quote).
+    `excerpt-drift` — the text at the pinned location no longer hashes to the
+    recorded sha256. On a raw capture, which is immutable, that means the pin
+    record was hand-edited; on a text derivative it usually means a
+    re-extraction moved or lost the words (ERROR either way: a quotation flip
+    vouches for must be one it can check).
+    `dangling-excerpt` — a claim cites `A3§label` that the source does not pin
+    (WARN, consistent with the dangling-citation policy). The citation still
+    resolves to the source, which is the danger: it reads as one passage and
+    rests on the whole document.
     """
+    from . import passages
     from .claims import source_refs
 
-    transcript_pages = [
-        p for p in source_pages if str(p.fm.get("medium") or "") == "conversation"
-    ]
     pinned: dict[str, set[str]] = {}
-    for page in transcript_pages:
-        records = [e for e in pages.as_list(page.fm.get("excerpts")) if isinstance(e, dict)]
+    fms: dict[str, dict] = {}
+    for page in source_pages:
+        fms[page.id] = page.fm
+        records = passages.records(page.fm)
         pinned[page.id] = {str(e.get("label")) for e in records}
         if not records:
             continue
-        local = str(page.fm.get("local") or "")
-        raw = root / local if local else None
-        if not local or raw is None or not raw.is_file():
-            findings.append(
-                _error(
-                    "unbacked-excerpt",
-                    f"{page.id} pins {len(records)} passage(s) but its capture "
-                    f"({local or 'no `local` recorded'}) is missing; the quotes on this "
-                    "page cannot be checked against anything — restore custody or unpin",
-                    _rel(page, root),
-                )
-            )
-            continue
-        lines = raw.read_text(encoding="utf-8", errors="replace").splitlines()
+        legacy = passages.is_transcript(page.fm) and not any(e.get("held") for e in records)
+        gone: list[str] = []
         for record in records:
-            span = pages.as_list(record.get("lines"))
-            if len(span) != 2:
-                continue
-            start, end = int(span[0]), int(span[1])
-            quoted = "\n".join(lines[start - 1 : end])
-            actual = hashlib.sha256(quoted.encode("utf-8")).hexdigest()
-            if actual != str(record.get("sha256")):
+            reading = passages.read_record(root, page, record)
+            label = str(record.get("label"))
+            if reading.state == "unbacked":
+                gone.append(label)
+            elif reading.state in ("drifted", "invalid"):
+                if legacy or str(record.get("held") or "raw") == "raw":
+                    advice = (
+                        "raw captures are immutable, so the excerpt record was "
+                        "hand-edited — re-pin it rather than editing the quote"
+                    )
+                else:
+                    advice = (
+                        "the text derivative changed since the pin (re-extracted?). If "
+                        "the same words are still there, re-anchor them with `flip "
+                        f"source passage pin {page.id} --label {label} --quote \"…\" "
+                        "--relocate`; if not, the extraction lost them — read the raw "
+                        "capture before the claims citing this rely on it"
+                    )
                 findings.append(
                     _error(
                         "excerpt-drift",
-                        f"{page.id}§{record.get('label')} no longer hashes to its recorded "
-                        "sha256; raw captures are immutable, so the excerpt record was "
-                        "hand-edited — re-pin it rather than editing the quote",
+                        f"{page.id}§{label} no longer hashes to its recorded sha256; "
+                        + advice,
                         _rel(page, root),
                     )
                 )
+        if gone:
+            text_pins = [
+                str(e.get("label")) for e in records
+                if str(e.get("label")) in gone and e.get("held") == "text"
+            ]
+            if legacy or not text_pins:
+                where = str(page.fm.get("local") or "no `local` recorded")
+                message = (
+                    f"{page.id} pins {len(gone)} passage(s) but its capture ({where}) is "
+                    "missing; the quotes on this page cannot be checked against anything "
+                    "— restore custody or unpin"
+                )
+            else:
+                message = (
+                    f"{page.id} pins {', '.join(gone)} on its text derivative, and "
+                    f"sources/text/{page.id}.txt is gone; re-extract (`flip extract "
+                    f"{page.id}`) and re-anchor the same words with `--relocate`, or unpin"
+                )
+            findings.append(_error("unbacked-excerpt", message, _rel(page, root)))
     for page in claim_pages:
         for ref in source_refs(page.fm):
             base, label = split_ref(ref)
@@ -2800,11 +2835,127 @@ def _check_transcripts(
                     _warn(
                         "dangling-excerpt",
                         f"cites {ref} but {base} pins no passage '{label}'; the citation "
-                        f"falls back to the whole of {base} while reading as one exchange "
-                        f"— pin it with `flip transcript excerpt {base} --label {label} …`",
+                        f"falls back to the whole of {base} while reading as one passage "
+                        f"— pin it with `{passages.pin_command(base, fms.get(base), label)} …`",
                         _rel(page, root),
                     )
                 )
+
+
+# --- origins and bases (SPEC §5.4 "Origin", §7 "Basis") ------------------------
+
+
+def _check_origins(
+    root: Path,
+    source_pages: list[pages.Page],
+    claim_pages: list[pages.Page],
+    findings: list[Finding],
+) -> None:
+    """Origin records, and the copies nobody has said are copies.
+
+    `bad-origin` (WARN) — an origin record that names an unknown source, the
+    source itself, or closes a cycle by hand edit; the count still treats it
+    as one origin, but the record does not say what it means to.
+    `possible-shared-origin` (WARN, a hint) — two evidence citations of one
+    claim hold identical bytes or the same canonical address, and no origin
+    record says they are one: they are probably one document counted twice.
+    """
+    from . import origins
+    from .claims import evidence_ids
+
+    by_id = {p.id: p for p in source_pages if p.id}
+    for page in source_pages:
+        origin = origins.record(page.fm)
+        if origin is None:
+            continue
+        target = str(origin.get("republishes") or "").strip()
+        problem = ""
+        if target and target == page.id:
+            problem = "names the source itself"
+        elif target and target not in by_id:
+            problem = f"republishes '{target}', which no references/ page carries"
+        elif target:
+            seen, current = {page.id}, target
+            while current in by_id:
+                if current in seen:
+                    problem = f"closes a cycle through {current}"
+                    break
+                seen.add(current)
+                nxt = origins.record(by_id[current].fm) or {}
+                current = str(nxt.get("republishes") or "").strip()
+                if not current:
+                    break
+        if not str(origin.get("because") or "").strip():
+            problem = problem or "carries no `because`"
+        if problem:
+            findings.append(_warn(
+                "bad-origin",
+                f"{page.id}'s origin record {problem}; re-record it with `flip source "
+                f"origin {page.id} --republishes <id>|--ref <url> --because …` or clear it",
+                _rel(page, root),
+            ))
+    if not claim_pages:
+        return
+    keys = origins.Keys([p.fm for p in source_pages])
+    custody: dict[str, set[str]] = {}
+    try:
+        ledger = util.read_jsonl(root / PROVENANCE)
+    except ValueError:
+        ledger = []  # bad-jsonl is reported by the ledger check
+    for row in ledger:
+        sid = str(row.get("source_id") or "")
+        if (sid in by_id and row.get("sha256")
+                and str(row.get("status") or "") not in sources_mod.NON_CAPTURE_STATUSES
+                and Path(str(row.get("local_path") or "")).name != sources_mod.ENVELOPE_FILENAME):
+            custody.setdefault(sid, set()).add(str(row["sha256"]))
+    for page in claim_pages:
+        cited = [sid for sid in evidence_ids(page.fm) if sid in by_id]
+        for i, a in enumerate(cited):
+            for b in cited[i + 1:]:
+                if keys.key(a) == keys.key(b):
+                    continue
+                same_bytes = bool(custody.get(a, set()) & custody.get(b, set()))
+                addr_a = origins.canonical(by_id[a].fm.get("resource") or "")
+                addr_b = origins.canonical(by_id[b].fm.get("resource") or "")
+                same_address = bool(addr_a) and "://" in addr_a and addr_a == addr_b
+                if not (same_bytes or same_address):
+                    continue
+                why = "hold identical bytes" if same_bytes else f"share the address {addr_a}"
+                findings.append(_warn(
+                    "possible-shared-origin",
+                    f"claim {page.id} cites {a} and {b} as evidence, and they {why}, but no "
+                    "origin record says they are one document — they may be counting "
+                    f"twice. If one carries the other's content, `flip source origin {b} "
+                    f"--republishes {a} --because …`; if they are genuinely separate "
+                    "witnesses, leave them",
+                    _rel(page, root),
+                ))
+
+
+def _check_bases(root: Path, claim_pages: list[pages.Page], findings: list[Finding]) -> None:
+    """`bad-basis` (WARN): a recorded basis whose rule is off the grammar —
+    a hand edit, since flip refuses to write one. The record still stands; the
+    label just cannot be matched against the rule it means."""
+    from .claims import BASIS_RULE_RE, status_record
+
+    for page in claim_pages:
+        holders = [("verified", r) for r in pages.as_list(page.fm.get("verified"))]
+        holders += [("tests", r) for r in pages.as_list(page.fm.get("tests"))]
+        if status_record(page.fm) is not None:
+            holders.append(("status_set", status_record(page.fm)))
+        for where, rec in holders:
+            if not isinstance(rec, dict) or "basis" not in rec:
+                continue
+            basis = rec.get("basis")
+            rule = basis.get("rule") if isinstance(basis, dict) else None
+            if not isinstance(rule, str) or not BASIS_RULE_RE.match(rule):
+                findings.append(_warn(
+                    "bad-basis",
+                    f"claim {page.id}: a `{where}` record carries basis {basis!r}, which is "
+                    "not {rule: <kind>:<id>@<version>#<digest-prefix>, against?: [...]}; "
+                    "record the check again with --basis",
+                    _rel(page, root),
+                ))
 
 
 # --- forecasts & clusters (SPEC §7) ---------------------------------------------

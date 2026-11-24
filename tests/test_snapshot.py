@@ -23,11 +23,12 @@ NOTEBOOK = {"draft_versions", "question_plan", "slug", "uid", "title", "kind", "
             "workflow", "idle_days"}
 SOURCE = {"assessment_key", "grade_reason", "capture_fidelity", "id", "title", "description", "kind", "url", "local", "status", "grade",
           "independence", "freshness", "support", "notes", "path", "by", "at", "custody",
-          "text", "cited_by", "read_by"}
+          "text", "cited_by", "read_by", "passages", "origin", "origin_key"}
 CUSTODY = {"ts", "sha256", "bytes", "tool", "strategy", "status", "mime"}
 CLAIM_KEYS = {"citations", "id", "text", "summary", "status", "load_bearing", "sources", "about",
               "corroboration", "exposure", "value", "unit", "notes", "stances", "rivals",
-              "tests", "verified", "derives_from", "path", "by", "at"}
+              "tests", "verified", "derives_from", "path", "by", "at",
+              "corroboration_collapsed", "status_set"}
 QUESTION = {"reporting", "answer_revisions", "status_note", "closed_reason", "answered_at", "id", "text", "status", "path", "by", "at", "review_by", "reopen_when",
             "resolves_via", "formulations", "evidence", "answer"}
 DECISION = {"id", "question", "decision", "why", "rejected", "path", "by", "at"}
