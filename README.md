@@ -301,7 +301,7 @@ expected token-efficiency benefit has not yet been benchmarked.
 - [Running a beat on a loop](docs/loops.md) — standing policy and unattended passes
 - [llms.txt](llms.txt) — compact documentation map for agents
 
-Status: spec draft v0.26; package 0.26.0; Python 3.12+; MIT licensed. Built and
+Status: spec draft v0.27; package 0.27.0; Python 3.12+; MIT licensed. Built and
 maintained by [Marc Lavallee](https://github.com/lavallee). Changes are tracked
 in [CHANGELOG.md](CHANGELOG.md); [issues](https://github.com/lavallee/flip/issues)
 and contributions through [CONTRIBUTING.md](CONTRIBUTING.md) are welcome.

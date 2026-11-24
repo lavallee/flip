@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "flip-notebook"
-version = "0.26.0"
+version = "0.27.0"
 description = "Help your agent be a reporter, not a stenographer"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -62,7 +62,7 @@ testpaths = ["tests"]
 # the skills are plain markdown under src/flip/skills/ and work standalone.
 [tool.spindle.package]
 name = "flip"
-version = "0.26.0"
+version = "0.27.0"
 skills = [
   "notebook-create",
   "notebook-source",

@@ -1,5 +1,5 @@
 window.__FLIP_SPEC__ = {
-  "generated": "2026-11-22T21:13:56+00:00",
+  "generated": "2026-11-24T13:58:44+00:00",
   "sections": [
     {
       "number": "1",
@@ -214,8 +214,10 @@ window.__FLIP_SPEC__ = {
       ],
       "observed_keys": [
         "aliases",
+        "answer_revisions",
         "answered",
         "answered_by",
+        "current_answer_version",
         "description",
         "generated",
         "id",

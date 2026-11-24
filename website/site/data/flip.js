@@ -1,7 +1,7 @@
 window.__FLIP_META__ = {
-  "generated": "2026-11-22T21:13:56+00:00",
-  "version": "0.26.0",
-  "revision": "982240d",
+  "generated": "2026-11-24T13:58:44+00:00",
+  "version": "0.27.0",
+  "revision": "f3f5333",
   "requires_python": ">=3.12",
   "dependencies": [
     "click>=8.1",
@@ -9,9 +9,9 @@ window.__FLIP_META__ = {
   ],
   "license": "MIT",
   "package": "flip-notebook",
-  "tests": 1401,
-  "spec_status": "draft v0.26 \u00b7 2026-11-22",
-  "spec_lines": 2298,
+  "tests": 1452,
+  "spec_status": "draft v0.27 \u00b7 2026-11-24",
+  "spec_lines": 2515,
   "skills": [
     "notebook-audit",
     "notebook-create",
@@ -418,7 +418,12 @@ window.__FLIP_META__ = {
           "CLAIM_ID",
           "STATUS"
         ],
-        "options": []
+        "options": [
+          {
+            "name": "--because",
+            "required": false
+          }
+        ]
       },
       {
         "command": "flip claim supersede",
@@ -638,6 +643,48 @@ window.__FLIP_META__ = {
         ]
       },
       {
+        "command": "flip directive add",
+        "group": "flip directive",
+        "name": "add",
+        "purpose": "Set a directive, allocating the next DR#.",
+        "arguments": [
+          "TEXT"
+        ],
+        "options": []
+      },
+      {
+        "command": "flip directive list",
+        "group": "flip directive",
+        "name": "list",
+        "purpose": "List active directives; --all adds withdrawn ones.",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--all",
+            "required": false
+          },
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip directive withdraw",
+        "group": "flip directive",
+        "name": "withdraw",
+        "purpose": "Withdraw a directive: it stops applying and stays on record.",
+        "arguments": [
+          "DR_ID"
+        ],
+        "options": [
+          {
+            "name": "--because",
+            "required": false
+          }
+        ]
+      },
+      {
         "command": "flip discipline list",
         "group": "flip discipline",
         "name": "list",
@@ -705,6 +752,60 @@ window.__FLIP_META__ = {
           },
           {
             "name": "--limit",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip draft save",
+        "group": "flip draft",
+        "name": "save",
+        "purpose": "Save the next manuscript version and point drafts/current at it.",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--file",
+            "required": true
+          },
+          {
+            "name": "--because",
+            "required": true
+          },
+          {
+            "name": "--from-version",
+            "required": false
+          },
+          {
+            "name": "--from-sha",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip events",
+        "group": "flip",
+        "name": "events",
+        "purpose": "List what changed: one row per write, oldest first (log/events.jsonl).",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--since",
+            "required": false
+          },
+          {
+            "name": "--op",
+            "required": false
+          },
+          {
+            "name": "--id",
+            "required": false
+          },
+          {
+            "name": "--limit",
+            "required": false
+          },
+          {
+            "name": "--json",
             "required": false
           }
         ]
@@ -1079,6 +1180,26 @@ window.__FLIP_META__ = {
             "required": false
           },
           {
+            "name": "--from-assessment",
+            "required": false
+          },
+          {
+            "name": "--authority-role",
+            "required": false
+          },
+          {
+            "name": "--authority-for",
+            "required": false
+          },
+          {
+            "name": "--authority-limit",
+            "required": false
+          },
+          {
+            "name": "--clear-authority",
+            "required": false
+          },
+          {
             "name": "--grade",
             "required": false
           }
@@ -1199,6 +1320,57 @@ window.__FLIP_META__ = {
           "ID"
         ],
         "options": [
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip lead add",
+        "group": "flip lead",
+        "name": "add",
+        "purpose": "Record a candidate source found outside `flip find`.",
+        "arguments": [
+          "URL"
+        ],
+        "options": [
+          {
+            "name": "--title",
+            "required": false
+          },
+          {
+            "name": "--note",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip lead dismiss",
+        "group": "flip lead",
+        "name": "dismiss",
+        "purpose": "Drop an open lead without capturing it.",
+        "arguments": [
+          "URL"
+        ],
+        "options": [
+          {
+            "name": "--reason",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip lead list",
+        "group": "flip lead",
+        "name": "list",
+        "purpose": "List open leads; --all adds captured, passed and dismissed ones.",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--all",
+            "required": false
+          },
           {
             "name": "--json",
             "required": false
@@ -1442,6 +1614,37 @@ window.__FLIP_META__ = {
         ]
       },
       {
+        "command": "flip question assign",
+        "group": "flip question",
+        "name": "assign",
+        "purpose": "Plan one reporting assignment on a question.",
+        "arguments": [
+          "QID"
+        ],
+        "options": [
+          {
+            "name": "--route",
+            "required": true
+          },
+          {
+            "name": "--holder",
+            "required": true
+          },
+          {
+            "name": "--ask",
+            "required": true
+          },
+          {
+            "name": "--test",
+            "required": true
+          },
+          {
+            "name": "--terms",
+            "required": false
+          }
+        ]
+      },
+      {
         "command": "flip question close",
         "group": "flip question",
         "name": "close",
@@ -1544,6 +1747,36 @@ window.__FLIP_META__ = {
         ]
       },
       {
+        "command": "flip question report",
+        "group": "flip question",
+        "name": "report",
+        "purpose": "Record an actual question, response, nonresponse or check on an assignment.",
+        "arguments": [
+          "QID",
+          "RID",
+          "KIND",
+          "TEXT"
+        ],
+        "options": [
+          {
+            "name": "--source",
+            "required": false
+          },
+          {
+            "name": "--from-step",
+            "required": false
+          },
+          {
+            "name": "--asked",
+            "required": false
+          },
+          {
+            "name": "--attribution",
+            "required": false
+          }
+        ]
+      },
+      {
         "command": "flip question repose",
         "group": "flip question",
         "name": "repose",
@@ -1559,6 +1792,37 @@ window.__FLIP_META__ = {
           },
           {
             "name": "--note",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip question revise",
+        "group": "flip question",
+        "name": "revise",
+        "purpose": "Save a new version of an answered question, retaining earlier answers.",
+        "arguments": [
+          "ID"
+        ],
+        "options": [
+          {
+            "name": "--note",
+            "required": false
+          },
+          {
+            "name": "--file",
+            "required": false
+          },
+          {
+            "name": "--because",
+            "required": false
+          },
+          {
+            "name": "--from-version",
+            "required": false
+          },
+          {
+            "name": "--from-sha",
             "required": false
           }
         ]
@@ -1723,6 +1987,19 @@ window.__FLIP_META__ = {
         ]
       },
       {
+        "command": "flip snapshot",
+        "group": "flip",
+        "name": "snapshot",
+        "purpose": "Print the whole notebook as one JSON document (schema flip-snapshot/1).",
+        "arguments": [],
+        "options": [
+          {
+            "name": "--log-limit",
+            "required": false
+          }
+        ]
+      },
+      {
         "command": "flip source list",
         "group": "flip source",
         "name": "list",
@@ -1759,6 +2036,21 @@ window.__FLIP_META__ = {
         "arguments": [
           "SOURCE_ID",
           "STATE"
+        ],
+        "options": [
+          {
+            "name": "--note",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip source read",
+        "group": "flip source",
+        "name": "read",
+        "purpose": "Record that you opened and read a source.",
+        "arguments": [
+          "SOURCE_ID"
         ],
         "options": [
           {
@@ -1823,6 +2115,22 @@ window.__FLIP_META__ = {
         "purpose": "Every passage pinned on a transcript, in the order they were pinned.",
         "arguments": [
           "ID"
+        ],
+        "options": [
+          {
+            "name": "--json",
+            "required": false
+          }
+        ]
+      },
+      {
+        "command": "flip transcript read",
+        "group": "flip transcript",
+        "name": "read",
+        "purpose": "Read the pinned passage from the held transcript and check its digest.",
+        "arguments": [
+          "ID",
+          "LABEL"
         ],
         "options": [
           {
