@@ -1079,7 +1079,7 @@ without one, and verification and test records stay append-only either way.
 **Who set the status.** Every status change records itself on the page:
 
 ```yaml
-status_set: {by: tool:desk-standard, at: …, from: asserted,
+status_set: {by: tool:standards-check, at: …, from: asserted,
              because: "Settled by standard", basis: {rule: …, against: […]}}
 ```
 

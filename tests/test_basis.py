@@ -48,7 +48,7 @@ def _claim(root: Path, cid: str) -> pages.Page:
 
 
 @pytest.mark.parametrize("rule", [
-    RULE, "standard:desk-default@v1.2#abcdef0", "rule:x@1#" + "a" * 64,
+    RULE, "standard:house-rules@v1.2#abcdef0", "rule:x@1#" + "a" * 64,
     "standard:Document_Rule@2026-11#0123456789",
 ])
 def test_basis_rules_on_the_grammar_are_accepted(rule):
@@ -83,7 +83,7 @@ def test_basis_against_needs_a_rule_and_a_real_pin(nb):
 
 
 def test_verify_test_and_status_store_the_basis_and_emit_it(nb, monkeypatch):
-    monkeypatch.setenv("FLIP_ACTOR", "tool:desk-standard")
+    monkeypatch.setenv("FLIP_ACTOR", "tool:standards-check")
     claims.add_claim(nb, "The budget sets aside $5,585,576.", [], subjects=["F1§relief"])
     claims.record_test(
         nb, "C1", "attribution", error="the figure is not in the document",
@@ -95,15 +95,15 @@ def test_verify_test_and_status_store_the_basis_and_emit_it(nb, monkeypatch):
                             basis=RULE, basis_against=["F1§relief"])
     fm = _claim(nb, "C1").fm
     assert fm["tests"][-1]["basis"] == {"rule": RULE, "against": ["F1§relief"]}
-    assert fm["tests"][-1]["by"] == "tool:desk-standard"
-    assert fm["status_set"]["by"] == "tool:desk-standard"
+    assert fm["tests"][-1]["by"] == "tool:standards-check"
+    assert fm["status_set"]["by"] == "tool:standards-check"
     assert fm["status_set"]["basis"] == {"rule": RULE, "against": ["F1§relief"]}
     assert fm["status_set"]["from"] == "asserted"
     assert fm["status_set"]["because"] == "Settled by standard"
     rows = events.read_events(nb, op="claim.")
     test_row, status_row = rows[-2], rows[-1]
     assert test_row["op"] == "claim.test" and test_row["basis"] == RULE
-    assert status_row["actor"] == "tool:desk-standard"
+    assert status_row["actor"] == "tool:standards-check"
     assert status_row["basis"] == RULE and status_row["basis_against"] == ["F1§relief"]
 
 
@@ -111,11 +111,11 @@ def test_a_tool_actor_is_valid_attribution(nb, monkeypatch):
     """`tool:<name>` has always been accepted; a tool applying a standard writes
     as itself, so a reader can never take its ruling for a person's."""
     claims.add_claim(nb, "x", ["F1"])
-    out = invoke(["--actor", "tool:desk-standard", "claim", "verify", "C1",
+    out = invoke(["--actor", "tool:standards-check", "claim", "verify", "C1",
                   "--method", "adversarial", "--basis", RULE]).output
     assert "verified via adversarial" in out
-    assert _claim(nb, "C1").fm["verified"][-1]["by"] == "tool:desk-standard"
-    assert events.read_events(nb)[-1]["actor"] == "tool:desk-standard"
+    assert _claim(nb, "C1").fm["verified"][-1]["by"] == "tool:standards-check"
+    assert events.read_events(nb)[-1]["actor"] == "tool:standards-check"
 
 
 # --- a basis is a label, never a pass --------------------------------------------
