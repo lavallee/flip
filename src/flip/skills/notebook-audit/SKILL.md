@@ -68,7 +68,10 @@ a successful render nor a completed workflow establishes editorial approval.
    audit any reader can re-run against the same custody. Do not go looking for
    a second source for one of these; there is none to find. Doctor names a
    subject citation whose attribution test was never run, and that finding —
-   not a corroboration count — is the one to clear.
+   not a corroboration count — is the one to clear. Run that test against the
+   **pinned passage** (`--against F2§label`): if the claim cites the whole
+   document, pin the words it rests on first (`flip source passage pin`), and
+   check the pin carries what the claim *says* about it, not only its number.
 4. **Walk each load-bearing claim against the bar** (profile default: two
    sources whose recorded independence is `independent`, or one whose
    derived digest is A):
@@ -77,7 +80,14 @@ a successful render nor a completed workflow establishes editorial approval.
    - every cited source is judged — `flip source list` and grade any `?`
      rows first; an ungraded source corroborates nothing
    - corroborating sources are recorded `independent` — not derivatives of
-     the same upstream, not `self-reported` parties agreeing with themselves
+     the same upstream, not `self-reported` parties agreeing with themselves.
+     Two that carry one origin (a wire story captured twice, a report quoting
+     another's figure) are one: record it with `flip source origin <id>
+     --republishes <id> --because …`, and clear every `possible-shared-origin`
+     hint before trusting a count
+   - every passage ref the claim cites is intact — `excerpt-drift` or
+     `unbacked-excerpt` means the words flip vouched for are not what is on
+     disk; a pin on a text derivative is a pin on a derivative
    - the chain ends at a public, independently verifiable source when
      `citation_rule = "public-terminus"` — no synthesis-basis (LLM/vendor)
      terminus
@@ -99,7 +109,12 @@ a successful render nor a completed workflow establishes editorial approval.
      **not** satisfy the gate by itself (the recomputed independent-source
      count does). Use it to leave a trail, not as a shortcut.
    The corroboration bar is unchanged — the vocabulary widens the honest ways
-   to clear it; it never softens it.
+   to clear it; it never softens it. When a check was made by applying a
+   written rule, name it: `--basis <kind>:<id>@<version>#<digest>
+   [--basis-against <ref>]` on `claim verify|test|status`, written by the
+   tool as `--actor tool:<name>`. A basis is a label; flip accepts or refuses
+   the record exactly as it would without one. The snapshot's `status_set`
+   says who set each claim's status — check which were ruled by a person.
 6. **Move statuses honestly.** `flip claim status C7 verified` only when the
    bar is genuinely met — the corroboration count OR a recorded
    adversarial/recomputation verification (flip refuses otherwise — do not

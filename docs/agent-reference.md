@@ -195,11 +195,14 @@ group. The leaves you reach for most:
 | grade a source | `flip grade <id> --independence independent\|corroborated\|self-reported\|derivative --basis … [--method … --base-defined\|--base-undefined]` — the letter is derived |
 | ask why a letter | `flip grade <id> --explain` — the derivation; writes nothing |
 | fix a capture's title | `flip source retitle <id> "<title>"` — never hand-edit frontmatter |
+| pin the words a claim rests on | `flip source passage pin <id> --label <slug> --quote "<exact words>"` (or `--lines A-B`; `--held raw\|text`; `--occurrence N` / `--context "…"` when the words repeat) → cite `<id>§<slug>` · `flip source passage list\|read\|unpin` |
+| say what a source republishes | `flip source origin <id> --republishes <id>` (or `--ref <url>`) `--because "…"` — sources sharing an origin count once toward corroboration |
 | assert a claim | `flip claim add "<text>" --source <id> [--load-bearing]` |
 | cite the source a claim is ABOUT | `flip claim add "<text>" --about <id>` · `flip claim source add <C#> --about <id>` — never counted toward corroboration; owes an attribution test instead |
 | link/unlink sources | `flip claim source add\|rm <C#> <id…>` |
 | record a verification | `flip claim verify <C#> --method adversarial\|independent-sources\|recomputation` |
-| move a claim's status | `flip claim status <C#> <status>` |
+| move a claim's status | `flip claim status <C#> <status> [--because "…"]` |
+| say which written rule settled it | `--basis <kind>:<id>@<version>#<digest> [--basis-against <ref>]` on `claim verify\|test\|status` — a label on a record flip would accept anyway, never a way past the bar; a tool writes as `--actor tool:<name>` |
 | record a test — including one that FAILED | `flip claim test <C#> --probe attribution\|substance\|scope --error "<the specific way of being wrong>" --result survived\|failed\|inconclusive\|untestable [--would-detect … --if-absent … --against <ref>]` — `verify` can only record confirmations; this is where a probe that found the error goes |
 | see what the tests add up to | `flip claim exposure <C#>` — derived, never stored: `bent` · `severely-tested` · `misattributed` · `refuted` · `untestable`, with the derivation printed |
 | take a position on a claim | `flip claim stance <C#> pursuing\|holding\|abstaining\|rejecting --because "…"` — `pursuing`/`rejecting` are refused without `--falsifier`; `--holder <who> --source <id>` records a belief the notebook does *not* share |
@@ -382,7 +385,7 @@ lead, once per URL: `flip lead list` shows the ones still open.
 ### Assert and verify a claim
 
 ```bash
-flip claim add "<one-sentence assertion>" --source A1 --source F2 --load-bearing
+flip claim add "<one-sentence assertion>" --source A1 --source F2§table-4 --load-bearing
 flip claim status C1 verified          # refused until the profile's bar is met
 flip claim status C1 needs-2nd         # honest fallback while you hunt corroboration
 flip claim list --status needs-2nd --json
@@ -431,6 +434,58 @@ journey still on the page. Follow-up work worth dispatching gets a
 commission — a contract with an input universe, stop condition, and
 does-not-redo boundary (`flip commission add … --for Q2`) — so a
 continuation run consumes prior output instead of re-searching it.
+
+### Pin the passage a claim rests on
+
+A claim that rests on a document rests on a few of its words. Pin them, and
+cite the pin:
+
+```bash
+flip source passage pin F2 --label budget-total \
+  --quote "setting aside \$5,585,576 to be designated for tax relief"
+# F2§budget-total
+#   lines 41-42, 11 words, sha256 9f2c…
+#   pinned on the text derivative (…, text-layer) — a derivative: …
+flip claim add "The FY2025 audit sets aside \$5,585,576 for tax relief." \
+  --about F2§budget-total            # the claim is about what F2 says
+flip source passage read F2§budget-total --json   # the words, re-checked
+```
+
+- **Quote it exactly as held.** The words must occur in the held copy; a run
+  of whitespace may stand for a line break, nothing else is loosened. A miss
+  names the nearest match — read it rather than paraphrasing harder.
+- **Know which copy you pinned.** The default is the text derivative when one
+  exists. Extraction can drop content (a table column, a footnote): if the
+  words are not in the derivative, look in the raw capture (`--held raw`) or
+  re-extract before deciding the document does not say it.
+- **`--about` for a document the claim is about, `--source` for a witness.**
+  "The audit identifies $5.6M as restricted surplus" is about the audit: cite
+  it with `--about F2§label` and record the attribution test against the same
+  ref. Pin the passage that carries the *characterisation*, not only the
+  figure — a passage holding the number but not the claim's predicate does not
+  settle the claim.
+- After a re-extraction, `flip doctor` reports `excerpt-drift` on pins whose
+  words moved; re-anchor with the same `--quote … --relocate` (refused unless
+  the words are identical).
+
+### Say where a source's content comes from
+
+When a source republishes another — a second capture of one wire story, a
+report quoting another report's figure — record it, so the two count once:
+
+```bash
+flip source origin A15 --republishes A14 --because "same AP story: byline and text"
+flip source origin A9 --ref https://example.org/2023-study \
+  --because "quotes the 2023 study's figure; the study itself is not held"
+flip grade A15 --explain    # the chain, and what A15 shares an origin with
+```
+
+`flip claim status` and `flip doctor` then name the sources counted as one
+origin. Doctor hints (`possible-shared-origin`) when two cited sources hold
+identical bytes or one address and nothing says whether they are one. An
+origin is recorded on the source: if a report republishes a figure for one
+claim and is an independent witness for another, cite the origin on the first
+claim instead.
 
 ### Hold a position, and say what was asked of it
 

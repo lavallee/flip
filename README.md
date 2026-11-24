@@ -208,6 +208,14 @@ flip session end enrollment-sweep --summary "..." --output Q1 --check doctor
 flip next
 ```
 
+A claim can rest on the exact words it came from: `flip source passage pin F1
+--label table-3 --quote "…"` pins a passage of any held source (recording which
+copy, raw or extracted, and the digests of both), and the claim cites
+`F1§table-3`. `flip source origin` records that one source republishes another,
+so the two count once toward corroboration. A tool applying a written standard
+writes as `tool:<name>` and names the rule with `--basis` on `flip claim
+verify|test|status`; the snapshot says who set every claim's status.
+
 A person steers a notebook between sessions with `flip directive add "<how the
 work is to be done>"`: active directives print first in `flip next` and `flip
 show`, in every harness, until withdrawn. `flip find` keeps its candidates as

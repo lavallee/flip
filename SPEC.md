@@ -488,6 +488,50 @@ move the letter together with `support.method` and scoped record authority. `sup
 
 For example, a proposed budget can establish the figures its issuer published. Adoption and actual expenditure require different records. Use `flip grade F1 --authority-role issuer --authority-for "Proposed figures in the dated table" --authority-limit "Adoption and actual spending require separate records"` after reading a captured official record with a production method. `--clear-authority` withdraws the judgment. A scoped grade B confers no independent corroboration. An undefined measurement base still caps the letter at C.
 
+**Origin — what a source republishes.** `derivative` says that a
+source republishes something; it does not say what, and the count below could
+not see it. Two captures of one wire story, or a report quoting another
+report's figure, read as two independent paths to the fact when they are one.
+So a source may carry an authored **origin** record, set with `flip source
+origin <id> --republishes <id> | --ref <url-or-identifier> --because "…"`:
+
+```yaml
+origin: {republishes: A14, because: "AP copy: same byline and text", by: agent:claude, at: …}
+origin: {ref: "https://example.org/2023-study", because: "quotes the study's 2023 figure", by: …, at: …}
+```
+
+`republishes` names a source this notebook holds; `ref` names an origin it
+does not (a URL, a DOI, any identifier); both may be given, and `republishes`
+then decides. It is a judgment with a reason, like a grade, and flip never
+infers it: nothing in a document's bytes says where its figure came from. The
+id must exist, a source cannot name itself, and a chain that would close a
+cycle is refused at write time. `--clear --because "…"` withdraws it. It moves
+no letter: a faithful copy of an independent report is still that report's
+evidence, which is exactly why it must not count twice.
+
+Every source has a derived **origin key**: follow `republishes` until it stops;
+a chain that ends in a `ref` keys on that ref, canonicalised (scheme and host
+lowercased, `www.` dropped, fragment, trailing slash and tracking parameters
+removed), or on the held source whose own address it is; a source with no
+origin keys on itself. **Corroboration counts distinct origin keys** among the
+sources it would otherwise count (§7): sources that share an origin count once,
+an origin chain is followed through sources the claim does not cite, and every
+surface that reports the count names the sources it collapsed and the chain
+that collapsed them — `flip claim add|status` print a note, the `verified`
+refusal and doctor's `under-verified` say it, `flip grade --explain` shows a
+source's chain and what it shares an origin with, and the snapshot carries
+`origin`, `origin_key` and `corroboration_collapsed`. The limit is stated
+rather than hidden: an origin is recorded on the source, so a report that
+republishes another's figure for one claim and witnesses independently for the
+next should carry no origin, and the claim resting on the republished figure
+should cite its origin instead. A notebook that records no origin keys every
+source on itself and gets exactly the count it always got.
+
+Doctor's `possible-shared-origin` (WARN, a hint) names two evidence citations
+of one claim that hold identical bytes or the same canonical address with no
+origin record making them one; `bad-origin` (WARN) names a hand-made record
+that points nowhere, at itself, round a cycle, or carries no `because`.
+
 **Pre-0.8 `independence` is a missing judgment, not a weak one** (v0.16). The
 key changed *axis*, not spelling: pre-0.8 it recorded **custody** ("we hold
 the original bytes, not a copy"), 0.8 records **epistemics** ("is this
@@ -674,6 +718,99 @@ when it finds raw custody bytes committed as ordinary git objects (the
 custody-in-git warning, so the notebook that never chose gets told while
 choosing is still cheap); a repo that chose wholesale commit on purpose is
 the operator's call, taken with its cost stated.
+
+### 5.7 Passage pins — the words a claim rests on
+
+A claim that rests on a source rests, in practice, on a few of its words.
+**A pin** names them: `flip source passage pin <id> --label <label> --quote
+"<the words>"` (or `--lines A-B`) records where they are in a held copy of
+the source and what they hash to, and a claim cites them as `<id>§<label>`
+(§9) — `--source A3§budget-total` for a witness, `--about F2§budget-total`
+for the document the claim is about (§7). A reader of the notebook alone can
+then re-run "does the source say this?" against the exact passage, and flip
+can say whether the passage it vouched for is still the one on disk.
+Transcript excerpts (§8) are pins in the same list, made by their own command.
+
+**Which copy is "the held text", and why the pin says so.** A source can have
+two readable copies: the raw capture (immutable, §5.1) and its text
+derivative (§5.5). They are not the same evidence. The raw bytes are the
+document; the derivative is a machine's reading of it, and extraction can
+drop content — measured: a directory whose ZIP column was lost in extraction,
+so a claim listing ZIP codes could match nothing in the text and everything in
+the page. So every pin records `held: raw | text`. The default is the logged
+text derivative when one exists, else the raw capture when it is plain text
+(UTF-8, no NUL bytes); `--held raw|text` chooses. A pin on the derivative
+records the extraction that produced it — `{tool, tool_version?, method?,
+via?, at, from_sha256}`, read from the derivation row whose output hashes to
+the file on disk — and is refused when no logged run produced that file,
+because a pin vouches for its text and flip cannot vouch for text of unknown
+origin. **A pin on the derivative is a pin on a derivative**: its page section,
+its CLI output and its snapshot entry say so, and where the words matter the
+raw capture is the one to read. A transcript's pins read its raw capture.
+
+```yaml
+excerpts:
+  - label: budget-total
+    held: text
+    lines: [41, 42]             # 1-indexed, inclusive: where the words are
+    span: [10233, 10391]        # quote pins only: character offsets in the held copy
+    sha256: 9f2c…               # the pinned words
+    held_sha256: 51ab…          # the copy they were read from
+    extraction: {tool: pdftotext, tool_version: "24.02", method: text-layer,
+                 at: …, from_sha256: 77e0…}
+    words: 23
+    match: whitespace           # only when a whitespace-run match was needed
+    note: "…"
+    by: agent:claude
+    at: …
+```
+
+**Locating by quote.** The quote must occur in the held copy. An exact match
+is tried first; failing that, a match that treats every run of whitespace as
+one gap, so a quote may cross the line breaks an extraction introduced (the
+pin then records `match: whitespace`, and holds the words exactly as held, not
+as typed). Nothing else is loosened. A quote that does not occur is refused
+with the nearest miss: a match differing only in capitalisation, or the
+longest run of the quote's opening or closing words that does occur, the line
+it is on, and where the held text and the quote part company — and, on a
+derivative, the reminder that extraction may have dropped the words. A quote
+that occurs more than once is refused until it is disambiguated, by
+`--occurrence N` (in reading order) or by `--context "<surrounding words>"`
+that occur once and contain it. Offsets are characters of the held copy
+decoded as UTF-8 with invalid bytes replaced and no newline translation;
+`lines` are counted by the same line-break rule transcript excerpts use. A
+passage over 400 lines is the document, not a passage, and is refused.
+
+**Stored, and derived.** The pinned words are never stored as an authored
+value. Every read re-derives them from the held copy at the locator and checks
+them against `sha256`; `flip source passage read <id> <label>` (or `<id>§<label>`)
+prints them only if they still match, and `--json` returns `{ref, source,
+label, held, lines, span?, sha256, held_sha256, held_current, extraction?,
+text}` — `held_current` says whether the copy still hashes as it did when
+pinned (a re-extraction that left the passage intact reads `false` there and
+`intact` everywhere else). `flip source passage list <id> [--json]` shows each
+pin and its state: `intact`, `drifted` (the words at the locator no longer
+hash to the pin), `unbacked` (the held copy is gone) or `invalid` (a
+hand-broken locator). The page's generated `## Excerpts` section is a view of
+the same re-read, one anchored subsection per label; the prose above it
+round-trips untouched, and a page that already has a hand-written section of
+that name is refused rather than overwritten.
+
+**Labels are stable**, because claims cite them. Re-pinning a label is
+refused, with one exception: `--relocate` re-anchors a label after a
+re-extraction moved its words, and is refused unless the words found hash
+exactly as pinned — the citation goes on resting on the same words, which is
+the only thing that makes keeping the label honest. The relocation is
+recorded (`relocated: {by, at, from_held_sha256}`), and the original pinner
+is kept. `flip source passage unpin <id> <label>` is refused while any claim
+cites the label. Each pin and unpin writes `source.pin` / `source.unpin`.
+
+Doctor checks every pin on every source: `unbacked-excerpt` (ERROR) when the
+held copy is gone, `excerpt-drift` (ERROR) when the words no longer hash — on
+a raw capture that means a hand-edited record; on a derivative it usually
+means a re-extraction moved or lost them, and the advice is `--relocate` or a
+reading of the raw capture — and `dangling-excerpt` (WARN) when a claim cites
+a label the source does not pin.
 
 ## 6. The flip profile — lineage rules for LLM-built wikis
 
@@ -883,7 +1020,7 @@ discipline can hold a notebook to a stricter policy than flip's.
 **Verification methods** (`verified:`) widen the honest ways a claim earns
 its status without softening the bar. The key is OKF v0.2 §5.2's
 verification-event list, append-only — records are added, never edited —
-each `{by, at, method, against?, note?}`: `by`/`at` are OKF's (consumers
+each `{by, at, method, against?, note?, basis?}`: `by`/`at` are OKF's (consumers
 derive trust tiers from the `human:` prefix), and `method` is flip's
 extension: `adversarial` (a skeptic pass that sought
 disconfirming evidence), `independent-sources` (documents the corroboration
@@ -906,6 +1043,59 @@ record with an empty `against`. A recomputation nobody can reach is an
 assertion with better manners, and it is common for the *citations* on such a
 claim to be self-reported sources contributing nothing while the actual
 evidence lives in a session page: `against` is how the claim points at it.
+
+#### Basis — the written rule a record was made under
+
+A verification, a test or a status change may be made by applying a written
+rule rather than by a fresh judgment: a desk's standard that says, for
+instance, that a claim about what a held document says is established by a
+word-for-word match against a pinned passage. `--basis` on `flip claim
+verify`, `flip claim test` and `flip claim status` records which rule, and
+`--basis-against` (repeatable) what it ran against:
+
+```yaml
+basis: {rule: "standard:document@1#2008960", against: ["A3§budget-total"]}
+```
+
+`rule` has the grammar `<kind>:<id>@<version>#<digest-prefix>` — a lowercase
+kind, an id and a version of letters, digits, `.`, `_` or `-`, and 7–64
+lowercase hex characters of the digest of the rule's text — so two records
+made under different texts of "the same" rule never read alike. flip
+validates the shape and **does not interpret it**: the kinds, ids and digests
+belong to whoever wrote the rule. An `against` entry that is a local passage
+ref must name a pin that exists; anything else (a derivation, a script path)
+is taken as given, as `against` on a verification always has been. The basis
+is stored on the record it labels and carried in its event (`basis`,
+`basis_against`).
+
+**A basis is a label, never a pass.** No gate reads it. A record with a basis
+is accepted or refused exactly as the same record without one: a claim below
+the bar is refused `verified` with any basis, an `independent-sources`
+verification still does not clear the gate, and a test is severe or bent by
+its four authored fields alone (§7.1). It is exactly as reversible, too: a
+status set under a basis is moved by the next `flip claim status`, with or
+without one, and verification and test records stay append-only either way.
+
+**Who set the status.** Every status change records itself on the page:
+
+```yaml
+status_set: {by: tool:desk-standard, at: …, from: asserted,
+             because: "Settled by standard", basis: {rule: …, against: […]}}
+```
+
+`because` is the `--because` reason, now kept on the page as well as in the
+event. Re-running the status a claim already has with no reason and no basis
+is the documented refresh of the stored count, not a ruling, and leaves the
+record and the page's bytes alone. A page written before this record existed
+has none; the snapshot then reads the newest `claim.status` event that moved
+the claim to its current status, and for a claim still at `asserted` its
+creator (§10).
+
+Attribution is unchanged and already covers the case: the actor vocabulary is
+`human:`, `agent:` and `tool:` (§8), consumers derive trust tiers from the
+`human:` prefix, and a tool applying a standard writes as `tool:<name>` with a
+`--basis` — so a ruling a standard made can never pass for a person's, and a
+person's ruling on top of it is its own record.
 
 #### Absence claims — the null with its coverage attached
 
@@ -1073,6 +1263,7 @@ none of them.
 | `if_absent` | what the probe would have shown *instead*, had the error not been there (SIST p.16, the "and only if") |
 | `result` | `survived` · `failed` · `inconclusive` · `untestable` (the claim *as posed* admits no test) |
 | `against` | what did the testing: a source id, a session page, a script path |
+| `basis` | the written rule the test was run under, `{rule, against?}` (§7, Basis) — a label, never a severity input |
 | `note`, `at`, `by` | documentation |
 
 Three probes, not four. `derivation` was a fourth and is gone: a claim true of
@@ -1437,7 +1628,7 @@ flip-render/2.
   [--id ID] [--limit N] [--json]` reads it, oldest first; the JSON form is
   `{"schema": "flip-events/1", "events": [...]}`. There is no follow mode:
   watch the file. Ops: `source.add|extract|grade|retitle|recheck|provenance|
-  pipeline|read`, `claim.add|status|stance|verify|test|rival|cite|uncite|
+  pipeline|read|origin|pin|unpin`, `claim.add|status|stance|verify|test|rival|cite|uncite|
   derive|underive|supersede`, `question.add|note|answer|close|dormant|
   reopen|repose`, `decision.add`, `pass.add`, `lead.add|dismiss`,
   `directive.add|withdraw`, `session.start|end|transcript`,
@@ -1514,7 +1705,11 @@ So a transcript is kept as a **source**, not as an attachment:
   the conversation itself, which is what it gets cited for.
 
 **Excerpts** pin a named passage inside the capture, so a claim rests on the
-exchange that produced it rather than on the whole file. An excerpt records
+exchange that produced it rather than on the whole file. They are the first
+case of the passage pins every held source now has (§5.7), and share their
+reading, rendering and checks; a transcript excerpt keeps the record shape
+below, and a record with no `held` key reads as a pin on the raw capture,
+which is what it is. An excerpt records
 `{label, lines, sha256, words}` in the page's `excerpts:` list, and its quote
 is **derived from the raw file, never authored** — an excerpt a writer could
 hand-edit would be a quotation flip vouched for and could not check. Because
@@ -1558,14 +1753,16 @@ quietly widens from one exchange to the whole conversation).
   edges.
 - `flip rename <id> <new-slug>` is the only sanctioned rename: it moves the
   file and rewrites every relative link and listing entry notebook-wide.
-- **Excerpt refs are `<id>§<label>`** (`T1§relevance-null`): a citation of one
-  pinned passage inside a transcript (§8). `§` is the separator because `:` is
+- **Excerpt refs are `<id>§<label>`** (`T1§relevance-null`, `A3§budget-total`):
+  a citation of one pinned passage inside a transcript (§8) or any other held
+  source (§5.7). `§` is the separator because `:` is
   taken by handles and `#` was retired as a ref separator in 0.10; labels are
   slug-shaped so they double as page anchors. Qualified and pinned compose in
   that order (`muse:T1§relevance-null`). An excerpt ref **collapses to its
   base id** everywhere evidence is counted: a claim resting on two passages of
   one conversation has two citations and one source, and only the second
-  number reaches corroboration (§7). A malformed label is an error rather than
+  number reaches corroboration (§7); and corroboration then counts origins,
+  not sources (§5.4). A malformed label is an error rather than
   a dropped suffix — silently dropping it would cite the whole transcript
   while reading as one exchange.
 - **Cross-notebook references are `<handle>:<id>`** (`recipes:A3`), where
@@ -1619,7 +1816,20 @@ entry gives the recorded date, full note text, scope verdict (`answers`),
 empty-probe cause (`zero_yield`), and explicitly cited source IDs (`sources`).
 An answered question also carries the full latest recorded answer as `answer`.
 Claims also carry ordered `citations` with each full reference and its
-evidence or subject role. For a transcript pin, `flip transcript read T1 LABEL --json`
+evidence or subject role, and for a passage ref its resolution, `passage:
+{source, label, pinned, held, lines, span, sha256, state}` (null for a bare
+id). Sources carry their `passages` — each pin with its `ref`, `held`,
+`state`, `held_current` and re-read `text` (null unless intact) — their
+`origin` record (or null) and their derived `origin_key` (§5.4). Claims carry
+`corroboration_collapsed`, the groups of counted sources that share an origin
+with the chain that collapsed them, and `status_set: {by, at, from, to,
+because, basis, recorded}` — who set the current status, read from the page
+(`recorded: page`), else from the newest `claim.status` event that reached it
+(`events`), else the claim's creator for a claim still `asserted`
+(`created`), else null: a status set before either record existed cannot be
+attributed, and the snapshot says so rather than guessing. Verification and
+test records carry their `basis` whole. Every addition is a new key; the
+schema stays `flip-snapshot/1`. For a transcript pin, `flip transcript read T1 LABEL --json`
 returns the cited lines, text, reference and SHA-256 after checking the held passage.
 Other statuses and missing answers yield null. Absent verdicts and causes are null. Older pages without notes return an empty array.
 
@@ -1933,6 +2143,11 @@ flip find "<question>"               # research: list candidate leads (--capture
 flip lead add|dismiss|list …         # leads ledger; state derived, never stored (§8)
 flip directive add|withdraw|list …   # a person's standing instructions, DR# (§8)
 flip source read <id> [--note …]     # record that the actor read the source (§8)
+flip source passage pin <id>         # pin the words a claim rests on (--quote or
+            --label <l> …            #   --lines; --held raw|text); cite as <id>§<l> (§5.7)
+flip source passage list|read|unpin  # a source's pins, re-read and digest-checked
+flip source origin <id> --because …  # what a source republishes (--republishes <id> |
+                                     #   --ref <url>); counts once (§5.4)
 flip events [--since --op --id       # write events, oldest first (§8)
             --limit --json]
 flip snapshot [--log-limit N]        # the whole notebook as one JSON document (§10)
@@ -1979,7 +2194,9 @@ flip migrate                         # v0.3 ledgers → pages; 0.4 → 0.5 (mint
 flip export bag|csl|okf|json|ro-crate # projections (§17); json = flip-render/1
 ```
 
-`flip claim verify <C#> --method …` records a verification (§7);
+`flip claim verify <C#> --method …` records a verification (§7); `--basis
+<kind>:<id>@<version>#<digest>` on `claim verify|test|status` names the written
+rule it was made under (§7, Basis);
 `flip question repose <Q#> "<text>"` re-poses append-only (§7).
 
 ### Integration roles (pluggable externals)
