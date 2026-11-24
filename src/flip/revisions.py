@@ -118,7 +118,7 @@ def evidence_at_save(root, text):
             basis[ident] = {"kind": "claim", "named": True, "summary": row.get("description"), "status": row.get("status"),
                             "exposure": row.get("exposure"),
                             "corroboration": claims.claim_corroboration(
-                                [source_fms[sid] for sid in claims.evidence_ids(row) if sid in source_fms], row
+                                list(source_fms.values()), row
                             ),
                             "verification": [v for v in (row.get("verified") or []) if isinstance(v, dict)],
                             "citations": [{"ref": ref, "role": role} for ref, role in claims.source_citations(row)],

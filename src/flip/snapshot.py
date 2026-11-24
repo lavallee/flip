@@ -30,7 +30,9 @@ from . import (
     leads,
     ledgers,
     manuscripts,
+    origins,
     pages,
+    passages,
     revisions,
     sources,
     stance,
@@ -110,7 +112,17 @@ def _custody_by_source(root: Path) -> dict[str, dict]:
     return best
 
 
-def _sources(root: Path, source_pages: list[pages.Page], claim_pages: list[pages.Page], event_rows: list[dict]) -> list[dict]:
+def _readings(root: Path, source_pages: list[pages.Page]) -> dict[tuple[str, str], passages.Reading]:
+    """Every pin on every source, re-read once and checked against its digest."""
+    return {
+        (page.id, str(record.get("label"))): passages.read_record(root, page, record)
+        for page in source_pages
+        for record in passages.records(page.fm)
+    }
+
+
+def _sources(root: Path, source_pages: list[pages.Page], claim_pages: list[pages.Page],
+             event_rows: list[dict], readings: dict) -> list[dict]:
     custody = _custody_by_source(root)
     cited_by: dict[str, list[str]] = {}
     for page in claim_pages:
@@ -127,10 +139,13 @@ def _sources(root: Path, source_pages: list[pages.Page], claim_pages: list[pages
             )
         elif row.get("op") == "source.add" and sid and row.get("kind"):
             kinds[sid] = str(row["kind"])
+    keys = origins.Keys([p.fm for p in source_pages])
     out = []
     for page in source_pages:
         fm, sid = page.fm, page.id
         event = custody.get(sid)
+        pins = [passages.describe(sid, r, readings[(sid, str(r.get("label")))])
+                for r in passages.records(fm)]
         text_path = root / "sources" / "text" / f"{sid}.txt"
         support = fm.get("support")
         judgment = sources.explain_grade(fm)
@@ -159,15 +174,75 @@ def _sources(root: Path, source_pages: list[pages.Page], claim_pages: list[pages
             "text": _rel(root, text_path) if text_path.is_file() else None,
             "cited_by": sorted(cited_by.get(sid, []), key=_id_key),
             "read_by": read_by.get(sid, []),
+            "passages": pins,
+            "origin": origins.record(fm),
+            "origin_key": origins.display(keys.key(sid)),
         })
     out.sort(key=lambda r: _id_key(r["id"]))
     return out
 
 
-def _claims(root: Path, claim_pages: list[pages.Page], source_fms: dict[str, dict]) -> list[dict]:
+_STATUS_SET_KEYS = ("by", "at", "from", "to", "because", "basis", "recorded")
+
+
+def status_set(fm: dict, event: dict | None) -> dict | None:
+    """Who set a claim's current status, and when: from the page's own record
+    (`recorded: page`); else from the newest `claim.status` event that moved it
+    to the status it has (`recorded: events`); else, for a claim still at the
+    status it was added with, its creator (`recorded: created`); else null —
+    a status set before either was kept cannot be attributed."""
+    status = fm.get("status")
+    page_record = claims.status_record(fm)
+    if page_record is not None:
+        found = {**page_record, "to": status, "recorded": "page"}
+    elif event is not None and event.get("to") == status:
+        basis = None
+        if event.get("basis"):
+            basis = {"rule": event["basis"]}
+            if event.get("basis_against"):
+                basis["against"] = event["basis_against"]
+        found = {"by": event.get("actor"), "at": event.get("ts"), "from": event.get("from"),
+                 "to": status, "because": event.get("because"), "basis": basis,
+                 "recorded": "events"}
+    elif status == "asserted" and pages.generated_by(fm):
+        found = {"by": pages.generated_by(fm), "at": pages.generated_at(fm) or None,
+                 "to": status, "recorded": "created"}
+    else:
+        return None
+    return {key: found.get(key) for key in _STATUS_SET_KEYS}
+
+
+def _citation(ref: str, role: str, pins: dict, readings: dict) -> dict:
+    base, label = util.split_ref(ref)
+    out: dict = {"ref": ref, "role": role, "passage": None}
+    if label:
+        record = pins.get((base, label))
+        reading = readings.get((base, label))
+        out["passage"] = {
+            "source": base,
+            "label": label,
+            "pinned": record is not None,
+            "held": str(record.get("held") or "raw") if record else None,
+            "lines": record.get("lines") if record else None,
+            "span": record.get("span") if record else None,
+            "sha256": record.get("sha256") if record else None,
+            "state": reading.state if reading else None,
+        }
+    return out
+
+
+def _claims(root: Path, claim_pages: list[pages.Page], source_pages: list[pages.Page],
+            event_rows: list[dict], readings: dict) -> list[dict]:
+    all_sources = [p.fm for p in source_pages]
+    pins = {(p.id, str(r.get("label"))): r for p in source_pages for r in passages.records(p.fm)}
+    last_status: dict[str, dict] = {}
+    for row in event_rows:
+        if row.get("op") == "claim.status" and row.get("id"):
+            last_status[str(row["id"])] = row
     out = []
     for page in claim_pages:
         fm = page.fm
+        detail = claims.claim_corroboration_detail(all_sources, fm)
         out.append({
             "id": page.id,
             "text": claim_text(page),
@@ -176,10 +251,11 @@ def _claims(root: Path, claim_pages: list[pages.Page], source_fms: dict[str, dic
             "load_bearing": bool(fm.get("load_bearing", False)),
             "sources": claims.evidence_ids(fm),
             "about": claims.subject_ids(fm),
-            "citations": [{"ref": ref, "role": role} for ref, role in claims.source_citations(fm)],
-            "corroboration": claims.claim_corroboration(
-                [source_fms[sid] for sid in claims.evidence_ids(fm) if sid in source_fms], fm
-            ),
+            "citations": [_citation(ref, role, pins, readings)
+                          for ref, role in claims.source_citations(fm)],
+            "corroboration": detail["count"] if detail else None,
+            "corroboration_collapsed": detail["collapsed"] if detail else [],
+            "status_set": status_set(fm, last_status.get(str(page.id))),
             "exposure": stance.derive_exposure(fm),
             "value": fm.get("value"),
             "unit": fm.get("unit"),
@@ -331,6 +407,7 @@ def snapshot(root: Path, log_limit: int = DEFAULT_LOG_LIMIT) -> dict:
     claim_pages = _pages(root, "claims", "Claim")
     event_rows = _ledger(root, events.EVENTS)
     log_rows = _ledger(root, ledgers.LOG)
+    readings = _readings(root, source_pages)
     return {
         "schema": SCHEMA,
         "generated": util.utc_now(),
@@ -349,8 +426,8 @@ def snapshot(root: Path, log_limit: int = DEFAULT_LOG_LIMIT) -> dict:
             "draft_versions": manuscripts.versions(root),
             "question_plan": "drafts/question-plan.md" if (root / "drafts/question-plan.md").is_file() else None,
         },
-        "sources": _sources(root, source_pages, claim_pages, event_rows),
-        "claims": _claims(root, claim_pages, {p.id: p.fm for p in source_pages}),
+        "sources": _sources(root, source_pages, claim_pages, event_rows, readings),
+        "claims": _claims(root, claim_pages, source_pages, event_rows, readings),
         "questions": _questions(root, event_rows),
         "decisions": _decisions(root),
         "sessions": _sessions(root),
@@ -366,4 +443,4 @@ def snapshot(root: Path, log_limit: int = DEFAULT_LOG_LIMIT) -> dict:
     }
 
 
-__all__ = ["DEFAULT_LOG_LIMIT", "SCHEMA", "claim_text", "snapshot"]
+__all__ = ["DEFAULT_LOG_LIMIT", "SCHEMA", "claim_text", "snapshot", "status_set"]

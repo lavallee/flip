@@ -1,0 +1,16 @@
+{"ts": "2026-11-24T12:03:00Z", "actor": "human:jane", "op": "source.add", "id": "F1", "url": "file:///fixture/tables.txt", "kind": "file", "status": "captured", "title": "tables.txt"}
+{"ts": "2026-11-24T12:03:00Z", "actor": "human:jane", "op": "source.add", "id": "F2", "url": "file:///fixture/tables-copy.txt", "kind": "file", "status": "captured", "title": "tables-copy.txt"}
+{"ts": "2026-11-24T12:03:00Z", "actor": "human:jane", "op": "source.add", "id": "F3", "url": "file:///fixture/gauge.txt", "kind": "file", "status": "captured", "title": "gauge.txt"}
+{"ts": "2026-11-24T12:03:00Z", "actor": "human:jane", "op": "source.grade", "id": "F1", "grade": "A", "independence": "independent", "from": "?"}
+{"ts": "2026-11-24T12:03:00Z", "actor": "human:jane", "op": "source.grade", "id": "F2", "grade": "A", "independence": "independent", "from": "?"}
+{"ts": "2026-11-24T12:03:01Z", "actor": "human:jane", "op": "source.grade", "id": "F3", "grade": "A", "independence": "independent", "from": "?"}
+{"ts": "2026-11-24T12:03:01Z", "actor": "human:jane", "op": "session.start", "path": "sessions/2026-11-24T1203-s1.md", "model": "m"}
+{"ts": "2026-11-24T12:03:02Z", "actor": "human:jane", "op": "source.add", "id": "T1", "url": "file:///fixture/chat.md", "kind": "conversation", "status": "captured", "title": "chat.md"}
+{"ts": "2026-11-24T12:03:02Z", "actor": "human:jane", "op": "session.transcript", "path": "sessions/2026-11-24T1203-s1.md", "source": "T1", "local": "sources/raw/T1.md"}
+{"ts": "2026-11-24T12:03:02Z", "actor": "human:jane", "op": "transcript.excerpt", "id": "T1", "label": "high", "lines": [2, 2]}
+{"ts": "2026-11-24T12:03:02Z", "actor": "human:jane", "op": "claim.add", "id": "C1", "text": "Spring high water reaches 4.2 m.", "sources": ["F1", "F2", "F3"], "load_bearing": true}
+{"ts": "2026-11-24T12:03:02Z", "actor": "human:jane", "op": "claim.add", "id": "C2", "text": "The conversation put the spring high at about 4.2 m.", "sources": ["T1"], "load_bearing": false}
+{"ts": "2026-11-24T12:03:03Z", "actor": "human:jane", "op": "claim.status", "id": "C1", "to": "verified", "from": "asserted", "because": "two gauges"}
+{"ts": "2026-11-24T12:03:03Z", "actor": "human:jane", "op": "claim.verify", "id": "C1", "method": "adversarial", "against": ["F3"], "note": "looked for a lower figure"}
+{"ts": "2026-11-24T12:03:03Z", "actor": "human:jane", "op": "claim.test", "id": "C2", "probe": "attribution", "error": "not said", "result": "survived"}
+{"ts": "2026-11-24T12:03:03Z", "actor": "human:jane", "op": "session.end", "path": "sessions/2026-11-24T1203-s1.md", "text": "done"}
