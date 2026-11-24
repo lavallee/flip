@@ -6,6 +6,8 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.27.0] — 2026-11-24
+
 ### Added
 
 - **Passage pins on any held source.** `flip source passage pin <ID> --label

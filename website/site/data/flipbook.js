@@ -1,5 +1,5 @@
 window.__FLIP_BOOK__ = {
-  "generated": "2026-11-22T21:13:56+00:00",
+  "generated": "2026-11-24T13:58:44+00:00",
   "notebook": {
     "slug": "okf-origins",
     "title": "Where OKF came from and where it may go",
@@ -21,10 +21,10 @@ window.__FLIP_BOOK__ = {
       "command_outputs": [
         {
           "command": "flip new okf-origins --kind research-review --title 'Where OKF came from and where it may go' --visibility public",
-          "stdout": "created research-review notebook 'okf-origins' at /tmp/flip-site-veotjkil/okf-origins\nactor: agent:harness\nsetup: no integration config yet; run `flip config init` before capturing URLs\nnext: cd /tmp/flip-site-veotjkil/okf-origins && flip next && flip session start first-pass && flip log \"started\""
+          "stdout": "created research-review notebook 'okf-origins' at /tmp/flip-site-yl04jbn_/okf-origins\nactor: agent:harness\nsetup: no integration config yet; run `flip config init` before capturing URLs\nnext: cd /tmp/flip-site-yl04jbn_/okf-origins && flip next && flip session start first-pass && flip log \"started\""
         }
       ],
-      "stdout": "created research-review notebook 'okf-origins' at /tmp/flip-site-veotjkil/okf-origins\nactor: agent:harness\nsetup: no integration config yet; run `flip config init` before capturing URLs\nnext: cd /tmp/flip-site-veotjkil/okf-origins && flip next && flip session start first-pass && flip log \"started\"",
+      "stdout": "created research-review notebook 'okf-origins' at /tmp/flip-site-yl04jbn_/okf-origins\nactor: agent:harness\nsetup: no integration config yet; run `flip config init` before capturing URLs\nnext: cd /tmp/flip-site-yl04jbn_/okf-origins && flip next && flip session start first-pass && flip log \"started\"",
       "exit_code": 0,
       "refused": false,
       "tree": [
@@ -41,7 +41,7 @@ window.__FLIP_BOOK__ = {
         "path": "index.md",
         "lang": "markdown",
         "caption": "The manifest: one portable OKF bundle, before the research begins.",
-        "text": "---\nokf_version: '0.2'\nflip: '0.9'\nslug: okf-origins\nuid: nb-7ph9m5t2\ntitle: Where OKF came from and where it may go\nkind: research-review\nstatus: active\ncreated: '2026-11-22'\nupdated: '2026-11-22'\nvisibility: public\nrenders_public: false\nsource_trail_public: false\ncitation_rule: public-terminus\n---\n\n# Where OKF came from and where it may go"
+        "text": "---\nokf_version: '0.2'\nflip: '0.9'\nslug: okf-origins\nuid: nb-h37pb3dj\ntitle: Where OKF came from and where it may go\nkind: research-review\nstatus: active\ncreated: '2026-11-24'\nupdated: '2026-11-24'\nvisibility: public\nrenders_public: false\nsource_trail_public: false\ncitation_rule: public-terminus\n---\n\n# Where OKF came from and where it may go"
       }
     },
     {
@@ -64,7 +64,7 @@ window.__FLIP_BOOK__ = {
       "command_outputs": [
         {
           "command": "flip session start okf-origins --model agent-harness --tools web-search --tools github --tools flip",
-          "stdout": "/tmp/flip-site-veotjkil/okf-origins/sessions/2026-11-22T2113-okf-origins.md"
+          "stdout": "/tmp/flip-site-yl04jbn_/okf-origins/sessions/2026-11-24T1358-okf-origins.md"
         },
         {
           "command": "flip question add 'What are the traceable origins of OKF?' --resolves-via 'launch material and repository history'",
@@ -84,10 +84,10 @@ window.__FLIP_BOOK__ = {
         },
         {
           "command": "flip log 'started: trace OKF origins, gaps, and planning evidence'",
-          "stdout": "logged 2026-11-22T21:13:50Z \u00b7 agent:harness"
+          "stdout": "logged 2026-11-24T13:58:34Z \u00b7 agent:harness"
         }
       ],
-      "stdout": "/tmp/flip-site-veotjkil/okf-origins/sessions/2026-11-22T2113-okf-origins.md\n\nQ1 open \u00b7 What are the traceable origins of OKF? \u00b7 watches: launch material and repository history\n\nQ2 open \u00b7 What precedents does OKF build on? \u00b7 watches: author statements and the named predecessor\n\nQ3 open \u00b7 What critiques and gaps are visible now? \u00b7 watches: spec boundaries and public proposals\n\nQ4 open \u00b7 Is there evidence of a roadmap or other planning? \u00b7 watches: repository files, milestones, spec deferrals, and proposals\n\nlogged 2026-11-22T21:13:50Z \u00b7 agent:harness",
+      "stdout": "/tmp/flip-site-yl04jbn_/okf-origins/sessions/2026-11-24T1358-okf-origins.md\n\nQ1 open \u00b7 What are the traceable origins of OKF? \u00b7 watches: launch material and repository history\n\nQ2 open \u00b7 What precedents does OKF build on? \u00b7 watches: author statements and the named predecessor\n\nQ3 open \u00b7 What critiques and gaps are visible now? \u00b7 watches: spec boundaries and public proposals\n\nQ4 open \u00b7 Is there evidence of a roadmap or other planning? \u00b7 watches: repository files, milestones, spec deferrals, and proposals\n\nlogged 2026-11-24T13:58:34Z \u00b7 agent:harness",
       "exit_code": 0,
       "refused": false,
       "tree": [
@@ -105,6 +105,10 @@ window.__FLIP_BOOK__ = {
         },
         {
           "path": "log.md",
+          "state": "added"
+        },
+        {
+          "path": "log/events.jsonl",
           "state": "added"
         },
         {
@@ -136,7 +140,7 @@ window.__FLIP_BOOK__ = {
           "state": "added"
         },
         {
-          "path": "sessions/2026-11-22T2113-okf-origins.md",
+          "path": "sessions/2026-11-24T1358-okf-origins.md",
           "state": "added"
         },
         {
@@ -147,8 +151,8 @@ window.__FLIP_BOOK__ = {
       "record": {
         "lang": "markdown",
         "caption": "The session records the actor, model surface, tools, and goal.",
-        "text": "---\ntype: Work Session\ngenerated:\n  by: agent:harness\n  at: '2026-11-22T21:13:49Z'\nmodel: agent-harness\ntools:\n- web-search\n- github\n- flip\nreceipt_opened_ns: 1795382029676229023\nstarted: '2026-11-22T21:13:49Z'\n---\n\n## Goal\n\n## Prompt\n\n## Key outputs\n\n## Transcript",
-        "path": "sessions/2026-11-22T2113-okf-origins.md"
+        "text": "---\ntype: Work Session\ngenerated:\n  by: agent:harness\n  at: '2026-11-24T13:58:34Z'\nmodel: agent-harness\ntools:\n- web-search\n- github\n- flip\nreceipt_opened_ns: 1795528714092076971\nstarted: '2026-11-24T13:58:34Z'\n---\n\n## Goal\n\n## Prompt\n\n## Key outputs\n\n## Transcript",
+        "path": "sessions/2026-11-24T1358-okf-origins.md"
       }
     },
     {
@@ -185,7 +189,7 @@ window.__FLIP_BOOK__ = {
         },
         {
           "command": "flip grade F1 --explain",
-          "stdout": "F1 \u00b7 grade D (derived) \u2014 okf-launch.md\n  because: independence 'derivative' \u2014 a lead, never provenance\n  to move it: D is terminal for a republisher; capture the source it republishes instead\n  moves the letter:\n    independence: derivative\n    basis: synthesis\n    base_defined: \u2014\n    method: compact packet from the held launch post (alone gates B)\n  documentation only (never moves the letter): n=\u2014, vintage=\u2014, freshness=\u2014"
+          "stdout": "F1 \u00b7 grade D (derived) \u2014 okf-launch.md\n  because: independence 'derivative' \u2014 a lead, never provenance\n  to move it: D is terminal for a republisher; capture the source it republishes instead\n  moves the letter:\n    independence: derivative\n    basis: synthesis\n    base_defined: \u2014\n    method: compact packet from the held launch post\n    record_authority: \u2014\n  documentation only (never moves the letter): n=\u2014, vintage=\u2014, freshness=\u2014"
         },
         {
           "command": "flip add-source ../llm-wiki.md --note 'dated public-source packet; full capture in flip-examples'",
@@ -224,7 +228,7 @@ window.__FLIP_BOOK__ = {
           "stdout": "Q2 answered"
         }
       ],
-      "stdout": "F1 \u00b7 sources/raw/F1.md \u00b7 references/okf-launch.md (grade ?)\njudge it after reading: flip grade F1 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF1 \u00b7 grade D (derived) \u00b7 derivative \u00b7 synthesis \u00b7 freshness unset\n\nF1 \u00b7 grade D (derived) \u2014 okf-launch.md\n  because: independence 'derivative' \u2014 a lead, never provenance\n  to move it: D is terminal for a republisher; capture the source it republishes instead\n  moves the letter:\n    independence: derivative\n    basis: synthesis\n    base_defined: \u2014\n    method: compact packet from the held launch post (alone gates B)\n  documentation only (never moves the letter): n=\u2014, vintage=\u2014, freshness=\u2014\n\nF2 \u00b7 sources/raw/F2.md \u00b7 references/llm-wiki.md (grade ?)\njudge it after reading: flip grade F2 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF2 \u00b7 grade D (derived) \u00b7 derivative \u00b7 synthesis \u00b7 freshness unset\n\nC1 asserted \u00b7 sources: F1 \u00b7 corroboration: n/a (subject)\n\nC1 \u00b7 attribution test survived (severe) \u00b7 exposure: severely-tested\n\nC1 \u2192 verified \u00b7 corroboration: n/a (subject)\n\nC2 asserted \u00b7 sources: F2 \u00b7 corroboration: n/a (subject)\n\nC2 \u00b7 attribution test survived (severe) \u00b7 exposure: severely-tested\n\nC2 \u2192 verified \u00b7 corroboration: n/a (subject)\n\nQ2 answered",
+      "stdout": "F1 \u00b7 sources/raw/F1.md \u00b7 references/okf-launch.md (grade ?)\njudge it after reading: flip grade F1 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF1 \u00b7 grade D (derived) \u00b7 derivative \u00b7 synthesis \u00b7 freshness unset\n\nF1 \u00b7 grade D (derived) \u2014 okf-launch.md\n  because: independence 'derivative' \u2014 a lead, never provenance\n  to move it: D is terminal for a republisher; capture the source it republishes instead\n  moves the letter:\n    independence: derivative\n    basis: synthesis\n    base_defined: \u2014\n    method: compact packet from the held launch post\n    record_authority: \u2014\n  documentation only (never moves the letter): n=\u2014, vintage=\u2014, freshness=\u2014\n\nF2 \u00b7 sources/raw/F2.md \u00b7 references/llm-wiki.md (grade ?)\njudge it after reading: flip grade F2 --independence independent|corroborated|self-reported|derivative --basis \u2026 [--n \u2026 --base-defined|--base-undefined]\n\nF2 \u00b7 grade D (derived) \u00b7 derivative \u00b7 synthesis \u00b7 freshness unset\n\nC1 asserted \u00b7 sources: F1 \u00b7 corroboration: n/a (subject)\n\nC1 \u00b7 attribution test survived (severe) \u00b7 exposure: severely-tested\n\nC1 \u2192 verified \u00b7 corroboration: n/a (subject)\n\nC2 asserted \u00b7 sources: F2 \u00b7 corroboration: n/a (subject)\n\nC2 \u00b7 attribution test survived (severe) \u00b7 exposure: severely-tested\n\nC2 \u2192 verified \u00b7 corroboration: n/a (subject)\n\nQ2 answered",
       "exit_code": 0,
       "refused": false,
       "tree": [
@@ -254,6 +258,10 @@ window.__FLIP_BOOK__ = {
         },
         {
           "path": "log.md",
+          "state": "changed"
+        },
+        {
+          "path": "log/events.jsonl",
           "state": "changed"
         },
         {
@@ -297,7 +305,7 @@ window.__FLIP_BOOK__ = {
           "state": "added"
         },
         {
-          "path": "sessions/2026-11-22T2113-okf-origins.md",
+          "path": "sessions/2026-11-24T1358-okf-origins.md",
           "state": "same"
         },
         {
@@ -320,7 +328,7 @@ window.__FLIP_BOOK__ = {
       "record": {
         "lang": "markdown",
         "caption": "A document-subject claim earns verification through a severe attribution test, not fake corroboration.",
-        "text": "---\ntype: Claim\nid: C2\naliases:\n- C2\ndescription: LLM-wiki predates the OKF launch and names Memex as a deeper precedent\nstatus: verified\nload_bearing: true\nsources:\n- id: F2\n  role: subject\n  resource: /references/llm-wiki.md\n  title: llm-wiki.md\nfirst_asserted: '2026-11-22'\ngenerated:\n  by: agent:harness\n  at: '2026-11-22T21:13:51Z'\ntests:\n- probe: attribution\n  error: the idea file lacks the date or Memex connection\n  would_detect: either element is absent\n  if_absent: both appear in the held file\n  result: survived\n  against:\n  - F2\n  at: '2026-11-22T21:13:51Z'\n  by: agent:harness\n---\n\nLLM-wiki predates the OKF launch and names Memex as a deeper precedent[^F2]\n\n[^F2]: [llm-wiki.md](../references/llm-wiki.md)",
+        "text": "---\ntype: Claim\nid: C2\naliases:\n- C2\ndescription: LLM-wiki predates the OKF launch and names Memex as a deeper precedent\nstatus: verified\nload_bearing: true\nsources:\n- id: F2\n  role: subject\n  resource: /references/llm-wiki.md\n  title: llm-wiki.md\nfirst_asserted: '2026-11-24'\ngenerated:\n  by: agent:harness\n  at: '2026-11-24T13:58:35Z'\ntests:\n- probe: attribution\n  error: the idea file lacks the date or Memex connection\n  would_detect: either element is absent\n  if_absent: both appear in the held file\n  result: survived\n  against:\n  - F2\n  at: '2026-11-24T13:58:35Z'\n  by: agent:harness\n---\n\nLLM-wiki predates the OKF launch and names Memex as a deeper precedent[^F2]\n\n[^F2]: [llm-wiki.md](../references/llm-wiki.md)",
         "path": "claims/llm-wiki-predates-the-okf-launch-and-names.md"
       }
     },
@@ -428,6 +436,10 @@ window.__FLIP_BOOK__ = {
           "state": "changed"
         },
         {
+          "path": "log/events.jsonl",
+          "state": "changed"
+        },
+        {
           "path": "log/log.jsonl",
           "state": "changed"
         },
@@ -476,7 +488,7 @@ window.__FLIP_BOOK__ = {
           "state": "added"
         },
         {
-          "path": "sessions/2026-11-22T2113-okf-origins.md",
+          "path": "sessions/2026-11-24T1358-okf-origins.md",
           "state": "same"
         },
         {
@@ -507,7 +519,7 @@ window.__FLIP_BOOK__ = {
       "record": {
         "lang": "markdown",
         "caption": "The omission stays attached to the origin finding instead of disappearing from the summary.",
-        "text": "---\ntype: Claim\nid: C4\naliases:\n- C4\ndescription: The import PR says upstream Git history was not preserved\nstatus: verified\nload_bearing: true\nsources:\n- id: F3\n  role: subject\n  resource: /references/import-pr.md\n  title: import-pr.json\nfirst_asserted: '2026-11-22'\ngenerated:\n  by: agent:harness\n  at: '2026-11-22T21:13:52Z'\ntests:\n- probe: attribution\n  error: the PR preserves or does not discuss upstream history\n  would_detect: a subtree import or silence\n  if_absent: the PR calls it a history-free snapshot\n  result: survived\n  against:\n  - F3\n  at: '2026-11-22T21:13:52Z'\n  by: agent:harness\n---\n\nThe import PR says upstream Git history was not preserved[^F3]\n\n[^F3]: [import-pr.json](../references/import-pr.md)",
+        "text": "---\ntype: Claim\nid: C4\naliases:\n- C4\ndescription: The import PR says upstream Git history was not preserved\nstatus: verified\nload_bearing: true\nsources:\n- id: F3\n  role: subject\n  resource: /references/import-pr.md\n  title: import-pr.json\nfirst_asserted: '2026-11-24'\ngenerated:\n  by: agent:harness\n  at: '2026-11-24T13:58:36Z'\ntests:\n- probe: attribution\n  error: the PR preserves or does not discuss upstream history\n  would_detect: a subtree import or silence\n  if_absent: the PR calls it a history-free snapshot\n  result: survived\n  against:\n  - F3\n  at: '2026-11-24T13:58:36Z'\n  by: agent:harness\n---\n\nThe import PR says upstream Git history was not preserved[^F3]\n\n[^F3]: [import-pr.json](../references/import-pr.md)",
         "path": "claims/the-import-pr-says-upstream-git-history-was.md"
       }
     },
@@ -613,6 +625,10 @@ window.__FLIP_BOOK__ = {
           "state": "changed"
         },
         {
+          "path": "log/events.jsonl",
+          "state": "changed"
+        },
+        {
           "path": "log/log.jsonl",
           "state": "same"
         },
@@ -669,7 +685,7 @@ window.__FLIP_BOOK__ = {
           "state": "same"
         },
         {
-          "path": "sessions/2026-11-22T2113-okf-origins.md",
+          "path": "sessions/2026-11-24T1358-okf-origins.md",
           "state": "same"
         },
         {
@@ -708,7 +724,7 @@ window.__FLIP_BOOK__ = {
       "record": {
         "lang": "markdown",
         "caption": "The cluster begins as an asserted lead with one source, not a finished finding.",
-        "text": "---\ntype: Claim\nid: C6\naliases:\n- C6\ndescription: Visible proposals cluster around identity, routing, relationships, retrieval,\n  and composition\nstatus: asserted\nload_bearing: true\nsources:\n- id: F6\n  resource: /references/issue-identity.md\n  title: issue-identity.md\nindependent_corroboration: 1\nfirst_asserted: '2026-11-22'\ngenerated:\n  by: agent:harness\n  at: '2026-11-22T21:13:53Z'\n---\n\nVisible proposals cluster around identity, routing, relationships, retrieval, and composition[^F6]\n\n[^F6]: [issue-identity.md](../references/issue-identity.md)",
+        "text": "---\ntype: Claim\nid: C6\naliases:\n- C6\ndescription: Visible proposals cluster around identity, routing, relationships, retrieval,\n  and composition\nstatus: asserted\nload_bearing: true\nsources:\n- id: F6\n  resource: /references/issue-identity.md\n  title: issue-identity.md\nindependent_corroboration: 1\nfirst_asserted: '2026-11-24'\ngenerated:\n  by: agent:harness\n  at: '2026-11-24T13:58:37Z'\n---\n\nVisible proposals cluster around identity, routing, relationships, retrieval, and composition[^F6]\n\n[^F6]: [issue-identity.md](../references/issue-identity.md)",
         "path": "claims/visible-proposals-cluster-around-identity-routing-relationships.md"
       }
     },
@@ -779,6 +795,10 @@ window.__FLIP_BOOK__ = {
           "state": "same"
         },
         {
+          "path": "log/events.jsonl",
+          "state": "same"
+        },
+        {
           "path": "log/log.jsonl",
           "state": "same"
         },
@@ -835,7 +855,7 @@ window.__FLIP_BOOK__ = {
           "state": "same"
         },
         {
-          "path": "sessions/2026-11-22T2113-okf-origins.md",
+          "path": "sessions/2026-11-24T1358-okf-origins.md",
           "state": "same"
         },
         {
@@ -1005,6 +1025,10 @@ window.__FLIP_BOOK__ = {
           "state": "changed"
         },
         {
+          "path": "log/events.jsonl",
+          "state": "changed"
+        },
+        {
           "path": "log/log.jsonl",
           "state": "changed"
         },
@@ -1081,7 +1105,7 @@ window.__FLIP_BOOK__ = {
           "state": "same"
         },
         {
-          "path": "sessions/2026-11-22T2113-okf-origins.md",
+          "path": "sessions/2026-11-24T1358-okf-origins.md",
           "state": "same"
         },
         {
@@ -1140,7 +1164,7 @@ window.__FLIP_BOOK__ = {
       "record": {
         "lang": "markdown",
         "caption": "The cluster claim clears the bar through six independent proposal records.",
-        "text": "---\ntype: Claim\nid: C6\naliases:\n- C6\ndescription: Visible proposals cluster around identity, routing, relationships, retrieval,\n  and composition\nstatus: verified\nload_bearing: true\nsources:\n- id: F6\n  resource: /references/issue-identity.md\n  title: issue-identity.md\n- id: F7\n  resource: /references/issue-routing.md\n  title: issue-routing.md\n- id: F8\n  resource: /references/issue-links.md\n  title: issue-links.md\n- id: F9\n  resource: /references/issue-retrieval.md\n  title: issue-retrieval.md\n- id: F10\n  resource: /references/issue-composition.md\n  title: issue-composition.md\n- id: F11\n  resource: /references/issue-orientation.md\n  title: issue-orientation.md\nindependent_corroboration: 6\nfirst_asserted: '2026-11-22'\ngenerated:\n  by: agent:harness\n  at: '2026-11-22T21:13:53Z'\n---\n\nVisible proposals cluster around identity, routing, relationships, retrieval, and composition[^F6][^F7][^F8][^F9][^F10][^F11]\n\n[^F6]: [issue-identity.md](../references/issue-identity.md)\n[^F7]: [issue-routing.md](../references/issue-routing.md)\n[^F8]: [issue-links.md](../references/issue-links.md)",
+        "text": "---\ntype: Claim\nid: C6\naliases:\n- C6\ndescription: Visible proposals cluster around identity, routing, relationships, retrieval,\n  and composition\nstatus: verified\nload_bearing: true\nsources:\n- id: F6\n  resource: /references/issue-identity.md\n  title: issue-identity.md\n- id: F7\n  resource: /references/issue-routing.md\n  title: issue-routing.md\n- id: F8\n  resource: /references/issue-links.md\n  title: issue-links.md\n- id: F9\n  resource: /references/issue-retrieval.md\n  title: issue-retrieval.md\n- id: F10\n  resource: /references/issue-composition.md\n  title: issue-composition.md\n- id: F11\n  resource: /references/issue-orientation.md\n  title: issue-orientation.md\nindependent_corroboration: 6\nfirst_asserted: '2026-11-24'\ngenerated:\n  by: agent:harness\n  at: '2026-11-24T13:58:37Z'\n---\n\nVisible proposals cluster around identity, routing, relationships, retrieval, and composition[^F6][^F7][^F8][^F9][^F10][^F11]\n\n[^F6]: [issue-identity.md](../references/issue-identity.md)\n[^F7]: [issue-routing.md](../references/issue-routing.md)\n[^F8]: [issue-links.md](../references/issue-links.md)",
         "truncated": true,
         "path": "claims/visible-proposals-cluster-around-identity-routing-relationships.md"
       }
@@ -1263,6 +1287,10 @@ window.__FLIP_BOOK__ = {
           "state": "changed"
         },
         {
+          "path": "log/events.jsonl",
+          "state": "changed"
+        },
+        {
           "path": "log/log.jsonl",
           "state": "changed"
         },
@@ -1343,7 +1371,7 @@ window.__FLIP_BOOK__ = {
           "state": "same"
         },
         {
-          "path": "sessions/2026-11-22T2113-okf-origins.md",
+          "path": "sessions/2026-11-24T1358-okf-origins.md",
           "state": "same"
         },
         {
@@ -1406,7 +1434,7 @@ window.__FLIP_BOOK__ = {
       "record": {
         "lang": "markdown",
         "caption": "A bounded null and a positive planning claim coexist; neither is stretched to replace the other.",
-        "text": "---\ntype: Claim\nid: C8\naliases:\n- C8\ndescription: There is public planning evidence short of a formal roadmap\nstatus: verified\nload_bearing: true\nsources:\n- id: F12\n  resource: /references/roadmap-check.md\n  title: roadmap-check.json\nindependent_corroboration: 1\nfirst_asserted: '2026-11-22'\ngenerated:\n  by: agent:harness\n  at: '2026-11-22T21:13:55Z'\n---\n\nThere is public planning evidence short of a formal roadmap[^F12]\n\n[^F12]: [roadmap-check.json](../references/roadmap-check.md)",
+        "text": "---\ntype: Claim\nid: C8\naliases:\n- C8\ndescription: There is public planning evidence short of a formal roadmap\nstatus: verified\nload_bearing: true\nsources:\n- id: F12\n  resource: /references/roadmap-check.md\n  title: roadmap-check.json\nindependent_corroboration: 1\nfirst_asserted: '2026-11-24'\ngenerated:\n  by: agent:harness\n  at: '2026-11-24T13:58:42Z'\n---\n\nThere is public planning evidence short of a formal roadmap[^F12]\n\n[^F12]: [roadmap-check.json](../references/roadmap-check.md)",
         "path": "claims/there-is-public-planning-evidence-short-of-a.md"
       }
     },
@@ -1429,7 +1457,7 @@ window.__FLIP_BOOK__ = {
       "command_outputs": [
         {
           "command": "flip session transcript okf-origins --file ../conversation.md --participant human:maintainer --participant agent:harness --model agent-harness",
-          "stdout": "sources/raw/T1.md  (11 lines)\ncaptured as T1  /tmp/flip-site-veotjkil/okf-origins/references/conversation.md\nlinked from /tmp/flip-site-veotjkil/okf-origins/sessions/2026-11-22T2113-okf-origins.md\npin a passage: flip transcript excerpt T1 --lines A-B --label <label>"
+          "stdout": "sources/raw/T1.md  (11 lines)\ncaptured as T1  /tmp/flip-site-yl04jbn_/okf-origins/references/conversation.md\nlinked from /tmp/flip-site-yl04jbn_/okf-origins/sessions/2026-11-24T1358-okf-origins.md\npin a passage: flip transcript excerpt T1 --lines A-B --label <label>"
         },
         {
           "command": "flip transcript excerpt T1 --lines 3-7 --label assignment",
@@ -1437,18 +1465,18 @@ window.__FLIP_BOOK__ = {
         },
         {
           "command": "flip log 'handoff: origins bounded; gaps mapped; roadmap null scoped'",
-          "stdout": "logged 2026-11-22T21:13:56Z \u00b7 agent:harness"
+          "stdout": "logged 2026-11-24T13:58:43Z \u00b7 agent:harness"
         },
         {
           "command": "flip session end okf-origins --summary 'Eight verified claims; four assignment questions answered; transcript captured.'",
-          "stdout": "ended /tmp/flip-site-veotjkil/okf-origins/sessions/2026-11-22T2113-okf-origins.md"
+          "stdout": "ended /tmp/flip-site-yl04jbn_/okf-origins/sessions/2026-11-24T1358-okf-origins.md"
         },
         {
           "command": "flip doctor",
           "stdout": "ok: no findings"
         }
       ],
-      "stdout": "sources/raw/T1.md  (11 lines)\ncaptured as T1  /tmp/flip-site-veotjkil/okf-origins/references/conversation.md\nlinked from /tmp/flip-site-veotjkil/okf-origins/sessions/2026-11-22T2113-okf-origins.md\npin a passage: flip transcript excerpt T1 --lines A-B --label <label>\n\nT1\u00a7assignment\n  lines 3-7, 45 words, sha256 4b62928da440\n  cite it: flip claim add \"\u2026\" --source T1\u00a7assignment\n  \u2026or --about T1\u00a7assignment if the claim is about what was SAID here \u2014 a conversation is the only witness to itself, so that citation is never counted and owes `flip claim test --probe attribution` instead\n\nlogged 2026-11-22T21:13:56Z \u00b7 agent:harness\n\nended /tmp/flip-site-veotjkil/okf-origins/sessions/2026-11-22T2113-okf-origins.md\n\nok: no findings",
+      "stdout": "sources/raw/T1.md  (11 lines)\ncaptured as T1  /tmp/flip-site-yl04jbn_/okf-origins/references/conversation.md\nlinked from /tmp/flip-site-yl04jbn_/okf-origins/sessions/2026-11-24T1358-okf-origins.md\npin a passage: flip transcript excerpt T1 --lines A-B --label <label>\n\nT1\u00a7assignment\n  lines 3-7, 45 words, sha256 4b62928da440\n  cite it: flip claim add \"\u2026\" --source T1\u00a7assignment\n  \u2026or --about T1\u00a7assignment if the claim is about what was SAID here \u2014 a conversation is the only witness to itself, so that citation is never counted and owes `flip claim test --probe attribution` instead\n\nlogged 2026-11-24T13:58:43Z \u00b7 agent:harness\n\nended /tmp/flip-site-yl04jbn_/okf-origins/sessions/2026-11-24T1358-okf-origins.md\n\nok: no findings",
       "exit_code": 0,
       "refused": false,
       "tree": [
@@ -1510,6 +1538,10 @@ window.__FLIP_BOOK__ = {
         },
         {
           "path": "log.md",
+          "state": "changed"
+        },
+        {
+          "path": "log/events.jsonl",
           "state": "changed"
         },
         {
@@ -1597,7 +1629,7 @@ window.__FLIP_BOOK__ = {
           "state": "same"
         },
         {
-          "path": "sessions/2026-11-22T2113-okf-origins.md",
+          "path": "sessions/2026-11-24T1358-okf-origins.md",
           "state": "changed"
         },
         {
@@ -1664,7 +1696,7 @@ window.__FLIP_BOOK__ = {
       "record": {
         "lang": "markdown",
         "caption": "The transcript is a T# source under the same custody rules as every other input.",
-        "text": "---\ntype: Source\nid: T1\naliases:\n- T1\ntitle: conversation.md\ndescription: conversation source\nmedium: conversation\nparticipants:\n- human:maintainer\n- agent:harness\nmodel: agent-harness\nlines: 11\nlocal: sources/raw/T1.md\ngrade: '?'\nstatus: captured\ngenerated:\n  by: agent:harness\n  at: '2026-11-22T21:13:56Z'\nexcerpts:\n- label: assignment\n  lines:\n  - 3\n  - 7\n  sha256: 4b62928da44003b4403d03fb3415cd6fc24753128abd1909673598b0714dd2a3\n  words: 45\n---\n\n# conversation.md\n\n## Excerpts\n\n### assignment\n\nLines 3\u20137 \u00b7 sha256 `4b62928da440`\n\n> **Human:** let's use flip to track the origins of OKF and what precedents it\n> builds on, what critiques / gaps currently exist, and whether there's any\n> evidence of a roadmap or other planning.\n>",
+        "text": "---\ntype: Source\nid: T1\naliases:\n- T1\ntitle: conversation.md\ndescription: conversation source\nmedium: conversation\nparticipants:\n- human:maintainer\n- agent:harness\nmodel: agent-harness\nlines: 11\nlocal: sources/raw/T1.md\ngrade: '?'\nstatus: captured\ngenerated:\n  by: agent:harness\n  at: '2026-11-24T13:58:43Z'\nexcerpts:\n- label: assignment\n  lines:\n  - 3\n  - 7\n  sha256: 4b62928da44003b4403d03fb3415cd6fc24753128abd1909673598b0714dd2a3\n  words: 45\n---\n\n# conversation.md\n\n## Excerpts\n\n### assignment\n\nLines 3\u20137 \u00b7 sha256 `4b62928da440`\n\n> **Human:** let's use flip to track the origins of OKF and what precedents it\n> builds on, what critiques / gaps currently exist, and whether there's any\n> evidence of a roadmap or other planning.\n>",
         "truncated": true,
         "path": "references/conversation.md"
       }
@@ -1752,6 +1784,10 @@ window.__FLIP_BOOK__ = {
           "state": "same"
         },
         {
+          "path": "log/events.jsonl",
+          "state": "same"
+        },
+        {
           "path": "log/log.jsonl",
           "state": "same"
         },
@@ -1836,7 +1872,7 @@ window.__FLIP_BOOK__ = {
           "state": "same"
         },
         {
-          "path": "sessions/2026-11-22T2113-okf-origins.md",
+          "path": "sessions/2026-11-24T1358-okf-origins.md",
           "state": "same"
         },
         {
