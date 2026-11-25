@@ -1396,3 +1396,77 @@
   .hero__state + .hero__state { border-left:0; }
 }
 .fb__exchange:target, .nb tr:target { outline:2px solid var(--accent); outline-offset:-2px; }
+
+/* Lyra Admiralty. The case file carries Flip's source IDs and status text. */
+@font-face { font-family: 'Instrument Serif'; src: url('fonts/instrument-serif-normal.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'Source Sans 3'; src: url('fonts/source-sans-3-normal.woff2') format('woff2'); font-weight: 200 900; font-display: swap; }
+@font-face { font-family: 'Fragment Mono'; src: url('fonts/fragment-mono-normal.woff2') format('woff2'); font-display: swap; }
+
+:root {
+  --bg: #f4f7f8; --surface: #fff; --surface-2: #e6eff4;
+  --border: #c9d6e0; --border-strong: #8ba2b9;
+  --text: #0f2a4a; --text-2: #294562; --muted: #3d5674;
+  --accent: #ac1f60; --accent-strong: #90184e;
+  --code-bg: #e9f0f4; --selection: #f2c5da;
+  --font-ui: 'Source Sans 3', Arial, sans-serif; --font-prose: var(--font-ui);
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-numeric: 'Fragment Mono', monospace;
+}
+:root[data-theme="dark"] {
+  --bg: #0b1e36; --surface: #102d4c; --surface-2: #173957;
+  --border: #37536d; --border-strong: #68829e; --text: #f4f7f8;
+  --text-2: #d1e2ed; --muted: #a9bdd4; --accent: #f480b4;
+  --accent-strong: #ffadd2; --code-bg: #0b233b; --selection: #6d3254;
+}
+h1,h2,h3,h4 { font-weight: 400; }
+.site-nav,.site-foot { background: #0b1e36; color: #cfe4ee; }
+.site-nav { min-height: 56px; padding-inline: max(1rem, calc((100vw - 69rem) / 2)); }
+.site-nav .brand { font: 2rem/1 var(--font-display); color: #fff; }
+.site-nav a,.site-nav .nav-toggle,.site-foot a { color: #eaf2f6; }
+.site-nav a[aria-current="page"],.site-nav .brand[aria-current="page"] { color: #ff96c6; }
+.site-nav a:hover { background: #25435f; color: white; }
+.site-foot a { text-decoration: underline; text-underline-offset: 3px; }
+.site-foot p { color: #cfe4ee; }
+:focus-visible { outline: 3px solid #c2266f; outline-offset: 3px; }
+.site-nav :focus-visible,.site-foot :focus-visible,.hero__intro :focus-visible { outline-color: #ff96c6; }
+
+.hero {
+  max-width: none; padding: clamp(2.75rem, 6vw, 6rem) max(1.25rem, calc((100vw - 69rem) / 2));
+  background-color: #102f50;
+  background-image: radial-gradient(circle, #37516c 1px, transparent 1.2px);
+  background-size: 20px 20px;
+}
+.hero h1 { color: #f4f7f8; font: 400 clamp(3.2rem, 5.5vw, 5.25rem)/.98 var(--font-display); max-width: 12ch; }
+.hero__dek { color: #d7e7f1; line-height: 1.5; max-width: 41ch; }
+.hero__kicker { color: #cfe4ee; }
+.hero__kicker .badge { background: #cfe4ee; color: #0f2a4a; }
+.hero__intro .btn--solid { background: #f480b4; color: #0b1e36; border-color: transparent; }
+.hero__intro .btn--quiet { color: #f4f7f8; border-color: #8099b0; }
+.hero__intro .btn:hover { background: #f4e7ef; color: #0b1e36; }
+.hero__comparison {
+  position: relative; display: block; overflow: visible; color: #0f2a4a;
+  padding: clamp(1.3rem, 3vw, 2.8rem); background: #f4f7f8;
+  border: 0; border-radius: 0 5px 5px 0; border-left: 6px solid #c2266f;
+  box-shadow: 5px 5px 0 #a9bdd4, 10px 10px 0 #3d5674;
+}
+.folio-mast,.folio-label,.folio-sources { font-family: var(--font-numeric); }
+.folio-mast { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+  padding-bottom: .7rem; border-bottom: 2px solid #0f2a4a; font-size: .79rem; }
+.hero__comparison h2 { color: #0f2a4a; margin: 1.1rem 0; font: 400 clamp(2rem,3.7vw,3.4rem)/1.03 var(--font-display); }
+.folio-entry { padding: .9rem 0; border-top: 1px solid #b9cad7; }
+.folio-entry p { line-height: 1.42; margin-bottom: .25rem; }
+.folio-entry .folio-label { font-size: .78rem; color: #9b1d58; margin-bottom: .4rem; }
+.folio-sources { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .85rem; }
+.folio-sources a { color: #0f2a4a; background: #d9e8f0; padding: .25rem .55rem;
+  border-bottom: 2px solid #849eb4; font-size: .85rem; }
+.folio-sources a:hover { background: #f3c9df; }
+@media(min-width:850px) { .hero { grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr); } }
+.page > header:first-child,.fb__lede,.nb__lede {
+  border-top: 3px solid var(--accent); border-bottom: 1px solid var(--border);
+  padding-block: clamp(1.5rem,4vw,3rem); margin-bottom: 2rem;
+}
+.page > header h1,.fb__lede h1,.nb__lede h1,.page--narrow > h1 { font: 400 clamp(3rem,6vw,5rem)/1.02 var(--font-display); }
+.page > section > h2 { font-size: clamp(2.3rem,4vw,3.4rem); line-height: 1.08; }
+.section-kicker { color: var(--accent); }
+.home-proof { background: var(--surface-2); padding: clamp(1.25rem,4vw,3rem); }
+.fb__say .bubble b,.fb__agent > .bubble > b { opacity: 1; color: var(--muted); }

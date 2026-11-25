@@ -194,7 +194,7 @@ differing in kind.
   commands, clear authority boundaries, and real CLI output under the hood.
 
 Design DNA held constant across all routes: the type roles and spacing
-rhythm from artoo-kit tokens, a single accent, the monospace record voice for
+rhythm from artoo-kit, the Lyra Admiralty navy shell and chart paper, magenta actions, locally served Instrument Serif headings and Source Sans 3 prose, the monospace record voice for
 anything that is literal file content, and the recurring structural motif of
 **assignment → finding → receipt**. The CLI belongs inside the receipt, not in
 the human's conversation.

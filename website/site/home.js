@@ -10,6 +10,11 @@
   var kit = window.flipsite;
   if (!kit) return;
 
+  // The notebook adds individual source rows when JavaScript is available.
+  document.querySelectorAll(".folio-sources [data-source-id]").forEach(function (link) {
+    link.hash = link.dataset.sourceId;
+  });
+
   function step(id) {
     if (!book || !book.steps) return null;
     return book.steps.filter(function (s) { return s.id === id; })[0] || null;
