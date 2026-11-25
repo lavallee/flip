@@ -21,6 +21,9 @@
   margin-left: auto;
 }
 
+/* Deep links must remain readable beneath the sticky shared navigation. */
+:target { scroll-margin-top: 5rem; }
+
 .site-foot {
   border-top: 1px solid var(--border);
   margin-top: var(--sp-24);
@@ -1386,3 +1389,10 @@
 .nb__md table { min-width: 0; font-size: var(--text-xs); margin: 0; }
 .nb__md .table-wrap { margin: 0 0 var(--sp-3); }
 .nb__md hr { border: 0; border-top: 1px solid var(--border); margin: var(--sp-4) 0; }
+
+@media (min-width: 850px) {
+  .hero { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:clamp(2rem,5vw,5rem); align-items:center; }
+  .hero__comparison { margin-top:0; grid-template-columns:1fr; }
+  .hero__state + .hero__state { border-left:0; }
+}
+.fb__exchange:target, .nb tr:target { outline:2px solid var(--accent); outline-offset:-2px; }

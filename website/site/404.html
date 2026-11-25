@@ -13,9 +13,10 @@
 </head>
 <body>
 
-<nav class="site-nav">
+<nav class="site-nav" aria-label="Primary">
   <a class="brand" href="index.html">flip</a>
-  <div class="nav-links">
+  <button class="nav-toggle" type="button" aria-label="Menu" aria-controls="primary-navigation" aria-expanded="false">menu</button>
+  <div class="nav-links" id="primary-navigation">
     <a href="flipbook.html">Flipbook</a>
     <a href="spec.html">Format</a>
     <a href="start.html">Start</a>
@@ -37,6 +38,23 @@
   </ul>
 </main>
 
+<footer class="site-foot" aria-label="Project information">
+  <div class="site-foot__inner">
+    <p>flip is built by <a href="https://github.com/lavallee">Marc Lavallee</a>.</p>
+    <p>
+      <a href="https://github.com/lavallee/flip">Source</a> ·
+      <a href="https://github.com/lavallee/flip/blob/main/LICENSE">MIT license</a> ·
+      <a href="https://github.com/lavallee/flip/blob/main/SPEC.md">Format spec</a> ·
+      <a href="https://github.com/lavallee/flip/blob/main/docs/agent-orientation.md">Agent orientation</a> ·
+      <a href="https://github.com/lavallee/flip-examples">Example notebooks</a> ·
+      <a href="https://pypi.org/project/flip-notebook/">PyPI</a> ·
+      <a href="https://lyra-forge.com/">Lyra Forge</a> ·
+      <a href="https://www.lyra-tk.com/">Lyra TK</a>
+    </p>
+  </div>
+</footer>
+
+<script src="site.js"></script>
 <script src="lib/artoo-kit/kit.js"></script>
 </body>
 </html>

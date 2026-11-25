@@ -62,6 +62,48 @@
 
   enhance();
 
+  // -- shared mobile navigation -------------------------------------------
+  // The kit owns the visual toggle; this layer supplies keyboard and
+  // assistive-technology state across every route, including the 404.
+  var nav = document.querySelector(".site-nav");
+  var menuButton = nav && nav.querySelector('.nav-toggle:not([data-theme-toggle])');
+  var navLinks = nav && nav.querySelector(".nav-links");
+  if (nav && menuButton && navLinks) {
+    menuButton.setAttribute("aria-controls", "primary-navigation");
+    menuButton.setAttribute("aria-expanded", "false");
+    navLinks.id = "primary-navigation";
+
+    document.addEventListener("click", function (event) {
+      if (event.target.closest('.nav-toggle:not([data-theme-toggle])')) {
+        menuButton.setAttribute(
+          "aria-expanded",
+          String(!navLinks.classList.contains("open"))
+        );
+      } else if (navLinks.contains(event.target)) {
+        navLinks.classList.remove("open");
+        menuButton.setAttribute("aria-expanded", "false");
+      } else if (!nav.contains(event.target)) {
+        navLinks.classList.remove("open");
+        menuButton.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && navLinks.classList.contains("open")) {
+        navLinks.classList.remove("open");
+        menuButton.setAttribute("aria-expanded", "false");
+        menuButton.focus();
+      }
+    });
+
+    window.addEventListener("resize", function () {
+      if (window.matchMedia("(min-width: 721px)").matches) {
+        navLinks.classList.remove("open");
+        menuButton.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+
   // -- shared helpers exposed to the page scripts ---------------------------
   window.flipsite = {
     /** Attach copy buttons to any command lines added since the last call. */

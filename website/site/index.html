@@ -14,9 +14,9 @@
 </head>
 <body>
 
-<nav class="site-nav">
-  <a class="brand" href="index.html">flip</a>
-  <button class="nav-toggle" type="button" aria-label="Menu">menu</button>
+<nav class="site-nav" aria-label="Primary">
+  <a class="brand" href="index.html" aria-current="page">flip</a>
+  <button class="nav-toggle" type="button" aria-label="Menu" aria-controls="primary-navigation" aria-expanded="false">menu</button>
   <div class="nav-links">
     <a href="flipbook.html">Flipbook</a>
     <a href="spec.html">Format</a>
@@ -30,33 +30,26 @@
   <div class="hero__intro">
     <p class="hero__kicker">
       <span>Reporter's notebooks for agents</span>
-      <span class="badge badge--accent" data-fact="version">v0.21</span>
+      <span class="badge badge--accent" data-fact="version">Release</span>
       <span data-fact="spec-status">draft spec</span>
     </p>
-    <h1>Help your agent be a reporter, not a stenographer.</h1>
-    <p class="hero__dek">Deep-research agents hand you a fluent report and a list of
-      URLs. flip keeps the record underneath: every source captured and judged, every
-      claim at an honest status, every open question named, in plain files that
-      outlive the session.</p>
+    <h1>Show the evidence behind your agent’s answer.</h1>
+    <p class="hero__dek">Flip keeps a reporting notebook in plain files. Open a claim to see what the agent checked, what still needs evidence, and where the next researcher can pick up.</p>
     <p class="hero__actions">
-      <a class="btn btn--solid" href="flipbook.html">See it happen</a>
+      <a class="btn btn--solid" href="flipbook.html#step-refused">Inspect the refused claim</a>
       <a class="btn btn--quiet" href="start.html#install">Get flip</a>
     </p>
   </div>
-  <div class="hero__comparison" aria-label="Research without and with flip">
+  <div class="hero__comparison" aria-label="Claim C6 in the Open Knowledge Format investigation">
     <article class="hero__state hero__state--without">
-      <p class="hero__state-label">Without flip</p>
-      <h2>A polished answer with no trail</h2>
-      <p>A four-page report says public EV-charger reliability improved. Twelve URLs
-        sit at the bottom. Six weeks later, nobody can tell what was measured, what
-        was inferred, or what was never checked.</p>
+      <p class="hero__state-label">C6 · First verification attempt</p>
+      <h2>One proposal suggests a pattern.</h2>
+      <p>The agent tried to verify a claim about the topics people were proposing for the Open Knowledge Format. The notebook held one independent proposal. Flip required two independent sources or a grade-A source.</p>
     </article>
     <article class="hero__state hero__state--with">
-      <p class="hero__state-label">With flip</p>
-      <h2>A record another agent can continue</h2>
-      <p>The narrow claim is verified against two captured sources. The national
-        trend stays unresolved, with the surfaces checked and the evidence that
-        should reopen the question recorded.</p>
+      <p class="hero__state-label">C6 · Finished notebook</p>
+      <h2>Six sources support the claim.</h2>
+      <p>The agent checked more proposals. The finished claim traces five recurring topics to six sources. The replay preserves the earlier refusal, so you can inspect both decisions.</p>
     </article>
   </div>
 </header>
@@ -294,7 +287,7 @@
 
     <h3>The OKF profile and spec remain drafts</h3>
     <p>flip's provenance vocabulary has not been submitted to, reviewed by, or endorsed
-      by OKF maintainers. The spec is <span data-fact="spec-status">draft v0.21</span>,
+      by OKF maintainers. The spec is <span data-fact="spec-status">draft</span>,
       not 1.0 or frozen. Migration exists because the format has moved and may move
       again.</p>
   </section>
@@ -320,20 +313,26 @@
     <p class="lede">Generated from this site's flip notebook by
       <code>flip export json</code> at build time. Unconfirmed and superseded claims
       stay visible rather than disappearing from the story.</p>
+    <p><a href="https://github.com/lavallee/flip/tree/main/website/notebook">Read the notebook behind this site</a></p>
     <div data-artoo-provenance></div>
   </section>
 
 </main>
 
-<footer class="site-foot">
+
+
+<footer class="site-foot" aria-label="Project information">
   <div class="site-foot__inner">
-    <p>Built by <a href="https://github.com/lavallee">Marc Lavallee</a>. MIT licensed.</p>
+    <p>flip is built by <a href="https://github.com/lavallee">Marc Lavallee</a>.</p>
     <p>
-      <a href="https://github.com/lavallee/flip">Repository</a> ·
+      <a href="https://github.com/lavallee/flip">Source</a> ·
+      <a href="https://github.com/lavallee/flip/blob/main/LICENSE">MIT license</a> ·
+      <a href="https://github.com/lavallee/flip/blob/main/SPEC.md">Format spec</a> ·
       <a href="https://github.com/lavallee/flip/blob/main/docs/agent-orientation.md">Agent orientation</a> ·
-      <a href="https://github.com/lavallee/flip/tree/main/website/notebook">This site's notebook</a> ·
-      <a href="https://github.com/lavallee/flip-examples">Examples</a> ·
-      <a href="https://pypi.org/project/flip-notebook/">PyPI</a>
+      <a href="https://github.com/lavallee/flip-examples">Example notebooks</a> ·
+      <a href="https://pypi.org/project/flip-notebook/">PyPI</a> ·
+      <a href="https://lyra-forge.com/">Lyra Forge</a> ·
+      <a href="https://www.lyra-tk.com/">Lyra TK</a>
     </p>
   </div>
 </footer>

@@ -162,7 +162,14 @@
 
     agent.appendChild(reply);
 
-    agent.appendChild(renderDetails(step));
+    var receipt = renderDetails(step);
+    agent.appendChild(receipt);
+    if (step.id === "refused") {
+      receipt.open = ["#refused", "#step-refused"].includes(window.location.hash);
+      var follow = el("a", "spec-link", "Inspect C6 and its six sources in the finished notebook →");
+      follow.href = "notebook.html#C6";
+      agent.appendChild(follow);
+    }
     exchange.appendChild(agent);
     return exchange;
   }

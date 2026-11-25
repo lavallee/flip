@@ -14,9 +14,9 @@
 </head>
 <body>
 
-<nav class="site-nav">
+<nav class="site-nav" aria-label="Primary">
   <a class="brand" href="index.html">flip</a>
-  <button class="nav-toggle" type="button" aria-label="Menu">menu</button>
+  <button class="nav-toggle" type="button" aria-label="Menu" aria-controls="primary-navigation" aria-expanded="false">menu</button>
   <div class="nav-links">
     <a href="flipbook.html">Flipbook</a>
     <a href="spec.html">Format</a>
@@ -224,23 +224,29 @@
 
 </main>
 
-<footer class="site-foot">
+<p class="demo-note nb__footnote" id="nb-vintage">
+  Generated at build time by replaying a compact, offline-safe version of the OKF
+  origin investigation through the real CLI.
+  <a href="flipbook.html">Read the reporting conversation →</a>
+  The complete public notebook retains the original captures and full transcript in
+  <a href="https://github.com/lavallee/flip-examples/tree/main/okf-origins">flip-examples</a>
+  (<a href="https://lavallee.github.io/flip-examples/okf-origins/">rendered</a>).
+</p>
+
+<footer class="site-foot" aria-label="Project information">
   <div class="site-foot__inner">
-    <p>Built by <a href="https://github.com/lavallee">Marc Lavallee</a>. MIT licensed.</p>
+    <p>flip is built by <a href="https://github.com/lavallee">Marc Lavallee</a>.</p>
     <p>
-      <a href="https://github.com/lavallee/flip">Repository</a> ·
-      <a href="https://github.com/lavallee/flip/blob/main/SPEC.md">Spec</a> ·
-      <a href="https://pypi.org/project/flip-notebook/">PyPI</a>
+      <a href="https://github.com/lavallee/flip">Source</a> ·
+      <a href="https://github.com/lavallee/flip/blob/main/LICENSE">MIT license</a> ·
+      <a href="https://github.com/lavallee/flip/blob/main/SPEC.md">Format spec</a> ·
+      <a href="https://github.com/lavallee/flip/blob/main/docs/agent-orientation.md">Agent orientation</a> ·
+      <a href="https://github.com/lavallee/flip-examples">Example notebooks</a> ·
+      <a href="https://pypi.org/project/flip-notebook/">PyPI</a> ·
+      <a href="https://lyra-forge.com/">Lyra Forge</a> ·
+      <a href="https://www.lyra-tk.com/">Lyra TK</a>
     </p>
   </div>
-  <p class="demo-note nb__footnote" id="nb-vintage">
-    Generated at build time by replaying a compact, offline-safe version of the OKF
-    origin investigation through the real CLI.
-    <a href="flipbook.html">Read the reporting conversation →</a>
-    The complete public notebook retains the original captures and full transcript in
-    <a href="https://github.com/lavallee/flip-examples/tree/main/okf-origins">flip-examples</a>
-    (<a href="https://lavallee.github.io/flip-examples/okf-origins/">rendered</a>).
-  </p>
 </footer>
 
 <script src="data/demo-notebook.js"></script>

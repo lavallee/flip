@@ -122,7 +122,7 @@ def test_flipbook_demonstrates_a_real_verification_refusal():
 def test_navigation_distinguishes_the_format_tour_from_the_spec():
     for name in PAGES:
         html = (SITE / name).read_text(encoding="utf-8")
-        nav = re.search(r'<nav class="site-nav">([\s\S]*?)</nav>', html)
+        nav = re.search(r'<nav class="site-nav"[^>]*>([\s\S]*?)</nav>', html)
         assert nav, f"{name} has no site nav"
         assert '>Format</a>' in nav.group(1), f"{name} calls the visual tour Spec"
 
@@ -145,3 +145,16 @@ def test_spec_anchors_use_the_github_slug_algorithm():
     }
     actual = {section["anchor"] for section in payload["sections"]}
     assert actual == expected, "spec anchors drifted from SPEC.md headings"
+
+def test_home_proof_path_matches_generated_records():
+    import json
+
+    home = (SITE / "index.html").read_text()
+    assert 'href="flipbook.html#step-refused">Inspect the refused claim' in home
+    replay = json.loads((SITE / "data/flipbook.json").read_text())
+    refusal = next(step for step in replay["steps"] if step["id"] == "refused")
+    assert "cannot verify C6" in refusal["stdout"]
+    book = json.loads((SITE / "data/demo-notebook.json").read_text())
+    claim = next(claim for claim in book["claims"] if claim["id"] == "C6")
+    assert claim["status"] == "verified"
+    assert claim["corroboration"] == 6
