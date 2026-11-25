@@ -1469,3 +1469,4 @@ h1,h2,h3,h4 { font-weight: 400; }
 .page > section > h2 { font-size: clamp(2.3rem,4vw,3.4rem); line-height: 1.08; }
 .section-kicker { color: var(--accent); }
 .home-proof { background: var(--surface-2); padding: clamp(1.25rem,4vw,3rem); }
+.fb__say .bubble b,.fb__agent > .bubble > b { opacity: 1; color: var(--muted); }
